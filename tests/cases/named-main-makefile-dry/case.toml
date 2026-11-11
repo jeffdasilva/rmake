@@ -1,0 +1,10 @@
+id = "named-main-makefile-dry"
+requirement = "includes.named-remake-mode"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-f", "./Makefile", "-n", "Makefile", "all"]
+provenance = "Original fixture for GNU Make 4.4.1 named makefile build modes."
+
+[expected]
+exit_code = 0
+stdout = "printf 'changed\\n' >> changed\nmake: 'Makefile' is up to date.\nprintf 'ordinary\\n'\n"
+stderr = ""

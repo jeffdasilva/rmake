@@ -131,6 +131,8 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += duplicate_models(worker, markers)
     results += settled_mode_models(worker, markers)
     results += inert_optional_mode_models(worker, markers)
+    results += direct_optional_mode_models(worker, markers)
+    results += named_source_mode_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
         results += load_goal_summary_models(worker, markers)
@@ -550,6 +552,107 @@ def inert_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> list
                                     environment, expected, effects,
                                     updates={**markers, **updates, **ordinary_updates}, mtimes_ns=times)
                 results.append(HeldModel(model, True, before_second, checkpoint, before_second_stdout=b''))
+    return results
+
+
+def direct_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = '.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    ordinary = ('all: result\n'
+                'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT))printf "ordinary\\n" > "$@"\n')
+    includes = '-include left.gen right.gen\n'
+    success = (
+        'left.gen: ; @python3 worker.py left include\n'
+        'right.gen: ; @python3 worker.py right include\n'
+    )
+    failed = (
+        'left.gen: ; @python3 worker.py left fail\n'
+        'right.gen:\n'
+        '\t@python3 worker.py right success\n'
+        '\t@$(file >>seen,right-tail-expanded)printf "right-tail\\n" >> seen\n'
+    )
+    expanded = BEFORE_FIRST + b'right-tail-expanded\n'
+    restarted = BEFORE_SECOND + b'right\nread-1\n'
+    generated = {'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
+    modes = (
+        ('n', 0, b'printf "ordinary\\n" > "result"\n', {}),
+        ('q', 1, b'', {}),
+        ('t', 0, b'touch result\n', {'result': b''}),
+    )
+    cases = (
+        ('success', includes + success, (), BEFORE_FIRST, restarted, b'', b'loaded-loaded', generated),
+        ('mixed-success', '-include left.gen\ninclude right.gen\n' + success, (),
+         BEFORE_FIRST, restarted, b'', b'loaded-loaded', generated),
+        ('failed', includes + failed, (), expanded,
+         expanded + b'left\nright\nright-tail\n', b'left\n', b'-', {}),
+        ('failed-keep', includes + failed, ('-k',), expanded,
+         expanded + b'left\nright\nright-tail\n', b'left\n', b'-', {}),
+    )
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for name, source, flags, before_first, seen, prefix, value, updates in cases:
+            files = {'Makefile': (header + source + ordinary).encode(), 'worker.py': worker,
+                     'seen': ANCHOR}
+            for mode, status, stdout, ordinary_updates in modes:
+                args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}',
+                        '-' + mode, *flags, 'all')
+                expected = {'exit_code': status, 'stdout_template_hex': (prefix + stdout).hex(),
+                            'stderr_template_hex': ''}
+                effects = seen if mode == 't' else seen + b'ordinary-' + value + b'\n'
+                model = debug.Model(f'direct-optional-mode-{name}-{mode}-{transport}', files, args,
+                                    {'GNUMAKEFLAGS': ''}, expected, effects,
+                                    updates={**markers, **updates, **ordinary_updates},
+                                    mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                results.append(HeldModel(model, True, before_first + b'left\n', before_first,
+                                         before_second_stdout=prefix))
+    return results
+
+
+def named_source_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = '.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    rules = (
+        'left.gen: ; @python3 worker.py left include\n'
+        'right.gen: ; @python3 worker.py right include\n'
+        'all: result\n'
+        'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT))printf "ordinary\\n" > "$@"\n'
+    )
+    right = {name: content for name, content in markers.items() if name.startswith('right.')}
+    right['right.gen'] = b'RIGHT := loaded\n'
+    read = BEFORE_FIRST + b'right\n'
+    restarted = read + b'read-1\n'
+    dry_command = b'python3 worker.py left include\n'
+    touch_command = b'touch left.gen\n'
+    current = b"make: 'left.gen' is up to date.\n"
+    ordinary = b'printf "ordinary\\n" > "result"\n'
+    missing = b"make: *** No rule to make target 'left.gen'."
+    modes = (
+        ('dry', '-n', False, 0, dry_command, dry_command + current + ordinary, b'',
+         restarted + b'ordinary--loaded\n', {}),
+        ('query', '-q', False, 1, b'', b'', b'', read + b'ordinary--\n', {}),
+        ('touch', '-t', False, 0, touch_command, current + b'touch result\n', b'',
+         restarted, {'left.gen': b'', 'result': b''}),
+    )
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for directive in ('include', '-include'):
+            cases = modes if directive == 'include' else (modes[0], modes[2],
+                ('query', '-q', False, 2, b'', b'', missing + b'  Stop.\n', read, {}),
+                ('query-keep', '-q', True, 1, b'', b'', missing + b'\n',
+                 read + b'ordinary--\n', {}))
+            files = {'Makefile': (header + directive + ' left.gen right.gen\n' + rules).encode(),
+                     'worker.py': worker, 'seen': ANCHOR}
+            policy = 'required' if directive == 'include' else 'optional'
+            for name, flag, keep, status, prefix, suffix, stderr, seen, updates in cases:
+                args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}', flag)
+                if keep:
+                    args += ('-k',)
+                expected = {'exit_code': status, 'stdout_template_hex': (prefix + suffix).hex(),
+                            'stderr_template_hex': stderr.hex()}
+                model = debug.Model(f'named-source-mode-{policy}-{name}-{transport}', files,
+                                    (*args, './left.gen', 'all'), {'GNUMAKEFLAGS': ''}, expected,
+                                    seen, updates={**right, **updates},
+                                    mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                results.append(HeldModel(model, False, None, before_first_stdout=prefix,
+                                         release_order=('right', 'left')))
     return results
 
 

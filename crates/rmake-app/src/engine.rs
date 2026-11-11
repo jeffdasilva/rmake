@@ -3139,8 +3139,8 @@ impl Engine {
                 self.expansion_error(None, &error);
                 return 2;
             }
-            // Makefiles are ordinary build goals, but -n/-q/-t never suppress their
-            // recipes. A fresh database is constructed only when a file changed.
+            // A makefile named on the command line uses the requested build mode.
+            // All other makefile visits can run recipes even under -n/-q/-t.
             let modes = (
                 self.options.dry_run,
                 self.options.question,
@@ -3204,6 +3204,7 @@ impl Engine {
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
             let mut visited = MakefileVisits::new();
             let mut optional_remake_failed = false;
+            let mut remake_question = false;
             let required_names: HashSet<_> = read_files
                 .iter()
                 .filter(|(file, _)| !file.optional)
@@ -3224,6 +3225,13 @@ impl Engine {
                     continue;
                 }
                 let name = makefile.name.as_slice();
+                let named_source = ordinary_mode
+                    && self.options.goals.iter().any(|goal| {
+                        goal.as_slice() == rmake_core::filenames::without_dot_prefix(name)
+                    });
+                self.options.dry_run = named_source && modes.0;
+                self.options.question = named_source && modes.1;
+                self.options.touch = named_source && modes.2;
                 let visit = match visited.entry(name) {
                     std::collections::hash_map::Entry::Vacant(visit) => visit,
                     std::collections::hash_map::Entry::Occupied(first) => {
@@ -3369,6 +3377,15 @@ impl Engine {
                     || (pending_peer
                         && result.optional_group_peer_failure
                         && self.cached_optional_group_peer_failure(name));
+                if result.question_outdated {
+                    if !failed && !optional_remake_failed {
+                        remake_question = true;
+                    } else if !remake_question && !optional {
+                        // An earlier failure selects the remake error pass,
+                        // which also reports required out-of-date sources.
+                        failed_remakes.entry(name).or_insert((before, false));
+                    }
+                }
                 failed |= result.failed && !optional;
                 optional_remake_failed |= result.failed && optional;
                 if result.failed && !result.fatal {
@@ -3392,10 +3409,13 @@ impl Engine {
                         .remove(&makefile.name);
                     // A completed recipe can invalidate the makefile's time.
                     // Expansion effects alone leave its cached observation intact.
-                    if matches!(
-                        result.completion,
-                        CompletionTime::Refresh | CompletionTime::ArchiveUnknown
-                    ) {
+                    if !self.options.dry_run
+                        && !self.options.question
+                        && (matches!(
+                            result.completion,
+                            CompletionTime::Refresh | CompletionTime::ArchiveUnknown
+                        ) || (self.options.touch && result.ran))
+                    {
                         changed |= self.modified(&makefile.name) != before;
                     }
                 }
@@ -3472,9 +3492,11 @@ impl Engine {
                 self.remove_intermediates();
                 return 2;
             }
+            // A question verdict leaves the loaded makefiles in use and
+            // prevents later keep-going failures from deciding the phase.
+            failed = (failed && !remake_question) || !skipped_errors.is_empty();
             // These are reported after the remake chain, using the locale
             // and gettext domain that its recipes left in effect.
-            failed |= !skipped_errors.is_empty();
             for error in skipped_errors.iter().rev() {
                 let detail = error.bytes();
                 emit_output(
@@ -3491,7 +3513,7 @@ impl Engine {
             }
             // Use the settled peer outcomes and the original visit timestamps
             // for the required read reports and the restart decision.
-            if !failed_remakes.is_empty() || optional_remake_failed {
+            if !remake_question && (!failed_remakes.is_empty() || optional_remake_failed) {
                 for (makefile, skip) in read_files.iter().filter(|(file, _)| !file.optional) {
                     let name = makefile.name.as_slice();
                     // A later optional group can replace an earlier required
@@ -3536,7 +3558,7 @@ impl Engine {
                     }
                 }
             }
-            if changed {
+            if changed && !remake_question {
                 self.wait_all_jobs();
                 self.remove_intermediates();
                 break 'makefiles true;
@@ -3920,7 +3942,7 @@ impl Engine {
             return false;
         }
         if read_files.iter().any(|(file, skip)| file.optional && !skip)
-            && !self.optional_mode_sources_have_no_rules(read_files)
+            && !self.optional_mode_sources_settle(read_files)
         {
             return false;
         }
@@ -3934,11 +3956,11 @@ impl Engine {
         })
     }
 
-    fn optional_mode_sources_have_no_rules(&self, read_files: &[(Makefile, bool)]) -> bool {
+    fn optional_mode_sources_settle(&self, read_files: &[(Makefile, bool)]) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
-        // The frozen rule table rules out dispatch by an optional source.
-        // A physical write can still affect the next reader after a restart.
+        // Simple optional roots can run their own recipes without abandoning
+        // running prerequisites when a remake fails.
         if !self.options.no_rules
             || self.options.check_symlink_times
             || self.assumptions.is_some()
@@ -3960,7 +3982,13 @@ impl Engine {
                     && !name.starts_with(b"-l")
                     && archive_parts(name).is_none()
                     && names.insert(name)
-                    && (!file.optional || !self.database.rules.contains_key(name)))
+                    && (!file.optional
+                        || self.database.rules.get(name).is_none_or(|rule| {
+                            rule.dependencies.is_empty()
+                                && rule.secondary.is_none()
+                                && rule.group.is_none()
+                                && rule.double_colon.is_none()
+                        })))
         })
     }
 
@@ -7757,7 +7785,7 @@ impl Engine {
                 && dropped.is_none_or(|dropped| !dropped.contains(&dependency.name))
                 && self.done.get(&dependency.name).map_or_else(
                     || self.optional_remake_failures.contains_key(&dependency.name),
-                    |child| child.failed,
+                    |child| child.failed || child.question_outdated,
                 )
         }) else {
             return;
@@ -8158,7 +8186,8 @@ impl Engine {
             outcome.failed = true;
             outcome.fatal = true;
         }
-        if self.optional_remake() && outcome.failed && !outcome.fatal {
+        if self.optional_remake() && (outcome.failed || outcome.question_outdated) && !outcome.fatal
+        {
             self.optional_remake_failures
                 .entry(target.to_vec())
                 .or_default();
@@ -8184,13 +8213,37 @@ impl Engine {
         {
             // A later required visit exposes the original failure hidden by
             // the optional remake, including the edge to a deeper failure.
-            if !self.remaking
+            let query = self
+                .done
+                .get(target)
+                .copied()
+                .filter(|outcome| outcome.question_outdated);
+            if query.is_some() {
+                use crate::debug::{Event, emit};
+
+                let debug_depth = depth + usize::from(self.remaking);
+                emit(
+                    &self.output,
+                    Event::Considering(considering_name, debug_depth),
+                );
+                emit(&self.output, Event::RecentlyFailed(target, debug_depth));
+                traced_optional_failure = true;
+            } else if !self.remaking
                 && self.done.get(target).is_some_and(|outcome| outcome.failed)
                 && self.trace_cached_unruled_makefile(considering_name, target, depth, true)
             {
                 traced_optional_failure = true;
             }
             self.show_retained_optional_failure(target, parent.map(|parent| parent.target), cause);
+            if let Some(outcome) = query
+                && !self.options.keep_going
+            {
+                return Outcome {
+                    failed: true,
+                    fatal: true,
+                    ..outcome
+                };
+            }
         }
         if let Some(owner) = self.active_peers.get(target)
             && owner != target
@@ -8245,7 +8298,15 @@ impl Engine {
                     debug_depth,
                     outcome.failed,
                 ) {
-                    if visit == BuildVisit::PrerequisiteAfterRecipe
+                    if outcome.question_outdated && self.makefile_names.contains(target) {
+                        use crate::debug::{Event, emit};
+
+                        emit(
+                            &self.output,
+                            Event::Considering(considering_name, debug_depth),
+                        );
+                        emit(&self.output, Event::RecentlyFailed(target, debug_depth));
+                    } else if visit == BuildVisit::PrerequisiteAfterRecipe
                         || outcome.debug_serial_group_peer
                     {
                         self.debug_cached_prerequisite_visit(target, debug_depth, outcome);
@@ -9800,7 +9861,10 @@ impl Engine {
                 }
             }
         }
-        if self.retain_remake_failure() && outcome.blocked && !outcome.fatal {
+        if self.retain_remake_failure()
+            && (outcome.blocked || outcome.question_outdated)
+            && !outcome.fatal
+        {
             self.remember_optional_prerequisite(target, &rule, Some(&dropped));
         }
         let debug_depth = depth + usize::from(self.remaking);
@@ -12279,7 +12343,7 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_mode_optional_sources_require_unique_rule_free_names() {
+    fn ordinary_mode_optional_sources_require_unique_independent_names() {
         let launch = Engine::invocation(
             ["-r", "-n", "all"].into_iter().map(OsString::from),
             b"rmake",
@@ -12310,6 +12374,11 @@ mod tests {
         engine.vpath_dirs.push(b"search".to_vec());
         assert!(!engine.ordinary_mode_remakes_settle(&reads));
         engine.vpath_dirs.clear();
+        engine
+            .database
+            .read(b"optional.gen: ; @:\n", b"Makefile")
+            .unwrap();
+        assert!(engine.ordinary_mode_remakes_settle(&reads));
         engine
             .database
             .read(b"optional.gen: prerequisite\n", b"Makefile")

@@ -1,0 +1,10 @@
+id = "named-main-makefile-query"
+requirement = "includes.named-remake-mode"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-f", "./Makefile", "-q", "Makefile", "all"]
+provenance = "Original fixture for GNU Make 4.4.1 named makefile build modes."
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""

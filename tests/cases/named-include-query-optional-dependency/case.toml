@@ -1,0 +1,10 @@
+id = "named-include-query-optional-dependency"
+requirement = "includes.named-remake-mode"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "-q", "-k", "left.gen", "all"]
+provenance = "Original fixture for GNU Make 4.4.1 named makefile build modes."
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = "make: *** No rule to make target 'dep', needed by 'left.gen'.\n"
