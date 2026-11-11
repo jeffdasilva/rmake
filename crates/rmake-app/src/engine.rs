@@ -8850,7 +8850,9 @@ impl Engine {
                 self.show_makefile_error();
                 self.report_missing_rule(target, parent.map(|parent| parent.target));
             }
-            if (self.optional_remake() && depth == 0) || (!self.remaking && self.options.keep_going)
+            let serial_remake = self.remaking && !self.parallel_makefile_remakes;
+            if (self.optional_remake() && (depth == 0 || serial_remake))
+                || (self.options.keep_going && (!self.remaking || serial_remake))
             {
                 crate::debug::emit(
                     &self.output,
@@ -10646,9 +10648,14 @@ impl Engine {
                 self.database_secondary.insert(target.to_vec());
             }
         }
-        // A stopping synchronous child failure exits before GNU's ordinary
-        // update-return diagnostic. Keep-going updates retain that diagnostic.
-        let stopping_failure = debug_remake && outcome.failed && !self.options.keep_going;
+        // A suppressed serial makefile failure returns to the updater, so it
+        // emits the same completion trace as a keep-going failure.
+        let optional_serial_remake = self.remaking
+            && !self.parallel_makefile_remakes
+            && self.optional_remake()
+            && !outcome.fatal;
+        let stopping_failure =
+            debug_remake && outcome.failed && !self.options.keep_going && !optional_serial_remake;
         if !self.parallel_jobs.contains_key(target)
             && !stopping_failure
             && !stopping_dependency

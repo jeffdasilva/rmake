@@ -2780,3 +2780,34 @@ cases = [
   "serial-remake-branches-writefail-success-optional-keep-missing",
   "serial-remake-branches-writefail-success-optional-stop-present",
 ]
+
+[[requirements]]
+id = "debug.serial-makefile-failure-return"
+title = "Serial makefile remake failure return diagnostics"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 20
+fixture_count = 20
+cases = [
+  "serial-remake-debug-return-optional-stop-failed-declaration-default",
+  "serial-remake-debug-return-optional-stop-failed-declaration-default-verbose",
+  "serial-remake-debug-return-optional-stop-failed-declaration-dry-run",
+  "serial-remake-debug-return-optional-stop-failed-declaration-query",
+  "serial-remake-debug-return-optional-stop-failed-declaration-touch",
+  "serial-remake-debug-return-optional-stop-failed-prerequisite-default",
+  "serial-remake-debug-return-optional-stop-failed-prerequisite-default-verbose",
+  "serial-remake-debug-return-optional-stop-failed-prerequisite-dry-run",
+  "serial-remake-debug-return-optional-stop-failed-prerequisite-query",
+  "serial-remake-debug-return-optional-stop-failed-prerequisite-touch",
+  "serial-remake-debug-return-optional-stop-missing-prerequisite-default",
+  "serial-remake-debug-return-optional-stop-missing-prerequisite-default-verbose",
+  "serial-remake-debug-return-optional-stop-missing-prerequisite-dry-run",
+  "serial-remake-debug-return-optional-stop-missing-prerequisite-query",
+  "serial-remake-debug-return-optional-stop-missing-prerequisite-touch",
+  "serial-remake-debug-return-required-keep-missing-prerequisite-default",
+  "serial-remake-debug-return-required-keep-missing-prerequisite-default-verbose",
+  "serial-remake-debug-return-required-keep-missing-prerequisite-dry-run",
+  "serial-remake-debug-return-required-keep-missing-prerequisite-query",
+  "serial-remake-debug-return-required-keep-missing-prerequisite-touch",
+]

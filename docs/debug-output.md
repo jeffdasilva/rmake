@@ -187,3 +187,9 @@ A cached prerequisite failure can be reported again when a later declaration
 or required source read revisits the first declaration. With keep-going,
 the first declaration determines the source status and the physical file can
 be reread after either declaration changes it.
+
+Serial remake tracing reports a failed prerequisite lookup when an optional
+makefile or a required makefile under `-k` returns to the updater. A recipe
+failure also produces a failed-update trace when an optional makefile returns
+to the updater. A required stopping failure exits before that trace. These
+diagnostics also apply when `-n`, `-q`, or `-t` governs a separate build goal.
