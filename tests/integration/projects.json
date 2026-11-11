@@ -43,14 +43,14 @@
         "printf 'compatibility\\n' | ./minigzip | ./minigzip -d"
       ],
       "smoke_stdout_hex": "636f6d7061746962696c6974790a",
-      "source_url": "https://zlib.net/zlib-1.3.2.tar.gz",
+      "source_url": "https://zlib.net/fossils/zlib-1.3.2.tar.gz",
       "archive_sha256": "bb329a0a2cd0274d05519d61c667c062e06990d72e125ee2dfa8de64f0119d16",
       "topdir": "zlib-1.3.2",
       "license_file": "LICENSE",
       "license_sha256": "e32ff4e00d9d94930537635291da39e7e612703334bf6fde8c7f1686fe8a45a2",
       "source_ref": "zlib-1.3.2",
       "license_note": "zlib license",
-      "fallback_url": "https://zlib.net/fossils/zlib-1.3.2.tar.gz"
+      "fallback_url": "https://github.com/madler/zlib/releases/download/v1.3.2/zlib-1.3.2.tar.gz"
     },
     {
       "id": "lua-5.4.9",
