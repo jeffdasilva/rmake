@@ -1,0 +1,10 @@
+id = "serial-remake-prune-duplicate-triple-shared-failed-prerequisite-normal"
+requirement = "debug.duplicate-required-serial-makefile-prunes"
+candidate = "required"
+provenance = "Original repeated makefile cached-visit fixture verified against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "--debug=m,v", "-k", "all"]
+
+[expected]
+exit_code = 2
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nREAD:\nReading makefile 'inc.mk' (search path) (no ~ expansion)...\nReading makefile 'inc.mk' (search path) (no ~ expansion)...\nReading makefile 'inc.mk' (search path) (no ~ expansion)...\nUpdating makefiles....\n Considering target file 'Makefile'.\n Finished prerequisites of target file 'Makefile'.\n No need to remake target 'Makefile'.\n Considering target file 'inc.mk'.\n  File 'inc.mk' does not exist.\n  Considering target file 'bad'.\n   File 'bad' does not exist.\n  Finished prerequisites of target file 'bad'.\n  Must remake target 'bad'.\nBAD\n  Failed to remake target file 'bad'.\n Finished prerequisites of target file 'inc.mk'.\n Giving up on target file 'inc.mk'.\n Considering target file 'inc.mk'.\n  File 'inc.mk' does not exist.\n  Pruning file 'bad'.\n Finished prerequisites of target file 'inc.mk'.\n Giving up on target file 'inc.mk'.\n Pruning file 'inc.mk'.\n Pruning file 'inc.mk'.\n Pruning file 'inc.mk'.\n Pruning file 'inc.mk'.\n Pruning file 'inc.mk'.\n"
+stderr = "Makefile:2: inc.mk: No such file or directory\nmake: *** [Makefile:12: bad] Error 5\nMakefile:2: Failed to remake makefile 'inc.mk'.\nMakefile:2: Failed to remake makefile 'inc.mk'.\nMakefile:3: Failed to remake makefile 'inc.mk'.\n"

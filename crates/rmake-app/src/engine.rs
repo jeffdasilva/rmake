@@ -3295,6 +3295,20 @@ impl Engine {
                                     .entry(name)
                                     .or_insert((failure.before, failure.refresh_timestamp));
                             }
+                        } else if !makefile.optional
+                            && context.is_none()
+                            && self.output.debug_mask().has(Mask::VERBOSE)
+                        {
+                            // The duplicate reader entry revisits every
+                            // declaration, including the cached head.
+                            let declarations =
+                                self.serial_double_colon_declarations(name).unwrap_or(1);
+                            for _ in 0..declarations {
+                                crate::debug::emit(
+                                    &self.output,
+                                    crate::debug::Event::Pruning(self.aliases.resolve(name), 1),
+                                );
+                            }
                         }
                         continue;
                     }

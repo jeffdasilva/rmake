@@ -1,0 +1,10 @@
+id = "serial-remake-prune-duplicate-primary-rule-free-normal"
+requirement = "debug.duplicate-required-serial-makefile-prunes"
+candidate = "required"
+provenance = "Original repeated makefile cached-visit fixture verified against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "--debug=m,v", "-f", "Primary.mk", "-f", "Primary.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Primary.mk'...\nREAD:\nReading makefile 'Primary.mk'...\nUpdating makefiles....\n Considering target file 'Primary.mk'.\n Finished prerequisites of target file 'Primary.mk'.\n No need to remake target 'Primary.mk'.\n Pruning file 'Primary.mk'.\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nALL:\nSuccessfully remade target file 'all'.\n"
+stderr = ""

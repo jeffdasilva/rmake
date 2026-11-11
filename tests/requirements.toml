@@ -2595,3 +2595,38 @@ cases = [
   "serial-remake-prune-required-include-shared-failed-prerequisite-normal",
   "serial-remake-prune-required-include-three-declarations-normal",
 ]
+
+[[requirements]]
+id = "debug.duplicate-required-serial-makefile-prunes"
+title = "Cached visit diagnostics for duplicate required serial makefiles"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 24
+fixture_count = 24
+cases = [
+  "serial-remake-prune-duplicate-primary-failed-prerequisite-normal",
+  "serial-remake-prune-duplicate-primary-missing-prerequisite-dry-run",
+  "serial-remake-prune-duplicate-primary-missing-prerequisite-normal",
+  "serial-remake-prune-duplicate-primary-rule-free-normal",
+  "serial-remake-prune-duplicate-primary-shared-failed-prerequisite-normal",
+  "serial-remake-prune-duplicate-primary-three-declarations-normal",
+  "serial-remake-prune-duplicate-same-line-failed-prerequisite-normal",
+  "serial-remake-prune-duplicate-same-line-missing-prerequisite-normal",
+  "serial-remake-prune-duplicate-same-line-missing-prerequisite-query",
+  "serial-remake-prune-duplicate-same-line-rule-free-normal",
+  "serial-remake-prune-duplicate-same-line-shared-failed-prerequisite-normal",
+  "serial-remake-prune-duplicate-same-line-three-declarations-normal",
+  "serial-remake-prune-duplicate-triple-failed-prerequisite-normal",
+  "serial-remake-prune-duplicate-triple-missing-prerequisite-normal",
+  "serial-remake-prune-duplicate-triple-missing-prerequisite-touch",
+  "serial-remake-prune-duplicate-triple-rule-free-normal",
+  "serial-remake-prune-duplicate-triple-shared-failed-prerequisite-normal",
+  "serial-remake-prune-duplicate-triple-three-declarations-normal",
+  "serial-remake-prune-duplicate-two-lines-failed-prerequisite-normal",
+  "serial-remake-prune-duplicate-two-lines-missing-prerequisite-dry-run",
+  "serial-remake-prune-duplicate-two-lines-missing-prerequisite-normal",
+  "serial-remake-prune-duplicate-two-lines-rule-free-normal",
+  "serial-remake-prune-duplicate-two-lines-shared-failed-prerequisite-normal",
+  "serial-remake-prune-duplicate-two-lines-three-declarations-normal",
+]

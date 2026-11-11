@@ -198,3 +198,8 @@ Under `-k`, a required ungrouped double-colon makefile can finish its
 remaining declarations after the head fails. Verbose tracing then reports
 one cached-head prune per additional declaration. This also applies to the
 default makefile and to a primary file named with `-f`.
+
+A repeated required read revisits the cached head and every declaration.
+Each duplicate read emits one verbose prune per declaration. If a restart
+removes the declarations, each duplicate of the rule-free source emits one
+prune during the new makefile pass.
