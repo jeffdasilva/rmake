@@ -61,9 +61,9 @@
     {
       "name": "module",
       "plan": "module-interface.json",
-      "plan_sha256": "b16730f7ed463cd1932c6006a336c62a516171968870ef3990d5ab97935c5f9e",
+      "plan_sha256": "0f3a11538e13b9975bc19e621b7e594b71bc610a5875b881b73f1841d07b378a",
       "schema": "files",
-      "count": 13
+      "count": 24
     },
     {
       "name": "module-callback",

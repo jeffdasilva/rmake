@@ -208,6 +208,8 @@ static int module_ready;
 static SCM scalar_binding;
 static SCM default_scalar_converter;
 static SCM render_number_or_symbol;
+static SCM render_character;
+static SCM check_printable_string;
 static SCM finish_conversion;
 static atomic_int guile_entered;
 static atomic_uint leading_evaluations;
@@ -222,11 +224,11 @@ static SCM scalar_text(SCM value) {
     if (scm_is_symbol(value) || scm_is_number(value))
         return scm_call_1(render_number_or_symbol, value);
     if (scm_is_true(scm_char_p(value)))
-        return scm_make_string(scm_from_int(1), value);
+        return scm_call_1(render_character, value);
     if (scm_is_string(value)) {
         if (!scm_c_string_length(value))
             return SCM_BOOL_F;
-        if (scm_is_true(scm_string_every(scm_char_set_printing, value, SCM_UNDEFINED, SCM_UNDEFINED)))
+        if (scm_is_true(scm_call_1(check_printable_string, value)))
             return value;
     } else if (scm_is_true(scm_variable_p(value))) {
         return SCM_BOOL_F;
@@ -314,9 +316,13 @@ static SCM make_evaluate(SCM value) {
 }
 static void define_module(void *unused) {
     (void)unused;
-    /* Preserve first-use resolution and later assignment to the renderer. */
+    /* Preserve first-use resolution and later assignment to these bindings. */
     render_number_or_symbol = scm_c_eval_string(
         "(lambda (value) (object->string value))");
+    render_character = scm_c_eval_string(
+        "(lambda (value) (string value))");
+    check_printable_string = scm_c_eval_string(
+        "(lambda (value) (string-every char-set:printing value))");
     // Guile resolves the lexical references when the closure first uses
     // them. Keep that resolution and select join before reverse can run.
     finish_conversion = scm_c_eval_string(
