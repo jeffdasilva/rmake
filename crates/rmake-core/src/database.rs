@@ -471,13 +471,14 @@ pub fn write_recipes(
     recipes: &[Recipe],
     location: Option<&Location>,
 ) -> io::Result<()> {
-    write_recipes_with_presentation(output, recipes, location, ENGLISH)
+    write_recipes_with_presentation(output, recipes, location, None, ENGLISH)
 }
 
 fn write_recipes_with_presentation(
     output: &mut impl Write,
     recipes: &[Recipe],
     location: Option<&Location>,
+    recipe_prefix: Option<u8>,
     presentation: Presentation<'_>,
 ) -> io::Result<()> {
     presentation.text(output, c"#  recipe to execute")?;
@@ -495,10 +496,10 @@ fn write_recipes_with_presentation(
         presentation.line(output, c" (built-in):")?;
     }
     if recipes.is_empty() {
-        return output.write_all(b"\t\n");
+        return output.write_all(&[recipe_prefix.unwrap_or(b'\t'), b'\n']);
     }
     for recipe in recipes {
-        output.write_all(&[recipe.prefix])?;
+        output.write_all(&[recipe_prefix.unwrap_or(recipe.prefix)])?;
         output.write_all(c_bytes(&recipe.bytes))?;
         output.write_all(b"\n")?;
     }
@@ -506,13 +507,14 @@ fn write_recipes_with_presentation(
 }
 
 pub fn write_implicit_rule(output: &mut impl Write, pattern: &[u8], rule: &Rule) -> io::Result<()> {
-    write_implicit_rule_targets(output, std::iter::once(pattern), rule, ENGLISH)
+    write_implicit_rule_targets(output, std::iter::once(pattern), rule, None, ENGLISH)
 }
 
 fn write_implicit_rule_targets<'a>(
     output: &mut impl Write,
     patterns: impl IntoIterator<Item = &'a [u8]>,
     rule: &Rule,
+    recipe_prefix: Option<u8>,
     presentation: Presentation<'_>,
 ) -> io::Result<()> {
     for (index, pattern) in patterns.into_iter().enumerate() {
@@ -528,6 +530,7 @@ fn write_implicit_rule_targets<'a>(
             output,
             recipes,
             rule.recipe_location.as_ref(),
+            recipe_prefix,
             presentation,
         )?;
     }
@@ -545,6 +548,7 @@ fn write_implicit_rules_with_presentation(
 ) -> io::Result<()> {
     presentation.line(output, c"\n# Implicit Rules")?;
     let rules = database.database_implicit_rules();
+    let recipe_prefix = Some(database.recipe_prefix());
     let mut groups = HashSet::new();
     let mut count = 0;
     let mut terminal = 0;
@@ -560,6 +564,7 @@ fn write_implicit_rules_with_presentation(
                 output,
                 group.targets.iter().map(Vec::as_slice),
                 rule,
+                recipe_prefix,
                 presentation,
             )?;
         } else {
@@ -568,6 +573,7 @@ fn write_implicit_rules_with_presentation(
                 output,
                 std::iter::once(pattern.literal_bytes()),
                 rule,
+                recipe_prefix,
                 presentation,
             )?;
         }
@@ -1307,17 +1313,18 @@ impl<'a, W: Write> FilePrinter<'a, W> {
         numeric: &'a dyn NumericFormatting,
         names: Option<&'a dyn FileNames>,
     ) -> Self {
-        Self::with_presentation_and_names(output, Presentation::english(numeric), names)
+        Self::with_presentation_and_names(output, Presentation::english(numeric), names, b'\t')
     }
 
     fn with_presentation_and_names(
         output: &'a mut W,
         presentation: Presentation<'a>,
         names: Option<&'a dyn FileNames>,
+        recipe_prefix: u8,
     ) -> Self {
         Self {
             output,
-            recipe_prefix: b'\t',
+            recipe_prefix,
             presentation,
             names,
         }
@@ -1486,6 +1493,7 @@ impl<'a, W: Write> FilePrinter<'a, W> {
                 output,
                 recipes,
                 rule.recipe_location.as_ref(),
+                None,
                 presentation,
             )?;
         }
@@ -1500,7 +1508,7 @@ pub fn write_files(
     files: &[FileView<'_>],
     stats: HashStats,
 ) -> io::Result<()> {
-    write_files_with_presentation(output, files, stats, ENGLISH, None)
+    write_files_with_presentation(output, files, stats, ENGLISH, None, b'\t')
 }
 
 fn write_files_with_presentation(
@@ -1509,9 +1517,11 @@ fn write_files_with_presentation(
     stats: HashStats,
     presentation: Presentation<'_>,
     names: Option<&dyn FileNames>,
+    recipe_prefix: u8,
 ) -> io::Result<()> {
     presentation.line(output, c"\n# Files")?;
-    let mut printer = FilePrinter::with_presentation_and_names(output, presentation, names);
+    let mut printer =
+        FilePrinter::with_presentation_and_names(output, presentation, names, recipe_prefix);
     for file in files {
         printer.write(*file)?;
     }
@@ -1570,7 +1580,14 @@ impl Presentation<'_> {
         write_pattern_variables_with_presentation(output, view.database, self)?;
         write_directories_with_presentation(output, view.directories, self)?;
         write_implicit_rules_with_presentation(output, view.database, self)?;
-        write_files_with_presentation(output, view.files, view.file_stats, self, names)?;
+        write_files_with_presentation(
+            output,
+            view.files,
+            view.file_stats,
+            self,
+            names,
+            view.database.recipe_prefix(),
+        )?;
         write_vpaths_with_presentation(output, view.database, view.general_vpath, self)?;
         view.string_cache.write_with_presentation(output, self)
     }

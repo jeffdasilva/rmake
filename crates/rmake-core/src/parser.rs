@@ -640,6 +640,10 @@ struct Vpath {
 }
 
 impl Database {
+    pub(crate) fn recipe_prefix(&self) -> u8 {
+        self.recipe_prefix.unwrap_or(b'\t')
+    }
+
     /// Start before imports/defaults; enabling after observation would lose
     /// history and cannot produce a compatible database dump.
     pub fn enable_database_history(&mut self) -> Result<(), &'static str> {
@@ -4406,7 +4410,7 @@ impl Database {
                 ..
             } = frame;
             let evaluated_at = *evaluated_at;
-            let prefix = self.recipe_prefix.unwrap_or(b'\t');
+            let prefix = self.recipe_prefix();
             reader.set_posix(self.posix);
             if evaluated_at == Some(1) && reader.skip_eval_bom() {
                 context.reader_event(crate::diagnostic::ReaderEvent::Bom(source_name.as_option()));
