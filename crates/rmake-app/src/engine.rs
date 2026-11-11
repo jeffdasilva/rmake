@@ -10707,9 +10707,16 @@ impl Engine {
             return;
         };
         let cached = self.cached_recipe_outcome(outcome);
+        // A query can inspect an expanded recipe without starting it. Only
+        // its owner has a verdict in that case, so peers can still be goals.
+        let unstarted_query = group.ordinary
+            && outcome.question_outdated
+            && outcome.completion == CompletionTime::Preserve;
         if let Some(id) = group.branch {
             self.active_group_branches.remove(&id);
-            self.completed_group_branches.insert(id, cached);
+            if !unstarted_query {
+                self.completed_group_branches.insert(id, cached);
+            }
             if self.output.database_requested()
                 && self.options.dry_run
                 && !self.options.question
@@ -10796,11 +10803,14 @@ impl Engine {
                 }
                 continue;
             }
+            self.active_peers.remove(&peer);
+            if unstarted_query {
+                continue;
+            }
             if group.implicit && (!outcome.failed || outcome.ran) {
                 // Later implicit searches can mark an updated peer intermediate.
                 self.cleanup_candidates.push(peer.clone());
             }
-            self.active_peers.remove(&peer);
             self.pending_rules.remove(&peer);
             let mut completed = cached;
             completed.database_result = database_result;

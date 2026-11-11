@@ -92,6 +92,26 @@ def models():
                 (('a: $(N)', UNCHECKED), ('b: $(N)', UNCHECKED)), flags=())
 
 
+    query = 'a b &: input ; @:\n'
+    yield Model('group-query-both-goals', query, ('a', 'b'),
+                (('a: input', MISSING), ('b: input', MISSING)), flags=('-q',), status=1)
+    deferred_query = '.SECONDEXPANSION:\nN := input | .WAIT older other\na b &: $$(N) ; @:\n'
+    yield Model('group-query-both-goals-parallel', query, ('a', 'b'),
+                (('a: input', MISSING), ('b: input', MISSING)),
+                flags=('-q', '-j2', '--jobserver-style=pipe'), status=1)
+    yield Model('group-query-secondary-reverse', deferred_query, ('b', 'a'),
+                (('a: input | .WAIT older other', MISSING), ('b: input | .WAIT older other', MISSING)),
+                flags=('-q',), status=1)
+    query_effect = "$(shell printf '%s\\n' actual > seen-$@; touch -d @1600000005.123456789 seen-$@)"
+    effect_rule = 'a b &: input ; @' + query_effect + ':\n'
+    yield Model('group-query-expands-both-goals', effect_rule, ('a', 'b'),
+                (('a: input', MISSING), ('b: input', MISSING)), flags=('-q', '-k'), status=1,
+                actual=('seen-a', 'seen-b'))
+
+    yield Model('group-query-one-goal', query, ('a',),
+                (('a: input', MISSING), ('b: input', UNCHECKED)), flags=('-q',), status=1)
+
+
 def fixture(model, path):
     path.mkdir()
     (path / 'Makefile').write_text(model.makefile)
