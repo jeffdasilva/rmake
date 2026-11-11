@@ -2329,6 +2329,16 @@ impl Engine {
         );
     }
 
+    fn enter_preload_file<'a>(&mut self, name: &'a [u8]) -> &'a [u8] {
+        // An existing normalized record takes precedence over a new spelling.
+        let lookup = rmake_core::filenames::without_dot_prefix(name);
+        if lookup.len() < name.len() && self.database.file_records.contains(lookup) {
+            return lookup;
+        }
+        self.database.file_records.insert(name);
+        name
+    }
+
     fn read_startup_makefiles(&mut self) -> Result<bool, ()> {
         if self
             .database
@@ -2348,9 +2358,19 @@ impl Engine {
         let mut found = false;
         // MAKEFILES uses ordinary words: no globbing or backslash filename list
         // decoding. Freeze the expanded list before any preload changes it.
-        for name in words(&names) {
-            let path = match crate::makefiles::prepare_argument(
-                name,
+        for spelling in words(&names) {
+            crate::debug::reader(
+                &self.output,
+                rmake_core::diagnostic::ReaderEvent::Reading {
+                    name: spelling,
+                    search: true,
+                    optional: true,
+                    no_default_goal: true,
+                    no_tilde: false,
+                },
+            );
+            let path = match crate::makefiles::expand_preload_name(
+                spelling,
                 &mut self.database.variables,
                 runtime_context(
                     None,
@@ -2379,26 +2399,18 @@ impl Engine {
                     return Err(());
                 }
             };
-            let name = path.as_os_str().as_bytes();
-            crate::debug::reader(
-                &self.output,
-                rmake_core::diagnostic::ReaderEvent::Reading {
-                    name,
-                    search: true,
-                    optional: true,
-                    no_default_goal: true,
-                    no_tilde: false,
-                },
-            );
-            let file = match self.include_search.borrow().read(name) {
+            let name = path.as_slice();
+            let input = self.include_search.borrow().read(name);
+            let file = match input {
                 Ok(file) => file,
                 Err(IncludeFailure::Deferred {
                     resolved_name,
                     detail,
                 }) => {
-                    self.database.file_records.insert(name);
+                    let filename =
+                        self.enter_preload_file(resolved_name.as_deref().unwrap_or(name));
                     self.database.makefiles.push(Makefile {
-                        name: resolved_name.unwrap_or_else(|| name.to_vec()),
+                        name: filename.to_vec(),
                         optional: true,
                         missing: true,
                         location: None,
@@ -2411,10 +2423,10 @@ impl Engine {
                     return Err(());
                 }
             };
-            self.database.file_records.insert(name);
+            let filename = self.enter_preload_file(&file.name);
             found = true;
             self.database.makefiles.push(Makefile {
-                name: file.name.clone(),
+                name: filename.to_vec(),
                 optional: true,
                 missing: false,
                 location: None,
@@ -2422,10 +2434,10 @@ impl Engine {
             });
             if let Err(error) = self.database.variables.append_literal_at(
                 b"MAKEFILE_LIST",
-                &file.name,
+                filename,
                 Origin::File,
                 &Location {
-                    file: name.into(),
+                    file: spelling.into(),
                     line: 1,
                 },
             ) {
@@ -2434,7 +2446,7 @@ impl Engine {
             }
             if let Err(error) = self.database.read_preload_input(
                 file.input,
-                name,
+                spelling,
                 runtime_context(
                     None,
                     &mut RuntimeOutput::new(

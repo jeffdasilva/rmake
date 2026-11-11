@@ -14,16 +14,17 @@ use std::io;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::PathBuf;
 
-/// Observe the bindings at this argument's position, before later command-line
-/// assignments. Deduplication follows expansion, and precedes path selection.
-pub fn prepare_argument(
+/// Resolve a preload's tilde at read time while retaining dot prefixes.
+pub fn expand_preload_name(
     name: &[u8],
     variables: &mut VariableStore,
     context: ExpansionContext<'_>,
-) -> Result<PathBuf, ExpandError> {
-    prepare_argument_with(name, || variables.expand_mut_with(b"$(HOME)", context))
+) -> Result<Vec<u8>, ExpandError> {
+    expand_tilde_with(name, || variables.expand_mut_with(b"$(HOME)", context))
 }
 
+/// Observe the bindings at this argument's position, before later command-line
+/// assignments. Deduplication follows expansion, and precedes path selection.
 pub fn prepare_argument_with(
     name: &[u8],
     home: impl FnOnce() -> Result<Vec<u8>, ExpandError>,
