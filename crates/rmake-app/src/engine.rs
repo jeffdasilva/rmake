@@ -3218,7 +3218,9 @@ impl Engine {
             // An explicit goal can also name a makefile and use that mode.
             let ordinary_mode = modes.active();
             let remakes_can_overlap = !ordinary_mode
-                || (!debug_before_remake.has(Mask::MAKEFILES)
+                || ((!debug_before_remake.has(Mask::MAKEFILES)
+                    || (debug_before_remake.bits() == remake_debug_bits
+                        && self.direct_debug_remake_sources(&read_files)))
                     && self.ordinary_mode_remakes_settle(&read_files));
             self.parallel_makefile_remakes =
                 self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
@@ -3963,6 +3965,18 @@ impl Engine {
                     && archive_parts(name).is_none()
                     && (!goals.iter().any(|goal| goal.as_slice() == name)
                         || (named.insert(name) && self.simple_named_include_remake(file, name))))
+        })
+    }
+
+    fn direct_debug_remake_sources(&self, read_files: &[(Makefile, bool)]) -> bool {
+        read_files.iter().all(|(file, skip)| {
+            *skip
+                || self.database.rules.get(&file.name).is_none_or(|rule| {
+                    rule.dependencies.is_empty()
+                        && rule.secondary.is_none()
+                        && rule.group.is_none()
+                        && rule.double_colon.is_none()
+                })
         })
     }
 
