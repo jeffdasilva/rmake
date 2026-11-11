@@ -158,6 +158,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += primary_shared_include_models(worker, markers)
     results += primary_named_wait_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
+    results += shuffled_remake_models(results)
     if include_load:
         results += load_models(worker, markers)
         results += load_goal_summary_models(worker, markers)
@@ -2010,6 +2011,35 @@ def held_primary_debug_model(held: HeldModel) -> HeldModel:
                     files=files, updates=updates, seen=model.seen.replace(prefix, first, 1))
     return replace(held, model=model, before_primary=prefix, before_first=first,
                    before_second=held.before_second.replace(prefix, first, 1))
+
+
+def shuffled_remake_models(held_models: list[HeldModel]) -> list[HeldModel]:
+    by_id = {held.model.id: held for held in held_models}
+    chosen = (
+        'named-include-file-prerequisite-required-first-n-pipe',
+        'named-include-file-prerequisite-required-last-q-fifo',
+        'named-include-file-prerequisite-optional-middle-n-pipe',
+        'named-include-file-prerequisite-optional-middle-t-fifo',
+        'primary-named-group-primary-first-stale-n-fifo',
+        'primary-named-group-primary-first-missing-peer-q-pipe',
+        'primary-named-wait-shared-left-right-n-pipe-older',
+        'primary-named-wait-shared-left-right-t-fifo-older',
+    )
+    results = []
+    for name in chosen:
+        held = by_id[name]
+        model = held.model
+        lines = bytes.fromhex(model.expected['stdout_template_hex']).splitlines(keepends=True)
+        # For these seeds the two ordinary goal reports reverse. The remake
+        # output before those reports and both held release boundaries agree.
+        if lines:
+            lines[-2:] = reversed(lines[-2:])
+        expected = {**model.expected, 'stdout_template_hex': b''.join(lines).hex()}
+        for shuffle in ('reverse', '1'):
+            variant = replace(model, id=f'{name}-shuffle-{shuffle}',
+                              args=(*model.args, f'--shuffle={shuffle}'), expected=expected)
+            results.append(replace(held, model=variant))
+    return results
 
 
 def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:

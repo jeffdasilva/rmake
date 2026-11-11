@@ -70,7 +70,7 @@ required failure replay and the considered state after an early optional pass.
 Both jobserver transports are covered.
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 1,790 profiles. Leading `./` spellings share one target record and
+run all 1,806 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -165,6 +165,10 @@ distinguish successful and nonzero shell completions from empty shell and
 eval-only expansions under the same optional remake conditions. Saturated
 forced optional question and touch profiles control the named child's reap
 before the right worker can finish.
+
+Sixteen shuffle controls verify that reverse order and seed 1 reorder the
+ordinary goal reports while preserving the held remake order. They cover
+named includes, grouped primary makefiles and explicit wait barriers.
 
 The named primary makefile profiles hold both include workers under `-n`,
 `-q`, and `-t`. They cover default discovery and `-f ./Makefile`, two or
