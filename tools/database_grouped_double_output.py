@@ -71,6 +71,44 @@ def models():
                 (('a:: older', ORIGINAL), ('b:: older', ORIGINAL)),
                 original=(('a', EXISTING), ('b', EXISTING)), not_updated=('b:: older',))
 
+    deferred_wait = '.SECONDEXPANSION:\nN := older .WAIT input\na b &:: $$(N) ; @:\n'
+    wait_rows = ('a:: older .WAIT input', 'b:: older .WAIT input')
+    for owner in ('a', 'b'):
+        yield Model(f'group-double-secondary-wait-owner-{owner}', deferred_wait, (owner,),
+                    tuple((row, MISSING) for row in wait_rows))
+    yield Model('group-double-secondary-wait-question', deferred_wait, ('a',),
+                ((wait_rows[0], MISSING), (wait_rows[1], UNCHECKED)), flags=('-q',), status=1,
+                not_updated=(wait_rows[1],))
+    deferred_order = '.SECONDEXPANSION:\nN := older | .WAIT input other\na b &:: $$(N) ; @:\n'
+    order_rows = ('a:: older | .WAIT input other', 'b:: older | .WAIT input other')
+    yield Model('group-double-secondary-order-only-wait', deferred_order, ('b',),
+                tuple((row, MISSING) for row in order_rows))
+    yield Model('group-double-secondary-up-to-date', deferred_order, ('a',),
+                tuple((row, ORIGINAL) for row in order_rows), flags=(),
+                original=(('a', EXISTING), ('b', EXISTING)), not_updated=(order_rows[1],))
+    deferred_per_peer = '.SECONDEXPANSION:\nN_a := older\nN_b := other\na b &:: $$(N_$$@) ; @:\n'
+    yield Model('group-double-secondary-peer-automatic', deferred_per_peer, ('b',),
+                (('a:: older', MISSING), ('b:: other', MISSING)))
+    two_branches = deferred_wait + 'M := other\na b &:: $$(M) ; @:\n'
+    all_rows = (*wait_rows, 'a:: other', 'b:: other')
+    yield Model('group-double-secondary-two-branches', two_branches, ('a', 'b'),
+                tuple((row, MISSING) for row in all_rows), group_records=4)
+    two_order_branches = deferred_order + 'M := older\na b &:: $$(M) ; @:\n'
+    yield Model('group-double-secondary-two-up-to-date', two_order_branches, ('a',),
+                tuple((row, ORIGINAL) for row in (*order_rows, 'a:: older', 'b:: older')),
+                original=(('a', EXISTING), ('b', EXISTING)), flags=(), group_records=4,
+                not_updated=(order_rows[1], 'b:: older'))
+    for first_target in ('a', 'b'):
+        standalone = f'{first_target}:: older'
+        leading_branch = f'{standalone} ; @:\n'
+        unupdated_branches = (order_rows[1],) if first_target == 'a' else (standalone, order_rows[1])
+        yield Model(f'group-double-secondary-leading-branch-{first_target}', leading_branch + deferred_order,
+                    ('a',), tuple((row, ORIGINAL) for row in (*order_rows, standalone)),
+                    original=(('a', EXISTING), ('b', EXISTING)), flags=(), not_updated=unupdated_branches)
+    yield Model('group-double-secondary-unvisited', deferred_wait + 'all: ; @:\n', ('all',),
+                (('a:: $(N)', UNCHECKED), ('b:: $(N)', UNCHECKED)), flags=(),
+                not_updated=('a:: $(N)', 'b:: $(N)'))
+
 
 def fixture(model, path):
     path.mkdir()
