@@ -1,0 +1,2 @@
+	$(file >>seen,blocked)
+all: ; @:

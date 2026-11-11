@@ -1,0 +1,12 @@
+id = "recipe-prefix-orphan-space-continuation-control"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Raw recipe prefix recognition before rule expansion."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7065726d69747465640a"
+stderr_hex = ""

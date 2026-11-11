@@ -4384,7 +4384,7 @@ impl Database {
             if evaluated_at == Some(1) {
                 reader.skip_eval_bom();
             }
-            let Some(mut line) = reader
+            let Some((mut line, leading_prefix)) = reader
                 .next_line(prefix, declaration.has_recipe_context())
                 .map_err(|message| source_read_error_at(source_name.clone(), message, context))?
             else {
@@ -4426,7 +4426,9 @@ impl Database {
             }
             // GNU strips one UTF-8 BOM from the first observed logical line,
             // after file-stream reads have already counted its bytes.
-            if evaluated_at.is_none() && line.line == 1 && line.bytes.starts_with(b"\xef\xbb\xbf") {
+            let stripped_bom =
+                evaluated_at.is_none() && line.line == 1 && line.bytes.starts_with(b"\xef\xbb\xbf");
+            if stripped_bom {
                 context.reader_event(crate::diagnostic::ReaderEvent::Bom(source_name.as_ref()));
                 line.bytes.drain(..3);
             }
@@ -4597,7 +4599,7 @@ impl Database {
                             message: "interrupted".into(),
                         });
                     }
-                    let Some(part) = reader.next_line(prefix, false).map_err(|message| {
+                    let Some((part, _)) = reader.next_line(prefix, false).map_err(|message| {
                         source_read_error_at(source_name.clone(), message, context)
                     })?
                     else {
@@ -4919,10 +4921,12 @@ impl Database {
                 }
                 continue;
             }
-            self.finish_declaration(declaration, &location, context)?;
-            if line.bytes.first() == Some(&prefix) && prefix == b'\t' {
+            // Assignments and directives have already been handled. A raw
+            // prefix here is an orphan, even if folding changed the first byte.
+            if leading_prefix.matches(stripped_bom) {
                 return Err(ParseError::system(location, Message::OrphanRecipe, context));
             }
+            self.finish_declaration(declaration, &location, context)?;
             let raw_rule_end = separator(text, b';').unwrap_or(text.len());
             let (text, rule_end) = unquote_semicolons::<true>(text, raw_rule_end);
             // Keep the raw assignment tail until a source word has produced

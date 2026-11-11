@@ -22,6 +22,34 @@ pub struct LogicalLine {
     pub recipe: bool,
 }
 
+/// Prefix observations made before ordinary continuation folding.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct LeadingPrefix {
+    raw: bool,
+    after_bom: bool,
+}
+
+impl LeadingPrefix {
+    fn new(bytes: &[u8], prefix: u8) -> Self {
+        let first = bytes.first().copied();
+        Self {
+            raw: first == Some(prefix),
+            after_bom: first == Some(0xef)
+                && bytes
+                    .strip_prefix(b"\xef\xbb\xbf")
+                    .is_some_and(|rest| rest.first() == Some(&prefix)),
+        }
+    }
+
+    pub(crate) fn matches(self, bom_removed: bool) -> bool {
+        if bom_removed {
+            self.after_bom
+        } else {
+            self.raw
+        }
+    }
+}
+
 /// A reader whose contextual state is supplied by the interpreter.
 #[derive(Debug)]
 pub struct Reader<'a> {
@@ -91,12 +119,22 @@ impl<'a> Reader<'a> {
     /// Ordinary continuations collapse surrounding spaces/tabs, except that
     /// POSIX mode preserves whitespace before a continuation and separate joins.
     pub fn next_line(&mut self, recipe_prefix: u8, in_rule_context: bool) -> Option<LogicalLine> {
+        self.next_line_with_prefix(recipe_prefix, in_rule_context)
+            .map(|(line, _)| line)
+    }
+
+    fn next_line_with_prefix(
+        &mut self,
+        recipe_prefix: u8,
+        in_rule_context: bool,
+    ) -> Option<(LogicalLine, LeadingPrefix)> {
         self.nul_warnings = 0;
         if self.nul_input {
             return self.nul_line(recipe_prefix, in_rule_context);
         }
         let first = self.physical_line()?;
-        let recipe = in_rule_context && first.bytes.first() == Some(&recipe_prefix);
+        let leading_prefix = LeadingPrefix::new(first.bytes, recipe_prefix);
+        let recipe = in_rule_context && leading_prefix.raw;
         let mut result = LogicalLine {
             bytes: Vec::with_capacity(first.bytes.len()),
             line: first.line,
@@ -159,7 +197,7 @@ impl<'a> Reader<'a> {
             current = next;
             continued = true;
         }
-        Some(result)
+        Some((result, leading_prefix))
     }
 
     /// Warnings belong to the read operation, before interpreting its contents.
@@ -169,7 +207,11 @@ impl<'a> Reader<'a> {
     }
 
     #[cold]
-    fn nul_line(&mut self, recipe_prefix: u8, in_rule_context: bool) -> Option<LogicalLine> {
+    fn nul_line(
+        &mut self,
+        recipe_prefix: u8,
+        in_rule_context: bool,
+    ) -> Option<(LogicalLine, LeadingPrefix)> {
         let line = self.next_physical_line;
         let mut raw = Vec::new();
         let mut lines = 0;
@@ -237,17 +279,20 @@ impl<'a> Reader<'a> {
         // handling while retaining the file reader's observed line count.
         let mut reader = Reader::new(&raw);
         reader.set_posix(self.posix);
-        let mut folded = reader
-            .next_line(recipe_prefix, in_rule_context)
-            .unwrap_or(LogicalLine {
-                bytes: Vec::new(),
-                line,
-                end_line: line,
-                recipe: false,
-            });
+        let (mut folded, leading_prefix) = reader
+            .next_line_with_prefix(recipe_prefix, in_rule_context)
+            .unwrap_or((
+                LogicalLine {
+                    bytes: Vec::new(),
+                    line,
+                    end_line: line,
+                    recipe: false,
+                },
+                LeadingPrefix::default(),
+            ));
         folded.line = line;
         folded.end_line = self.next_physical_line - 1;
-        Some(folded)
+        Some((folded, leading_prefix))
     }
 
     fn physical_line(&mut self) -> Option<PhysicalLine<'a>> {

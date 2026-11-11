@@ -1,0 +1,3 @@
+.RECIPEPREFIX := >
+>@echo blocked
+all: ; @:
