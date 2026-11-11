@@ -4472,13 +4472,14 @@ impl Expansion<'_, '_> {
             b"strip" => join_words(words(first)),
             b"subst" => substitute(first, &args[1], &args[2]),
             b"patsubst" => pattern_substitute(first, &args[1], &args[2]),
-            b"findstring" => Ok(
-                if first.is_empty() || args[1].windows(first.len()).any(|word| word == first) {
-                    first.to_vec()
-                } else {
-                    Vec::new()
-                },
-            ),
+            b"findstring" => {
+                let found = match first {
+                    [] => true,
+                    [byte] if args[1].len() >= 64 => args[1].contains(byte),
+                    _ => args[1].windows(first.len()).any(|word| word == first),
+                };
+                Ok(if found { first.to_vec() } else { Vec::new() })
+            }
             b"filter" | b"filter-out" => {
                 let patterns: Vec<_> = words(first).map(Pattern::new).collect();
                 join_words(words(&args[1]).filter(|word| {
