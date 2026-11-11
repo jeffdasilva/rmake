@@ -59,6 +59,7 @@ pub enum MessageId {
     DirectiveTail,
     DefineTail,
     EndefTail,
+    NulReaderWarning,
     MissingFileName,
     ExtraFileArgument,
     InvalidFileOperation,
@@ -74,7 +75,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 64] = [
+    pub const ALL: [Self; 65] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -127,6 +128,7 @@ impl MessageId {
         Self::DirectiveTail,
         Self::DefineTail,
         Self::EndefTail,
+        Self::NulReaderWarning,
         Self::MissingFileName,
         Self::ExtraFileArgument,
         Self::InvalidFileOperation,
@@ -257,6 +259,7 @@ impl MessageId {
             Self::DirectiveTail => Message::DirectiveTail(b"ifeq"),
             Self::DefineTail => Message::DefineTail,
             Self::EndefTail => Message::EndefTail,
+            Self::NulReaderWarning => Message::NulReaderWarning,
             Self::MissingFileName => Message::MissingFileName,
             Self::ExtraFileArgument => Message::ExtraFileArgument,
             Self::InvalidFileOperation => Message::InvalidFileOperation(b"invalid"),
@@ -347,6 +350,7 @@ impl MessageId {
             Self::DirectiveTail => c"extraneous text after '%s' directive",
             Self::DefineTail => c"extraneous text after 'define' directive",
             Self::EndefTail => c"extraneous text after 'endef' directive",
+            Self::NulReaderWarning => c"warning: NUL character seen; rest of line ignored",
             Self::MissingFileName => c"file: missing filename",
             Self::ExtraFileArgument => c"file: too many arguments",
             Self::InvalidFileOperation => c"file: invalid file operation: %s",
@@ -498,6 +502,7 @@ pub enum Message<'a> {
     DirectiveTail(&'a [u8]),
     DefineTail,
     EndefTail,
+    NulReaderWarning,
     MissingFileName,
     ExtraFileArgument,
     InvalidFileOperation(&'a [u8]),
@@ -608,6 +613,7 @@ impl<'a> Message<'a> {
             Self::DirectiveTail(_) => MessageId::DirectiveTail,
             Self::DefineTail => MessageId::DefineTail,
             Self::EndefTail => MessageId::EndefTail,
+            Self::NulReaderWarning => MessageId::NulReaderWarning,
             Self::MissingFileName => MessageId::MissingFileName,
             Self::ExtraFileArgument => MessageId::ExtraFileArgument,
             Self::InvalidFileOperation(_) => MessageId::InvalidFileOperation,
@@ -649,6 +655,7 @@ impl<'a> Message<'a> {
             | Self::TargetPatternWithoutPercent
             | Self::DefineTail
             | Self::EndefTail
+            | Self::NulReaderWarning
             | Self::MissingFileName
             | Self::ExtraFileArgument
             | Self::EmptyNativeFunction => {}

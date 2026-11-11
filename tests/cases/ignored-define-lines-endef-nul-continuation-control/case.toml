@@ -1,0 +1,12 @@
+id = "ignored-define-lines-endef-nul-continuation-control"
+requirement = "syntax.conditionals"
+candidate = "required"
+description = "Ignored define body handling with ordinary reader boundaries."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "61667465720a"
+stderr_hex = "4d616b6566696c653a333a207761726e696e673a204e554c20636861726163746572207365656e3b2072657374206f66206c696e652069676e6f7265640a"
