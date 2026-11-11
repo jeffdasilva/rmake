@@ -1,0 +1,11 @@
+id = "live-query-keep-going-alias-before-enable"
+requirement = "runtime.live-query-keep-going"
+candidate = "required"
+provenance = "Original finite fixture for GNU Make 4.4.1 live keep-going policy."
+args = ["-rR", "--no-print-directory", "-q", "gate", "cached", "././cached", "enable", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "gate\nhead\nenable\nafter\ntail\n"
+stderr = ""

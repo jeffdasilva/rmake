@@ -2501,3 +2501,23 @@ candidate_required = 6
 fixture_count = 6
 reference = "tests/remake-parallel/README.md"
 cases = ["named-main-makefile-dry", "named-main-makefile-query", "named-main-makefile-touch", "named-include-query-first-required", "named-include-query-last-required", "named-include-query-optional-dependency"]
+
+[[requirements]]
+id = "runtime.live-query-keep-going"
+title = "Resume ordinary double-colon query tails when keep-going becomes active"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/forced-touch.md"
+candidate_required = 9
+fixture_count = 9
+cases = [
+  "live-query-keep-going-alias-after-enable",
+  "live-query-keep-going-alias-before-enable",
+  "live-query-keep-going-resume-after-prior-failure",
+  "live-query-keep-going-resumed-last-tail-disables",
+  "live-query-keep-going-fatal-before-resume",
+  "live-query-keep-going-enable-before-forced-query-status",
+  "live-query-keep-going-held-child-enables-on-continuation",
+  "live-query-keep-going-alias-requests-retired-tail",
+  "live-query-keep-going-first-goal-tail-stays-retired",
+]

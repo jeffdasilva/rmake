@@ -1,0 +1,11 @@
+id = "live-query-keep-going-resume-after-prior-failure"
+requirement = "runtime.live-query-keep-going"
+candidate = "required"
+provenance = "Original finite fixture for GNU Make 4.4.1 live keep-going policy."
+args = ["-rR", "--no-print-directory", "-q", "-k", "failure", "disable", "cached", "enable", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "failure\ndisable\nhead\nenable\nafter\ntail\n"
+stderr = "make: *** [Makefile:8: failure] Error 7\n"

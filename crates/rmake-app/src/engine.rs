@@ -366,6 +366,25 @@ impl Outcome {
     }
 }
 
+#[derive(Default)]
+struct OrdinaryQueries {
+    first_verdict: Option<Status>,
+    pass: u64,
+    deferred_tails: HashMap<Vec<u8>, DeferredQueryTail>,
+}
+
+impl OrdinaryQueries {
+    fn record(&mut self, verdict: Option<Status>) {
+        self.first_verdict = self.first_verdict.or(verdict);
+    }
+}
+
+struct DeferredQueryTail {
+    pass: u64,
+    queued: bool,
+    state: DoubleColonState,
+}
+
 struct RequestedGoal {
     name: Vec<u8>,
     already_done: bool,
@@ -1092,6 +1111,7 @@ pub struct Engine {
     impossible_generation: u64,
     would_build: bool,
     forced_query_stop: bool,
+    ordinary_queries: OrdinaryQueries,
     parallel_jobs: ParallelJobs,
     aborted_recipe_permit: Option<Permit>,
     job_debug: crate::debug::Jobs,
@@ -1666,6 +1686,7 @@ impl Engine {
             impossible_generation: 0,
             would_build: false,
             forced_query_stop: false,
+            ordinary_queries: OrdinaryQueries::default(),
             parallel_jobs: ParallelJobs::default(),
             aborted_recipe_permit: None,
             job_debug: crate::debug::Jobs::default(),
@@ -3693,7 +3714,6 @@ impl Engine {
         }
         let mut failed = false;
         let mut fatal = false;
-        let mut first_goal_verdict = None;
         let mut stopped_on_failure = false;
         let mut requested = Vec::new();
         let initial_goal_generation = self.filesystem.borrow().generation();
@@ -3722,7 +3742,8 @@ impl Engine {
                 break;
             }
             self.debug_double_colon_goal_prunes(&goal, outcome);
-            let pending = self.pending(&goal);
+            let deferred_query = self.queued_query_tail(&goal);
+            let pending = self.pending(&goal) || deferred_query;
             let outcome = if pending {
                 outcome
             } else {
@@ -3739,11 +3760,12 @@ impl Engine {
                     completed_report = Some(outcome);
                 }
             }
-            if completed_report.is_none() && self.parallel_graph() && pending {
+            if completed_report.is_none() && (deferred_query || (self.parallel_graph() && pending))
+            {
                 if self.options.question {
                     // An earlier double-colon branch can have reported a
                     // verdict before a later branch finishes its recipe.
-                    first_goal_verdict = first_goal_verdict.or(outcome.first_branch_verdict);
+                    self.ordinary_queries.record(outcome.first_branch_verdict);
                 }
                 let awaiting_recipe = !already_done && self.goal_recipe_waiting(&goal);
                 let awaiting_group_peer = self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
@@ -3758,9 +3780,10 @@ impl Engine {
                 });
             } else {
                 failed |= outcome.failed;
-                let first_question = first_goal_verdict.is_none()
-                    && outcome.goal_verdict() == Some(Status::Question);
-                first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
+                let verdict = outcome.goal_verdict();
+                let first_question = self.ordinary_queries.first_verdict.is_none()
+                    && verdict == Some(Status::Question);
+                self.ordinary_queries.record(verdict);
                 self.report_goal(&goal, started_command, completed_report.unwrap_or(outcome));
                 if first_question
                     && !self.options.keep_going
@@ -3794,14 +3817,26 @@ impl Engine {
         }
         let mut last_goal_pass = self.debug_pass;
         'goal_passes: while !self.forced_query_stop
-            && requested.iter().any(|goal| self.pending(&goal.name))
+            && requested.iter().any(|goal| {
+                self.pending(&goal.name)
+                    || (!stopped_on_failure
+                        && !fatal
+                        && self.graph_abort.is_none()
+                        && (self.options.keep_going || !self.parallel_jobs.is_empty())
+                        && self.queued_query_tail(&goal.name))
+            })
         {
+            self.ordinary_queries.pass = self.ordinary_queries.pass.wrapping_add(1);
             self.advance_debug_pass();
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let pass_epoch = self.graph_epoch;
             let mut first_goal = true;
             for goal in &mut requested {
-                if self.graph_pending(&goal.name) {
+                let deferred = !stopped_on_failure
+                    && !fatal
+                    && self.graph_abort.is_none()
+                    && self.queued_query_tail(&goal.name);
+                if self.graph_pending(&goal.name) || deferred {
                     let visit = if first_goal {
                         BuildVisit::GoalPassStart
                     } else {
@@ -3821,13 +3856,14 @@ impl Engine {
                         break 'goal_passes;
                     }
                     if self.options.question {
-                        first_goal_verdict = first_goal_verdict.or(outcome.first_branch_verdict);
+                        self.ordinary_queries.record(outcome.first_branch_verdict);
                     }
                     if !self.pending(&goal.name)
+                        && !self.queued_query_tail(&goal.name)
                         && (outcome.late_input_failed || self.options.question)
                     {
                         failed |= outcome.failed;
-                        first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
+                        self.ordinary_queries.record(outcome.goal_verdict());
                     }
                     if self.debug_pass != last_goal_pass {
                         self.debug_double_colon_goal_prunes(&goal.name, outcome);
@@ -3843,7 +3879,7 @@ impl Engine {
                     if self.options.question
                         && let Some(outcome) = self.done.get(self.aliases.resolve(&goal.name))
                     {
-                        first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
+                        self.ordinary_queries.record(outcome.goal_verdict());
                     }
                 } else if self.debug_pass != last_goal_pass
                     && self.graph_abort.is_none()
@@ -3861,8 +3897,10 @@ impl Engine {
             // the next pass. Rescan before blocking on the remaining children.
             if self.graph_epoch == pass_epoch
                 && self.debug_progress() == self.debug_pass
-                && requested.iter().any(|goal| self.pending(&goal.name))
                 && !self.parallel_jobs.is_empty()
+                && requested
+                    .iter()
+                    .any(|goal| self.pending(&goal.name) || self.queued_query_tail(&goal.name))
             {
                 self.reap_job();
             }
@@ -3885,7 +3923,7 @@ impl Engine {
             let outcome = self.observe_updated(&goal.name, outcome);
             failed |= outcome.failed;
             fatal |= outcome.fatal;
-            first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
+            self.ordinary_queries.record(outcome.goal_verdict());
             self.report_goal(&goal.name, goal.started_command, outcome);
         }
         if self.options.question
@@ -3925,7 +3963,7 @@ impl Engine {
         }
         // Keep-going retains the first observed query or failure while still
         // visiting other goals. An invocation-wide stop takes precedence.
-        let query_first = first_goal_verdict == Some(Status::Question)
+        let query_first = self.ordinary_queries.first_verdict == Some(Status::Question)
             && !stopped_on_failure
             && !fatal
             && self.graph_abort.is_none();
@@ -4811,6 +4849,15 @@ impl Engine {
         }
     }
 
+    fn queued_query_tail(&self, target: &[u8]) -> bool {
+        !self.ordinary_queries.deferred_tails.is_empty()
+            && self
+                .ordinary_queries
+                .deferred_tails
+                .get(self.aliases.resolve(target))
+                .is_some_and(|tail| tail.queued)
+    }
+
     fn graph_pending(&self, target: &[u8]) -> bool {
         let target = self.aliases.resolve(target);
         self.pending_rules.contains_key(target) || self.pending_double_colon.contains_key(target)
@@ -5651,6 +5698,7 @@ impl Engine {
             || self.assumed_time(target).is_some()
             || self.done.contains_key(target)
             || self.pending(target)
+            || self.ordinary_queries.deferred_tails.contains_key(target)
             || self.visiting.contains(target)
             || self.special(b".PHONY", target, false)
         {
@@ -8275,6 +8323,25 @@ impl Engine {
             outcome.time = self.modified(target);
             return outcome;
         }
+        if let Some(tail) = self.ordinary_queries.deferred_tails.get_mut(target) {
+            // The goal that first set the verdict was removed from the
+            // current pass. A repeated explicit goal can request its tail.
+            tail.queued |= parent.is_none();
+            if !tail.queued
+                || !self.options.keep_going
+                || self.graph_abort.is_some()
+                || tail.pass == self.ordinary_queries.pass
+            {
+                return tail.state.combined;
+            }
+            let tail = self
+                .ordinary_queries
+                .deferred_tails
+                .remove(target)
+                .expect("deferred query tail");
+            self.pending_double_colon
+                .insert(target.to_vec(), tail.state);
+        }
         if self.pending_double_colon.contains_key(target) {
             return self.resume_double_colon(target);
         }
@@ -8691,9 +8758,29 @@ impl Engine {
                 }
                 self.record_graph_failure(result);
                 state.active = None;
-                if result.fatal
-                    || ((result.failed || result.question_outdated) && !self.options.keep_going)
-                {
+                if result.fatal || (result.failed && !self.options.keep_going) {
+                    state.branches.clear();
+                } else if result.question_outdated && !self.options.keep_going {
+                    let earlier_verdict = self.ordinary_queries.first_verdict.is_some();
+                    if !self.remaking
+                        && self.active_makefile_remake.is_none()
+                        && state.depth == 0
+                        && (earlier_verdict || self.options.goals.len() > 1)
+                        && !state.branches.is_empty()
+                    {
+                        // A later goal can turn on keep-going. Leave the tail
+                        // outside active prerequisite waits until a new pass.
+                        let outcome = state.combined;
+                        self.ordinary_queries.deferred_tails.insert(
+                            target.to_vec(),
+                            DeferredQueryTail {
+                                pass: self.ordinary_queries.pass,
+                                queued: earlier_verdict,
+                                state,
+                            },
+                        );
+                        return outcome;
+                    }
                     state.branches.clear();
                 }
             }
