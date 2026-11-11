@@ -132,6 +132,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += settled_mode_models(worker, markers)
     results += inert_optional_mode_models(worker, markers)
     results += direct_optional_mode_models(worker, markers)
+    results += grouped_optional_mode_models(worker, markers)
     results += named_source_mode_models(worker, markers)
     results += parallel_named_mode_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
@@ -612,6 +613,67 @@ def direct_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> lis
                                         mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                     results.append(HeldModel(model, True, before_first + b'left\n', before_first,
                                              before_second_stdout=prefix))
+    return results
+
+
+def grouped_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = '.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    ordinary = ('all: result\n'
+                'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT)-$(PEER))'
+                'printf "ordinary\\n" > "$@"\n')
+    optional = '-include left.gen peer.gen\ninclude right.gen\n'
+    required_peer = '-include left.gen\ninclude peer.gen right.gen\n'
+    cases = (
+        ('optional-peers', optional, False, False, False, b''),
+        ('required-peer', required_peer, False, False, False, b''),
+        ('right-first', 'include right.gen\n-include left.gen peer.gen\n',
+         False, False, False, b''),
+        ('optional-existing-peer', optional, False, True, False, b''),
+        ('required-existing-peer', required_peer, False, True, False, b''),
+        ('optional-failure', optional, True, False, False, b''),
+        ('optional-failure-keep', optional, True, False, True, b''),
+        ('required-peer-failure-keep', required_peer, True, False, True,
+         b"Makefile:5: Failed to remake makefile 'peer.gen'.\n"),
+    )
+    modes = (
+        ('n', 0, b'printf "ordinary\\n" > "result"\n', {}),
+        ('q', 1, b'', {}),
+        ('t', 0, b'touch result\n', {'result': b''}),
+    )
+    loaded = {'left.gen': b'LEFT := loaded\n', 'peer.gen': b'PEER := loaded\n',
+              'right.gen': b'RIGHT := loaded\n'}
+    restarted = BEFORE_SECOND + b'right\nread-1\n'
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for name, reads, failed, present, keep, stderr in cases:
+            if failed:
+                reads = 'ifeq ($(MAKE_RESTARTS),)\n' + reads + 'else\ninclude right.gen\nendif\n'
+                recipe = 'left.gen peer.gen &: ; @python3 worker.py left fail\n'
+                prefix = b'left\n'
+                value = b'--loaded-'
+                updates = {'right.gen': loaded['right.gen']}
+            else:
+                recipe = ('left.gen peer.gen &: ; @python3 worker.py left include\n'
+                          '\t@printf "PEER := loaded\\n" > peer.gen\n')
+                prefix = b''
+                value = b'-loaded-loaded-loaded'
+                updates = loaded
+            source = header + reads + recipe + 'right.gen: ; @python3 worker.py right include\n' + ordinary
+            files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR}
+            if present:
+                files['peer.gen'] = b'PEER := initial\n'
+            for mode, status, stdout, ordinary_updates in modes:
+                flags = ('-k',) if keep else ()
+                args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}',
+                        '-' + mode, *flags, 'all')
+                expected = {'exit_code': status, 'stdout_template_hex': (prefix + stdout).hex(),
+                            'stderr_template_hex': stderr.hex()}
+                seen = restarted if mode == 't' else restarted + b'ordinary' + value + b'\n'
+                ident = f'grouped-optional-mode-{name}-{mode}-{transport}'
+                model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
+                                    updates={**markers, **updates, **ordinary_updates},
+                                    mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                results.append(HeldModel(model, True, BEFORE_SECOND, before_second_stdout=prefix))
     return results
 
 
