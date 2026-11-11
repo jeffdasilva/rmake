@@ -155,6 +155,22 @@ exits 1, and unchanged-target deletion after a child reaches an unforced
 continuation. Exact verbose output and the broader synthetic double-colon,
 grouped, and combined-mode cases remain separate acceptance work.
 
+## Keep-going changes during query execution
+
+After an earlier goal sets the query verdict, a stopping query can leave
+unvisited double-colon branches on a later direct goal. The pending branches
+resume on a later pass if another goal enables keep-going. The goal that
+sets the verdict leaves the pass. An explicit repeat of that target can
+request its remaining branches for a later pass. A forced child's
+subsequent command configuration can also enable keep-going, and an
+invocation-wide fatal error ends the traversal.
+
+Nine fixtures cover normalized aliases, an earlier error, a tail that
+disables keep-going, forced exit status and configuration, and a fatal stop.
+If the remaining query tails are suspended and no child or eligible goal
+can advance the traversal, rmake returns the established status. GNU Make
+4.4.1 can keep rescanning in that state.
+
 ## Parallel dry-run and touch execution
 
 Ordinary `-n` and `-t` keep the available recipe slots for forced lines. Each
