@@ -55,6 +55,7 @@ def main() -> int:
     compare = [python, 'tools/guile_frontend.py', '--profile', str(args.profile.resolve()),
                '--locale-root', str(args.locale_root.resolve())]
     detached = [python, 'tools/guile_detached.py', '--profile', str(args.profile.resolve())]
+    capture = [python, 'tools/guile_shell_capture.py', '--profile', str(args.profile.resolve())]
     pressure = [python, 'tools/guile_eventfd_pressure.py', '--profile', str(args.profile.resolve())]
     parallel = [python, 'tools/guile_detached_parallel.py', '--profile', str(args.profile.resolve())]
     parallel_pressure = [python, 'tools/guile_parallel_pressure.py', '--profile', str(args.profile.resolve())]
@@ -68,6 +69,8 @@ def main() -> int:
         run([*compare, '--candidate', str(enabled_frozen), '--report', str(directory / f'enabled-{label}.json')])
         run([*detached, '--candidate', str(enabled_frozen),
              '--report', str(directory / f'enabled-{label}-detached.json')])
+        run([*capture, '--candidate', str(enabled_frozen),
+             '--report', str(directory / f'enabled-{label}-shell-capture.json')])
         run([*pressure, '--candidate', str(enabled_frozen),
              '--report', str(directory / f'enabled-{label}-eventfd-pressure.json')])
         run([*parallel, '--candidate', str(enabled_frozen),

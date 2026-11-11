@@ -1,0 +1,109 @@
+{
+  "cases": [
+    {
+      "id": "reader-plain",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let loop () (unless (file-exists? \"release\") (usleep 2000) (loop))) (let ((answer (catch #t (lambda () \"plain\") (lambda args \"worker-error\")))) (call-with-output-file \"worker-result.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"worker-result.tmp\" \"worker-result\")))) \"\"))\nGOT := $(shell /bin/sh capture.sh)\n.PHONY: all\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(GOT)' '$(VALUE)'\n",
+      "stdout": "CAPTURE=<plain> VALUE=<global>\n",
+      "worker_result": "plain\n"
+    },
+    {
+      "id": "reader-expand",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let loop () (unless (file-exists? \"release\") (usleep 2000) (loop))) (let ((answer (catch #t (lambda () (gmk-expand \"$$(VALUE)\")) (lambda args \"worker-error\")))) (call-with-output-file \"worker-result.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"worker-result.tmp\" \"worker-result\")))) \"\"))\nGOT := $(shell /bin/sh capture.sh)\n.PHONY: all\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(GOT)' '$(VALUE)'\n",
+      "stdout": "CAPTURE=<global> VALUE=<global>\n",
+      "worker_result": "global\n"
+    },
+    {
+      "id": "reader-eval",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let loop () (unless (file-exists? \"release\") (usleep 2000) (loop))) (let ((answer (catch #t (lambda () (begin (gmk-eval \"VALUE := changed\") \"eval\")) (lambda args \"worker-error\")))) (call-with-output-file \"worker-result.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"worker-result.tmp\" \"worker-result\")))) \"\"))\nGOT := $(shell /bin/sh capture.sh)\n.PHONY: all\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(GOT)' '$(VALUE)'\n",
+      "stdout": "CAPTURE=<eval> VALUE=<changed>\n",
+      "worker_result": "eval\n"
+    },
+    {
+      "id": "assignment-expand",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let loop () (unless (file-exists? \"release\") (usleep 2000) (loop))) (let ((answer (catch #t (lambda () (gmk-expand \"$$(VALUE)\")) (lambda args \"worker-error\")))) (call-with-output-file \"worker-result.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"worker-result.tmp\" \"worker-result\")))) \"\"))\nGOT != /bin/sh capture.sh\n.PHONY: all\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(GOT)' '$(VALUE)'\n",
+      "stdout": "CAPTURE=<global> VALUE=<global>\n",
+      "worker_result": "global\n"
+    },
+    {
+      "id": "recipe-expand",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let loop () (unless (file-exists? \"release\") (usleep 2000) (loop))) (let ((answer (catch #t (lambda () (gmk-expand \"$$(VALUE)\")) (lambda args \"worker-error\")))) (call-with-output-file \"worker-result.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"worker-result.tmp\" \"worker-result\")))) \"\"))\n.PHONY: all\nall: VALUE := local\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(shell /bin/sh capture.sh)' '$(VALUE)'\n",
+      "stdout": "CAPTURE=<local> VALUE=<local>\n",
+      "worker_result": "local\n"
+    },
+    {
+      "id": "recipe-eval",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let loop () (unless (file-exists? \"release\") (usleep 2000) (loop))) (let ((answer (catch #t (lambda () (begin (gmk-eval \"MUTATION := recipe\") (gmk-expand \"$$(MUTATION)\"))) (lambda args \"worker-error\")))) (call-with-output-file \"worker-result.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"worker-result.tmp\" \"worker-result\")))) \"\"))\n.PHONY: all\nall: VALUE := local\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(shell /bin/sh capture.sh)' '$(VALUE)'\n",
+      "stdout": "CAPTURE=<recipe> VALUE=<local>\n",
+      "worker_result": "recipe\n"
+    },
+    {
+      "id": "reader-let",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let loop () (unless (file-exists? \"release\") (usleep 2000) (loop))) (let ((answer (catch #t (lambda () (gmk-expand \"$$(VALUE)\")) (lambda args \"worker-error\")))) (call-with-output-file \"worker-result.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"worker-result.tmp\" \"worker-result\")))) \"\"))\nGOT := $(let VALUE,let-local,$(shell /bin/sh capture.sh))\n.PHONY: all\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(GOT)' '$(VALUE)'\n",
+      "stdout": "CAPTURE=<let-local> VALUE=<global>\n",
+      "worker_result": "let-local\n"
+    },
+    {
+      "id": "reader-foreach",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let loop () (unless (file-exists? \"release\") (usleep 2000) (loop))) (let ((answer (catch #t (lambda () (gmk-expand \"$$(VALUE)\")) (lambda args \"worker-error\")))) (call-with-output-file \"worker-result.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"worker-result.tmp\" \"worker-result\")))) \"\"))\nGOT := $(foreach VALUE,loop-local,$(shell /bin/sh capture.sh))\n.PHONY: all\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(GOT)' '$(VALUE)'\n",
+      "stdout": "CAPTURE=<loop-local> VALUE=<global>\n",
+      "worker_result": "loop-local\n"
+    },
+    {
+      "id": "reader-call",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let loop () (unless (file-exists? \"release\") (usleep 2000) (loop))) (let ((answer (catch #t (lambda () (gmk-expand \"$$(1)\")) (lambda args \"worker-error\")))) (call-with-output-file \"worker-result.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"worker-result.tmp\" \"worker-result\")))) \"\"))\nF = $(shell /bin/sh capture.sh)\nGOT := $(call F,call-local)\n.PHONY: all\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(GOT)' '$(VALUE)'\n",
+      "stdout": "CAPTURE=<call-local> VALUE=<global>\n",
+      "worker_result": "call-local\n"
+    },
+    {
+      "id": "reader-sequence",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let loop () (unless (file-exists? \"release\") (usleep 2000) (loop))) (let ((answer (catch #t (lambda () (begin (gmk-eval \"VALUE := first\") (gmk-expand \"$$(VALUE)\"))) (lambda args \"worker-error\")))) (call-with-output-file \"worker-result.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"worker-result.tmp\" \"worker-result\")))) \"\"))\nGOT := $(shell /bin/sh capture.sh)\n.PHONY: all\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(GOT)' '$(VALUE)'\n",
+      "stdout": "CAPTURE=<first> VALUE=<first>\n",
+      "worker_result": "first\n"
+    },
+    {
+      "id": "reader-nested-guile",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let loop () (unless (file-exists? \"release\") (usleep 2000) (loop))) (let ((answer (catch #t (lambda () (gmk-expand \"$$(guile (number->string 19))\")) (lambda args \"worker-error\")))) (call-with-output-file \"worker-result.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"worker-result.tmp\" \"worker-result\")))) \"\"))\nGOT := $(shell /bin/sh capture.sh)\n.PHONY: all\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(GOT)' '$(VALUE)'\n",
+      "stdout": "CAPTURE=<19> VALUE=<global>\n",
+      "worker_result": "19\n"
+    },
+    {
+      "id": "reader-nested-shell",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let loop () (unless (file-exists? \"release\") (usleep 2000) (loop))) (let ((answer (catch #t (lambda () (gmk-expand \"$$(shell /bin/printf nested)\")) (lambda args \"worker-error\")))) (call-with-output-file \"worker-result.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"worker-result.tmp\" \"worker-result\")))) \"\"))\nGOT := $(shell /bin/sh capture.sh)\n.PHONY: all\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(GOT)' '$(VALUE)'\n",
+      "stdout": "CAPTURE=<nested> VALUE=<global>\n",
+      "worker_result": "nested\n"
+    },
+    {
+      "id": "reader-two-workers",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (define (wait-for path) (unless (file-exists? path) (usleep 2000) (wait-for path))) (define (publish path text) (let ((tmp (string-append path \".tmp\"))) (call-with-output-file tmp (lambda (port) (display text port) (newline port))) (rename-file tmp path))) (call-with-new-thread (lambda () (wait-for \"release\") (publish \"worker-result\" (gmk-expand \"$$(shell /bin/sh capture.sh inner)\")))) (call-with-new-thread (lambda () (wait-for \"inner-release\") (publish \"inner-result\" (gmk-expand \"$$(VALUE)\")))) \"\"))\nGOT := $(shell /bin/sh capture.sh)\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(GOT)' '$(VALUE)'\n",
+      "nested": true,
+      "stdout": "CAPTURE=<global> VALUE=<global>\n",
+      "worker_result": "global\n"
+    },
+    {
+      "id": "recipe-info-pipe-target",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let loop () (unless (file-exists? \"release\") (usleep 2000) (loop))) (let ((answer (catch #t (lambda () (gmk-expand \"$$(info from worker)$$(VALUE)\")) (lambda args \"worker-error\")))) (call-with-output-file \"worker-result.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"worker-result.tmp\" \"worker-result\")))) \"\"))\n.PHONY: all\nall: VALUE := local\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(shell /bin/sh capture.sh)' '$(VALUE)'\n",
+      "argv": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "-Otarget"
+      ],
+      "stdout": "from worker\nCAPTURE=<local> VALUE=<local>\n",
+      "worker_result": "local\n"
+    },
+    {
+      "id": "recipe-info-fifo-recurse",
+      "makefile": "VALUE := global\nREADY := $(guile (begin (use-modules (ice-9 threads)) (call-with-new-thread (lambda () (let loop () (unless (file-exists? \"release\") (usleep 2000) (loop))) (let ((answer (catch #t (lambda () (gmk-expand \"$$(info from worker)$$(VALUE)\")) (lambda args \"worker-error\")))) (call-with-output-file \"worker-result.tmp\" (lambda (port) (display answer port) (newline port))) (rename-file \"worker-result.tmp\" \"worker-result\")))) \"\"))\n.PHONY: all\nall: VALUE := local\nall:\n\t@printf 'CAPTURE=<%s> VALUE=<%s>\\n' '$(shell /bin/sh capture.sh)' '$(VALUE)'\n",
+      "argv": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo",
+        "-Orecurse"
+      ],
+      "stdout": "from worker\nCAPTURE=<local> VALUE=<local>\n",
+      "worker_result": "local\n"
+    }
+  ]
+}

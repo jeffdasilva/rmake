@@ -973,7 +973,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -1060,7 +1060,7 @@ impl Engine {
             )
             .with_makeflags(&mut self.flag_state.receiver())
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-            .with_shell(&mut |request| {
+            .with_shell(&|request| {
                 crate::shell::run(
                     request,
                     &self.program,

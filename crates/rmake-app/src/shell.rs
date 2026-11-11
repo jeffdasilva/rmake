@@ -5,8 +5,8 @@
 //! and newline folding live in core; this module only launches and captures.
 
 use rmake_core::diagnostic::{EnvironmentValue, ShellRequest, ShellResult};
-use rmake_core::variables::MAX_OUTPUT;
-use rmake_linux::child::{CaptureSpawnError, Child};
+use rmake_core::variables::{ExpandError, MAX_OUTPUT};
+use rmake_linux::child::{CaptureError, CaptureSpawnError, Child};
 use std::ffi::OsStr;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::process::ExitStatusExt;
@@ -25,7 +25,7 @@ pub fn run(
     output: &crate::output::Controller,
     jobserver: Option<&rmake_linux::jobserver::Jobserver>,
     child_completed: impl FnOnce(),
-) -> Result<ShellResult, Vec<u8>> {
+) -> Result<ShellResult, ExpandError> {
     let invocation = crate::process::prepare_shell_function(
         request.command,
         request.shell,
@@ -118,10 +118,14 @@ pub fn run(
             });
         }
     };
-    let captured = rmake_linux::child::capture(child, stdout, MAX_OUTPUT);
+    let captured = rmake_linux::child::capture(child, stdout, MAX_OUTPUT, request.service_workers);
     child_completed();
-    let (stdout, status) =
-        captured.map_err(|_| b"rmake: shell output limit exceeded or capture failed".to_vec())?;
+    let (stdout, status) = captured.map_err(|error| match error {
+        CaptureError::Io(_) => ExpandError::UnlocatedError(
+            b"rmake: shell output limit exceeded or capture failed".to_vec(),
+        ),
+        CaptureError::Worker(error) => error,
+    })?;
     Ok(ShellResult {
         stdout,
         status: status

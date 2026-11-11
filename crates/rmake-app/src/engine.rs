@@ -1861,7 +1861,7 @@ impl Engine {
             .with_makeflags(&mut self.flag_state.receiver())
             .with_target_reads(&mut target_reads)
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-            .with_shell(&mut |request| {
+            .with_shell(&|request| {
                 crate::shell::run(
                     request,
                     &self.program,
@@ -1896,7 +1896,7 @@ impl Engine {
             )
             .with_makeflags(&mut self.flag_state.receiver())
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-            .with_shell(&mut |request| {
+            .with_shell(&|request| {
                 crate::shell::run(
                     request,
                     &self.program,
@@ -1927,7 +1927,7 @@ impl Engine {
             let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
                 self.filesystem.borrow_mut().execute(effect)
             };
-            let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+            let shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
                 crate::shell::run(
                     request,
                     &self.program,
@@ -1941,7 +1941,7 @@ impl Engine {
             let mut context = runtime_context(location, &mut output)
                 .with_makeflags(&mut flags)
                 .with_filesystem(&mut filesystem)
-                .with_shell(&mut shell)
+                .with_shell(&shell)
                 .with_includes(&mut include);
             if reload {
                 self.database
@@ -2010,7 +2010,7 @@ impl Engine {
         let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
             self.filesystem.borrow_mut().execute(effect)
         };
-        let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+        let shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
             crate::shell::run(
                 request,
                 &self.program,
@@ -2024,7 +2024,7 @@ impl Engine {
         let mut context = runtime_context(None, &mut output)
             .with_makeflags(&mut flags)
             .with_filesystem(&mut filesystem)
-            .with_shell(&mut shell)
+            .with_shell(&shell)
             .with_includes(&mut include);
         operation(&mut self.database, &mut context)
     }
@@ -2387,7 +2387,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -2462,7 +2462,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -2551,7 +2551,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -2911,7 +2911,7 @@ impl Engine {
                     )
                     .with_makeflags(&mut self.flag_state.receiver())
                     .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                    .with_shell(&mut |request| {
+                    .with_shell(&|request| {
                         crate::shell::run(
                             request,
                             &self.program,
@@ -2967,7 +2967,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -3066,7 +3066,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -3115,7 +3115,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -3993,7 +3993,7 @@ impl Engine {
                             .with_filesystem(&mut |effect| {
                                 self.filesystem.borrow_mut().execute(effect)
                             })
-                            .with_shell(&mut |request| {
+                            .with_shell(&|request| {
                                 crate::shell::run(
                                     request,
                                     &self.program,
@@ -8329,7 +8329,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -8402,7 +8402,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -8559,7 +8559,7 @@ impl Engine {
             let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
                 self.filesystem.borrow_mut().execute(effect)
             };
-            let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+            let shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
                 crate::shell::run(
                     request,
                     &self.program,
@@ -8576,7 +8576,7 @@ impl Engine {
             let mut context = runtime_context(None, &mut diagnostic_output)
                 .with_makeflags(&mut makeflags)
                 .with_filesystem(&mut filesystem)
-                .with_shell(&mut shell)
+                .with_shell(&shell)
                 .with_includes(&mut includes);
             let mut expanded = Vec::new();
             let mut pending_wait = None;
@@ -11570,7 +11570,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -12397,7 +12397,7 @@ impl Engine {
                             .with_filesystem(&mut |effect| {
                                 self.filesystem.borrow_mut().execute(effect)
                             })
-                            .with_shell(&mut |request| {
+                            .with_shell(&|request| {
                                 crate::shell::run(
                                     request,
                                     &self.program,

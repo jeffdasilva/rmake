@@ -572,7 +572,7 @@ impl State {
         let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
             self.filesystem.borrow_mut().execute(effect)
         };
-        let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+        let shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
             crate::shell::run(request, program, 0, &self.output, None, || {
                 self.filesystem.borrow_mut().child_completed()
             })
@@ -582,7 +582,7 @@ impl State {
             &mut self.database,
             runtime_context(None, &mut receiver)
                 .with_filesystem(&mut filesystem)
-                .with_shell(&mut shell)
+                .with_shell(&shell)
                 .with_includes(&mut include),
         )
     }

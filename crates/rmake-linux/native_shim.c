@@ -77,7 +77,7 @@ static void restore_environment(void) {
 typedef const void *(*rg_operation)(void *);
 extern int rg_dispatch_active(void);
 extern int rg_dispatch_on_host(void);
-extern const void *rg_dispatch_call(void *,rg_operation,void *);
+extern const void *rg_dispatch_call(void *,rg_operation,void *,int);
 extern void *rg_dispatch_yield(void *,const void *);
 extern void rg_dispatch_abandon(void *);
 extern int rg_guile_prepare_interrupts(void);
@@ -290,7 +290,7 @@ const struct rm_request *rm_native_drive(struct rm_session *s, void *reply) {
 #ifdef RMAKE_GUILE_DISPATCH
     if (rg_dispatch_active()) {
         if (!rg_dispatch_on_host()) _Exit(2);
-        return rg_dispatch_call(s,main_entry,reply);
+        return rg_dispatch_call(s,main_entry,reply,s->operation==7);
     }
 #endif
     s->reply = reply;
