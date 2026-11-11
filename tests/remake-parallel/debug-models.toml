@@ -6597,3 +6597,729 @@ Finished prerequisites of target file 'all'.
 Must remake target 'all'.
 Successfully remade target file 'all'.
 '''
+
+# Repeated reads share considered records across optional remake passes.
+[[profiles]]
+case = "duplicate-success-required-pipe"
+flag = "m,v"
+fifo = true
+release_prefixes = [1130, 1306]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 --jobserver-style=pipe --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+Updating goal targets....
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "duplicate-success-optional-required-pipe"
+flag = "m,v"
+fifo = true
+release_prefixes = [1143, 1221]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (don't care) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 --jobserver-style=pipe --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (don't care) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+Updating goal targets....
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "duplicate-success-optional-only-pipe"
+flag = "m,v"
+fifo = true
+release_prefixes = [1156, 1234]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (don't care) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (don't care) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 --jobserver-style=pipe --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (don't care) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (don't care) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+Updating goal targets....
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "duplicate-fail-optional-required-pipe"
+flag = "m,v"
+fifo = true
+release_prefixes = [1358, 1545]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (don't care) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+  Considering target file 'force'.
+   File 'force' does not exist.
+  Finished prerequisites of target file 'force'.
+  Must remake target 'force'.
+  Successfully remade target file 'force'.
+ Finished prerequisites of target file 'right.gen'.
+  Prerequisite 'force' of target 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+left
+ Considering target file 'left.gen'.
+ Recently tried and failed to update file 'left.gen'.
+ Considering target file 'left.gen'.
+ Recently tried and failed to update file 'left.gen'.
+'''
+
+[[profiles]]
+case = "duplicate-fail-optional-required-keep-pipe"
+flag = "m,v"
+fifo = true
+release_prefixes = [1358, 1617]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (don't care) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+  Considering target file 'force'.
+   File 'force' does not exist.
+  Finished prerequisites of target file 'force'.
+  Must remake target 'force'.
+  Successfully remade target file 'force'.
+ Finished prerequisites of target file 'right.gen'.
+  Prerequisite 'force' of target 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+left
+ Considering target file 'left.gen'.
+ Recently tried and failed to update file 'left.gen'.
+ Considering target file 'left.gen'.
+ Recently tried and failed to update file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+'''
+
+[[profiles]]
+case = "duplicate-fail-optional-required-with-right-first-pipe"
+flag = "m,v"
+fifo = true
+release_prefixes = [1358, 1617]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (don't care) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'right.gen'.
+  Considering target file 'force'.
+   File 'force' does not exist.
+  Finished prerequisites of target file 'force'.
+  Must remake target 'force'.
+  Successfully remade target file 'force'.
+ Finished prerequisites of target file 'right.gen'.
+  Prerequisite 'force' of target 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Pruning file 'left.gen'.
+left
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'left.gen'.
+ Recently tried and failed to update file 'left.gen'.
+ Considering target file 'left.gen'.
+ Recently tried and failed to update file 'left.gen'.
+'''
+
+[[profiles]]
+case = "duplicate-fail-required-optional-with-right-first-pipe"
+flag = "m,v"
+fifo = true
+release_prefixes = [1358, 1363]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (don't care) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'right.gen'.
+  Considering target file 'force'.
+   File 'force' does not exist.
+  Finished prerequisites of target file 'force'.
+  Must remake target 'force'.
+  Successfully remade target file 'force'.
+ Finished prerequisites of target file 'right.gen'.
+  Prerequisite 'force' of target 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Pruning file 'left.gen'.
+left
+'''
+
+[[profiles]]
+case = "duplicate-fail-required-required-with-right-first-pipe"
+flag = "m,v"
+fifo = true
+release_prefixes = [1345, 1350]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'right.gen'.
+  Considering target file 'force'.
+   File 'force' does not exist.
+  Finished prerequisites of target file 'force'.
+  Must remake target 'force'.
+  Successfully remade target file 'force'.
+ Finished prerequisites of target file 'right.gen'.
+  Prerequisite 'force' of target 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Pruning file 'left.gen'.
+left
+'''
+
+[[profiles]]
+case = "duplicate-fail-optional-required-nested-pipe"
+flag = "m,v"
+fifo = true
+release_prefixes = [1488, 1839]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (don't care) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+  Considering target file 'left-step'.
+   File 'left-step' does not exist.
+  Finished prerequisites of target file 'left-step'.
+  Must remake target 'left-step'.
+  Recipe of 'left-step' is being run.
+ The prerequisites of 'left.gen' are being made.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+  Considering target file 'force'.
+   File 'force' does not exist.
+  Finished prerequisites of target file 'force'.
+  Must remake target 'force'.
+  Successfully remade target file 'force'.
+ Finished prerequisites of target file 'right.gen'.
+  Prerequisite 'force' of target 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+left
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+  Considering target file 'left-step'.
+  Recently tried and failed to update file 'left-step'.
+ Finished prerequisites of target file 'left.gen'.
+ Giving up on target file 'left.gen'.
+ Considering target file 'left.gen'.
+ Recently tried and failed to update file 'left.gen'.
+'''
+
+[[profiles]]
+case = "duplicate-fail-optional-only-pipe"
+flag = "m,v"
+fifo = true
+release_prefixes = [1371, 1565]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (don't care) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (don't care) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+  Considering target file 'force'.
+   File 'force' does not exist.
+  Finished prerequisites of target file 'force'.
+  Must remake target 'force'.
+  Successfully remade target file 'force'.
+ Finished prerequisites of target file 'right.gen'.
+  Prerequisite 'force' of target 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+left
+ Considering target file 'left.gen'.
+ Recently tried and failed to update file 'left.gen'.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Updating goal targets....
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "duplicate-normalized-success-pipe"
+flag = "m,v"
+fifo = true
+release_prefixes = [1130, 1306]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 --jobserver-style=pipe --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+Updating goal targets....
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "duplicate-normalized-optional-required-fail-pipe"
+flag = "m,v"
+fifo = true
+release_prefixes = [1358, 1545]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (don't care) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Pruning file 'left.gen'.
+ Considering target file 'right.gen'.
+  Considering target file 'force'.
+   File 'force' does not exist.
+  Finished prerequisites of target file 'force'.
+  Must remake target 'force'.
+  Successfully remade target file 'force'.
+ Finished prerequisites of target file 'right.gen'.
+  Prerequisite 'force' of target 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+left
+ Considering target file 'left.gen'.
+ Recently tried and failed to update file 'left.gen'.
+ Considering target file 'left.gen'.
+ Recently tried and failed to update file 'left.gen'.
+'''
+
+[[profiles]]
+case = "duplicate-dot-dot-distinct-records-pipe"
+flag = "m,v"
+fifo = true
+release_prefixes = [1102, 1272]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'aliases/../left.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'aliases/../left.gen'.
+  File 'aliases/../left.gen' does not exist.
+ Finished prerequisites of target file 'aliases/../left.gen'.
+ Must remake target 'aliases/../left.gen'.
+ Recipe of 'aliases/../left.gen' is being run.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'aliases/../left.gen'.
+ Still updating file 'aliases/../left.gen'.
+ Considering target file 'aliases/../left.gen'.
+ File 'aliases/../left.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j2 --jobserver-style=pipe --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'aliases/../left.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'aliases/../left.gen'.
+ Finished prerequisites of target file 'aliases/../left.gen'.
+ No need to remake target 'aliases/../left.gen'.
+Updating goal targets....
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Successfully remade target file 'all'.
+'''
