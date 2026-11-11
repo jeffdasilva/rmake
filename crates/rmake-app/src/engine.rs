@@ -3249,6 +3249,10 @@ impl Engine {
             }
             use crate::debug::Mask;
             let remake_debug_bits = Mask::BASIC.bits() | Mask::MAKEFILES.bits();
+            let verbose_load_debug = self.options.load_limit.is_some()
+                && !modes.active()
+                && debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits())
+                && self.qualified_load_debug_sources(&read_files, false);
             let qualified_remake_debug = debug_before_remake.bits() == remake_debug_bits
                 || (debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits())
                     && self.jobserver.is_some());
@@ -3256,7 +3260,9 @@ impl Engine {
                 && debug_before_remake.bits() == remake_debug_bits;
             let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
                 || (qualified_remake_debug
-                    && (self.options.load_limit.is_none() || basic_load_debug));
+                    && (self.options.load_limit.is_none()
+                        || basic_load_debug
+                        || verbose_load_debug));
             // Required makefiles settle before the ordinary mode resumes.
             // An explicit goal can also name a makefile and use that mode.
             let ordinary_mode = modes.active();
@@ -3305,7 +3311,7 @@ impl Engine {
             let optional_dependency_load_debug = ordinary_mode
                 && basic_load_debug
                 && direct_mode_remakes
-                && self.qualified_optional_dependency_load_debug(&read_files);
+                && self.qualified_load_debug_sources(&read_files, true);
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
                     || (((debug_before_remake.bits() == remake_debug_bits && !basic_load_debug)
@@ -3333,7 +3339,8 @@ impl Engine {
             let initial_reaps = self.recipe_reaps;
             let mut pass_reaps = initial_reaps;
             let mut pass_progress = self.filesystem.borrow().generation();
-            let track_remake_effects = direct_mode_remakes || basic_load_debug;
+            let track_remake_effects =
+                direct_mode_remakes || basic_load_debug || verbose_load_debug;
             let first_effect_generation = track_remake_effects.then_some(pass_progress);
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
@@ -4430,51 +4437,74 @@ impl Engine {
         })
     }
 
-    fn qualified_optional_dependency_load_debug(&self, read_files: &[(Makefile, bool)]) -> bool {
-        use rmake_core::filenames::without_dot_prefix;
+    fn qualified_load_debug_sources(
+        &self,
+        read_files: &[(Makefile, bool)],
+        optional_dependencies_only: bool,
+    ) -> bool {
+        use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
         if !self.no_remake_recipe_fallback() {
             return false;
         }
-        let mut has_optional_dependencies = false;
+        let plain_name = |name: &[u8]| {
+            !name.contains(&b'/')
+                && !name.starts_with(b".")
+                && !name.starts_with(b"~")
+                && !name.starts_with(b"-l")
+                && archive_parts(name).is_none()
+        };
+        let plain_rule = |rule: &Rule| {
+            rule.secondary.is_none() && rule.group.is_none() && rule.double_colon.is_none()
+        };
+        let nonrecursive =
+            |recipes: &[Recipe]| recipes.iter().all(|recipe| !recipe_is_recursive(recipe));
+        let mut seen = HashSet::new();
+        let mut has_dependencies = false;
         for (file, skip) in read_files {
             if *skip {
                 continue;
             }
-            let Some(rule) = self.database.rules.get(without_dot_prefix(&file.name)) else {
+            let name = without_dot_prefix(&file.name);
+            if !plain_name(name)
+                || !seen.insert(name)
+                || self.database.loaded_modules.contains_key(name)
+            {
+                return false;
+            }
+            let Some(rule) = self.database.rules.get(name) else {
                 continue;
             };
-            if rule.secondary.is_some() || rule.group.is_some() || rule.double_colon.is_some() {
+            if !plain_rule(rule)
+                || rule
+                    .recipes
+                    .as_ref()
+                    .is_some_and(|recipes| recipes.len() > 1 || !nonrecursive(recipes))
+            {
                 return false;
             }
             if rule.dependencies.is_empty() {
                 continue;
             }
-            if !file.optional
+            if (optional_dependencies_only && !file.optional)
                 || !rule.dependencies.iter().all(|dep| {
-                    let name = dep.name.as_slice();
                     !dep.hidden
-                        && !name.contains(&b'/')
-                        && !name.starts_with(b".")
-                        && !name.starts_with(b"~")
-                        && !name.starts_with(b"-l")
-                        && rmake_core::filenames::archive_parts(name).is_none()
-                        && self.database.rules.get(name).is_some_and(|child| {
+                        && plain_name(&dep.name)
+                        && self.database.rules.get(&dep.name).is_some_and(|child| {
                             child.dependencies.is_empty()
-                                && child.secondary.is_none()
-                                && child.group.is_none()
-                                && child.double_colon.is_none()
+                                && plain_rule(child)
                                 && child.recipes.as_ref().is_some_and(|recipes| {
-                                    recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
+                                    (optional_dependencies_only || recipes.len() <= 1)
+                                        && nonrecursive(recipes)
                                 })
                         })
                 })
             {
                 return false;
             }
-            has_optional_dependencies = true;
+            has_dependencies = true;
         }
-        has_optional_dependencies
+        !optional_dependencies_only || has_dependencies
     }
 
     fn simple_named_remake(
