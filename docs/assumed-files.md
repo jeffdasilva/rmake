@@ -38,12 +38,14 @@ the first ordinary visit after publication. GNU compares each raw `-W`
 operand to the already prepared spellings before resolving it. Thus
 `-W cached -W ./cached` adds two synthetic branches, while the reverse
 order adds one. Each branch performs its own implicit search and uses the
-same initial comparison time. A stopping query with one ordinary goal can
-search multiple synthetic branches. The first out-of-date result stops that
-chain. Stopping queries during makefile remakes or with multiple requested
-goals still use at most one synthetic branch.
-GNU can hang when an earlier goal has returned an out-of-date query result
-and a later double-colon chain has additional unvisited inputs.
+same initial comparison time. A stopping query can search multiple synthetic
+branches for each ordinary goal. The first out-of-date result stops that
+chain when keep-going is disabled. Four additional fixtures cover a prior
+query verdict, a prior current goal, an indirect visit, and a cached chain
+after a restart. The stopping-query makefile remake phase uses at most one
+synthetic branch. GNU can hang when an earlier goal has returned an out-of-date
+query result and a later double-colon chain has additional unvisited inputs.
+rmake bounds this traversal by stopping the chain at its out-of-date result.
 
 The optional owned table exists only when at least one operand is present.
 Its logical old/new values use checked SystemTime values outside the pinned

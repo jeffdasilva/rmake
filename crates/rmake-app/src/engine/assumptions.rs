@@ -167,12 +167,10 @@ impl Engine {
         if count > 1
             && self.options.question
             && !self.options.keep_going
-            && (self.remaking
-                || self.active_makefile_remake.is_some()
-                || self.options.goals.len() > 1)
+            && (self.remaking || self.active_makefile_remake.is_some())
         {
-            // A single ordinary goal can search later entries until its first
-            // query verdict. Keep the cap during remakes and multi-goal queries.
+            // Ordinary goals can search later entries until their first
+            // query verdict. Keep the cap for makefile remake traversal.
             1
         } else {
             count

@@ -1,0 +1,11 @@
+id = "assumed-double-query-tail-multi-nested-prior-query"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+provenance = "Original rmake differential fixture for a finite GNU Make 4.4.1 multi-goal query."
+args = ["-rR", "--no-print-directory", "-q", "-j2", "--jobserver-style=pipe", "-Wcached", "-W./cached", "gate", "outer"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "prior-query\nsearch-old\nsearch-new\nsynthetic-query\n"
+stderr = ""
