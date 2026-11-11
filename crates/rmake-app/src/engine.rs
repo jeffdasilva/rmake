@@ -3492,8 +3492,12 @@ impl Engine {
                     }
                 }
                 let before = before.unwrap_or(result.time);
+                // A required chain under -k can revisit its cached head
+                // after a failed declaration and report the prune.
+                let settled_chain = !result.failed
+                    || (!optional && self.options.keep_going && serial_declarations.is_some());
                 if !self.parallel_makefile_remakes
-                    && !result.failed
+                    && settled_chain
                     && (!optional || before == result.time)
                 {
                     self.debug_double_colon_goal_prunes(name, result);

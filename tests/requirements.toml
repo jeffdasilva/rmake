@@ -2811,3 +2811,38 @@ cases = [
   "serial-remake-debug-return-required-keep-missing-prerequisite-query",
   "serial-remake-debug-return-required-keep-missing-prerequisite-touch",
 ]
+
+[[requirements]]
+id = "debug.required-serial-double-colon-prunes"
+title = "Cached visit diagnostics after a failed required serial double-colon remake"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 24
+fixture_count = 24
+cases = [
+  "serial-remake-prune-default-primary-failed-declaration-normal",
+  "serial-remake-prune-default-primary-failed-prerequisite-normal",
+  "serial-remake-prune-default-primary-missing-prerequisite-dry-run",
+  "serial-remake-prune-default-primary-missing-prerequisite-normal",
+  "serial-remake-prune-default-primary-missing-prerequisite-query",
+  "serial-remake-prune-default-primary-missing-prerequisite-touch",
+  "serial-remake-prune-default-primary-shared-failed-prerequisite-normal",
+  "serial-remake-prune-default-primary-three-declarations-normal",
+  "serial-remake-prune-named-primary-failed-declaration-normal",
+  "serial-remake-prune-named-primary-failed-prerequisite-normal",
+  "serial-remake-prune-named-primary-missing-prerequisite-dry-run",
+  "serial-remake-prune-named-primary-missing-prerequisite-normal",
+  "serial-remake-prune-named-primary-missing-prerequisite-query",
+  "serial-remake-prune-named-primary-missing-prerequisite-touch",
+  "serial-remake-prune-named-primary-shared-failed-prerequisite-normal",
+  "serial-remake-prune-named-primary-three-declarations-normal",
+  "serial-remake-prune-required-include-failed-declaration-normal",
+  "serial-remake-prune-required-include-failed-prerequisite-normal",
+  "serial-remake-prune-required-include-missing-prerequisite-dry-run",
+  "serial-remake-prune-required-include-missing-prerequisite-normal",
+  "serial-remake-prune-required-include-missing-prerequisite-query",
+  "serial-remake-prune-required-include-missing-prerequisite-touch",
+  "serial-remake-prune-required-include-shared-failed-prerequisite-normal",
+  "serial-remake-prune-required-include-three-declarations-normal",
+]

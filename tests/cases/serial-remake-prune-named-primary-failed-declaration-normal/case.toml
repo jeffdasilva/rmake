@@ -1,0 +1,10 @@
+id = "serial-remake-prune-named-primary-failed-declaration-normal"
+requirement = "debug.required-serial-double-colon-prunes"
+candidate = "required"
+provenance = "Original required makefile cached-visit fixture verified against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "--debug=m,v", "-f", "Primary.mk", "all"]
+
+[expected]
+exit_code = 2
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Primary.mk'...\nREAD:\nUpdating makefiles....\n Considering target file 'Primary.mk'.\n  Considering target file 'force1'.\n   File 'force1' does not exist.\n  Finished prerequisites of target file 'force1'.\n  Must remake target 'force1'.\n  Successfully remade target file 'force1'.\n Finished prerequisites of target file 'Primary.mk'.\n  Prerequisite 'force1' of target 'Primary.mk' does not exist.\n Must remake target 'Primary.mk'.\nBRANCH:1\n Failed to remake target file 'Primary.mk'.\n Considering target file 'Primary.mk'.\n  Considering target file 'force2'.\n   File 'force2' does not exist.\n  Finished prerequisites of target file 'force2'.\n  Must remake target 'force2'.\n  Successfully remade target file 'force2'.\n Finished prerequisites of target file 'Primary.mk'.\n  Prerequisite 'force2' of target 'Primary.mk' does not exist.\n Must remake target 'Primary.mk'.\nBRANCH:2\n Successfully remade target file 'Primary.mk'.\n Pruning file 'Primary.mk'.\n"
+stderr = "make: *** [Primary.mk:5: Primary.mk] Error 7\nmake: Failed to remake makefile 'Primary.mk'.\n"

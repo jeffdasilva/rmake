@@ -193,3 +193,8 @@ makefile or a required makefile under `-k` returns to the updater. A recipe
 failure also produces a failed-update trace when an optional makefile returns
 to the updater. A required stopping failure exits before that trace. These
 diagnostics also apply when `-n`, `-q`, or `-t` governs a separate build goal.
+
+Under `-k`, a required ungrouped double-colon makefile can finish its
+remaining declarations after the head fails. Verbose tracing then reports
+one cached-head prune per additional declaration. This also applies to the
+default makefile and to a primary file named with `-f`.
