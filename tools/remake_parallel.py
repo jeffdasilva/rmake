@@ -671,8 +671,23 @@ def direct_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> lis
                                         {'GNUMAKEFLAGS': ''}, expected, effects,
                                         updates={**markers, **updates, **ordinary_updates},
                                         mtimes_ns=dict.fromkeys(files, INPUT_TIME))
-                    results.append(HeldModel(model, True, before_first + b'left\n', before_first,
-                                             before_second_stdout=prefix))
+                    held = HeldModel(model, True, before_first + b'left\n', before_first,
+                                     before_second_stdout=prefix)
+                    results.append(held)
+                    if not builtins and name.endswith('success'):
+                        for label, function, marker in (
+                            ('file', b'$(file >>seen,right-effect)', b'right-effect\n'),
+                            ('shell', b'$(shell true)', b''),
+                        ):
+                            makefile = files['Makefile'].replace(
+                                b'right.gen: ; @python3',
+                                b'right.gen: ; @' + function + b'python3', 1)
+                            first = before_first + marker
+                            variant = replace(model, id=f'{ident}-{label}-effect',
+                                              files={**files, 'Makefile': makefile},
+                                              seen=effects.replace(before_first, first, 1))
+                            results.append(replace(held, model=variant, before_first=first,
+                                                   before_second=first + b'left\n'))
     return results
 
 

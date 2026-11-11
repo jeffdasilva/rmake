@@ -3266,10 +3266,30 @@ impl Engine {
                             .get(name)
                             .is_some_and(|rule| !rule.dependencies.is_empty())
                 });
+            let verbose_unnamed_remakes = ordinary_mode
+                && qualified_remake_debug
+                && debug_before_remake.has(Mask::VERBOSE)
+                && {
+                    let mut seen = HashSet::new();
+                    let no_recipe_fallback = self.no_remake_recipe_fallback();
+                    read_files.iter().all(|(file, skip)| {
+                        let name = rmake_core::filenames::without_dot_prefix(&file.name);
+                        *skip
+                            || (seen.insert(name)
+                                && !self.is_makefile_goal(name, named_sources.as_ref())
+                                && self
+                                    .database
+                                    .rules
+                                    .get(name)
+                                    .and_then(|rule| rule.recipes.as_ref())
+                                    .map_or(no_recipe_fallback, |recipes| recipes.len() <= 1))
+                    })
+                };
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
                     || ((debug_before_remake.bits() == remake_debug_bits
-                        || verbose_mode_remakes)
+                        || verbose_mode_remakes
+                        || verbose_unnamed_remakes)
                         && self
                             .qualified_debug_remake_sources(&read_files, named_sources.as_ref())))
                     && self.ordinary_mode_remakes_settle(
@@ -3288,6 +3308,8 @@ impl Engine {
             let mut pending = Vec::new();
             let initial_reaps = self.recipe_reaps;
             let mut pass_reaps = initial_reaps;
+            let first_effect_generation =
+                verbose_unnamed_remakes.then(|| self.filesystem.borrow().generation());
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
@@ -3675,12 +3697,17 @@ impl Engine {
                         .and_then(|remake| remake.context.open_error.clone());
                     MakefileModes::default().apply(&mut self.options);
                 }
-                let last_reaps = if verbose_mode_remakes {
+                let previous_progress = if verbose_mode_remakes {
                     None
                 } else {
-                    Some(pass_reaps)
+                    first_effect_generation.or(Some(pass_reaps))
                 };
-                stopped = !self.wait_makefile_remakes(&mut pending, &visited, last_reaps);
+                stopped = !self.wait_makefile_remakes(
+                    &mut pending,
+                    &visited,
+                    previous_progress,
+                    verbose_unnamed_remakes,
+                );
                 if !stopped {
                     for remake in pending {
                         let name = remake.file.name.as_slice();
@@ -5416,9 +5443,17 @@ impl Engine {
         &mut self,
         requests: &mut [PendingMakefileRemake<'_>],
         visited: &MakefileVisits<'_>,
-        mut last_reaps: Option<u64>,
+        mut previous_progress: Option<u64>,
+        track_effects: bool,
     ) -> bool {
-        let wait_for_completed_job = last_reaps.is_none();
+        let wait_for_completed_job = previous_progress.is_none();
+        let progress = |engine: &Self| {
+            if track_effects {
+                engine.filesystem.borrow().generation()
+            } else {
+                engine.recipe_reaps
+            }
+        };
         'passes: while requests.iter().any(|request| request.active) {
             if self.shutdown.get() != Shutdown::Running {
                 return false;
@@ -5426,13 +5461,13 @@ impl Engine {
             // Reap against the previous pass's cursor. A pass with no newly
             // completed commands waits before changing which root is current.
             let previous_jobs = self.parallel_jobs.len();
-            let wait = Some(self.recipe_reaps) == last_reaps;
+            let wait = Some(progress(self)) == previous_progress;
             self.poll_jobs();
             if wait
                 && (if wait_for_completed_job {
                     self.parallel_jobs.len() >= previous_jobs
                 } else {
-                    Some(self.recipe_reaps) == last_reaps
+                    Some(progress(self)) == previous_progress
                 })
                 && self.parallel_jobs.values().any(|job| !job.waiting_load)
             {
@@ -5450,7 +5485,7 @@ impl Engine {
             if self.forced_query_stop || self.shutdown.get() != Shutdown::Running {
                 return false;
             }
-            last_reaps = Some(self.recipe_reaps);
+            previous_progress = Some(progress(self));
             self.advance_debug_pass();
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let pass_epoch = self.graph_epoch;
