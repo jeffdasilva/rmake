@@ -151,4 +151,7 @@ launch retains the pipe ends for the interpreter's lifetime. A pipe allocation
 failure reports the active source location and preserves the previous
 `.SHELLSTATUS`. Under descriptor pressure, the POSIX spawn backend can launch
 with the capture pipe already in place, avoiding an additional fork-status
-socket. The signal wake pipe still affects the remaining descriptor budget.
+socket. With a startup limit of 12 or 13 descriptors on supported glibc
+versions, rmake leaves two descriptors available for shell capture and uses
+the existing bounded interruptible wait. The recursive jobserver budget is
+independent of this choice. Higher limits still reserve a signal wake pipe.
