@@ -4484,13 +4484,14 @@ impl Expansion<'_, '_> {
             b"strip" => join_words(words(first)),
             b"subst" => substitute(first, &args[1], &args[2]),
             b"patsubst" => pattern_substitute(first, &args[1], &args[2]),
-            b"findstring" => Ok(
-                if first.is_empty() || args[1].windows(first.len()).any(|word| word == first) {
-                    first.to_vec()
-                } else {
-                    Vec::new()
-                },
-            ),
+            b"findstring" => {
+                let found = match first {
+                    [] => true,
+                    [byte] if args[1].len() >= 64 => args[1].contains(byte),
+                    _ => args[1].windows(first.len()).any(|word| word == first),
+                };
+                Ok(if found { first.to_vec() } else { Vec::new() })
+            }
             b"filter" | b"filter-out" => {
                 let patterns: Vec<_> = words(first).map(Pattern::new).collect();
                 join_words(words(&args[1]).filter(|word| {
@@ -4606,15 +4607,20 @@ impl Expansion<'_, '_> {
                 Ok(output)
             }
             b"join" => {
-                let left: Vec<_> = words(first).collect();
-                let right: Vec<_> = words(&args[1]).collect();
+                let mut right = words(&args[1]);
                 let mut output = Vec::new();
-                for index in 0..left.len().max(right.len()) {
-                    if index != 0 {
+                for left_word in words(first) {
+                    if !output.is_empty() {
                         push(&mut output, b" ")?;
                     }
-                    push(&mut output, left.get(index).copied().unwrap_or_default())?;
-                    push(&mut output, right.get(index).copied().unwrap_or_default())?;
+                    push(&mut output, left_word)?;
+                    push(&mut output, right.next().unwrap_or_default())?;
+                }
+                for right_word in right {
+                    if !output.is_empty() {
+                        push(&mut output, b" ")?;
+                    }
+                    push(&mut output, right_word)?;
                 }
                 Ok(output)
             }
@@ -4650,11 +4656,23 @@ impl Expansion<'_, '_> {
                     StartingDirectory::Pending => None,
                     StartingDirectory::Selected(directory) => Some(directory.as_ref()),
                 };
-                let paths = words(first)
-                    .filter(|path| directory.is_some() || path.starts_with(b"/"))
-                    .filter_map(|path| absolute_path(directory.unwrap_or(b"/"), path))
-                    .collect::<Vec<_>>();
-                join_words(paths.iter().map(Vec::as_slice))
+                let paths =
+                    words(first).filter(|path| directory.is_some() || path.starts_with(b"/"));
+                let mut output = Vec::new();
+                let mut parts = Vec::new();
+                let mut normalized = Vec::new();
+                for path in paths {
+                    let Some(path) =
+                        absolute_path(directory.unwrap_or(b"/"), path, &mut parts, &mut normalized)
+                    else {
+                        continue;
+                    };
+                    if !output.is_empty() {
+                        push(&mut output, b" ")?;
+                    }
+                    push(&mut output, path)?;
+                }
+                Ok(output)
             }
             _ => Err(ExpandError::Unsupported(name.to_vec())),
         }
@@ -5024,6 +5042,17 @@ fn word_index(value: &[u8], function: &[u8], second: bool) -> Result<i64, Expand
 
 fn substitute(from: &[u8], to: &[u8], text: &[u8]) -> Result<Vec<u8>, ExpandError> {
     let mut output = Vec::new();
+    if text.len() >= 64
+        && let ([from], [to]) = (from, to)
+    {
+        push(&mut output, text)?;
+        for byte in &mut output {
+            if byte == from {
+                *byte = *to;
+            }
+        }
+        return Ok(output);
+    }
     if from.is_empty() {
         push(&mut output, text)?;
         push(&mut output, to)?;
@@ -5196,8 +5225,14 @@ fn pattern_substitute(from: &[u8], to: &[u8], text: &[u8]) -> Result<Vec<u8>, Ex
     Ok(output)
 }
 
-fn absolute_path(directory: &[u8], path: &[u8]) -> Option<Vec<u8>> {
+fn absolute_path<'path, 'output>(
+    directory: &'path [u8],
+    path: &'path [u8],
+    parts: &mut Vec<&'path [u8]>,
+    result: &'output mut Vec<u8>,
+) -> Option<&'output [u8]> {
     const LINUX_PATH_LIMIT: usize = 4096;
+    parts.clear();
     if path.len() >= LINUX_PATH_LIMIT {
         return None;
     }
@@ -5206,7 +5241,6 @@ fn absolute_path(directory: &[u8], path: &[u8]) -> Option<Vec<u8>> {
     } else {
         directory
     };
-    let mut parts: Vec<&[u8]> = Vec::new();
     let mut length = 1;
     for part in base
         .split(|byte| *byte == b'/')
@@ -5228,7 +5262,8 @@ fn absolute_path(directory: &[u8], path: &[u8]) -> Option<Vec<u8>> {
             }
         }
     }
-    let mut result = Vec::with_capacity(length);
+    result.clear();
+    result.reserve(length);
     result.push(b'/');
     for (index, part) in parts.iter().enumerate() {
         if index != 0 {
@@ -5242,6 +5277,13 @@ fn absolute_path(directory: &[u8], path: &[u8]) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn absolute_path(directory: &[u8], path: &[u8]) -> Option<Vec<u8>> {
+        let mut parts = Vec::new();
+        let mut result = Vec::new();
+        super::absolute_path(directory, path, &mut parts, &mut result)?;
+        Some(result)
+    }
 
     fn define(store: &mut VariableStore, name: &[u8], value: &[u8], assignment: Assignment) {
         store.define(name, value, assignment, Origin::File).unwrap();
