@@ -131,6 +131,30 @@ checked against the oracle where applicable. The differential snapshot checks
 these filesystem outcomes on every run. Exported recursive-variable timing and
 broader timestamp behavior still require additional coverage.
 
+## Parallel query execution
+
+Ordinary `-q` can run forced recipe commands concurrently when the job pool has
+multiple slots. An unforced command can end its target's update without
+starting a child. If that is the first query verdict in a stopping invocation,
+GNU begins another pass before visiting later goals. It can wait for an
+outstanding child at that boundary. A preceding child completion or a make
+function that writes a file makes the new pass eligible to advance without a
+blocking wait.
+
+An unignored forced child that exits 1 ends a stopping invocation at the reap
+boundary. GNU drains already running recipes and permits them to run their
+remaining forced lines. In keep-going mode it continues visiting goals. A
+query verdict from a completed direct goal or double-colon branch can remain
+the final status even when a later visit reports a child failure.
+
+Eight original differential fixtures hold forced children across these
+boundaries with both pipe and FIFO jobservers. They check independent
+prerequisites, double-colon progression, a stopping goal-pass yield and its
+file-write control, keep-going status, draining and deletion after a child
+exits 1, and unchanged-target deletion after a child reaches an unforced
+continuation. Exact verbose output and the broader synthetic double-colon,
+grouped, and combined-mode cases remain separate acceptance work.
+
 ## Reference provenance
 
 The first 20 committed fixtures predate source inspection. The additional 16

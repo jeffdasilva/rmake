@@ -2449,3 +2449,22 @@ cases = [
   "missing-separator-hint-included-conditional-text",
   "missing-separator-hint-valid-rule-and-custom-prefix",
 ]
+
+[[requirements]]
+id = "runtime.parallel-query"
+title = "Ordinary parallel queries with forced child recipes"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/forced-touch.md"
+candidate_required = 8
+fixture_count = 8
+cases = [
+  "parallel-query-held-prerequisites",
+  "parallel-query-held-double-colon",
+  "parallel-query-direct-query-yields",
+  "parallel-query-direct-query-file-effect",
+  "parallel-query-keep-going-first-query",
+  "parallel-query-keep-going-double-verdict",
+  "parallel-query-forced-stop-drains-tail",
+  "parallel-query-child-query-continuation-cleanup",
+]
