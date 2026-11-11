@@ -12,7 +12,7 @@ use std::io::{self, Write};
 use crate::database_messages as msg;
 use crate::diagnostic::Location;
 use crate::messages::{Argument, FormatError, checked_format};
-use crate::parser::{Database, Dependency, Recipe, Rule};
+use crate::parser::{Database, Dependency, Recipe, Rule, SecondaryPrerequisite};
 use crate::variables::{Assignment, Flavor, Origin, Variable, VariableStore};
 
 #[derive(Clone, Copy, Debug)]
@@ -430,30 +430,37 @@ fn resolved_file_name<'a>(names: Option<&'a dyn FileNames>, name: &'a [u8]) -> &
 }
 
 pub fn write_prerequisites(output: &mut impl Write, dependencies: &[Dependency]) -> io::Result<()> {
-    write_prerequisites_with_names(output, dependencies, None)
+    write_prerequisites_with_names(output, dependencies, None, None)
 }
 
 fn write_prerequisites_with_names(
     output: &mut impl Write,
     dependencies: &[Dependency],
+    deferred: Option<&[SecondaryPrerequisite]>,
     names: Option<&dyn FileNames>,
 ) -> io::Result<()> {
-    for dependency in dependencies
-        .iter()
-        .filter(|dependency| !dependency.order_only)
-    {
+    let occurrences = dependencies.iter().enumerate().map(|(index, dependency)| {
+        let name = if deferred.is_some_and(|clauses| {
+            clauses
+                .binary_search_by_key(&index, |clause| clause.index)
+                .is_ok()
+        }) {
+            crate::parser::trim(&dependency.name)
+        } else {
+            resolved_file_name(names, &dependency.name)
+        };
+        (name, dependency.order_only)
+    });
+    for (name, _) in occurrences.clone().filter(|(_, order_only)| !order_only) {
         output.write_all(b" ")?;
-        output.write_all(c_bytes(resolved_file_name(names, &dependency.name)))?;
+        output.write_all(c_bytes(name))?;
     }
-    let mut order = dependencies
-        .iter()
-        .filter(|dependency| dependency.order_only)
-        .peekable();
+    let mut order = occurrences.filter(|(_, order_only)| *order_only).peekable();
     if order.peek().is_some() {
         output.write_all(b" |")?;
-        for dependency in order {
+        for (name, _) in order {
             output.write_all(b" ")?;
-            output.write_all(c_bytes(resolved_file_name(names, &dependency.name)))?;
+            output.write_all(c_bytes(name))?;
         }
     }
     output.write_all(b"\n")
@@ -1227,6 +1234,7 @@ pub struct AutomaticVariables<'a> {
 pub struct FileView<'a> {
     pub name: &'a [u8],
     pub rule: Option<&'a Rule>,
+    pub expanded_prerequisites: Option<&'a [Dependency]>,
     pub is_target: bool,
     pub precious: bool,
     pub phony: bool,
@@ -1254,6 +1262,7 @@ impl<'a> FileView<'a> {
         Self {
             name,
             rule,
+            expanded_prerequisites: None,
             is_target: rule.is_some_and(|rule| !rule.record_only),
             precious: false,
             phony: false,
@@ -1361,11 +1370,15 @@ impl<'a, W: Write> FilePrinter<'a, W> {
         }
         output.write_all(c_bytes(file_name))?;
         output.write_all(if file.double_colon { b"::" } else { b":" })?;
-        write_prerequisites_with_names(
-            output,
-            file.rule.map_or(&[], |rule| rule.dependencies.as_slice()),
-            names,
-        )?;
+        let (dependencies, deferred) = match (file.expanded_prerequisites, file.rule) {
+            (Some(dependencies), _) => (dependencies, None),
+            (None, Some(rule)) => (
+                rule.dependencies.as_slice(),
+                rule.secondary.as_deref().map(Vec::as_slice),
+            ),
+            (None, None) => (&[][..], None),
+        };
+        write_prerequisites_with_names(output, dependencies, deferred, names)?;
         for (selected, text) in [
             (
                 file.precious,

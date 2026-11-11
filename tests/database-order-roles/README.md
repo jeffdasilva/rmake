@@ -13,3 +13,9 @@ lines, status, stderr, automatic-variable witnesses, and the full filesystem.
 Both build modes pass all nine cases; the preceding build passed three. The
 cases include inactive targets, reverse occurrence order, late eval,
 double-colon branch scope, question, dry-run, and touch modes.
+
+Sixteen additional cases compare secondary prerequisite expansion in the
+database. The active rule prints the realized names and its retained
+`.WAIT` and order-only partitions. An unvisited target or double-colon
+branch still prints its deferred text. Controls cover multiple deferred
+clauses, late `-p`, reverse shuffle, question, dry-run and touch.
