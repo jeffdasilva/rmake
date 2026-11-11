@@ -349,26 +349,25 @@ impl Engine {
             timestamp_outcome.map_or(DatabaseResult::Outcome, |outcome| outcome.database_result);
         let retained = || times.get(name).copied().flatten();
         let outcome_time = || timestamp_outcome.and_then(|outcome| outcome.time);
-        let cached = if database_result == DatabaseResult::ObservedGroup {
-            if branch.is_some() {
-                outcome_time()
-            } else {
-                retained()
-            }
-        } else {
-            outcome_time()
+        let cached = match database_result {
+            DatabaseResult::ObservedGroupOwner => retained(),
+            DatabaseResult::ObservedGroup if branch.is_some() => outcome_time(),
+            DatabaseResult::ObservedGroup => retained(),
+            _ => outcome_time()
                 .or_else(|| {
                     observed
                         .and_then(|observation| observation.as_ref())
                         .and_then(|(_, time)| *time)
                 })
-                .or_else(retained)
+                .or_else(retained),
         };
         // Invocation-only ages live outside the filesystem timestamp range.
         // Print their logical GNU representation without passing those wide
         // sentinels through libc calendar conversion.
-        let unchecked = database_result != DatabaseResult::ObservedGroup
-            && self.database_unchecked_times.borrow().contains(name);
+        let unchecked = !matches!(
+            database_result,
+            DatabaseResult::ObservedGroup | DatabaseResult::ObservedGroupOwner
+        ) && self.database_unchecked_times.borrow().contains(name);
         let timestamp = if unchecked {
             None
         } else if self

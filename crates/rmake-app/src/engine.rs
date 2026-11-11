@@ -317,6 +317,7 @@ enum DatabaseResult {
     Outcome,
     Simulated,
     ObservedGroup,
+    ObservedGroupOwner,
     RecipeUnstarted,
 }
 
@@ -8831,8 +8832,11 @@ impl Engine {
                 state.combined.late_input_failed |= result.late_input_failed;
                 state.combined.search_after_update |= result.search_after_update;
                 state.combined.completion = state.combined.completion.max(result.completion);
-                if result.database_result == DatabaseResult::Simulated {
-                    state.combined.database_result = DatabaseResult::Simulated;
+                if matches!(
+                    result.database_result,
+                    DatabaseResult::Simulated | DatabaseResult::ObservedGroupOwner
+                ) {
+                    state.combined.database_result = result.database_result;
                 }
                 self.record_graph_failure(result);
                 state.active = None;
@@ -8869,7 +8873,10 @@ impl Engine {
             let Some((ordinal, entry)) = state.branches.pop_front() else {
                 // A real recipe refreshes the shared time even if another
                 // branch simulated its recipe during the same update.
-                if state.combined.completion != CompletionTime::AssumeNew {
+                if state.combined.completion >= CompletionTime::Refresh
+                    || (state.combined.completion != CompletionTime::AssumeNew
+                        && state.combined.database_result == DatabaseResult::Simulated)
+                {
                     state.combined.database_result = DatabaseResult::Outcome;
                 }
                 state.combined.time = if state.phony {
@@ -10436,6 +10443,26 @@ impl Engine {
         if let Some(id) = group.branch {
             self.active_group_branches.remove(&id);
             self.completed_group_branches.insert(id, cached);
+            if self.output.database_requested()
+                && self.options.dry_run
+                && !self.options.question
+                && !self.options.touch
+                && !outcome.failed
+                && outcome.completion == CompletionTime::AssumeNew
+                && self
+                    .database
+                    .rules
+                    .get(target)
+                    .and_then(|rule| rule.double_colon.as_ref())
+                    .is_some_and(|branches| branches.iter().any(|rule| rule.group.is_none()))
+            {
+                // The grouped completion includes the owner in its physical
+                // refresh, replacing any preceding standalone dry-run time.
+                self.modified(target);
+                if let Some(owner) = self.done.get_mut(target) {
+                    owner.database_result = DatabaseResult::ObservedGroupOwner;
+                }
+            }
             if !outcome.question_outdated && !outcome.fatal && (!outcome.failed || outcome.ran) {
                 for (peer, _, phony) in group.members {
                     if peer == target && !outcome.failed {
