@@ -451,7 +451,8 @@ fn comment_end(line: &[u8], mut compact: impl FnMut(usize, usize)) -> usize {
     line.len()
 }
 
-pub(crate) fn fold_recipe_reference_continuations(source: &[u8]) -> Vec<u8> {
+/// Fold physical continuations inside make references before recipe expansion.
+pub fn fold_recipe_reference_continuations(source: &[u8]) -> Vec<u8> {
     if !source.contains(&b'\n') {
         return source.to_vec();
     }

@@ -1,0 +1,12 @@
+id = "oneshell-cross-slot-inline-dollar-custom-shell"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "Make references spanning one-shell recipe lines preserve GNU continuation folding."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273740a7365636f6e642072696768742074686972640a2d63207072696e746620273c25733e5c6e272027656e64270a"
+stderr_hex = ""

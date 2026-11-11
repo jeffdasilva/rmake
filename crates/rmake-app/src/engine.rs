@@ -11445,9 +11445,18 @@ impl Engine {
             let Some(first) = recipes.first() else {
                 return Execution::success(false);
             };
-            let script = crate::oneshell::collect(recipes.iter().map(Recipe::expansion_source));
+            let script =
+                crate::oneshell::collect(recipes.iter().map(|recipe| recipe.bytes.as_slice()));
+            // A make reference can cross recipe slots in the collected script.
+            let bytes = if recipes.iter().any(Recipe::has_physical_continuation)
+                && script.bytes.contains(&b'$')
+            {
+                rmake_core::reader::fold_recipe_reference_continuations(&script.bytes)
+            } else {
+                script.bytes
+            };
             combined = [Recipe {
-                bytes: script.bytes,
+                bytes,
                 location: first.location.clone(),
                 prefix: first.prefix,
                 builtin: first.builtin,
