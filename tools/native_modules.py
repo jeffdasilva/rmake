@@ -105,6 +105,9 @@ def models() -> list[Model]:
         b'file|recursive|probe_api.so', preamble=b'undefine .LOADED\n')
     add('eval-crlf-buffer', b'$(probe_eval $(file <eval.txt))', b'one\r',
         extra={'eval.txt': b'VALUE := one\r\n# sentinel\n'})
+    add('eval-define-body-location', b'$(probe_eval $(file <eval.txt))', b'one',
+        stderr=b'Makefile:4: native-define-body\n',
+        extra={'eval.txt': b'define VALUE :=\n$(warning native-define-body)one\nendef\n'})
     add('loaded-repeated-setup-location', b'$(probe_where )', b'Makefile:1', loads=b'load ./probe_api.so\nload ./probe_api.so\n')
     add('failed-required-setup', b'', b'', environment={'PROBE_SETUP_ZERO': '1'}, error=b'probe_api.so: failed to load', error_line=1, seen=b'anchor\n')
     for suffix, loads in (('registration', b'-load ./probe_api.so\n'), ('then-required', b'-load ./probe_api.so\nload ./probe_api.so\n')):

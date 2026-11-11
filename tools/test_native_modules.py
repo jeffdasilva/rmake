@@ -112,8 +112,8 @@ class NativeModuleTests(unittest.TestCase):
 
     def test_original_inventory_covers_native_lifetime_and_fatal_boundaries(self):
         models = n.models()
-        self.assertEqual(len(models), 247)
-        self.assertEqual(len({m.id for m in models}), 247)
+        self.assertEqual(len(models), 248)
+        self.assertEqual(len({m.id for m in models}), 248)
         self.assertEqual(sum(m.id.startswith('native-setup-result-') for m in models), 5)
         self.assertEqual(sum(m.id.startswith('native-loader-debug-') for m in models), 6)
         self.assertEqual(sum(m.id.startswith('native-directory-epoch-') for m in models), 5)

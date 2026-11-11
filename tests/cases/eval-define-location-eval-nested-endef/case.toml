@@ -1,0 +1,12 @@
+id = "eval-define-location-eval-nested-endef"
+requirement = "cli.eval"
+candidate = "required"
+description = "Diagnostic source location for multiline definitions in eval and files."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d5b646566696e6520494e4e45520a6f6e650a656e64656620696e6e65722d7461696c5d0a"
+stderr_hex = "4d616b6566696c653a373a2065787472616e656f757320746578742061667465722027656e64656627206469726563746976650a4d616b6566696c653a373a2065787472616e656f757320746578742061667465722027656e64656627206469726563746976650a"

@@ -1,0 +1,12 @@
+id = "eval-define-location-eval-fatal-body"
+requirement = "cli.eval"
+candidate = "required"
+description = "Diagnostic source location for multiline definitions in eval and files."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a373a202a2a2a20626f64792d666174616c2e202053746f702e0a"

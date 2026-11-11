@@ -1,0 +1,3 @@
+define V !=
+$(warning shell-body)printf "%s" one
+endef

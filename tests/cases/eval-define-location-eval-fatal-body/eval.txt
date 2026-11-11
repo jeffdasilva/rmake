@@ -1,0 +1,3 @@
+define V :=
+$(error body-fatal)one
+endef

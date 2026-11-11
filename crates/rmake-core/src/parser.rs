@@ -4654,7 +4654,7 @@ impl Database {
                                     context,
                                     Location {
                                         file: source_name.clone(),
-                                        line: part.end_line,
+                                        line: evaluated_at.unwrap_or(part.end_line),
                                     },
                                     Diagnostic::system(Message::EndefTail),
                                 );
@@ -4682,7 +4682,7 @@ impl Database {
                         &location,
                         &Location {
                             file: source_name.clone(),
-                            line: *last_line,
+                            line: evaluated_at.unwrap_or(*last_line),
                         },
                         context,
                     )?;
