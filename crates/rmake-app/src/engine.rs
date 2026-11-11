@@ -4083,20 +4083,24 @@ impl Engine {
             return false;
         }
         let mut named = HashSet::new();
-        read_files.iter().all(|(file, skip)| {
+        read_files.iter().enumerate().all(|(index, (file, skip))| {
             let name = without_dot_prefix(&file.name);
             *skip
                 || goals.is_empty()
                 || (!name.starts_with(b"-l")
                     && archive_parts(name).is_none()
                     && (!goals.iter().any(|goal| goal.as_slice() == name)
-                        || (named.insert(name) && self.simple_named_remake(file, name))))
+                        || (named.insert(name)
+                            && self.simple_named_remake(file, name, &read_files[..index]))))
         })
     }
 
-    fn simple_named_remake(&self, file: &Makefile, name: &[u8]) -> bool {
-        use rmake_core::filenames::archive_parts;
-
+    fn simple_named_remake(
+        &self,
+        file: &Makefile,
+        name: &[u8],
+        earlier_sources: &[(Makefile, bool)],
+    ) -> bool {
         let primary = file.location.is_none();
         if (primary && (file.optional || file.missing))
             || self.database.loaded_modules.contains_key(name)
@@ -4106,6 +4110,7 @@ impl Engine {
             return false;
         }
         let no_default_recipe = !self.database.rules.contains_key(b".DEFAULT".as_slice());
+        let earlier_sources = if primary { earlier_sources } else { &[] };
         self.database
             .rules
             .get(name)
@@ -4116,19 +4121,49 @@ impl Engine {
                     && (rule.dependencies.is_empty()
                         || (no_default_recipe
                             && rule.dependencies.iter().all(|dep| {
-                                !dep.hidden
-                                    && dep.name != b".WAIT"
-                                    && !dep.name.contains(&b'/')
-                                    && !dep.name.starts_with(b"~")
-                                    && !dep.name.starts_with(b"-l")
-                                    && archive_parts(&dep.name).is_none()
-                                    && !self.database.rules.contains_key(&dep.name)
-                                    && !self.special(b".PHONY", &dep.name, false)
-                                    && fs::metadata(os(&dep.name))
-                                        .is_ok_and(|metadata| metadata.is_file())
+                                self.simple_named_remake_prerequisite(dep, earlier_sources)
                             })))
                     && rule.recipes.is_some()
             })
+    }
+
+    fn simple_named_remake_prerequisite(
+        &self,
+        dependency: &Dependency,
+        earlier_sources: &[(Makefile, bool)],
+    ) -> bool {
+        use rmake_core::filenames::{archive_parts, without_dot_prefix};
+
+        let name = dependency.name.as_slice();
+        if dependency.hidden
+            || name == b".WAIT"
+            || name.contains(&b'/')
+            || name.starts_with(b"~")
+            || name.starts_with(b"-l")
+            || archive_parts(name).is_some()
+            || self.special(b".PHONY", name, false)
+        {
+            return false;
+        }
+        let Some(rule) = self.database.rules.get(name) else {
+            return fs::metadata(os(name)).is_ok_and(|metadata| metadata.is_file());
+        };
+        // A direct earlier include can already be running when the named
+        // primary reaches it as a prerequisite.
+        earlier_sources.iter().any(|(source, skip)| {
+            !*skip
+                && !source.optional
+                && source.location.is_some()
+                && without_dot_prefix(&source.name) == name
+        }) && !self.database.loaded_modules.contains_key(name)
+            && rule.dependencies.is_empty()
+            && rule.secondary.is_none()
+            && rule.group.is_none()
+            && rule.double_colon.is_none()
+            && rule
+                .recipes
+                .as_ref()
+                .is_some_and(|recipes| recipes.iter().all(|recipe| !recipe_is_recursive(recipe)))
     }
 
     fn no_remake_recipe_fallback(&self) -> bool {
