@@ -1,0 +1,10 @@
+id = "serial-remake-optional-duplicate-prune-same-line-single-order-only-normal"
+requirement = "debug.serial-unchanged-duplicate-prunes"
+candidate = "required"
+provenance = "Original successful duplicate makefile trace verified against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "--debug=m,v", "all"]
+
+[expected]
+exit_code = 0
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nReading makefile 'inc.mk' (search path) (don't care) (no ~ expansion)...\nReading makefile 'inc.mk' (search path) (don't care) (no ~ expansion)...\nUpdating makefiles....\n Considering target file 'Makefile'.\n Finished prerequisites of target file 'Makefile'.\n No need to remake target 'Makefile'.\n Considering target file 'inc.mk'.\n  Considering target file 'order'.\n   File 'order' does not exist.\n  Finished prerequisites of target file 'order'.\n  Must remake target 'order'.\n  Successfully remade target file 'order'.\n Finished prerequisites of target file 'inc.mk'.\n  Prerequisite 'order' is order-only for target 'inc.mk'.\n No need to remake target 'inc.mk'.\n Pruning file 'inc.mk'.\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nALL:original\nSuccessfully remade target file 'all'.\n"
+stderr = ""
