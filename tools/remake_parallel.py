@@ -157,7 +157,9 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += primary_named_wait_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
     if include_load:
-        results += load_models(worker, markers)
+        direct_load = load_models(worker, markers)
+        results += direct_load
+        results += load_direct_build_mode_models(direct_load)
         results += load_goal_summary_models(worker, markers)
         results += load_build_mode_models(results, markers)
     return results
@@ -1772,6 +1774,30 @@ def load_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
             results.append(HeldModel(model, overlap, before_second, before_first,
                                      before_second_stdout=stdout if name == 'optional-stop' else None,
                                      load=load))
+    return results
+
+
+def load_direct_build_mode_models(available: list[HeldModel]) -> list[HeldModel]:
+    modes = (
+        ('n', 0, b':\n'),
+        ('q', 1, b''),
+        ('t', 0, b"make: Nothing to be done for 'all'.\n"),
+    )
+    results = []
+    for held in available:
+        model = held.model
+        if not model.id.startswith(('load-queued-success-', 'load-low-success-',
+                                    'load-dynamic-token-wait-')):
+            continue
+        for mode, status, stdout in modes:
+            seen = model.seen
+            if mode == 't':
+                seen = seen[:seen.rindex(b'ordinary-')]
+            expected = {**model.expected, 'exit_code': status, 'stdout_template_hex': stdout.hex()}
+            args = (*model.args[:-1], f'-{mode}', model.args[-1])
+            active_mode = replace(model, id=f'{model.id}-{mode}', args=args,
+                                  expected=expected, seen=seen)
+            results.append(replace(held, model=active_mode, before_second_stdout=b''))
     return results
 
 

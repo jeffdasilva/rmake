@@ -3240,8 +3240,7 @@ impl Engine {
                         modes.active() || !server.auth().starts_with(b"fifo:")
                     }));
             let basic_load_debug = self.options.load_limit.is_some()
-                && debug_before_remake.bits() == remake_debug_bits
-                && !modes.active();
+                && debug_before_remake.bits() == remake_debug_bits;
             let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
                 || (qualified_remake_debug
                     && (self.options.load_limit.is_none() || basic_load_debug));
@@ -3270,9 +3269,9 @@ impl Engine {
                             .get(name)
                             .is_some_and(|rule| !rule.dependencies.is_empty())
                 });
-            let verbose_unnamed_remakes = ordinary_mode
+            let direct_mode_remakes = ordinary_mode
                 && qualified_remake_debug
-                && debug_before_remake.has(Mask::VERBOSE)
+                && (debug_before_remake.has(Mask::VERBOSE) || basic_load_debug)
                 && {
                     let mut seen = HashSet::new();
                     let no_recipe_fallback = self.no_remake_recipe_fallback();
@@ -3291,9 +3290,9 @@ impl Engine {
                 };
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
-                    || ((debug_before_remake.bits() == remake_debug_bits
+                    || (((debug_before_remake.bits() == remake_debug_bits && !basic_load_debug)
                         || verbose_mode_remakes
-                        || verbose_unnamed_remakes)
+                        || direct_mode_remakes)
                         && self
                             .qualified_debug_remake_sources(&read_files, named_sources.as_ref())))
                     && self.ordinary_mode_remakes_settle(
@@ -3312,7 +3311,7 @@ impl Engine {
             let mut pending = Vec::new();
             let initial_reaps = self.recipe_reaps;
             let mut pass_reaps = initial_reaps;
-            let track_remake_effects = verbose_unnamed_remakes || basic_load_debug;
+            let track_remake_effects = direct_mode_remakes || basic_load_debug;
             let first_effect_generation =
                 track_remake_effects.then(|| self.filesystem.borrow().generation());
             let mut skipped_errors = Vec::new();
