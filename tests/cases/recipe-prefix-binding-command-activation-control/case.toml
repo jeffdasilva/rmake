@@ -1,0 +1,12 @@
+id = "recipe-prefix-binding-command-activation-control"
+requirement = "variables.metadata"
+candidate = "required"
+description = "Selected recipe prefix and visible special variable binding."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", ".RECIPEPREFIX=>", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7072656669783d636f6d6d616e64206c696e657c5b3e5d0a637573746f6d0a"
+stderr_hex = ""

@@ -19,7 +19,7 @@ use crate::variables::{
     PatternVariable, TargetScope, VariableStore, reference_end,
 };
 use std::borrow::Cow;
-use std::cell::OnceCell;
+use std::cell::{Cell, OnceCell};
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
@@ -512,6 +512,9 @@ pub struct Database {
     pub export_all: bool,
     /// Sticky reader mode selected by an actual .POSIX rule declaration.
     pub posix: bool,
+    // Importing or deleting the variable does not change the active prefix.
+    recipe_prefix: Option<u8>,
+    recipe_prefix_setter_removed: bool,
     pub warnings: Vec<(Location, Diagnostic)>,
     pub makefiles: Vec<Makefile>,
     /// Module identities remain distinct while sharing makefile remake traversal.
@@ -519,6 +522,7 @@ pub struct Database {
     pub(crate) implicit_rules: Vec<(Pattern, Rule)>,
     implicit_rule_shadow: OnceCell<Option<Vec<bool>>>,
     implicit_rule_suffixes: OnceCell<Option<ImplicitRuleSuffixes>>,
+    implicit_rule_index_visits: Cell<u8>,
     vpaths: Vec<Vpath>,
     include_depth: usize,
     next_group_id: usize,
@@ -897,6 +901,7 @@ impl Database {
     pub(crate) fn invalidate_implicit_rule_indexes(&mut self) {
         self.implicit_rule_shadow.take();
         self.implicit_rule_suffixes.take();
+        self.implicit_rule_index_visits.set(0);
     }
 
     fn compile_implicit_rule_suffixes(&self) -> Option<ImplicitRuleSuffixes> {
@@ -913,11 +918,27 @@ impl Database {
         Some(suffixes)
     }
 
+    fn use_implicit_rule_indexes(&self) -> bool {
+        let count = self.implicit_rules.len();
+        if count >= 128 {
+            return true;
+        }
+        if count < 64 {
+            return false;
+        }
+        // Stock builtins and other medium tables amortize the indexes only
+        // when the invocation makes repeated searches.
+        const WARMUP: u8 = 16;
+        let visits = self.implicit_rule_index_visits.get();
+        if visits == WARMUP {
+            return true;
+        }
+        self.implicit_rule_index_visits.set(visits + 1);
+        false
+    }
+
     fn implicit_rule_indices(&self, target: &[u8]) -> Option<ImplicitRuleIndices<'_>> {
         let count = self.implicit_rules.len();
-        if count < 128 {
-            return None;
-        }
         let suffixes = self
             .implicit_rule_suffixes
             .get_or_init(|| self.compile_implicit_rule_suffixes())
@@ -971,9 +992,8 @@ impl Database {
         } else {
             crate::implicit::directory_prefix(target)
         };
-        // Large tables benefit when many candidate matches would otherwise
-        // rescan the remaining declarations for replacements.
-        let shadow_cache = (self.implicit_rules.len() >= 128).then_some(&self.implicit_rule_shadow);
+        let use_indexes = self.use_implicit_rule_indexes();
+        let shadow_cache = use_indexes.then_some(&self.implicit_rule_shadow);
         let mut visit = |(index, (pattern, rule)): (usize, &(Pattern, Rule))| {
             let identity = rule
                 .group
@@ -1101,7 +1121,7 @@ impl Database {
                 });
             }
         };
-        if let Some(indices) = self.implicit_rule_indices(target) {
+        if use_indexes && let Some(indices) = self.implicit_rule_indices(target) {
             for index in indices {
                 visit((index, &self.implicit_rules[index]));
             }
@@ -2000,7 +2020,9 @@ impl Database {
         let home = if name.len() == 1 || name[1] == b'/' {
             let session = self.begin_filename_session(true);
             self.write_filename(name, 0);
+            let warnings = context.replace_undefined_warnings(false);
             let result = self.expand_variable_with(b"HOME", context.reborrow());
+            context.replace_undefined_warnings(warnings);
             observed = Some(self.filename_suffix(name));
             self.end_filename_session(session);
             result.map_err(|error| {
@@ -2873,6 +2895,20 @@ impl Database {
             result
         };
         result?;
+        if spec.name == b".RECIPEPREFIX" && !self.recipe_prefix_setter_removed {
+            let retained_local = (spec.kind == Assignment::Conditional
+                || (spec.kind == Assignment::Append && spec.value.is_empty()))
+                && lookup_scope
+                    .as_ref()
+                    .is_some_and(|scope| scope.has_local_binding(spec.name));
+            if !retained_local {
+                self.recipe_prefix = self
+                    .variables
+                    .get(spec.name)
+                    .and_then(|variable| variable.raw_value().first().copied())
+                    .filter(|byte| *byte != 0);
+            }
+        }
         // A conditional can return an ordinary file or pattern binding.
         // The live setter runs only when that selected binding is special.
         let replay_flags = live_makeflags
@@ -4195,7 +4231,7 @@ impl Database {
         let suppress_default = std::mem::replace(&mut self.suppress_default_goal, false);
         let result = self
             .read_at_source(
-                ParserReader::memory(
+                ParserReader::eval(
                     &bytes[..bytes
                         .iter()
                         .position(|byte| *byte == 0)
@@ -4360,11 +4396,7 @@ impl Database {
                 ..
             } = frame;
             let evaluated_at = *evaluated_at;
-            let prefix = self
-                .variables
-                .get(b".RECIPEPREFIX")
-                .and_then(|v| v.raw_value().first().copied())
-                .unwrap_or(b'\t');
+            let prefix = self.recipe_prefix.unwrap_or(b'\t');
             reader.set_posix(self.posix);
             if evaluated_at == Some(1) {
                 reader.skip_eval_bom();
@@ -4706,6 +4738,9 @@ impl Database {
                         });
                     }
                     self.variables.remove(name);
+                    if name == b".RECIPEPREFIX" {
+                        self.recipe_prefix_setter_removed = true;
+                    }
                     self.exports.remove(name);
                     self.unexports.remove(name);
                 }
@@ -6802,6 +6837,43 @@ mod tests {
             recipes(&indexed),
             [b" @group".to_vec(), b" @fallback".to_vec()]
         );
+    }
+
+    #[test]
+    fn medium_implicit_rule_indexes_warm_up_and_reset_after_edits() {
+        use std::fmt::Write;
+
+        let mut source = String::from("%.warm: seed ; @before\n");
+        for index in 0..64 {
+            writeln!(source, "ignored{index}%.unused: ;").unwrap();
+        }
+        let mut database = Database::default();
+        database.read(source.as_bytes(), b"rules").unwrap();
+        let recipes = |database: &Database| {
+            database
+                .implicit_candidates(b"unit.warm")
+                .into_iter()
+                .map(|candidate| candidate.rule.recipes.unwrap()[0].bytes.clone())
+                .collect::<Vec<_>>()
+        };
+
+        for _ in 0..16 {
+            assert_eq!(recipes(&database), [b" @before".to_vec()]);
+        }
+        assert!(database.implicit_rule_suffixes.get().is_none());
+        assert!(database.implicit_rule_shadow.get().is_none());
+
+        assert_eq!(recipes(&database), [b" @before".to_vec()]);
+        assert!(matches!(
+            database.implicit_rule_suffixes.get(),
+            Some(Some(_))
+        ));
+        assert!(matches!(database.implicit_rule_shadow.get(), Some(Some(_))));
+
+        database.read(b"%.warm: seed ; @after\n", b"edit").unwrap();
+        assert_eq!(recipes(&database), [b" @after".to_vec()]);
+        assert!(database.implicit_rule_suffixes.get().is_none());
+        assert!(database.implicit_rule_shadow.get().is_none());
     }
 
     #[test]

@@ -1,0 +1,12 @@
+id = "tilde-home-warnings-wildcard-function"
+requirement = "cli.undefined-warnings"
+candidate = "required"
+description = "Undefined warning policy during HOME expansion for a tilde operand."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "--warn-undefined-variables", "HOME=$(home_unknown)pool", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66696c65733d5b706f6f6c2f7072652e6d6b5d0a6f7574736964653d5b5d0a"
+stderr_hex = "4d616b6566696c653a323a207761726e696e673a20756e646566696e6564207661726961626c6520276f757465725f756e6b6e6f776e270a6d616b653a207761726e696e673a20756e646566696e6564207661726961626c652027474e554d414b45464c414753270a"

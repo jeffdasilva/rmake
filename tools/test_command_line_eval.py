@@ -22,9 +22,14 @@ class CommandLineEvalTests(unittest.TestCase):
 
     def test_profile_priority_flavor_and_large_argument_controls_remain_required(self):
         family = next(row for row in tomllib.loads((ROOT / 'tests/requirements.toml').read_text())['requirements'] if row['id'] == 'cli.eval')
-        self.assertEqual(family['fixture_count'], 194)
-        self.assertEqual(family['candidate_required'], 194)
-        self.assertEqual(len(set(family['cases'])), 194)
+        cases = family['cases']
+        self.assertEqual(len(set(cases)), len(cases))
+        self.assertEqual(family['fixture_count'], len(cases))
+        self.assertEqual(family['candidate_required'], len(cases))
+        self.assertEqual(sum(name.startswith('cli-eval-') for name in cases), 194)
+        for name in cases:
+            case = conformance.load_case(ROOT / 'tests/cases' / name)
+            self.assertEqual(case.candidate, 'required')
         for profile in ('defaults', 'r', 'big-r', 'r-big-r'):
             for flavor in ('recursive', 'simple', 'double-simple', 'escaped', 'append', 'conditional', 'shell', 'define'):
                 self.assertEqual(self.case(f'flavor-{profile}-{flavor}').candidate, 'required')

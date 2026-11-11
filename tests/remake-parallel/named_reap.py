@@ -3,10 +3,8 @@
 
 import os
 from pathlib import Path
+import sys
 import time
-
-
-RECORD = Path('named.pid')
 
 
 def process_start(pid):
@@ -17,26 +15,35 @@ def process_start(pid):
     return fields[19]
 
 
-def wait_for_named_reap():
+def wait_for_reap(name):
+    record = Path(name)
     deadline = time.monotonic() + 4
     identity = None
     while time.monotonic() < deadline:
-        if identity is None and RECORD.is_file():
-            pid, start = RECORD.read_bytes().split()
+        if identity is None and record.is_file():
+            pid, start = record.read_bytes().split()
             identity = (int(pid), start)
         if identity is not None and process_start(identity[0]) != identity[1]:
-            RECORD.unlink()
+            record.unlink()
             return
         time.sleep(.002)
-    raise RuntimeError('named include was not reaped before the deadline')
+    raise RuntimeError('include worker was not reaped before the deadline')
 
 
-if __name__ == '__main__':
+def record_process(name):
+    record = Path(name)
     pid = os.getpid()
     start = process_start(pid)
     if start is None:
-        raise RuntimeError('could not read the named include process identity')
-    temporary = RECORD.with_suffix('.tmp')
+        raise RuntimeError('could not read the include worker process identity')
+    temporary = record.with_suffix('.tmp')
     temporary.write_bytes(str(pid).encode() + b' ' + start + b'\n')
-    temporary.replace(RECORD)
+    temporary.replace(record)
+
+
+if __name__ == '__main__':
+    if sys.argv[1:] == ['after-right']:
+        wait_for_reap('right.pid')
+    else:
+        record_process('named.pid')
     Path('named.gen').write_bytes(b'NAMED := loaded\n')

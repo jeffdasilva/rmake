@@ -103,6 +103,8 @@ def models() -> list[Model]:
     add('loaded-file-append', b'$(probe_args x)', b'argc=1[x]', preamble=b'.LOADED = prior\n', loaded=b'prior probe_api.so')
     add('loaded-append-after-undefine', b'$(origin .LOADED)|$(flavor .LOADED)|$(value .LOADED)',
         b'file|recursive|probe_api.so', preamble=b'undefine .LOADED\n')
+    add('eval-crlf-buffer', b'$(probe_eval $(file <eval.txt))', b'one\r',
+        extra={'eval.txt': b'VALUE := one\r\n# sentinel\n'})
     add('loaded-repeated-setup-location', b'$(probe_where )', b'Makefile:1', loads=b'load ./probe_api.so\nload ./probe_api.so\n')
     add('failed-required-setup', b'', b'', environment={'PROBE_SETUP_ZERO': '1'}, error=b'probe_api.so: failed to load', error_line=1, seen=b'anchor\n')
     for suffix, loads in (('registration', b'-load ./probe_api.so\n'), ('then-required', b'-load ./probe_api.so\nload ./probe_api.so\n')):

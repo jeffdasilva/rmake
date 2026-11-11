@@ -29,6 +29,7 @@ pub struct Reader<'a> {
     offset: usize,
     next_physical_line: usize,
     posix: bool,
+    strip_crlf: bool,
     nul_input: bool,
     stream_capacity: usize,
     nul_warnings: usize,
@@ -47,9 +48,18 @@ impl<'a> Reader<'a> {
             offset: 0,
             next_physical_line: 1,
             posix: false,
+            strip_crlf: true,
             nul_input: source.contains(&0),
             stream_capacity: 200,
             nul_warnings: 0,
+        }
+    }
+
+    /// GNU's string reader keeps CR bytes that its file reader removes.
+    pub(crate) fn eval(source: &'a [u8]) -> Self {
+        Self {
+            strip_crlf: false,
+            ..Self::new(source)
         }
     }
 
@@ -251,7 +261,7 @@ impl<'a> Reader<'a> {
         };
         let start = self.offset;
         self.offset = end + usize::from(terminated);
-        if terminated && end > start && self.source[end - 1] == b'\r' {
+        if terminated && end > start && self.source[end - 1] == b'\r' && self.strip_crlf {
             end -= 1;
         }
         let line = self.next_physical_line;

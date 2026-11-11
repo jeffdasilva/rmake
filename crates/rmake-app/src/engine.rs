@@ -774,6 +774,9 @@ impl OutputReceiver for RuntimeOutput<'_> {
     fn warns_undefined(&self) -> bool {
         self.warnings.get()
     }
+    fn set_undefined_warnings(&mut self, enabled: bool) {
+        self.warnings.set(enabled);
+    }
     fn reader_event(&mut self, event: rmake_core::diagnostic::ReaderEvent<'_>) {
         crate::debug::reader(self.controller, event);
     }
@@ -2329,6 +2332,16 @@ impl Engine {
         );
     }
 
+    fn enter_preload_file<'a>(&mut self, name: &'a [u8]) -> &'a [u8] {
+        // An existing normalized record takes precedence over a new spelling.
+        let lookup = rmake_core::filenames::without_dot_prefix(name);
+        if lookup.len() < name.len() && self.database.file_records.contains(lookup) {
+            return lookup;
+        }
+        self.database.file_records.insert(name);
+        name
+    }
+
     fn read_startup_makefiles(&mut self) -> Result<bool, ()> {
         if self
             .database
@@ -2348,9 +2361,19 @@ impl Engine {
         let mut found = false;
         // MAKEFILES uses ordinary words: no globbing or backslash filename list
         // decoding. Freeze the expanded list before any preload changes it.
-        for name in words(&names) {
-            let path = match crate::makefiles::prepare_argument(
-                name,
+        for spelling in words(&names) {
+            crate::debug::reader(
+                &self.output,
+                rmake_core::diagnostic::ReaderEvent::Reading {
+                    name: spelling,
+                    search: true,
+                    optional: true,
+                    no_default_goal: true,
+                    no_tilde: false,
+                },
+            );
+            let path = match crate::makefiles::expand_preload_name(
+                spelling,
                 &mut self.database.variables,
                 runtime_context(
                     None,
@@ -2379,26 +2402,18 @@ impl Engine {
                     return Err(());
                 }
             };
-            let name = path.as_os_str().as_bytes();
-            crate::debug::reader(
-                &self.output,
-                rmake_core::diagnostic::ReaderEvent::Reading {
-                    name,
-                    search: true,
-                    optional: true,
-                    no_default_goal: true,
-                    no_tilde: false,
-                },
-            );
-            let file = match self.include_search.borrow().read(name) {
+            let name = path.as_slice();
+            let input = self.include_search.borrow().read(name);
+            let file = match input {
                 Ok(file) => file,
                 Err(IncludeFailure::Deferred {
                     resolved_name,
                     detail,
                 }) => {
-                    self.database.file_records.insert(name);
+                    let filename =
+                        self.enter_preload_file(resolved_name.as_deref().unwrap_or(name));
                     self.database.makefiles.push(Makefile {
-                        name: resolved_name.unwrap_or_else(|| name.to_vec()),
+                        name: filename.to_vec(),
                         optional: true,
                         missing: true,
                         location: None,
@@ -2411,10 +2426,10 @@ impl Engine {
                     return Err(());
                 }
             };
-            self.database.file_records.insert(name);
+            let filename = self.enter_preload_file(&file.name);
             found = true;
             self.database.makefiles.push(Makefile {
-                name: file.name.clone(),
+                name: filename.to_vec(),
                 optional: true,
                 missing: false,
                 location: None,
@@ -2422,10 +2437,10 @@ impl Engine {
             });
             if let Err(error) = self.database.variables.append_literal_at(
                 b"MAKEFILE_LIST",
-                &file.name,
+                filename,
                 Origin::File,
                 &Location {
-                    file: name.into(),
+                    file: spelling.into(),
                     line: 1,
                 },
             ) {
@@ -2434,7 +2449,7 @@ impl Engine {
             }
             if let Err(error) = self.database.read_preload_input(
                 file.input,
-                name,
+                spelling,
                 runtime_context(
                     None,
                     &mut RuntimeOutput::new(
@@ -3288,11 +3303,13 @@ impl Engine {
             let mut pending = Vec::new();
             let initial_reaps = self.recipe_reaps;
             let mut pass_reaps = initial_reaps;
+            let mut pass_progress = self.filesystem.borrow().generation();
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
             let mut visited = MakefileVisits::new();
             let mut optional_remake_failed = false;
+            let mut touched_optional_remakes = HashSet::new();
             let mut remake_question = false;
             let required_names: HashSet<_> = read_files
                 .iter()
@@ -3428,6 +3445,14 @@ impl Engine {
                                     );
                                 }
                             }
+                        }
+                        if makefile.optional
+                            && visit_modes.touch
+                            && touched_optional_remakes.contains(name)
+                        {
+                            // A settled repeat can end the next pass too.
+                            (pass_reaps, pass_progress) =
+                                self.settle_optional_remake_pass(pass_progress);
                         }
                         continue;
                     }
@@ -3635,19 +3660,11 @@ impl Engine {
                         // An immediate optional update ends this visit pass.
                         // A previous worker can complete under the named mode
                         // before the next unvisited source starts.
-                        self.poll_jobs();
-                        if self.recipe_reaps == pass_reaps && !self.parallel_jobs.is_empty() {
-                            let previous_jobs = self.parallel_jobs.len();
-                            while self.parallel_jobs.len() >= previous_jobs
-                                && self.shutdown.get() == Shutdown::Running
-                                && self.graph_abort.is_none()
-                            {
-                                self.reap_job();
-                            }
-                            self.poll_jobs();
+                        if visit_modes.touch && physically_changed {
+                            touched_optional_remakes.insert(name);
                         }
-                        pass_reaps = self.recipe_reaps;
-                        self.advance_debug_pass();
+                        (pass_reaps, pass_progress) =
+                            self.settle_optional_remake_pass(pass_progress);
                     }
                 }
                 if self.forced_query_stop
@@ -3680,7 +3697,13 @@ impl Engine {
                 } else {
                     Some(pass_reaps)
                 };
-                stopped = !self.wait_makefile_remakes(&mut pending, &visited, last_reaps);
+                let question_or_failure = remake_question || failed || optional_remake_failed;
+                stopped = !self.wait_makefile_remakes(
+                    &mut pending,
+                    &visited,
+                    last_reaps,
+                    question_or_failure,
+                );
                 if !stopped {
                     for remake in pending {
                         let name = remake.file.name.as_slice();
@@ -4298,7 +4321,7 @@ impl Engine {
             return false;
         }
         if read_files.iter().any(|(file, skip)| file.optional && !skip)
-            && !self.optional_mode_sources_settle(read_files)
+            && !self.optional_mode_sources_settle(read_files, named_sources)
         {
             return false;
         }
@@ -4375,9 +4398,7 @@ impl Engine {
             .rules
             .get(name)
             .map_or(primary && no_default_recipe, |rule| {
-                if rule.secondary.is_some()
-                    && (file.optional || !no_default_recipe || rule.group.is_some())
-                {
+                if rule.secondary.is_some() && !no_default_recipe {
                     return false;
                 }
                 let mut deferred = rule
@@ -4415,7 +4436,6 @@ impl Engine {
                                 // The remake visit owns expansion of this slot.
                                 deferred.next_if(|clause| clause.index == index).is_some()
                                     || (primary
-                                        && rule.secondary.is_none()
                                         && rule.group.is_none()
                                         && !dep.hidden
                                         && dep.name == b".WAIT")
@@ -4470,7 +4490,11 @@ impl Engine {
             && !self.database.rules.contains_key(b".DEFAULT".as_slice())
     }
 
-    fn optional_mode_sources_settle(&self, read_files: &[(Makefile, bool)]) -> bool {
+    fn optional_mode_sources_settle(
+        &self,
+        read_files: &[(Makefile, bool)],
+        named_sources: Option<&HashSet<&[u8]>>,
+    ) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
         // Use simple file identities and single-colon optional roots. A
@@ -4521,11 +4545,20 @@ impl Engine {
                                     && self.options.load_limit.is_none()
                                     && !self.database.loaded_modules.contains_key(name)
                                     && self.database.rules.get(name).is_some_and(|rule| {
-                                        rule.dependencies.is_empty()
-                                            && rule.secondary.is_none()
-                                            && rule.group.is_none()
+                                        rule.group.is_none()
                                             && rule.double_colon.is_none()
                                             && rule.recipes.is_some()
+                                            && ((rule.dependencies.is_empty()
+                                                && rule.secondary.is_none())
+                                                || (file.optional
+                                                    && rule.secondary.is_some()
+                                                    && self.is_makefile_goal(name, named_sources)
+                                                    && self.simple_named_remake(
+                                                        file,
+                                                        name,
+                                                        &[],
+                                                        false,
+                                                    )))
                                     })
                             })
                     }
@@ -4535,7 +4568,11 @@ impl Engine {
                             .rules
                             .get(name)
                             .map_or(no_recipe_fallback, |rule| {
-                                rule.secondary.is_none()
+                                (rule.secondary.is_none()
+                                    || (rule.group.is_none()
+                                        && self.options.load_limit.is_none()
+                                        && rule.recipes.is_some()
+                                        && self.is_makefile_goal(name, named_sources)))
                                     && rule.double_colon.is_none()
                                     && (if rule.dependencies.is_empty() {
                                         rule.recipes.is_some() || no_recipe_fallback
@@ -5412,11 +5449,32 @@ impl Engine {
                 || !(self.options.dry_run || self.options.question || self.options.touch))
     }
 
+    fn settle_optional_remake_pass(&mut self, previous_progress: u64) -> (u64, u64) {
+        self.poll_jobs();
+        // Directory generation counts make-function effects and all
+        // completed children, including a synchronous shell expansion.
+        if self.filesystem.borrow().generation() == previous_progress
+            && !self.parallel_jobs.is_empty()
+        {
+            let previous_jobs = self.parallel_jobs.len();
+            while self.parallel_jobs.len() >= previous_jobs
+                && self.shutdown.get() == Shutdown::Running
+                && self.graph_abort.is_none()
+            {
+                self.reap_job();
+            }
+            self.poll_jobs();
+        }
+        self.advance_debug_pass();
+        (self.recipe_reaps, self.filesystem.borrow().generation())
+    }
+
     fn wait_makefile_remakes(
         &mut self,
         requests: &mut [PendingMakefileRemake<'_>],
         visited: &MakefileVisits<'_>,
         mut last_reaps: Option<u64>,
+        mut question_or_failure: bool,
     ) -> bool {
         let wait_for_completed_job = last_reaps.is_none();
         'passes: while requests.iter().any(|request| request.active) {
@@ -5508,15 +5566,21 @@ impl Engine {
                         self.debug_cached_prerequisite_visit(name, 1, outcome);
                     }
                 }
+                question_or_failure |=
+                    !request.active && (outcome.failed || outcome.question_outdated);
+                // A named mode can give a successful child an assumed-new
+                // timestamp. It ends the pass while the status is still open.
                 if !request.active
                     && request.file.optional
                     && !outcome.failed
                     && !outcome.question_outdated
-                    && matches!(
-                        outcome.completion,
-                        CompletionTime::Refresh | CompletionTime::ArchiveUnknown
-                    )
-                    && outcome.time != visited[name].0
+                    && match outcome.completion {
+                        CompletionTime::AssumeNew => !question_or_failure,
+                        CompletionTime::Refresh | CompletionTime::ArchiveUnknown => {
+                            outcome.time != visited[name].0
+                        }
+                        _ => false,
+                    }
                 {
                     // An updated optional root ends this pass. Remaining roots
                     // are revisited after the next child event.

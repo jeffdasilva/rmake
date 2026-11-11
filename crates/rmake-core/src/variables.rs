@@ -1309,6 +1309,11 @@ impl VariableStore {
         self.lookup_from(name, 0).map(|(_, value)| value)
     }
 
+    pub(crate) fn has_local_binding(&self, name: &[u8]) -> bool {
+        self.lookup_from(name, 0)
+            .is_some_and(|(layer, _)| !self.global_layer(layer))
+    }
+
     pub fn remove(&mut self, name: &[u8]) -> Option<Variable> {
         Arc::make_mut(&mut self.variables).remove(name)
     }
@@ -4350,7 +4355,10 @@ impl Expansion<'_, '_> {
                         }
                         if pattern.starts_with(b"~") {
                             let expanded = if pattern.len() == 1 || pattern[1] == b'/' {
-                                let home = self.variable(b"HOME")?;
+                                let warnings = self.context.replace_undefined_warnings(false);
+                                let home = self.variable(b"HOME");
+                                self.context.replace_undefined_warnings(warnings);
+                                let home = home?;
                                 let suffix = self.store.filename_suffix(&pattern);
                                 if home.is_empty() {
                                     let mut expanded =

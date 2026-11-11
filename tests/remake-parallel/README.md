@@ -66,7 +66,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 1,394 profiles. Leading `./` spellings share one target record and
+run all 1,648 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -124,6 +124,8 @@ Forty-eight grouped primary profiles cover dry-run and question with a
 current, stale, or missing peer in both declaration orders and both jobserver
 transports. They compare the second dry-run recipe emission after restart and
 the early question outcome, including a peer also named as an ordinary goal.
+A further forty-eight profiles verify the secondary expansion of both group
+members, with target and restart identities visible to each expansion.
 
 Ninety-six grouped optional profiles add an existing normal or order-only
 prerequisite to success and failure cases under dry-run, question and touch.
@@ -133,11 +135,23 @@ jobserver transports, and a restart after an optional group fails.
 Sixty named primary profiles check explicit `.WAIT` barriers with local
 files and with earlier required includes. Both jobserver transports cover
 dry-run, question and touch, including the order of effects and the contents
-of automatic prerequisite variables around the barrier.
+of automatic prerequisite variables around the barrier. Another sixty profiles
+add a separate deferred clause and compare its effect before the barrier and
+after a restart.
 
 Sixty-six required named include profiles record secondary expansion before
 and after a restart. They cover first, middle and final include visits,
 ordinary and forced recipes, repeated reads, and both jobserver transports.
+
+One hundred and two optional named include profiles record deferred prerequisite
+effects and restart order, including repeated reads and the mode of a child
+reaped after a duplicate touch. Six more write a file during an earlier
+include's recipe expansion and check that this progress keeps the next pass
+from blocking before starting another worker. Twenty-four further profiles
+distinguish successful and nonzero shell completions from empty shell and
+eval-only expansions under the same optional remake conditions. Saturated
+forced optional question and touch profiles control the named child's reap
+before the right worker can finish.
 
 The named primary makefile profiles hold both include workers under `-n`,
 `-q`, and `-t`. They cover default discovery and `-f ./Makefile`, two or
@@ -167,8 +181,14 @@ Required named include duplicates share the same remake record under all
 three modes, including a forced recipe after two earlier workers start.
 Optional named duplicates preserve that shared record and the mode used by
 earlier workers after the optional source settles. The two-slot forced
-question profiles observe the named child being reaped before the right
-include completes.
+question profiles check both child completion orders. A right-first completion
+runs the remaining right recipe and loads both includes after restart.
+A named-first completion skips that remaining recipe and deletes the
+incomplete right include. Earlier question results suppress the pass
+transition in both ordinary and keep-going controls. Saturated dry-run
+profiles also check both orders, with and without secondary expansion
+and repeated reads. A right-first completion runs the right recipe tail
+and a named-first completion prints it.
 Named primary secondary expansion records the automatic target and restart
 counter exactly once per visit, including while earlier workers are held.
 
