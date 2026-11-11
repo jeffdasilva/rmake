@@ -7303,6 +7303,13 @@ impl Engine {
         if record_attempt {
             self.database_implicit.insert(target.to_vec());
         }
+        // Retain the attempted lookup for the database. With no rules, only
+        // implicit tracing needs to visit the empty search phases.
+        if self.database.database_implicit_rules().is_empty()
+            && !self.output.debug_mask().has(crate::debug::Mask::IMPLICIT)
+        {
+            return Ok(None);
+        }
         crate::debug::emit(
             &self.output,
             crate::debug::Event::Looking(target, debug_depth + 1),
