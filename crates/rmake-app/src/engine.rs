@@ -3239,8 +3239,12 @@ impl Engine {
                     && self.jobserver.as_ref().is_some_and(|server| {
                         modes.active() || !server.auth().starts_with(b"fifo:")
                     }));
+            let basic_load_debug = self.options.load_limit.is_some()
+                && debug_before_remake.bits() == remake_debug_bits
+                && !modes.active();
             let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
-                || (self.options.load_limit.is_none() && qualified_remake_debug);
+                || (qualified_remake_debug
+                    && (self.options.load_limit.is_none() || basic_load_debug));
             // Required makefiles settle before the ordinary mode resumes.
             // An explicit goal can also name a makefile and use that mode.
             let ordinary_mode = modes.active();
@@ -3308,8 +3312,9 @@ impl Engine {
             let mut pending = Vec::new();
             let initial_reaps = self.recipe_reaps;
             let mut pass_reaps = initial_reaps;
+            let track_remake_effects = verbose_unnamed_remakes || basic_load_debug;
             let first_effect_generation =
-                verbose_unnamed_remakes.then(|| self.filesystem.borrow().generation());
+                track_remake_effects.then(|| self.filesystem.borrow().generation());
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
@@ -3706,7 +3711,7 @@ impl Engine {
                     &mut pending,
                     &visited,
                     previous_progress,
-                    verbose_unnamed_remakes,
+                    track_remake_effects,
                 );
                 if !stopped {
                     for remake in pending {
