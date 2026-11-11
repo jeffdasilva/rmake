@@ -4074,17 +4074,17 @@ impl Engine {
         {
             return false;
         }
-        let no_recipe_fallback = self.no_remake_recipe_fallback();
+        let primary_without_default_recipe =
+            primary && !self.database.rules.contains_key(b".DEFAULT".as_slice());
         self.database
             .rules
             .get(name)
-            .map_or(primary && no_recipe_fallback, |rule| {
+            .map_or(primary_without_default_recipe, |rule| {
                 rule.secondary.is_none()
                     && rule.group.is_none()
                     && rule.double_colon.is_none()
                     && (rule.dependencies.is_empty()
-                        || (primary
-                            && no_recipe_fallback
+                        || (primary_without_default_recipe
                             && rule.dependencies.iter().all(|dep| {
                                 !dep.hidden
                                     && dep.name != b".WAIT"
@@ -4979,6 +4979,7 @@ impl Engine {
     fn parallel_graph(&self) -> bool {
         self.job_slots() > 1
             && (!self.remaking
+                || self.parallel_makefile_remakes
                 || !(self.options.dry_run || self.options.question || self.options.touch))
     }
 
@@ -9334,11 +9335,7 @@ impl Engine {
         }
         self.pending_rules.insert(target.to_vec(), state);
         let outcome = self.resume_rule(target);
-        if self.parallel_graph()
-            || (self.remaking
-                && self.parallel_makefile_remakes
-                && self.parallel_jobs.contains_key(target))
-        {
+        if self.parallel_graph() {
             outcome
         } else {
             self.wait_target(target);
@@ -10767,13 +10764,7 @@ impl Engine {
         // Empty/shortcut recipes never consume a continuation bitmap. Keep
         // their raw recursion/touch decisions without allocating one per leaf.
         let flow = Flow::new(recipes.iter().map(recursive_line));
-        // A forced named source can run its recipe alongside earlier source
-        // jobs even though its prerequisite traversal uses the named mode.
-        let parallel_named_recipe = self.remaking
-            && self.parallel_makefile_remakes
-            && recursive
-            && MakefileModes::from_options(&self.options).active();
-        let parallel = self.parallel_graph() || parallel_named_recipe;
+        let parallel = self.parallel_graph();
         if self.graph_abort == Some(Status::Fatal) {
             return Execution::fatal(false);
         }
