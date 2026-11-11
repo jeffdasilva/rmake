@@ -572,9 +572,9 @@ impl State {
             self.filesystem.borrow_mut().execute(effect)
         };
         let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
-            let result = crate::shell::run(request, program, 0, &self.output, None);
-            self.filesystem.borrow_mut().child_completed();
-            result
+            crate::shell::run(request, program, 0, &self.output, None, || {
+                self.filesystem.borrow_mut().child_completed()
+            })
         };
         let mut include = |name: &[u8]| IncludeSearch::default().read(name);
         action(

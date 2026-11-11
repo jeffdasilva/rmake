@@ -974,15 +974,14 @@ impl Engine {
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result = crate::shell::run(
+                    crate::shell::run(
                         request,
                         &self.program,
                         self.makelevel,
                         &self.output,
                         self.jobserver.as_ref(),
-                    );
-                    self.filesystem.borrow_mut().child_completed();
-                    result
+                        || self.filesystem.borrow_mut().child_completed(),
+                    )
                 })
                 .drive_flag_decoder(
                     &mut self.database,
@@ -1062,15 +1061,14 @@ impl Engine {
             .with_makeflags(&mut self.flag_state.receiver())
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
             .with_shell(&mut |request| {
-                let result = crate::shell::run(
+                crate::shell::run(
                     request,
                     &self.program,
                     self.makelevel,
                     &self.output,
                     self.jobserver.as_ref(),
-                );
-                self.filesystem.borrow_mut().child_completed();
-                result
+                    || self.filesystem.borrow_mut().child_completed(),
+                )
             })
             .apply_flag_steps(
                 &mut self.database,
