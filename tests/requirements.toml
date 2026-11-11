@@ -2667,3 +2667,35 @@ cases = [
   "live-query-keep-going-alias-requests-retired-tail",
   "live-query-keep-going-first-goal-tail-stays-retired",
 ]
+
+[[requirements]]
+id = "diagnostics.double-colon-branch-missing"
+title = "Report the initial missing target for each visited double-colon declaration"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 5
+fixture_count = 5
+cases = [
+  "debug-double-colon-branch-missing-query-verbose",
+  "debug-double-colon-branch-missing-nested-dry-run",
+  "debug-double-colon-branch-missing-prior-branch-created-file",
+  "debug-double-colon-branch-missing-touch",
+  "debug-double-colon-branch-missing-existing-file-control",
+]
+
+[[requirements]]
+id = "includes.serial-double-colon-remakes"
+title = "Serial double-colon source remake timestamps and branch tracing"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 5
+fixture_count = 5
+cases = [
+  "debug-remake-double-colon-stale-existing-verbose",
+  "debug-remake-double-colon-missing-current-tail-verbose",
+  "debug-remake-double-colon-missing-current-tail-quiet",
+  "debug-remake-double-colon-missing-stub-basic",
+  "debug-remake-double-colon-missing-optional-stub-verbose",
+]

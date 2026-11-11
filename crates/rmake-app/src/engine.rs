@@ -3404,6 +3404,12 @@ impl Engine {
                     None,
                 );
                 let before = before.unwrap_or(result.time);
+                if !self.parallel_makefile_remakes
+                    && !result.failed
+                    && (!optional || before == result.time)
+                {
+                    self.debug_double_colon_goal_prunes(name, result);
+                }
                 visit.insert((before, first_open_error));
                 ran_remake_recipe |= result.ran;
                 let context = self
@@ -4217,7 +4223,10 @@ impl Engine {
             // Each extra goal entry returns to the same considered chain head.
             let count = branches.len() + usize::from(self.visited_cached_double_colon_input(name));
             for _ in 1..count {
-                emit(&self.output, Event::Pruning(name, 0));
+                emit(
+                    &self.output,
+                    Event::Pruning(name, usize::from(self.remaking)),
+                );
             }
         }
     }
@@ -8751,6 +8760,10 @@ impl Engine {
     fn resume_double_colon_state(&mut self, target: &[u8], mut state: DoubleColonState) -> Outcome {
         state.last_epoch = Some(self.graph_epoch);
         let mut replay_cached_after_recipe = false;
+        let serial_remake_root = self.remaking
+            && !self.parallel_makefile_remakes
+            && state.depth == 0
+            && self.active_makefile_remake.is_some();
         loop {
             if let Some(ordinal) = state.active {
                 if self.pending_rules.contains_key(target) {
@@ -8889,6 +8902,7 @@ impl Engine {
                 self.done.insert(target.to_vec(), state.combined);
                 return state.combined;
             };
+            let declared = entry.is_some();
             let branch = if let Some(branch) = entry {
                 branch
             } else {
@@ -8958,18 +8972,40 @@ impl Engine {
                 .synthetic_tail
                 .as_ref()
                 .and_then(|tail| tail.assumed_time);
-            if ordinal != 0 && !self.remaking && assumed_time.is_none() {
+            let mut branch_before = state.before;
+            if serial_remake_root
+                && declared
+                && ordinal != 0
+                && branch_before.is_none()
+                && !state.phony
+            {
+                // A failed source open cached a missing observation for the
+                // head alone. Later declarations can see the source created by
+                // a preceding recipe. A known initial time remains shared.
+                branch_before = self.modified(target);
+            }
+            if ordinal != 0
+                && (!self.remaking || (serial_remake_root && declared))
+                && assumed_time.is_none()
+            {
+                let depth = state.depth + usize::from(self.remaking);
                 crate::debug::emit(
                     &self.output,
-                    crate::debug::Event::Considering(target, state.depth),
+                    crate::debug::Event::Considering(target, depth),
                 );
+                if declared && branch_before.is_none() {
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::Missing(target, depth + 1),
+                    );
+                }
             }
-            let before = assumed_time.or(state.before);
+            let before = assumed_time.or(branch_before);
             let comparison = self.comparison_time(target, before);
             self.build_rule(
                 target,
                 state.depth,
-                state.before,
+                branch_before,
                 comparison,
                 state.phony,
                 branch,
