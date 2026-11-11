@@ -9,7 +9,7 @@ and general performance parity remain open.
 
 | Code | Hazard class | Recorded inputs | Boundary |
 | --- | --- | ---: | --- |
-| S001 | Multiple `let` names with an empty expanded value list | 1 | Expand names and values in order, then fail before binding/evaluating the body. Zero names, one name, a nonempty short list and unreachable lazy branches retain normal behavior. |
+| S001 | Multiple `let` names with a nonempty whitespace-only expanded value list | 1 | Expand names and values in order, then fail before binding or evaluating the body. A zero-length value list binds each name to empty. Zero names, one name, a short list with a value, and unreachable lazy branches retain normal behavior. |
 | S002 | Deletion of live global `.DEFAULT_GOAL` metadata | 1 | Reject an effective `undefine` after runtime metadata activation. Respect origin precedence; ordinary empty assignment resets remain supported. |
 | S003 | Deleting a global binding while expanding its exported value | 3 | Track selected global recursive exports capable of evaluation effects. Reject effective deletion of an active binding before removing it. Unwind markers on errors; target-local selection does not refer to the deleted global object. |
 | S004 | Reentrant flag decoding that rewinds/repeats an outer stream or retains unstable short-option scan state | 20 | Five recorded hangs plus fifteen owner-approved normal-exit state hazards. Refuse the first nested short word when a following definition and additional words leave the recorded hazardous continuation; retain the original rewind/replay guard. One-tail streams, long-option resets and an intervening option before that definition remain supported. |
