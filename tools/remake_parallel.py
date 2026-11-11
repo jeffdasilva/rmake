@@ -140,7 +140,9 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += subdirectory_goal_models(worker, markers)
     results += inert_optional_mode_models(worker, markers)
     results += direct_optional_mode_models(worker, markers)
-    results += grouped_optional_mode_models(worker, markers)
+    for suffix, prerequisite in (('', ''), ('-normal-prerequisite', 'primer'),
+                                 ('-order-only-prerequisite', '| primer')):
+        results += grouped_optional_mode_models(worker, markers, suffix, prerequisite)
     results += named_source_mode_models(worker, markers)
     results += parallel_named_mode_models(worker, markers)
     results += primary_named_mode_models(worker, markers)
@@ -671,7 +673,8 @@ def direct_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> lis
     return results
 
 
-def grouped_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+def grouped_optional_mode_models(worker: bytes, markers: dict[str, bytes],
+                                 suffix: str, prerequisite: str) -> list[HeldModel]:
     header = '.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
     ordinary = ('all: result\n'
                 'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT)-$(PEER))'
@@ -703,12 +706,12 @@ def grouped_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> li
         for name, reads, failed, present, keep, stderr in cases:
             if failed:
                 reads = 'ifeq ($(MAKE_RESTARTS),)\n' + reads + 'else\ninclude right.gen\nendif\n'
-                recipe = 'left.gen peer.gen &: ; @python3 worker.py left fail\n'
+                recipe = f'left.gen peer.gen &: {prerequisite} ; @python3 worker.py left fail\n'
                 prefix = b'left\n'
                 value = b'--loaded-'
                 updates = {'right.gen': loaded['right.gen']}
             else:
-                recipe = ('left.gen peer.gen &: ; @python3 worker.py left include\n'
+                recipe = (f'left.gen peer.gen &: {prerequisite} ; @python3 worker.py left include\n'
                           '\t@printf "PEER := loaded\\n" > peer.gen\n')
                 prefix = b''
                 value = b'-loaded-loaded-loaded'
@@ -717,6 +720,11 @@ def grouped_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> li
             files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR}
             if present:
                 files['peer.gen'] = b'PEER := initial\n'
+            if prerequisite:
+                files['primer'] = b'primer\n'
+            times = dict.fromkeys(files, INPUT_TIME)
+            if prerequisite:
+                times['primer'] += 500_000_000
             for mode, status, stdout, ordinary_updates in modes:
                 flags = ('-k',) if keep else ()
                 args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}',
@@ -724,10 +732,10 @@ def grouped_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> li
                 expected = {'exit_code': status, 'stdout_template_hex': (prefix + stdout).hex(),
                             'stderr_template_hex': stderr.hex()}
                 seen = restarted if mode == 't' else restarted + b'ordinary' + value + b'\n'
-                ident = f'grouped-optional-mode-{name}-{mode}-{transport}'
+                ident = f'grouped-optional-mode-{name}-{mode}-{transport}{suffix}'
                 model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
                                     updates={**markers, **updates, **ordinary_updates},
-                                    mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                                    mtimes_ns=times)
                 results.append(HeldModel(model, True, BEFORE_SECOND, before_second_stdout=prefix))
     return results
 

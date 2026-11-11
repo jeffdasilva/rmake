@@ -4414,13 +4414,13 @@ impl Engine {
                             && rule.dependencies.iter().enumerate().all(|(index, dep)| {
                                 // The remake visit owns expansion of this slot.
                                 deferred.next_if(|clause| clause.index == index).is_some()
-                                    || self.simple_named_remake_prerequisite(dep, earlier_sources)
+                                    || self.simple_remake_prerequisite(dep, earlier_sources)
                             })))
                     && rule.recipes.is_some()
             })
     }
 
-    fn simple_named_remake_prerequisite(
+    fn simple_remake_prerequisite(
         &self,
         dependency: &Dependency,
         earlier_sources: &[(Makefile, bool)],
@@ -4469,7 +4469,8 @@ impl Engine {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
         // Use simple file identities and single-colon optional roots. A
-        // grouped root qualifies when its own recipe starts directly.
+        // grouped root qualifies when its recipe has no prerequisites
+        // that could start another recipe before it.
         if self.options.check_symlink_times
             || self.assumptions.is_some()
             || !self.options.include_directories.is_empty()
@@ -4530,15 +4531,17 @@ impl Engine {
                             .get(name)
                             .map_or(no_recipe_fallback, |rule| {
                                 rule.secondary.is_none()
-                                    && (rule.group.is_none()
-                                        || (rule.dependencies.is_empty()
-                                            && self.options.load_limit.is_none()))
                                     && rule.double_colon.is_none()
-                                    && if rule.dependencies.is_empty() {
+                                    && (if rule.dependencies.is_empty() {
                                         rule.recipes.is_some() || no_recipe_fallback
                                     } else {
                                         no_recipe_fallback
-                                    }
+                                    })
+                                    && (rule.group.is_none()
+                                        || (self.options.load_limit.is_none()
+                                            && rule.dependencies.iter().all(|dependency| {
+                                                self.simple_remake_prerequisite(dependency, &[])
+                                            })))
                             })))
         })
     }
