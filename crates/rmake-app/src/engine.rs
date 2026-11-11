@@ -3249,20 +3249,11 @@ impl Engine {
             }
             use crate::debug::Mask;
             let remake_debug_bits = Mask::BASIC.bits() | Mask::MAKEFILES.bits();
-            let verbose_load_debug = self.options.load_limit.is_some()
-                && !modes.active()
-                && debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits())
-                && self.qualified_load_debug_sources(&read_files, false);
             let qualified_remake_debug = debug_before_remake.bits() == remake_debug_bits
                 || (debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits())
                     && self.jobserver.is_some());
             let basic_load_debug = self.options.load_limit.is_some()
                 && debug_before_remake.bits() == remake_debug_bits;
-            let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
-                || (qualified_remake_debug
-                    && (self.options.load_limit.is_none()
-                        || basic_load_debug
-                        || verbose_load_debug));
             // Required makefiles settle before the ordinary mode resumes.
             // An explicit goal can also name a makefile and use that mode.
             let ordinary_mode = modes.active();
@@ -3308,10 +3299,21 @@ impl Engine {
                                     .map_or(no_recipe_fallback, |recipes| recipes.len() <= 1))
                     })
                 };
+            let verbose_load_trace = self.options.load_limit.is_some()
+                && debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits());
+            let verbose_load_debug = verbose_load_trace
+                && (!ordinary_mode || direct_mode_remakes)
+                && self.qualified_load_debug_sources(&read_files, false);
             let optional_dependency_load_debug = ordinary_mode
-                && basic_load_debug
+                && (basic_load_debug || verbose_load_trace)
                 && direct_mode_remakes
                 && self.qualified_load_debug_sources(&read_files, true);
+            let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
+                || (qualified_remake_debug
+                    && (self.options.load_limit.is_none()
+                        || basic_load_debug
+                        || verbose_load_debug
+                        || optional_dependency_load_debug));
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
                     || (((debug_before_remake.bits() == remake_debug_bits && !basic_load_debug)
