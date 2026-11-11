@@ -148,6 +148,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += parallel_named_mode_models(worker, markers)
     results += primary_named_mode_models(worker, markers)
     results += primary_named_group_models(worker, markers)
+    results += grouped_read_peer_question_models(worker, markers)
     results += later_primary_named_mode_models(worker, markers)
     results += forced_named_include_models(worker, markers)
     results += primary_named_implicit_models(worker, markers)
@@ -1049,6 +1050,54 @@ def primary_named_group_models(worker: bytes, markers: dict[str, bytes]) -> list
                         results.append(replace(held, model=secondary,
                                                before_first=record_expansions(first),
                                                before_second=record_expansions(second)))
+    return results
+
+
+def grouped_read_peer_question_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = b'.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    workers = b'include left.gen right.gen\n'
+    rules = (
+        b'Makefile peer.gen &: primer ; @printf "# remade\\n" >> Makefile; '
+        b'printf "PEER := loaded\\n" > peer.gen\n'
+        b'left.gen: ; @python3 worker.py left include\n'
+        b'right.gen:\n'
+        b'\t@python3 worker.py right include\n'
+        b'\t@$(file >>seen,tail-expanded)printf "tail\\n" >> seen\n'
+        b'all: result\n'
+        b'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT)-$(PEER))printf "ordinary\\n" > "$@"\n'
+    )
+    first = BEFORE_FIRST + b'tail-expanded\n'
+    second = first + b'left\n'
+    completed = second + b'right\ntail\n'
+    generated = {**markers, 'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
+    results = []
+    for policy, directive in (('required', b'include '), ('optional', b'-include ')):
+        peer_read = directive + b'peer.gen\n'
+        for order, reads in (('first', peer_read + workers), ('last', workers + peer_read)):
+            source = header + reads + rules
+            for age in ('current', 'stale', 'missing'):
+                files = {'Makefile': source, 'worker.py': worker, 'seen': ANCHOR,
+                         'primer': b'primer\n'}
+                if age != 'missing':
+                    files['peer.gen'] = b'PEER := initial\n'
+                times = dict.fromkeys(files, INPUT_TIME)
+                times['primer'] += 2_000_000_000 if age == 'stale' else -2_000_000_000
+                updates = generated
+                if age == 'current':
+                    seen = completed + b'read-1\nordinary-loaded-loaded-initial\n'
+                else:
+                    value = b'initial' if age == 'stale' else b''
+                    seen = completed + b'ordinary---' + value + b'\n'
+                    updates = {**generated, 'Makefile': source + b'# remade\n',
+                               'peer.gen': b'PEER := loaded\n'}
+                for transport in ('pipe', 'fifo'):
+                    args = ('-rR', '--no-print-directory', '-j3', f'--jobserver-style={transport}',
+                            '-q', '-f', './Makefile', './Makefile', 'all')
+                    ident = f'grouped-read-peer-{policy}-{order}-{age}-q-{transport}'
+                    expected = {'exit_code': 1, 'stdout_template_hex': '', 'stderr_template_hex': ''}
+                    model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
+                                        updates=updates, mtimes_ns=times)
+                    results.append(HeldModel(model, True, second, first))
     return results
 
 
