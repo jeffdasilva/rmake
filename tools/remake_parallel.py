@@ -133,6 +133,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += inert_optional_mode_models(worker, markers)
     results += direct_optional_mode_models(worker, markers)
     results += named_source_mode_models(worker, markers)
+    results += carried_optional_mode_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
         results += load_goal_summary_models(worker, markers)
@@ -653,6 +654,73 @@ def named_source_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[H
                                     mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                 results.append(HeldModel(model, False, None, before_first_stdout=prefix,
                                          release_order=('right', 'left')))
+    return results
+
+
+def carried_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = (
+        '.DEFAULT_GOAL := all\n'
+        '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+        '-include generated.gen\n'
+        'generated.gen: left right ; @$(error failed dependencies must prevent this recipe)\n'
+        'left: ; @python3 worker.py left fail\n'
+        'right: ; @python3 worker.py right success\n'
+    )
+    tail = '\t@$(file >>seen,right-tail-expanded)printf "right-tail\\n" >> seen\n'
+    ordinary = ('all: result\n'
+                'result: ; @$(file >>seen,ordinary)printf "ordinary\\n" > "$@"\n')
+    dry = b'printf "ordinary\\n" > "result"\n'
+    modes = (('n', 0, dry), ('q', 1, b''), ('t', 0, b'touch result\n'))
+    profiles = (
+        ('stop-tail', False, True, ('', 'target', 'line', 'recurse')),
+        ('keep-tail', True, True, ('', 'target')),
+        ('stop-single', False, False, ('',)),
+        ('keep-single', True, False, ('',)),
+    )
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for name, keep, has_tail, output_modes in profiles:
+            files = {'Makefile': (header + (tail if has_tail else '') + ordinary).encode(),
+                     'worker.py': worker, 'seen': ANCHOR}
+            first = BEFORE_FIRST + (b'right-tail-expanded\n' if has_tail else b'')
+            for mode, status, ordinary_stdout in modes:
+                second = first + b'left\n'
+                stdout = b'left\n' + ordinary_stdout
+                before_second_stdout = b'left\n' if keep else stdout
+                stderr = WAITING if mode == 'q' and not keep else b''
+                updates = markers.copy()
+                if keep:
+                    seen = second + b'right\n'
+                    if has_tail:
+                        seen += b'right-tail\n'
+                    if mode != 't':
+                        seen += b'ordinary\n'
+                else:
+                    if mode != 't':
+                        second += b'ordinary\n'
+                    seen = second + b'right\n'
+                    if mode == 'n' and has_tail:
+                        stdout += b'printf "right-tail\\n" >> seen\n'
+                    if mode == 't':
+                        updates['right'] = b''
+                        stdout += b'touch right\n' * (2 if has_tail else 1)
+                if mode == 't':
+                    updates['result'] = b''
+                for sync in output_modes:
+                    args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}',
+                            '-' + mode)
+                    if keep:
+                        args += ('-k',)
+                    if sync:
+                        args += ('-O' + sync,)
+                    expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                                'stderr_template_hex': stderr.hex()}
+                    ident = f'carried-optional-mode-{name}-{mode}-{transport}-{sync or "none"}'
+                    model = debug.Model(ident, files, (*args, 'all'), {'GNUMAKEFLAGS': ''},
+                                        expected, seen, updates=updates,
+                                        mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                    results.append(HeldModel(model, True, second, first,
+                                             before_second_stdout=before_second_stdout))
     return results
 
 
