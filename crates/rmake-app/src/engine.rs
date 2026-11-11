@@ -4376,7 +4376,7 @@ impl Engine {
             .get(name)
             .map_or(primary && no_default_recipe, |rule| {
                 if rule.secondary.is_some()
-                    && (!primary || !no_default_recipe || rule.group.is_some())
+                    && (file.optional || !no_default_recipe || rule.group.is_some())
                 {
                     return false;
                 }
