@@ -350,10 +350,10 @@ id = "variables.expansion"
 title = "Variable references, computed names and value retention"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 8
+candidate_required = 34
 reference = "https://www.gnu.org/software/make/manual/html_node/Reference.html"
-fixture_count = 8
-cases = ["variable-computed-name", "variable-define-multiline", "variable-nested-name", "variable-substitution-pattern", "variable-substitution-reference", "variable-value-unexpanded", "whitespace-pattern-substitution-reference-vt", "whitespace-suffix-substitution-reference-vt"]
+fixture_count = 34
+cases = ["variable-computed-name", "variable-define-multiline", "variable-nested-name", "variable-substitution-pattern", "variable-substitution-reference", "variable-value-unexpanded", "whitespace-pattern-substitution-reference-vt", "whitespace-suffix-substitution-reference-vt", "quoted-suffix-substitution-percent-parity-0", "quoted-suffix-substitution-percent-parity-1", "quoted-suffix-substitution-percent-parity-2", "quoted-suffix-substitution-percent-parity-3", "quoted-suffix-substitution-percent-parity-4", "quoted-suffix-substitution-percent-parity-5", "quoted-suffix-substitution-percent-parity-6", "quoted-suffix-substitution-suffix-with-trailing-text", "quoted-suffix-substitution-two-literal-percents", "quoted-suffix-substitution-literal-percent-replacement", "quoted-suffix-substitution-escaped-percent-replacement", "quoted-suffix-substitution-escaped-pattern-and-empty-replacement", "quoted-suffix-substitution-empty-pattern-control", "quoted-suffix-substitution-suffix-no-percent-control", "quoted-suffix-substitution-literal-patsubst-control", "quoted-suffix-substitution-explicit-wildcard-control", "quoted-suffix-substitution-computed-pattern", "quoted-suffix-substitution-computed-variable-and-pattern", "quoted-suffix-substitution-computed-full-name", "quoted-suffix-substitution-recursive-source-effect", "quoted-suffix-substitution-undefined-warning-control", "quoted-suffix-substitution-empty-variable-control", "quoted-suffix-substitution-recipe", "quoted-suffix-substitution-target-local", "quoted-suffix-substitution-eval", "quoted-suffix-substitution-brace-reference"]
 
 [[requirements]]
 id = "variables.flavors"

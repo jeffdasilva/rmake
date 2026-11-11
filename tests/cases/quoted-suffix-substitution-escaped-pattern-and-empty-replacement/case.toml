@@ -1,0 +1,12 @@
+id = "quoted-suffix-substitution-escaped-pattern-and-empty-replacement"
+requirement = "variables.expansion"
+candidate = "required"
+description = "Escaped percent bytes in variable suffix substitutions."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d5b707265207072655c207072655c5c20205c205c5c20706c61696e5d0a"
+stderr_hex = ""

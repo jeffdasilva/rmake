@@ -461,7 +461,9 @@ impl Expansion<'_, '_> {
             }
             Kind::Substitution(mut from, mut to) => {
                 let value = m.value();
-                if Pattern::new(&from).wildcard.is_none() {
+                let pattern = Pattern::new(&from);
+                if pattern.wildcard.is_none() {
+                    from = pattern.bytes;
                     from.insert(0, b'%');
                     to.insert(0, b'%');
                 }
