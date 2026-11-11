@@ -1520,28 +1520,19 @@ impl Options {
             flags.extend_from_slice(b" -O");
             flags.extend_from_slice(mode);
         }
-        if let Some(auth) = &self.jobserver_auth {
-            flags.extend_from_slice(b" --jobserver-auth=");
-            for &byte in auth {
-                if matches!(byte, b' ' | b'\t' | b'\\') {
+        for value in &self.debug.values {
+            flags.extend_from_slice(b" --debug=");
+            for &byte in value {
+                if byte.is_ascii_whitespace() || byte == b'\\' {
                     flags.push(b'\\');
                 }
                 flags.push(byte);
             }
         }
-        if let Some(auth) = &self.sync_mutex {
-            flags.extend_from_slice(b" --sync-mutex=");
-            for byte in auth {
-                if byte.is_ascii_whitespace() || *byte == b'\\' {
-                    flags.push(b'\\');
-                }
-                flags.push(*byte);
-            }
-        }
-        for value in &self.debug.values {
-            flags.extend_from_slice(b" --debug=");
-            for &byte in value {
-                if byte.is_ascii_whitespace() || byte == b'\\' {
+        if let Some(auth) = &self.jobserver_auth {
+            flags.extend_from_slice(b" --jobserver-auth=");
+            for &byte in auth {
+                if matches!(byte, b' ' | b'\t' | b'\\') {
                     flags.push(b'\\');
                 }
                 flags.push(byte);
@@ -1555,6 +1546,15 @@ impl Options {
         }
         if self.warn_undefined {
             flags.extend_from_slice(b" --warn-undefined-variables");
+        }
+        if let Some(auth) = &self.sync_mutex {
+            flags.extend_from_slice(b" --sync-mutex=");
+            for byte in auth {
+                if byte.is_ascii_whitespace() || *byte == b'\\' {
+                    flags.push(b'\\');
+                }
+                flags.push(*byte);
+            }
         }
         if !self.silent && self.silent_origin.is_some() {
             flags.extend_from_slice(b" --no-silent");

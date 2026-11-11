@@ -2452,3 +2452,13 @@ cases = [
   "missing-separator-hint-included-conditional-text",
   "missing-separator-hint-valid-rule-and-custom-prefix",
 ]
+
+[[requirements]]
+id = "options.parallel-flag-order"
+title = "Recursive option order with debug, jobserver, and output synchronization"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 1
+fixture_count = 1
+cases = ["parallel-flag-serialization-order"]
