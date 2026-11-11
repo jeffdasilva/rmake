@@ -2881,3 +2881,42 @@ cases = [
   "serial-remake-prune-duplicate-two-lines-shared-failed-prerequisite-normal",
   "serial-remake-prune-duplicate-two-lines-three-declarations-normal",
 ]
+
+[[requirements]]
+id = "debug.optional-serial-double-colon-cached-visits"
+title = "Cached diagnostics after failed optional serial makefile remakes"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 28
+fixture_count = 28
+cases = [
+  "serial-remake-optional-cached-child-four-normal",
+  "serial-remake-optional-cached-child-four-normal-merged",
+  "serial-remake-optional-cached-child-rebuild-normal",
+  "serial-remake-optional-cached-child-rebuild-normal-merged",
+  "serial-remake-optional-cached-cross-direct-failing-recipe",
+  "serial-remake-optional-cached-cross-direct-missing",
+  "serial-remake-optional-cached-cross-separate-intermediates",
+  "serial-remake-optional-cached-cross-shared-intermediate",
+  "serial-remake-optional-cached-missing-success-dry-run",
+  "serial-remake-optional-cached-missing-success-normal",
+  "serial-remake-optional-cached-missing-success-normal-merged",
+  "serial-remake-optional-cached-missing-success-query",
+  "serial-remake-optional-cached-missing-success-touch",
+  "serial-remake-optional-cached-missing-three-normal",
+  "serial-remake-optional-cached-missing-three-normal-merged",
+  "serial-remake-optional-cached-recipe-four-normal",
+  "serial-remake-optional-cached-recipe-four-normal-merged",
+  "serial-remake-optional-cached-recipe-success-normal",
+  "serial-remake-optional-cached-recipe-success-normal-merged",
+  "serial-remake-optional-cached-recipe-three-normal",
+  "serial-remake-optional-cached-recipe-three-normal-merged",
+  "serial-remake-optional-cached-shared-failing-child-dry-run-merged",
+  "serial-remake-optional-cached-shared-failing-child-normal",
+  "serial-remake-optional-cached-shared-failing-child-normal-merged",
+  "serial-remake-optional-cached-shared-failing-child-query-merged",
+  "serial-remake-optional-cached-shared-failing-child-touch-merged",
+  "serial-remake-optional-cached-shared-missing-normal",
+  "serial-remake-optional-cached-shared-missing-normal-merged",
+]

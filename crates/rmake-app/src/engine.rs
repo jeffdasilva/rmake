@@ -3486,6 +3486,20 @@ impl Engine {
                             emit(&self.output, Event::Considering(name, 1));
                             emit(&self.output, Event::RecentlyFailed(name, 1));
                             self.show_retained_optional_failure(name, None, cause.clone());
+                            if self.options.keep_going {
+                                self.debug_completed_double_colon_declarations(
+                                    name,
+                                    1..declarations,
+                                    1,
+                                );
+                            }
+                        }
+                        if self.options.keep_going && cause.is_none() {
+                            // A directly failed head has one full revisit.
+                            // The remaining goal entries prune the chain.
+                            for _ in 2..declarations {
+                                emit(&self.output, Event::Pruning(name, 1));
+                            }
                         }
                         if cause.is_none() || !self.options.keep_going {
                             self.optional_remake_failures.remove(name);
@@ -4458,14 +4472,19 @@ impl Engine {
         }
     }
 
-    fn debug_completed_double_colon_prefix(&self, target: &[u8], ordinal: usize, depth: usize) {
+    fn debug_completed_double_colon_declarations(
+        &self,
+        target: &[u8],
+        declarations: std::ops::Range<usize>,
+        depth: usize,
+    ) {
         use crate::debug::{Event, Mask, emit};
 
-        if ordinal == 0 || !self.output.debug_mask().has(Mask::VERBOSE) {
+        if declarations.is_empty() || !self.output.debug_mask().has(Mask::VERBOSE) {
             return;
         }
         let mut key = (target.to_vec(), 0);
-        for prior in 0..ordinal {
+        for prior in declarations {
             key.1 = prior;
             if let Some(outcome) = self.database_branch_outcomes.get(&key) {
                 // Every finished declaration has its own diagnostic visit.
@@ -8250,7 +8269,7 @@ impl Engine {
                 .get(target)
                 .and_then(|rule| rule.double_colon.as_ref())
                 .map_or(0, Vec::len);
-            self.debug_completed_double_colon_prefix(target, branches, depth);
+            self.debug_completed_double_colon_declarations(target, 0..branches, depth);
         }
         self.debug_consider(target, target, depth);
         match input {
@@ -8635,6 +8654,25 @@ impl Engine {
                 && self.done.get(target).is_some_and(|outcome| outcome.failed)
                 && self.trace_cached_unruled_makefile(considering_name, target, depth, true)
             {
+                traced_optional_failure = true;
+            }
+            if !traced_optional_failure
+                && self.remaking
+                && !self.parallel_makefile_remakes
+                && self.options.keep_going
+                && parent.is_some()
+                && self
+                    .done
+                    .get(target)
+                    .is_some_and(|outcome| outcome.failed && !outcome.fatal)
+            {
+                use crate::debug::{Event, emit};
+
+                emit(
+                    &self.output,
+                    Event::Considering(considering_name, depth + 1),
+                );
+                emit(&self.output, Event::RecentlyFailed(target, depth + 1));
                 traced_optional_failure = true;
             }
             self.show_retained_optional_failure(target, parent.map(|parent| parent.target), cause);
@@ -9082,7 +9120,7 @@ impl Engine {
                     use crate::debug::{Event, emit};
 
                     replay_cached_after_recipe = true;
-                    self.debug_completed_double_colon_prefix(target, ordinal, state.depth);
+                    self.debug_completed_double_colon_declarations(target, 0..ordinal, state.depth);
                     emit(&self.output, Event::Considering(target, state.depth));
                     emit(
                         &self.output,
@@ -9718,7 +9756,7 @@ impl Engine {
             if let Some(ordinal) = state.branch
                 && !self.remaking
             {
-                self.debug_completed_double_colon_prefix(target, ordinal, debug_depth);
+                self.debug_completed_double_colon_declarations(target, 0..ordinal, debug_depth);
             }
             self.debug_consider(target, target, debug_depth);
         }
