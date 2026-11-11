@@ -65,7 +65,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 351 profiles. Leading `./` spellings share one target record and still appear
+run all 353 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
@@ -149,3 +149,7 @@ between, and after two held workers. Both two-slot and three-slot runs
 check the named source mode, worker releases, recipe tail, and restart.
 The keep-going cases preserve the earlier query verdict while reporting
 a later worker failure.
+
+Two additional query cases use an ordinary recipe expansion without a file
+write. They require the unfinished-jobs diagnostic while the last optional
+remake worker is still held.
