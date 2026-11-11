@@ -180,3 +180,10 @@ declared branches. Five fixtures check exact output and included values
 across required and optional reads, with basic and verbose tracing and
 without debug output. Optional failed-branch replay remains a separate
 case.
+
+Serial ungrouped double-colon makefile remakes use the optional source
+policy for the first declaration. Later declarations report their own errors.
+A cached prerequisite failure can be reported again when a later declaration
+or required source read revisits the first declaration. With keep-going,
+the first declaration determines the source status and the physical file can
+be reread after either declaration changes it.

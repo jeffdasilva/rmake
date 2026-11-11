@@ -3332,7 +3332,18 @@ impl Engine {
                                     false
                                 }
                             } else {
-                                self.replay_makefile_failure(name, &mut failure.open_error)
+                                let replayed =
+                                    self.replay_makefile_failure(name, &mut failure.open_error);
+                                if replayed
+                                    && self.options.keep_going
+                                    && let Some(declarations) =
+                                        self.serial_double_colon_declarations(name)
+                                {
+                                    for _ in 1..declarations {
+                                        self.replay_makefile_failure(name, &mut failure.open_error);
+                                    }
+                                }
+                                replayed
                             };
                             if replayed && !self.options.keep_going {
                                 stopped = true;
@@ -3399,7 +3410,7 @@ impl Engine {
                         .and_then(|remake| remake.open_error.clone());
                     self.graph_epoch = self.graph_epoch.wrapping_add(1);
                 }
-                let result = self.build_recording_initial_time(
+                let mut result = self.build_recording_initial_time(
                     name,
                     None,
                     0,
@@ -3407,6 +3418,48 @@ impl Engine {
                     BuildVisit::Ordinary,
                     None,
                 );
+                let serial_declarations = if result.failed && !result.fatal {
+                    self.serial_double_colon_declarations(name)
+                } else {
+                    None
+                };
+                if let Some(declarations) = serial_declarations
+                    && let Some(&head) = self.database_branch_outcomes.get(&(name.to_vec(), 0))
+                {
+                    if optional && head.failed {
+                        use crate::debug::{Event, emit};
+
+                        let cause = self.optional_remake_failures.get(name).cloned().flatten();
+                        // A failed prerequisite can be reported again when
+                        // each remaining declaration revisits the head.
+                        let repeats = if self.options.keep_going && cause.is_some() {
+                            declarations - 1
+                        } else {
+                            1
+                        };
+                        for _ in 0..repeats {
+                            emit(&self.output, Event::Considering(name, 1));
+                            emit(&self.output, Event::RecentlyFailed(name, 1));
+                            self.show_retained_optional_failure(name, None, cause.clone());
+                        }
+                        if cause.is_none() || !self.options.keep_going {
+                            self.optional_remake_failures.remove(name);
+                        }
+                    } else if optional {
+                        // A later declaration already reported its own error.
+                        self.optional_remake_failures.remove(name);
+                    }
+                    if self.options.keep_going {
+                        // Inspect the head status and the physical time of
+                        // the shared makefile after the declarations settle.
+                        result.failed = head.failed;
+                        result.blocked = head.blocked;
+                        result.completion = CompletionTime::Refresh;
+                        result.time = self.modified(name);
+                    } else if optional {
+                        result.fatal = true;
+                    }
+                }
                 let before = before.unwrap_or(result.time);
                 if !self.parallel_makefile_remakes
                     && !result.failed
@@ -3447,8 +3500,10 @@ impl Engine {
                 failed |= result.failed && !optional;
                 optional_remake_failed |= result.failed && optional;
                 if result.failed && !result.fatal {
-                    // Without its own recipe run, the makefile keeps its cached time.
-                    let refresh_timestamp = result.ran && !result.blocked;
+                    // A serial declaration may change the file after a
+                    // blocked head. Other roots use their own recipe result.
+                    let refresh_timestamp =
+                        serial_declarations.is_some() || (result.ran && !result.blocked);
                     if may_replay {
                         optional_failures.insert(
                             name,
@@ -8785,6 +8840,19 @@ impl Engine {
         })
     }
 
+    fn serial_double_colon_declarations(&self, target: &[u8]) -> Option<usize> {
+        if self.parallel_makefile_remakes
+            || self.options.dry_run
+            || self.options.question
+            || self.options.touch
+        {
+            return None;
+        }
+        let branches = self.database.rules.get(target)?.double_colon.as_ref()?;
+        (branches.len() > 1 && branches.iter().all(|branch| branch.group.is_none()))
+            .then_some(branches.len())
+    }
+
     fn resume_double_colon_state(&mut self, target: &[u8], mut state: DoubleColonState) -> Outcome {
         state.last_epoch = Some(self.graph_epoch);
         let mut replay_cached_after_recipe = false;
@@ -8792,6 +8860,9 @@ impl Engine {
             && !self.parallel_makefile_remakes
             && state.depth == 0
             && self.active_makefile_remake.is_some();
+        let optional_serial_declarations = serial_remake_root
+            && self.optional_remake()
+            && self.serial_double_colon_declarations(target).is_some();
         loop {
             if let Some(ordinal) = state.active {
                 if self.pending_rules.contains_key(target) {
@@ -9030,16 +9101,30 @@ impl Engine {
             }
             let before = assumed_time.or(branch_before);
             let comparison = self.comparison_time(target, before);
-            self.build_rule(
-                target,
-                state.depth,
-                branch_before,
-                comparison,
-                state.phony,
-                branch,
-                Some(ordinal),
-                replay_cached_after_recipe,
-            );
+            let visit = |engine: &mut Self| {
+                engine.build_rule(
+                    target,
+                    state.depth,
+                    branch_before,
+                    comparison,
+                    state.phony,
+                    branch,
+                    Some(ordinal),
+                    replay_cached_after_recipe,
+                );
+            };
+            if optional_serial_declarations
+                && declared
+                && ordinal != 0
+                && let Some(mut context) = self.active_makefile_remake.clone()
+            {
+                // Only the head inherits the optional source policy.
+                context.optional = false;
+                context.retain_failure = false;
+                self.with_makefile_remake(Some(context), visit);
+            } else {
+                visit(self);
+            }
             state.active = Some(ordinal);
         }
     }

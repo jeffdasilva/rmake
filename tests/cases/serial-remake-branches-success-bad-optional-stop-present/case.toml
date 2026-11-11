@@ -1,0 +1,11 @@
+id = "serial-remake-branches-success-bad-optional-stop-present"
+requirement = "includes.serial-double-colon-failures"
+candidate = "required"
+provenance = "Original serial double-colon source failure fixture for GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:\nCREATE1\nBAD\n"
+stderr = "make: *** [Makefile:12: bad] Error 3\n"
