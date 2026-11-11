@@ -1,0 +1,10 @@
+id = "job-debug-pooled-continuation"
+requirement = "debug.pooled-continuation"
+candidate = "required"
+provenance = "Original rmake differential fixture for exact pooled multiline recipe job diagnostics and observed PIDs."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout = "verified fifo none\nverified fifo line\nverified fifo target\nverified fifo recurse\nverified pipe none\nverified pipe line\nverified pipe target\nverified pipe recurse\n"
+stderr = ""

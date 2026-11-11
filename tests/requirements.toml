@@ -2375,6 +2375,16 @@ cases = [
 ]
 
 [[requirements]]
+id = "debug.pooled-continuation"
+title = "Job debug events for multiline recipes with a jobserver"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/job-debug.md"
+candidate_required = 1
+fixture_count = 1
+cases = ["job-debug-pooled-continuation"]
+
+[[requirements]]
 id = "runtime.jobserver-temp-directory"
 title = "Validated temporary directories for owned FIFO jobservers"
 status = "fixture-ready"
