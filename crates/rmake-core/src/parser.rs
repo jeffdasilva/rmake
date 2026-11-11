@@ -5353,15 +5353,8 @@ impl Database {
             } else {
                 None
             };
-            let record_start = if !implicit {
-                self.rules
-                    .get(target)
-                    .map_or(0, |rule| rule.dependencies.len())
-            } else {
-                0
-            };
             let mut group_ordinal = 0;
-            let rule = if let Some(pattern) = declaration.patterns.get(target) {
+            let (rule, record_start) = if let Some(pattern) = declaration.patterns.get(target) {
                 self.invalidate_implicit_rule_indexes();
                 let index = *declaration
                     .implicit
@@ -5374,11 +5367,15 @@ impl Database {
                 if declaration.patterns.len() > 1 {
                     declaration.implicit_group_identity.get_or_insert(index);
                 }
-                &mut self.implicit_rules[index].1
+                (&mut self.implicit_rules[index].1, 0)
             } else {
+                use std::collections::hash_map::Entry;
                 self.explicit_names.insert(target.clone());
-                let occupied = self.rules.contains_key(target);
-                let root = self.rules.entry(target.clone()).or_default();
+                let (root, occupied) = match self.rules.entry(target.clone()) {
+                    Entry::Occupied(entry) => (entry.into_mut(), true),
+                    Entry::Vacant(entry) => (entry.insert(Rule::default()), false),
+                };
+                let record_start = root.dependencies.len();
                 root.record_only = false;
                 if occupied && root.double_colon.is_some() != double_colon {
                     return Err(ParseError {
@@ -5400,9 +5397,9 @@ impl Database {
                     let occurrences = declaration.branches.entry(target.clone()).or_default();
                     group_ordinal = occurrences.len();
                     occurrences.push(index);
-                    &mut branches[index]
+                    (&mut branches[index], record_start)
                 } else {
-                    root
+                    (root, record_start)
                 }
             };
             if grouped || (declaration.patterns.len() > 1) {
