@@ -211,8 +211,7 @@ pub struct Options {
     pub load_limit: Option<f64>,
     pub inherited_jobs: bool,
     pub jobserver_auth: Option<Vec<u8>>,
-    pub jobserver_pipe: bool,
-    pub(crate) unknown_jobserver_style: Option<Vec<u8>>,
+    pub(crate) jobserver_style: Option<Vec<u8>>,
     pub reset_jobserver: bool,
     pub directories: Vec<PathBuf>,
     pub include_directories: Vec<PathBuf>,
@@ -516,9 +515,7 @@ impl Decoder {
                                 usage.push(UsageIssue::Empty(b"--jobserver-style"));
                                 pause!(None);
                             }
-                            result.jobserver_pipe = value == b"pipe";
-                            result.unknown_jobserver_style =
-                                (!matches!(value.as_slice(), b"fifo" | b"pipe")).then_some(value);
+                            result.jobserver_style = Some(value);
                         }
                         b"--file" | b"--makefile" | b"--temp-stdin" | b"--directory"
                         | b"--include-dir" | b"--old-file" | b"--assume-old" | b"--new-file"
@@ -1063,12 +1060,10 @@ impl Options {
         self.decode_file_flags(flags, false, origin)
     }
     fn append_internal_jobserver_style(&self, arguments: &mut Vec<OsString>) {
-        if let Some(style) = &self.unknown_jobserver_style {
+        if let Some(style) = &self.jobserver_style {
             arguments.push(OsString::from_vec(
                 [b"--jobserver-style=".as_slice(), style].concat(),
             ));
-        } else if self.jobserver_pipe {
-            arguments.push("--jobserver-style=pipe".into());
         }
     }
 
@@ -1525,28 +1520,19 @@ impl Options {
             flags.extend_from_slice(b" -O");
             flags.extend_from_slice(mode);
         }
-        if let Some(auth) = &self.jobserver_auth {
-            flags.extend_from_slice(b" --jobserver-auth=");
-            for byte in auth {
-                if byte.is_ascii_whitespace() || *byte == b'\\' {
-                    flags.push(b'\\');
-                }
-                flags.push(*byte);
-            }
-        }
-        if let Some(auth) = &self.sync_mutex {
-            flags.extend_from_slice(b" --sync-mutex=");
-            for byte in auth {
-                if byte.is_ascii_whitespace() || *byte == b'\\' {
-                    flags.push(b'\\');
-                }
-                flags.push(*byte);
-            }
-        }
         for value in &self.debug.values {
             flags.extend_from_slice(b" --debug=");
             for &byte in value {
                 if byte.is_ascii_whitespace() || byte == b'\\' {
+                    flags.push(b'\\');
+                }
+                flags.push(byte);
+            }
+        }
+        if let Some(auth) = &self.jobserver_auth {
+            flags.extend_from_slice(b" --jobserver-auth=");
+            for &byte in auth {
+                if matches!(byte, b' ' | b'\t' | b'\\') {
                     flags.push(b'\\');
                 }
                 flags.push(byte);
@@ -1560,6 +1546,15 @@ impl Options {
         }
         if self.warn_undefined {
             flags.extend_from_slice(b" --warn-undefined-variables");
+        }
+        if let Some(auth) = &self.sync_mutex {
+            flags.extend_from_slice(b" --sync-mutex=");
+            for byte in auth {
+                if byte.is_ascii_whitespace() || *byte == b'\\' {
+                    flags.push(b'\\');
+                }
+                flags.push(*byte);
+            }
         }
         if !self.silent && self.silent_origin.is_some() {
             flags.extend_from_slice(b" --no-silent");
@@ -2077,12 +2072,12 @@ mod tests {
         assert!(reset.reset_jobserver);
         assert!(reset.jobserver_auth.is_none());
         let pipe = parse(&["--jobserver-style=pipe", "--jobs=3"]).unwrap();
-        assert!(pipe.jobserver_pipe);
+        assert_eq!(pipe.jobserver_style.as_deref(), Some(b"pipe".as_slice()));
         assert_eq!(pipe.jobs, Some(3));
         assert_eq!(
             parse(&["--jobserver-style=invalid"])
                 .unwrap()
-                .unknown_jobserver_style
+                .jobserver_style
                 .as_deref(),
             Some(b"invalid".as_slice())
         );

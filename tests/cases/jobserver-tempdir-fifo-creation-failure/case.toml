@@ -1,0 +1,10 @@
+id = "jobserver-tempdir-fifo-creation-failure"
+requirement = "runtime.jobserver-temp-directory"
+candidate = "required"
+provenance = "Original rmake differential fixture for FIFO creation failure after changing directory and pipe fallback."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout = "verified default\nverified explicit fifo\nverified inherited fifo\nverified file fifo\nverified explicit pipe\nverified file collision\nverified fifo collision\nverified symlink collision\n"
+stderr = ""

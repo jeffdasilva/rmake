@@ -680,39 +680,64 @@ impl Engine {
             .jobs
             .filter(|jobs| create && *jobs > 1 && *jobs != usize::MAX)
         {
-            if let Some(style) = &self.options.unknown_jobserver_style {
-                return Err(Diagnostic::from(crate::usage::jobserver_style(style)));
-            }
-            Some(
-                Jobserver::create(jobs, self.options.jobserver_pipe).map_err(|error| {
-                    use rmake_core::messages::Argument;
-                    use rmake_linux::{filesystem, messages};
-                    let key = match error.operation {
-                        "creating jobs pipe" => c"creating jobs pipe",
-                        "init jobserver pipe" => c"init jobserver pipe",
-                        _ => {
-                            return Diagnostic::from(format!(
-                                "{}: {}",
-                                error.operation,
-                                os_error(&error.error)
-                            ));
-                        }
-                    };
-                    let label =
-                        messages::lookup_static(key).unwrap_or_else(|_| key.to_bytes().to_vec());
-                    let detail = filesystem::source_error_detail(&error.error);
-                    let body = messages::render_format(
-                        c"%s%s: %s",
-                        &[
-                            Argument::Bytes(&label),
-                            Argument::Bytes(b""),
-                            Argument::Bytes(&detail),
-                        ],
-                    )
-                    .unwrap_or_else(|_| [&label, b": ".as_slice(), &detail].concat());
-                    Diagnostic::frozen(body, crate::messages::stop(), false)
-                })?,
-            )
+            let style = self.options.jobserver_style.as_deref();
+            let pipe = match style {
+                Some(b"pipe") => true,
+                None | Some(b"fifo") => false,
+                Some(style) => return Err(Diagnostic::from(crate::usage::jobserver_style(style))),
+            };
+            let server = match Jobserver::create(jobs, pipe) {
+                Err(rmake_linux::jobserver::CreationError {
+                    fifo_creation_path: Some(path),
+                    error,
+                    ..
+                }) => {
+                    let detail = rmake_linux::filesystem::source_error_detail(&error);
+                    let message =
+                        [b"jobserver mkfifo: ".as_slice(), &path, b": ", &detail].concat();
+                    emit_output(
+                        &self.output,
+                        &self.program,
+                        Output::Warning {
+                            location: None,
+                            message: &message,
+                        },
+                    );
+                    if let Some(style) = style {
+                        return Err(Diagnostic::from(crate::usage::jobserver_style(style)));
+                    }
+                    Jobserver::create(jobs, true)
+                }
+                result => result,
+            };
+            Some(server.map_err(|error| {
+                use rmake_core::messages::Argument;
+                use rmake_linux::{filesystem, messages};
+                let key = match error.operation {
+                    "creating jobs pipe" => c"creating jobs pipe",
+                    "init jobserver pipe" => c"init jobserver pipe",
+                    _ => {
+                        return Diagnostic::from(format!(
+                            "{}: {}",
+                            error.operation,
+                            os_error(&error.error)
+                        ));
+                    }
+                };
+                let label =
+                    messages::lookup_static(key).unwrap_or_else(|_| key.to_bytes().to_vec());
+                let detail = filesystem::source_error_detail(&error.error);
+                let body = messages::render_format(
+                    c"%s%s: %s",
+                    &[
+                        Argument::Bytes(&label),
+                        Argument::Bytes(b""),
+                        Argument::Bytes(&detail),
+                    ],
+                )
+                .unwrap_or_else(|_| [&label, b": ".as_slice(), &detail].concat());
+                Diagnostic::frozen(body, crate::messages::stop(), false)
+            })?)
         } else {
             None
         };

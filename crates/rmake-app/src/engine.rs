@@ -5112,7 +5112,7 @@ impl Engine {
         }
         self.observe_interrupt();
         if let Some(completion) = observed_completion.or_else(|| self.ready_parallel_job(&ready)) {
-            self.complete_job(completion);
+            self.complete_job(completion, block && additional.is_none());
             return Ok(true);
         }
         Ok(false)
@@ -5311,7 +5311,7 @@ impl Engine {
             // A stopped optional traversal can leave an already-admitted
             // recipe queued. Its reservation survives the owner's stop.
             let (target, identity) = self.load_waiting.pop().expect("nonempty waiting queue");
-            self.complete_job((target, identity, None));
+            self.complete_job((target, identity, None), false);
         }
     }
 
@@ -5408,14 +5408,14 @@ impl Engine {
         }
     }
 
-    fn complete_job(&mut self, (target, identity, result): JobResult) {
+    fn complete_job(&mut self, (target, identity, result): JobResult, blocking_reap: bool) {
         self.graph_epoch = self.graph_epoch.wrapping_add(1);
         let job = self
             .parallel_jobs
             .remove(&target, identity)
             .expect("reserved parallel target");
         self.with_makefile_remake(job.continuation.remake.clone(), |engine| {
-            engine.finish_parallel_job(target, job, result);
+            engine.finish_parallel_job(target, job, result, blocking_reap);
         });
     }
 
@@ -5424,6 +5424,7 @@ impl Engine {
         target: Vec<u8>,
         mut job: ParallelJob,
         result: Option<io::Result<std::process::ExitStatus>>,
+        blocking_reap: bool,
     ) {
         let output = job.continuation.output.clone();
         let debug_job = job.continuation.debug_job.clone();
@@ -5560,10 +5561,10 @@ impl Engine {
         let mut outcome = self.done.get(&target).copied().unwrap_or_default();
         outcome.fatal |= cleanup_fatal || self.interrupt.is_some();
         let mut all_recursive = !job.continuation.flow.has_ordinary();
-        let completed_permit = if command_question {
+        let (completed_permit, continued) = if command_question {
             outcome.question_outdated = true;
             failed |= cleanup_fatal;
-            job.continuation.permit.take()
+            (job.continuation.permit.take(), false)
         } else if !failed {
             let (execution, permit) =
                 self.continue_recipe(&target, job.continuation, job.phony, job.before, true);
@@ -5575,9 +5576,9 @@ impl Engine {
                 failed = true;
                 outcome.fatal = true;
             }
-            permit
+            (permit, execution.pending)
         } else {
-            job.continuation.permit.take()
+            (job.continuation.permit.take(), false)
         };
         if let Some(buffer) = output {
             if outcome.fatal && self.interrupt.is_none() {
@@ -5677,7 +5678,11 @@ impl Engine {
         }
         self.finish_debug_job(debug_job.as_ref());
         self.reuse_implicit_job_slot(!outcome.fatal);
-        self.job_debug.live(self.output.debug_mask());
+        // A blocking reap scans a continued command at its next wait. A
+        // completed recipe or a token or poll wake still reports its scan here.
+        if !blocking_reap || !continued {
+            self.job_debug.live(self.output.debug_mask());
+        }
         if command_question {
             self.forced_query_completed();
         }
