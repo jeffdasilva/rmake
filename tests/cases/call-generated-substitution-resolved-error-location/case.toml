@@ -1,0 +1,12 @@
+id = "call-generated-substitution-resolved-error-location"
+requirement = "functions.control"
+candidate = "required"
+description = "Literal substitution spelling in a computed call callee."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a363a202a2a2a2063686f73656e2d6572726f722e202053746f702e0a"

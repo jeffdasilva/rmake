@@ -1,0 +1,12 @@
+id = "call-generated-substitution-anonymous-eval"
+requirement = "functions.control"
+candidate = "required"
+description = "Literal substitution spelling in a computed call callee."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "--eval", "V := alpha a\nNAME := V:a=b\ndefine $(NAME)\nliteral-stub\nendef\nVALUE := $(call $(NAME),inner)", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d5b616c70686220625d0a"
+stderr_hex = ""
