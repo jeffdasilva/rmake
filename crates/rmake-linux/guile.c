@@ -207,6 +207,7 @@ extern void rm_native_interrupt_request(int);
 static int module_ready;
 static SCM scalar_binding;
 static SCM default_scalar_converter;
+static SCM finish_conversion;
 static atomic_int guile_entered;
 static atomic_uint leading_evaluations;
 int rg_guile_leading_evaluator_active(void) {
@@ -244,7 +245,8 @@ static SCM convert_scalar(SCM value) {
 static SCM object_text(SCM value) {
     if (!scm_is_pair(value)) {
         SCM text = convert_scalar(value);
-        return scm_is_false(text) ? scm_from_utf8_string("") : text;
+        SCM parts = scm_is_false(text) ? SCM_EOL : scm_list_1(text);
+        return scm_call_1(finish_conversion, parts);
     }
     const SCM visit = SCM_BOOL_F;
     const SCM follow_tail = SCM_UNSPECIFIED;
@@ -284,8 +286,7 @@ static SCM object_text(SCM value) {
                 parts = scm_cons(text, parts);
         }
     }
-    SCM text=scm_string_join(scm_reverse_x(parts,SCM_EOL),
-                             scm_from_locale_string(" "),SCM_UNDEFINED);
+    SCM text = scm_call_1(finish_conversion, parts);
     scm_remember_upto_here_2(work,active_pairs);
     return text;
 }
@@ -312,6 +313,13 @@ static SCM make_evaluate(SCM value) {
 }
 static void define_module(void *unused) {
     (void)unused;
+    // Guile resolves the lexical references when the closure first uses
+    // them. Keep that resolution and select join before reverse can run.
+    finish_conversion = scm_c_eval_string(
+        "(lambda (parts)"
+        "  (let* ((join-procedure string-join)"
+        "         (ordered (reverse! parts)))"
+        "    (join-procedure ordered)))");
     scm_c_define_gsubr("gmk-expand",1,0,0,make_expand);
     scm_c_define_gsubr("gmk-eval",1,0,0,make_evaluate);
     scm_c_define_gsubr("obj-to-str", 1, 0, 0, object_text);
