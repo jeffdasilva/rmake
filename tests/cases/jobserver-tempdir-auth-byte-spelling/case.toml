@@ -1,0 +1,10 @@
+id = "jobserver-tempdir-auth-byte-spelling"
+requirement = "runtime.jobserver-temp-directory"
+candidate = "required"
+provenance = "Original rmake differential fixture for FIFO auth byte spelling and recursive inheritance."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout = "verified FIFO auth bytes\n"
+stderr = ""

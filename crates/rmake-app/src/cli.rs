@@ -1522,11 +1522,11 @@ impl Options {
         }
         if let Some(auth) = &self.jobserver_auth {
             flags.extend_from_slice(b" --jobserver-auth=");
-            for byte in auth {
-                if byte.is_ascii_whitespace() || *byte == b'\\' {
+            for &byte in auth {
+                if matches!(byte, b' ' | b'\t' | b'\\') {
                     flags.push(b'\\');
                 }
-                flags.push(*byte);
+                flags.push(byte);
             }
         }
         if let Some(auth) = &self.sync_mutex {
