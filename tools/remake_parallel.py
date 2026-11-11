@@ -136,6 +136,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += named_source_mode_models(worker, markers)
     results += parallel_named_mode_models(worker, markers)
     results += primary_named_mode_models(worker, markers)
+    results += later_primary_named_mode_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
@@ -868,6 +869,95 @@ def primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[
                                         updates={**markers, **generated, **changes, **updates}, mtimes_ns=times)
                     results.append(HeldModel(model, True, second, first,
                                              before_second_stdout=prefix, before_first_stdout=prefix))
+    return results
+
+
+def later_primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = b'.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    rules = (
+        b'left.gen: ; @python3 worker.py left include\n'
+        b'right.gen:\n'
+        b'\t@python3 worker.py right include\n'
+        b'\t@$(file >>seen,tail-expanded)printf "tail\\n" >> seen\n'
+        b'all: result\n'
+        b'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT))printf "ordinary\\n" > "$@"\n'
+    )
+    first = BEFORE_FIRST + b'tail-expanded\n'
+    second = first + b'left\n'
+    workers_done = second + b'right\n'
+    current = b"make: 'Makefile' is up to date.\n"
+    ordinary = b'printf "ordinary\\n" > "result"\n'
+    recurse = b'make --no-print-directory -f child.mk append\n'
+    append = b'printf "# remade\\n" >> "Makefile"\n'
+    recipes = (
+        ('forced', b'+@printf "# remade\\n" >> "$@"\n', append, {}),
+        ('recursive', b'@$(MAKE) --no-print-directory -f child.mk append\n', recurse,
+         {'child.mk': b'append: ; @printf "child\\n" > child.txt\n'}),
+    )
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for slots, sync in ((2, False), (3, False), (3, True)):
+            for style, recipe, command, child_files in recipes:
+                if sync and style == 'recursive':
+                    continue
+                makefile = header + b'Makefile: primer ; ' + recipe + rules
+                files = {'Makefile': makefile, 'earlier.mk': b'include left.gen right.gen\n',
+                         'worker.py': worker, 'seen': ANCHOR, 'primer': b'primer\n', **child_files}
+                for stale in (False, True):
+                    times = dict.fromkeys(files, INPUT_TIME)
+                    times['primer'] += 2_000_000_000 if stale else -2_000_000_000
+                    saturated = stale and slots == 2
+                    complete = workers_done if saturated else workers_done + b'tail\n'
+                    restarted = complete + b'read-1\n'
+                    loaded = restarted + b'ordinary-loaded-loaded\n'
+                    changes = {}
+                    if stale:
+                        changes = ({'Makefile': makefile + b'# remade\n'} if style == 'forced'
+                                   else {'child.txt': b'child\n'})
+                    for mode in 'nqt':
+                        stdout = stderr = first_stdout = second_stdout = b''
+                        updates = {**markers, **changes, 'left.gen': b'LEFT := loaded\n'}
+                        if mode != 'q' or not saturated:
+                            updates['right.gen'] = b'RIGHT := loaded\n'
+                        seen = loaded
+                        if mode == 'n':
+                            if stale:
+                                first_stdout = b'' if saturated else command
+                                second_stdout = stdout = command
+                                if saturated:
+                                    stdout += b'printf "tail\\n" >> seen\n'
+                                if style == 'recursive':
+                                    stdout += command
+                            stdout += current + ordinary
+                        elif mode == 'q' and saturated:
+                            seen = workers_done + b'ordinary--\n'
+                            stderr = b"make: *** Deleting file 'right.gen'\n"
+                        elif mode == 't':
+                            seen = restarted
+                            if stale:
+                                second_stdout = stdout = b'touch left.gen\n'
+                            if saturated:
+                                stdout += b'touch right.gen\ntouch right.gen\n'
+                            stdout += current + b'touch result\n'
+                            updates['result'] = b''
+                        args = ('-rR', '--no-print-directory', f'-j{slots}', f'--jobserver-style={transport}')
+                        if sync:
+                            args += ('-Oline',)
+                        args += ('-' + mode, '-f', 'earlier.mk', '-f', './Makefile')
+                        if style == 'recursive':
+                            args += ('MAKE=make',)
+                        args += ('./Makefile', 'all')
+                        age = 'stale' if stale else 'current'
+                        ident = f'later-primary-named-mode-{style}-{age}-{mode}-{transport}-{slots}-slots'
+                        if sync:
+                            ident += '-sync'
+                        expected = {'exit_code': int(mode == 'q'), 'stdout_template_hex': stdout.hex(),
+                                    'stderr_template_hex': stderr.hex()}
+                        model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
+                                            updates=updates, mtimes_ns=times)
+                        results.append(HeldModel(model, True, second, first,
+                                                 before_second_stdout=second_stdout,
+                                                 before_first_stdout=first_stdout))
     return results
 
 

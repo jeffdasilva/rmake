@@ -46,6 +46,7 @@ class Model:
     status: int = 0
     group_records: int = 2
     not_updated: tuple[str, ...] = ()
+    group_members: str = 'b a'
 
 
 def models():
@@ -85,6 +86,83 @@ def models():
                 (('a:: other', SYNTHETIC), ('a:: older', SYNTHETIC), ('b:: older', ORIGINAL)),
                 (SECOND.replace('$@', 'a'),), original=(('a', EXISTING), ('b', EXISTING)),
                 not_updated=('b:: older',))
+    peer_only = (SKIP.replace('$@', 'b'),)
+    yield Model('group-double-mixed-peer-unchecked-group', early, ('b',),
+                (('a:: other', MISSING), ('a:: input', UNCHECKED), ('b:: input', MISSING)),
+                peer_only, not_updated=('a:: other',))
+    yield Model('group-double-mixed-peer-unchecked-group-existing', early, ('b',),
+                (('a:: other', ORIGINAL), ('a:: input', UNCHECKED), ('b:: input', MISSING)),
+                peer_only, original=(('a', EXISTING),), not_updated=('a:: other',))
+    yield Model('group-double-mixed-peer-unchecked-standalone', first + ordinary, ('b',),
+                (('a:: other', UNCHECKED), *missing), peer_only, not_updated=('a:: other',))
+    yield Model('group-double-mixed-peer-checked-before-group', early, ('b',),
+                (('a:: other', ORIGINAL), ('a:: input', ORIGINAL), ('b:: input', ORIGINAL)),
+                peer_only, original=(('a', EXISTING), ('b', EXISTING)), not_updated=('a:: other',))
+    yield Model('group-double-mixed-peer-later-goal', early, ('b', 'a'),
+                (('a:: other', MISSING), *missing), (*peer_only, SECOND.replace('$@', 'a')))
+    yield Model('group-double-mixed-peer-later-goal-existing', early, ('b', 'a'),
+                (('a:: other', ORIGINAL), ('a:: input', ORIGINAL), ('b:: input', MISSING)),
+                (*peer_only, SECOND.replace('$@', 'a')), original=(('a', EXISTING),))
+    yield Model('group-double-mixed-peer-later-standalone-simulates', first + ordinary, ('b', 'a'),
+                (('a:: other', SYNTHETIC), ('a:: input', SYNTHETIC), ('b:: input', MISSING)),
+                (*peer_only, SECOND.replace('$@', 'a')))
+    third_group = 'a b &:: older ; @' + SKIP + '\n'
+    yield Model('group-double-mixed-peer-next-group-has-observation', early + third_group, ('b',),
+                (('a:: other', ORIGINAL), ('a:: input', UNCHECKED), ('a:: older', ORIGINAL),
+                 ('b:: input', MISSING), ('b:: older', MISSING)),
+                (*peer_only, *peer_only), original=(('a', EXISTING),), group_records=4,
+                not_updated=('a:: other',))
+    change_peer = "$(shell printf '%s\\n' actual > a; touch -d @1600000005.123456789 a)"
+    changing_group = 'a b &:: input ; @' + change_peer + SKIP + '\n'
+    yield Model('group-double-mixed-peer-keeps-observation', ordinary + changing_group, ('b',),
+                (('a:: other', FORCED), ('a:: input', ORIGINAL), ('b:: input', ORIGINAL)),
+                peer_only, original=(('a', EXISTING), ('b', EXISTING)), actual=('a',),
+                not_updated=('a:: other',))
+    earlier_change = change_peer.replace('1600000005.123456789', '1600000004.123456789')
+    changing_head = 'a b &:: input ; @' + earlier_change + SKIP + '\n'
+    changing_tail = 'a b &:: other ; @' + change_peer + SKIP + '\n'
+    yield Model('group-double-mixed-peer-refreshes-completed-branch',
+                changing_head + current_tail + changing_tail, ('b',),
+                (('a:: input', FORCED), ('a:: older', ORIGINAL), ('a:: other', FORCED),
+                 ('b:: input', ORIGINAL), ('b:: other', ORIGINAL)),
+                (*peer_only, *peer_only), original=(('a', EXISTING), ('b', EXISTING)),
+                actual=('a',), group_records=4, not_updated=('a:: older',))
+    repeated_a = 'a a b &:: input ; @' + SKIP + '\n'
+    repeated_b = 'a b b &:: input ; @' + SKIP + '\n'
+    a_group = (('a:: input', MISSING), ('a:: input', MISSING), ('b:: input', MISSING))
+    b_group = (('a:: input', MISSING), ('b:: input', MISSING), ('b:: input', MISSING))
+    yield Model('group-double-repeated-first-owner', repeated_a, ('a',), a_group,
+                (SKIP.replace('$@', 'a'),), group_records=3, group_members='b a a')
+    yield Model('group-double-repeated-second-owner', repeated_b, ('b',), b_group,
+                (SKIP.replace('$@', 'b'),), group_records=3, group_members='b b a')
+    yield Model('group-double-only-repeated-owner', 'a a &:: input ; @' + SKIP + '\n',
+                ('a',), a_group[:2], (SKIP.replace('$@', 'a'),), group_members='a a')
+    yield Model('group-double-repeated-owner-after-standalone', ordinary + repeated_a, ('a',),
+                (('a:: other', ORIGINAL), ('a:: input', ORIGINAL), ('a:: input', ORIGINAL),
+                 ('b:: input', MISSING)), (SECOND.replace('$@', 'a'), SKIP.replace('$@', 'a')),
+                original=(('a', EXISTING),), group_records=3, group_members='b a a')
+    yield Model('group-double-repeated-peer-standalone-unvisited', ordinary + repeated_a, ('b',),
+                (('a:: other', MISSING), ('a:: input', MISSING), ('a:: input', UNCHECKED),
+                 ('b:: input', MISSING)), (SKIP.replace('$@', 'b'),),
+                group_records=3, group_members='b a a', not_updated=('a:: other',))
+    yield Model('group-double-repeated-owner-and-standalone-peer', repeated_a + second_owner, ('a', 'b'),
+                (*a_group[:2], ('b:: input', SYNTHETIC), ('b:: other', SYNTHETIC)),
+                (SKIP.replace('$@', 'a'), SECOND.replace('$@', 'b')),
+                group_records=3, group_members='b a a')
+    yield Model('group-double-repeated-owner-before-standalone', repeated_b + second_owner, ('b', 'a'),
+                (('a:: input', MISSING), ('b:: input', SYNTHETIC), ('b:: input', SYNTHETIC),
+                 ('b:: other', SYNTHETIC)), (SKIP.replace('$@', 'b'), SECOND.replace('$@', 'b')),
+                group_records=3, group_members='b b a')
+    repeat_no_effect = 'a a b &:: input ; @:\n'
+    yield Model('group-double-repeated-owner-normal', repeat_no_effect, ('a',), a_group,
+                flags=(), group_records=3, group_members='b a a')
+    yield Model('group-double-repeated-peer-query', repeat_no_effect, ('b',),
+                (('a:: input', UNCHECKED), ('a:: input', UNCHECKED), ('b:: input', MISSING)),
+                flags=('-q', '-k'), status=1, group_records=3, group_members='b a a',
+                not_updated=('a:: input',))
+    yield Model('group-double-repeated-owner-forced', 'a a b &:: input ; +@' + FORCE_GROUP + '\n',
+                ('a',), tuple((row, FORCED) for row, _ in a_group), (FORCE_GROUP,),
+                actual=('a', 'b'), group_records=3, group_members='b a a')
     yield Model('group-double-forced-physical', 'a b &:: input ; +@' + FORCE_GROUP + '\n',
                 ('a',), (('a:: input', FORCED), ('b:: input', FORCED)), (FORCE_GROUP,), actual=('a', 'b'))
     yield Model('group-double-question-without-start', first, ('a',),
@@ -176,22 +254,27 @@ def check_stdout(model, output, start, end):
     if output.count(header) != 1 or output.count(footer) != 1 or output.index(header) > output.index(footer):
         raise h.HarnessError('invalid file database section')
     section = output[output.index(header) + len(header):output.index(footer)]
+    expected_records = {}
     for rule, time in model.records:
+        expected_records.setdefault(rule, []).append(time)
+    for rule, expected_times in expected_records.items():
         line = b'\n' + rule.encode() + b'\n'
-        if section.count(line) != 1:
-            raise h.HarnessError('expected one exact database rule line ' + rule)
-        body = section.split(line, 1)[1].split(b'\n\n', 1)[0]
-        actual = [entry for entry in body.splitlines() if entry.startswith((b'#  Last modified ', b'#  File does not exist.', b'#  Modification time never checked.'))]
-        if actual != [time.encode()]:
-            raise h.HarnessError(f'{rule} expected {time!r}, observed {actual!r}')
-        updated = rule not in model.not_updated
-        marker = b'#  File has been updated.' if updated else b'#  File has not been updated.'
-        if marker not in body.splitlines():
-            raise h.HarnessError(f'{rule} did not have the expected update state')
-        if updated and model.status == 0 and b'#  Successfully updated.' not in body.splitlines():
-            raise h.HarnessError(f'{rule} expected a successful branch result')
+        occurrences = section.split(line)[1:]
+        if len(occurrences) != len(expected_times):
+            raise h.HarnessError(f'{rule} expected {len(expected_times)} database records, observed {len(occurrences)}')
+        for ordinal, (record, time) in enumerate(zip(occurrences, expected_times, strict=True), start=1):
+            body = record.split(b'\n\n', 1)[0].splitlines()
+            actual = [entry for entry in body if entry.startswith((b'#  Last modified ', b'#  File does not exist.', b'#  Modification time never checked.'))]
+            if actual != [time.encode()]:
+                raise h.HarnessError(f'{rule} occurrence {ordinal} expected {time!r}, observed {actual!r}')
+            updated = rule not in model.not_updated
+            marker = b'#  File has been updated.' if updated else b'#  File has not been updated.'
+            if marker not in body:
+                raise h.HarnessError(f'{rule} occurrence {ordinal} did not have the expected update state')
+            if updated and model.status == 0 and b'#  Successfully updated.' not in body:
+                raise h.HarnessError(f'{rule} occurrence {ordinal} expected a successful branch result')
     membership = re.findall(rb'(?m)^#  Also makes: (.*)$', section)
-    expected_membership = [b'b a'] * model.group_records
+    expected_membership = [model.group_members.encode()] * model.group_records
     if membership != expected_membership:
         raise h.HarnessError(f'group member order differs: {membership!r}')
     prefix = output[:fields[0].start()].splitlines()

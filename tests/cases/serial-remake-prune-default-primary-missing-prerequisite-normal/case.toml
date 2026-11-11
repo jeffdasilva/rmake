@@ -1,0 +1,10 @@
+id = "serial-remake-prune-default-primary-missing-prerequisite-normal"
+requirement = "debug.required-serial-double-colon-prunes"
+candidate = "required"
+provenance = "Original required makefile cached-visit fixture verified against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "--debug=m,v", "all"]
+
+[expected]
+exit_code = 2
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nREAD:\nUpdating makefiles....\n Considering target file 'Makefile'.\n  Considering target file 'absent'.\n   File 'absent' does not exist.\n  Finished prerequisites of target file 'absent'.\n  Must remake target 'absent'.\n  Failed to remake target file 'absent'.\n Finished prerequisites of target file 'Makefile'.\n Giving up on target file 'Makefile'.\n Considering target file 'Makefile'.\n  Considering target file 'force2'.\n   File 'force2' does not exist.\n  Finished prerequisites of target file 'force2'.\n  Must remake target 'force2'.\n  Successfully remade target file 'force2'.\n Finished prerequisites of target file 'Makefile'.\n  Prerequisite 'force2' of target 'Makefile' does not exist.\n Must remake target 'Makefile'.\nBRANCH:2\n Successfully remade target file 'Makefile'.\n Pruning file 'Makefile'.\n"
+stderr = "make: *** No rule to make target 'absent', needed by 'Makefile'.\nmake: Failed to remake makefile 'Makefile'.\n"

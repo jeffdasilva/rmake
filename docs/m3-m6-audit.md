@@ -94,19 +94,21 @@ The [locale collation slice](locale-collation.md) closes 33 observed preceding m
 
 ## Parallel modes, makefile remakes, and jobserver paths
 
-The held remake gate covers 577 profiles using both Linux jobserver
+The held remake gate covers 637 profiles using both Linux jobserver
 transports. It includes direct grouped optional recipes, stopped optional
 workers retained across load limits, named include and primary makefile goals,
 and exact remake-debug prefixes under dry-run, question, and touch. The
 explicit primary cases include existing normal and order-only prerequisites,
-forced shell recipes, and recursive Make recipes on the first read source.
-Later sources with forced recipes, expanded file identities, and combined load,
+forced shell recipes, and recursive Make recipes. Later named primary sources
+exercise two- and three-slot scheduling alongside earlier include workers.
+Expanded file identities, forced named includes, and combined load,
 grouped-remake, and debug paths need broader coverage.
 [Held remake gate](../tests/remake-parallel/README.md)
 
-The ordinary inventory contains 30,087 case manifests and 220 requirements.
-Serial double-colon failure recovery and returned-failure diagnostics have
-independent expectations for the exit status, streams, and file effects.
+The ordinary inventory contains 30,135 case manifests and 222 requirements.
+Serial double-colon failure recovery, returned-failure diagnostics, and cached
+visits for repeated required makefiles have independent expectations for exit
+status, streams, and file effects.
 [Serial remake diagnostics](debug-output.md)
 
 The development and optimized builds from #374 each matched all 505
@@ -114,8 +116,8 @@ held remake profiles, 1,098 affected ordinary cases, and 167 database
 observations. The database coverage includes realized secondary prerequisites,
 grouped stems, and grouped double-colon branch ownership. The current database
 suite also covers the physical timestamp after a grouped double-colon branch
-under dry-run and the eligibility of later grouped peers after an unstarted
-query recipe. [Composed validation](https://github.com/jeffdasilva/rmake/pull/374)
+under dry-run, later grouped peers after an unstarted query recipe,
+cache timestamps for mixed branches, and completion of repeated grouped owners. [Composed validation](https://github.com/jeffdasilva/rmake/pull/374)
 [Grouped double-colon database models](../tools/database_grouped_double_output.py)
 
 The composed optimized build reduced median time from 287.37 to 196.79 ms at
@@ -124,6 +126,14 @@ includes and 7,001 goals. GNU Make 4.4.1 took 104.67 and 161.48 ms. The dry-run
 comparisons verified stdout, stderr, status, and file paths, contents, and
 mtimes. Small controls remained within 0.4 ms of the earlier rmake build.
 [Combined benchmark](https://github.com/jeffdasilva/rmake/pull/374)
+
+Skipping explicit goal scans for ineligible intermediate targets cut median
+time from 204.68 to 142.89 ms at 7,000 direct goals and from 271.38 to
+171.94 ms at 5,000 goals with two existing inputs each. GNU Make 4.4.1
+took 99.70 and 82.96 ms. Each dry run verified status, streams, and file
+paths, contents, and mtimes. Global `.SECONDARY` and live aliases retain
+the explicit-goal-first check.
+[Intermediate goal benchmark](https://github.com/jeffdasilva/rmake/pull/384)
 
 The [shuffle fixtures](shuffle.md) qualify implicit WAIT and targeted
 NOTPARALLEL across ordinary, grouped, and double-colon rules. The
