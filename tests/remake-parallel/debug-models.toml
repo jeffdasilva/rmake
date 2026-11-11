@@ -12985,6 +12985,8 @@ case = "load-dynamic-token-wait-pipe"
 flag = "m,v"
 fifo = true
 requires_load = true
+fifo_tail_stdout_barrier = "\n Still updating file 'tail.gen'.\n"
+fifo_second_stdout_barrier = " File 'tail.gen' was considered already.\n"
 release_prefixes = [1258, 1664]
 stdout = '''
 GNU Make 4.4.1
