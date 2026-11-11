@@ -1111,6 +1111,7 @@ pub struct Engine {
     terminal_prerequisites: HashSet<Vec<u8>>,
     database_contexts: HashMap<Vec<u8>, VariableStore>,
     database_branch_contexts: HashMap<(Vec<u8>, usize), VariableStore>,
+    database_expanded_prerequisites: Option<Box<database_output::ExpandedPrerequisites>>,
     database_branch_outcomes: HashMap<(Vec<u8>, usize), Outcome>,
     database_branch_secondary: BTreeSet<(Vec<u8>, usize)>,
     database_unchecked_times: RefCell<HashSet<Vec<u8>>>,
@@ -1689,6 +1690,7 @@ impl Engine {
             terminal_prerequisites: HashSet::new(),
             database_contexts: HashMap::new(),
             database_branch_contexts: HashMap::new(),
+            database_expanded_prerequisites: None,
             database_branch_outcomes: HashMap::new(),
             database_branch_secondary: BTreeSet::new(),
             database_unchecked_times: RefCell::new(HashSet::new()),
@@ -7754,6 +7756,7 @@ impl Engine {
         let mut ready_count = rule.dependencies.len() - secondary.len();
         let mut original_next = 0;
         let mut expanded_next = 0;
+        let mut explicit_stem_prepared = false;
         for clause in *secondary {
             let index = expanded_next + clause.index - original_next;
             // Empty deferred clauses cannot expose a prerequisite. Avoid
@@ -7763,10 +7766,12 @@ impl Engine {
             } else {
                 rule.dependencies.len()
             };
-            let stem = clause
-                .stem
-                .as_deref()
-                .or(rule.stem.as_deref())
+            let stem = clause.stem.as_deref().or(rule.stem.as_deref());
+            if stem.is_none() && rule.group.is_none() && !explicit_stem_prepared {
+                self.record_explicit_stem_lookup();
+                explicit_stem_prepared = true;
+            }
+            let stem = stem
                 .unwrap_or_else(|| {
                     self.database
                         .explicit_stem(prerequisite_variable_name(target))
@@ -7822,7 +7827,10 @@ impl Engine {
                 (normal.as_ref(), order_only),
                 (order.unwrap_or_default(), true),
             ] {
-                for name in self.database.rule_filenames(text, &mut context)? {
+                for name in self
+                    .database
+                    .secondary_prerequisite_filenames(text, &mut context)?
+                {
                     Dependency {
                         name: name.into_owned(),
                         order_only: role,
@@ -7832,7 +7840,9 @@ impl Engine {
                 }
             }
             for dependency in expanded.iter().filter(|dep| dep.name != b".WAIT") {
-                self.database.file_records.insert(&dependency.name);
+                self.database
+                    .file_records
+                    .enter_prerequisite(&dependency.name);
             }
             let removed_wait = usize::from(clause.discard_targeted_wait);
             let replaced = index - removed_wait..=index;
@@ -7850,6 +7860,14 @@ impl Engine {
             // The recipe can read the prepared table, and a later branch can
             // read the head's table. Prerequisites use the target context.
             self.retain_database_context(target, branch, &variables);
+        }
+        if rule.group.is_none() {
+            self.retain_expanded_prerequisites(
+                target,
+                branch,
+                &rule.dependencies,
+                explicit_stem_prepared,
+            );
         }
         if self.shuffle.enabled() {
             let disabled = self.database.globally_serial();
@@ -9963,6 +9981,21 @@ impl Engine {
             display
         });
         let recipe_rule = display_rule.as_ref().unwrap_or(recipe_rule);
+        if group.is_none()
+            && !dropped.is_empty()
+            && let Some(captured) = self.expanded_prerequisites_mut(target, branch)
+        {
+            if let Some(positions) = &presentation_drops {
+                let mut index = 0;
+                captured.retain(|_| {
+                    let retain = !positions.contains(&index);
+                    index += 1;
+                    retain
+                });
+            } else {
+                captured.retain(|dependency| !dropped.contains(&dependency.name));
+            }
+        }
         let automatic_drops = display_rule.is_none().then_some(&dropped);
         // Ungrouped rules without a nonempty recipe need only normal-name
         // membership for freshness. Keep grouped canonical views separate from
@@ -10776,11 +10809,8 @@ impl Engine {
             }
         };
         self.database.refresh_scoped_variables(&mut variables);
-        if !implicit_group {
-            if let Some(history) = self.database.database_history() {
-                history.intern(b".SUFFIXES");
-            }
-            self.database.file_records.insert(b".SUFFIXES");
+        if !implicit_group && !self.database_stem_prepared(target, branch) {
+            self.record_explicit_stem_lookup();
         }
         for (name, value) in automatic {
             if let Err(error) = variables.define_literal(name, value, Origin::Automatic) {
@@ -10976,6 +11006,11 @@ impl Engine {
             })
         {
             return;
+        }
+        if let Some(captured) = self.expanded_prerequisites_mut(target, trace.branch)
+            && captured.as_slice() == trace.dependencies
+        {
+            promote_order_only_duplicates(captured, |_| true);
         }
         let Some(head) = self.database.rules.get_mut(target) else {
             return;

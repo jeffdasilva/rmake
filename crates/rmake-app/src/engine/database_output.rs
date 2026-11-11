@@ -22,6 +22,29 @@ struct FileSnapshot<'a> {
     automatic_stats: HashStats,
 }
 
+struct ExpandedPrerequisiteRecord {
+    dependencies: Vec<Dependency>,
+    explicit_stem_prepared: bool,
+}
+
+/// A recipe can request `-p` after prerequisite expansion. Preserve the
+/// visited record so printing never expands the rule or repeats effects.
+#[derive(Default)]
+pub(super) struct ExpandedPrerequisites {
+    targets: HashMap<Vec<u8>, ExpandedPrerequisiteRecord>,
+    branches: HashMap<Vec<u8>, HashMap<usize, ExpandedPrerequisiteRecord>>,
+}
+
+impl ExpandedPrerequisites {
+    fn get(&self, target: &[u8], branch: Option<usize>) -> Option<&ExpandedPrerequisiteRecord> {
+        if let Some(ordinal) = branch {
+            self.branches.get(target)?.get(&ordinal)
+        } else {
+            self.targets.get(target)
+        }
+    }
+}
+
 impl database::FileNames for Engine {
     fn resolve<'a>(&'a self, name: &'a [u8]) -> &'a [u8] {
         self.resolved_name_ref(name)
@@ -29,6 +52,59 @@ impl database::FileNames for Engine {
 }
 
 impl Engine {
+    pub(super) fn retain_expanded_prerequisites(
+        &mut self,
+        target: &[u8],
+        branch: Option<usize>,
+        dependencies: &[Dependency],
+        explicit_stem_prepared: bool,
+    ) {
+        let captured = self
+            .database_expanded_prerequisites
+            .get_or_insert_with(Box::default);
+        let record = ExpandedPrerequisiteRecord {
+            dependencies: dependencies.to_vec(),
+            explicit_stem_prepared,
+        };
+        if let Some(ordinal) = branch {
+            captured
+                .branches
+                .entry(target.to_vec())
+                .or_default()
+                .insert(ordinal, record);
+        } else {
+            captured.targets.insert(target.to_vec(), record);
+        }
+    }
+
+    pub(super) fn expanded_prerequisites_mut(
+        &mut self,
+        target: &[u8],
+        branch: Option<usize>,
+    ) -> Option<&mut Vec<Dependency>> {
+        let captured = self.database_expanded_prerequisites.as_mut()?;
+        let record = if let Some(ordinal) = branch {
+            captured.branches.get_mut(target)?.get_mut(&ordinal)
+        } else {
+            captured.targets.get_mut(target)
+        }?;
+        Some(&mut record.dependencies)
+    }
+
+    pub(super) fn database_stem_prepared(&self, target: &[u8], branch: Option<usize>) -> bool {
+        self.database_expanded_prerequisites
+            .as_ref()
+            .and_then(|captured| captured.get(target, branch))
+            .is_some_and(|record| record.explicit_stem_prepared)
+    }
+
+    pub(super) fn record_explicit_stem_lookup(&mut self) {
+        if let Some(history) = self.database.database_history() {
+            history.intern(b".SUFFIXES");
+        }
+        self.database.file_records.insert(b".SUFFIXES");
+    }
+
     /// Acquiring the post-read special-file policy is one semantic lookup
     /// phase, independent of later cached flag tests during graph traversal.
     pub(super) fn record_database_file_policy(&self) {
@@ -189,6 +265,13 @@ impl Engine {
             }
         });
         let mut view = FileView::unchecked(name, rule);
+        if rule.is_some_and(|rule| rule.secondary.is_some())
+            && let Some(captured) = &self.database_expanded_prerequisites
+        {
+            view.expanded_prerequisites = captured
+                .get(name, branch)
+                .map(|record| record.dependencies.as_slice());
+        }
         view.double_colon |= branch.is_some();
         view.phony = self.special(b".PHONY", name, false);
         view.precious = self.special_for_rule(b".PRECIOUS", name);

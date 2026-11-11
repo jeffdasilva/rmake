@@ -2001,7 +2001,15 @@ impl Database {
         bytes: &'a [u8],
         context: &mut ExpansionContext<'_>,
     ) -> Result<impl Iterator<Item = Cow<'a, [u8]>> + use<'a>, ExpandError> {
-        self.prepared_filenames::<true>(bytes, context)
+        self.prepared_filenames::<true>(bytes, context, true)
+    }
+
+    pub fn secondary_prerequisite_filenames<'a>(
+        &mut self,
+        bytes: &'a [u8],
+        context: &mut ExpansionContext<'_>,
+    ) -> Result<impl Iterator<Item = Cow<'a, [u8]>> + use<'a>, ExpandError> {
+        self.prepared_filenames::<true>(bytes, context, false)
     }
 
     // Module setup symbols use parentheses, so load filenames bypass archive
@@ -2010,6 +2018,7 @@ impl Database {
         &mut self,
         bytes: &'a [u8],
         context: &mut ExpansionContext<'_>,
+        intern_wait: bool,
     ) -> Result<impl Iterator<Item = Cow<'a, [u8]>> + use<'a, ARCHIVES>, ExpandError> {
         let scan = bytes
             .iter()
@@ -2076,11 +2085,16 @@ impl Database {
             if let Some(history) = &database_history {
                 if let Some(names) = &names {
                     for name in names {
-                        history.intern(name);
+                        if intern_wait || name != b".WAIT" {
+                            history.intern(name);
+                        }
                     }
                 } else {
                     for name in crate::filenames::words(bytes) {
-                        history.intern(crate::filenames::without_dot_prefix(&name));
+                        let name = crate::filenames::without_dot_prefix(&name);
+                        if intern_wait || name != b".WAIT" {
+                            history.intern(name);
+                        }
                     }
                 }
             }
@@ -4782,7 +4796,7 @@ impl Database {
                 let expanded =
                     self.expand(directive(text, keyword).unwrap(), &location, context)?;
                 let paths = self
-                    .prepared_filenames::<false>(&expanded, &mut context.at(Some(&location)))
+                    .prepared_filenames::<false>(&expanded, &mut context.at(Some(&location)), true)
                     .map_err(|error| ParseError {
                         unlocated: error.is_unlocated(),
                         location: error
