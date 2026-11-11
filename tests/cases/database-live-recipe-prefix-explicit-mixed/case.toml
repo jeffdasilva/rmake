@@ -1,0 +1,11 @@
+id = "database-live-recipe-prefix-explicit-mixed"
+requirement = "diagnostics.database-recipe-prefix"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+provenance = "Original database prefix fixture, compared with two pinned GNU Make 4.4.1 runs."
+
+[expected]
+exit_code = 0
+stdout_hex = "696d706c696369740a66696c65730a2e524543495045505245464958203d203e0a3e20407072696e746620746f702d6d61726b65720a2e524543495045505245464958203d20210a2120407072696e7466207365636f6e642d6d61726b65720a2e524543495045505245464958203d203e0a3e20407072696e74662066697273742d6d61726b65720a"
+stderr_hex = ""
