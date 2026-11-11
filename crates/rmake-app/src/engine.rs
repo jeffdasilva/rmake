@@ -317,8 +317,15 @@ enum DatabaseResult {
     Outcome,
     Simulated,
     ObservedGroup,
-    ObservedGroupOwner,
+    ObservedDoubleColon,
     RecipeUnstarted,
+}
+
+#[derive(Clone, Copy)]
+enum GroupPeerTime {
+    Unchecked,
+    Observed(Option<SystemTime>),
+    Outcome,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -1126,6 +1133,7 @@ pub struct Engine {
     database_expanded_prerequisites: Option<Box<database_output::ExpandedPrerequisites>>,
     database_branch_outcomes: HashMap<(Vec<u8>, usize), Outcome>,
     database_branch_secondary: BTreeSet<(Vec<u8>, usize)>,
+    database_group_peer_times: HashMap<Vec<u8>, Vec<GroupPeerTime>>,
     database_unchecked_times: RefCell<HashSet<Vec<u8>>>,
     database_delete_policy: Cell<bool>,
     database_times: RefCell<HashMap<Vec<u8>, Option<SystemTime>>>,
@@ -1706,6 +1714,7 @@ impl Engine {
             database_expanded_prerequisites: None,
             database_branch_outcomes: HashMap::new(),
             database_branch_secondary: BTreeSet::new(),
+            database_group_peer_times: HashMap::new(),
             database_unchecked_times: RefCell::new(HashSet::new()),
             database_delete_policy: Cell::new(false),
             database_times: RefCell::new(HashMap::new()),
@@ -6252,6 +6261,11 @@ impl Engine {
             self.database_branch_secondary.remove(&key);
             self.database_branch_secondary.insert((to.to_vec(), key.1));
         }
+        if let Some(branches) = self.database_group_peer_times.remove(from) {
+            self.database_group_peer_times
+                .entry(to.to_vec())
+                .or_insert(branches);
+        }
         let mut unchecked_times = self.database_unchecked_times.borrow_mut();
         if unchecked_times.remove(from) {
             unchecked_times.insert(to.to_vec());
@@ -9063,9 +9077,19 @@ impl Engine {
                 state.combined.completion = state.combined.completion.max(result.completion);
                 if matches!(
                     result.database_result,
-                    DatabaseResult::Simulated | DatabaseResult::ObservedGroupOwner
+                    DatabaseResult::Simulated | DatabaseResult::ObservedDoubleColon
                 ) {
                     state.combined.database_result = result.database_result;
+                }
+                if (result.database_result == DatabaseResult::Simulated
+                    || result.database_result == DatabaseResult::ObservedDoubleColon
+                    || result.completion >= CompletionTime::Refresh)
+                    && let Some(time) = self
+                        .database_group_peer_times
+                        .get_mut(target)
+                        .and_then(|branches| branches.get_mut(ordinal))
+                {
+                    *time = GroupPeerTime::Outcome;
                 }
                 self.record_graph_failure(result);
                 state.active = None;
@@ -9107,6 +9131,20 @@ impl Engine {
                         && state.combined.database_result == DatabaseResult::Simulated)
                 {
                     state.combined.database_result = DatabaseResult::Outcome;
+                }
+                if !state.combined.failed
+                    && !state.combined.question_outdated
+                    && let Some(branches) = self.database_group_peer_times.remove(target)
+                    && branches
+                        .iter()
+                        .any(|time| matches!(time, GroupPeerTime::Unchecked))
+                {
+                    // Completion of the chain propagates an unchecked time
+                    // to all declarations, so the next observation is physical.
+                    if !state.phony && state.combined.completion.preserves() {
+                        self.modified(target);
+                    }
+                    state.combined.database_result = DatabaseResult::ObservedDoubleColon;
                 }
                 state.combined.time = if state.phony {
                     None
@@ -10721,12 +10759,13 @@ impl Engine {
             if !unstarted_query {
                 self.completed_group_branches.insert(id, cached);
             }
-            if self.output.database_requested()
+            let observe_dry_group = self.output.database_requested()
                 && self.options.dry_run
                 && !self.options.question
                 && !self.options.touch
                 && !outcome.failed
-                && outcome.completion == CompletionTime::AssumeNew
+                && outcome.completion == CompletionTime::AssumeNew;
+            if observe_dry_group
                 && self
                     .database
                     .rules
@@ -10738,7 +10777,7 @@ impl Engine {
                 // refresh, replacing any preceding standalone dry-run time.
                 self.modified(target);
                 if let Some(owner) = self.done.get_mut(target) {
-                    owner.database_result = DatabaseResult::ObservedGroupOwner;
+                    owner.database_result = DatabaseResult::ObservedDoubleColon;
                 }
             }
             if !outcome.question_outdated && !outcome.fatal && (!outcome.failed || outcome.ran) {
@@ -10763,10 +10802,38 @@ impl Engine {
                     } else {
                         self.observed_modified(&peer, false)
                     };
-                    for (ordinal, branch) in branches.iter().enumerate() {
-                        if branch.grouped_double_id() == Some(id) {
-                            self.database_branch_outcomes
-                                .insert((peer.clone(), ordinal), completed);
+                    let mut peer_times = (observe_dry_group
+                        && !phony
+                        && branches.iter().any(|rule| rule.group.is_none()))
+                    .then(|| {
+                        let initial = self
+                            .double_colon_before
+                            .get(&peer)
+                            .map_or(GroupPeerTime::Unchecked, |time| {
+                                GroupPeerTime::Observed(*time)
+                            });
+                        self.database_group_peer_times
+                            .entry(peer.clone())
+                            .or_insert_with(|| vec![initial; branches.len()])
+                    });
+                    for (ordinal, branch) in branches.iter().enumerate().rev() {
+                        if branch.grouped_double_id() != Some(id) {
+                            continue;
+                        }
+                        self.database_branch_outcomes
+                            .insert((peer.clone(), ordinal), completed);
+                        if let Some(peer_times) = &mut peer_times {
+                            let mut key = (peer.clone(), 0);
+                            let head_updated = self.database_branch_outcomes.contains_key(&key);
+                            // A physical observation is shared only with
+                            // records in the head declaration's update state.
+                            for (ordinal, time) in peer_times.iter_mut().enumerate() {
+                                key.1 = ordinal;
+                                if self.database_branch_outcomes.contains_key(&key) == head_updated
+                                {
+                                    *time = GroupPeerTime::Observed(completed.time);
+                                }
+                            }
                         }
                     }
                 }
