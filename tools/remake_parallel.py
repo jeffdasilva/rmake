@@ -1187,7 +1187,10 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                                                               f'{directive} {order} ./named.gen\n'.encode(), 1)
                             duplicate = replace(model, id=ident + '-duplicate',
                                                 files={**files, 'Makefile': duplicate_source})
-                            results.append(replace(held, model=duplicate))
+                            repeated = replace(held, model=duplicate)
+                            if policy == 'optional' and mode == 'q' and saturated:
+                                repeated = order_named_before_right(repeated)
+                            results.append(repeated)
 
             failed_source = (header + 'include left.gen right.gen named.gen\n' + rules).encode()
             failed_source = failed_source.replace(b'+@printf "NAMED := loaded\\n" > "$@"', b'+@false')
@@ -1200,6 +1203,25 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                                 mtimes_ns=dict.fromkeys(files, INPUT_TIME))
             results.append(HeldModel(model, True, second, first, before_second_stdout=b''))
     return results
+
+
+def order_named_before_right(held: HeldModel) -> HeldModel:
+    model = held.model
+    named_recipe = b'+@printf "NAMED := loaded\\n" > "$@"'
+    worker_effects = b"with Path('seen').open('ab') as stream:"
+    right_wait = (b"if name == 'right':\n"
+                  b"    from named_reap import wait_for_named_reap\n"
+                  b"    wait_for_named_reap()\n\n")
+    makefile = model.files['Makefile']
+    worker = model.files['worker.py']
+    assert makefile.count(named_recipe) == worker.count(worker_effects) == 1
+    files = {**model.files,
+             'Makefile': makefile.replace(named_recipe, b'+@python3 named_reap.py'),
+             'worker.py': worker.replace(worker_effects, right_wait + worker_effects),
+             'named_reap.py': (SOURCES / 'named_reap.py').read_bytes()}
+    model = replace(model, files=files, mtimes_ns={**model.mtimes_ns, 'named_reap.py': INPUT_TIME},
+                    environment={**model.environment, 'PYTHONDONTWRITEBYTECODE': '1'})
+    return replace(held, model=model)
 
 
 def primary_named_implicit_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
