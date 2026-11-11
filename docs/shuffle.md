@@ -18,8 +18,11 @@ branches preserve their distinct GNU behavior.
 An effective `.WAIT` prevents a new permutation of the prerequisite list.
 When implicit rule selection inserts an effective barrier, traversal visits the
 implicit prerequisites in declaration order, then follows any existing explicit
-permutation. Trailing markers have no following edge. Empty `.NOTPARALLEL`
-disables graph shuffling, and targeted serial lists retain their barriers. FIFO/pipe jobservers,
+permutation. A `.WAIT` marks the next prerequisite within its own declaration
+and normal or order-only list. Trailing markers disappear at that boundary,
+and repeated markers before one prerequisite become a single barrier. Empty
+`.NOTPARALLEL` disables graph shuffling, and targeted serial lists retain their
+barriers. FIFO/pipe jobservers,
 output synchronization, recursive invocations and restarts use the existing
 runtime. Recipe failures append the active canonical `shuffle=MODE`, including
 ignored failures. Circular traversal separates the skipped edge from GNU's

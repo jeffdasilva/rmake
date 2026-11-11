@@ -7745,6 +7745,7 @@ impl Engine {
                 .with_shell(&mut shell)
                 .with_includes(&mut includes);
             let mut expanded = Vec::new();
+            let mut pending_wait = None;
             let (normal, order) = if order_only {
                 (std::borrow::Cow::Borrowed(value.as_slice()), None)
             } else {
@@ -7755,11 +7756,12 @@ impl Engine {
                 (order.unwrap_or_default(), true),
             ] {
                 for name in self.database.rule_filenames(text, &mut context)? {
-                    expanded.push(Dependency {
+                    Dependency {
                         name: name.into_owned(),
                         order_only: role,
                         hidden: false,
-                    });
+                    }
+                    .append_to_partition(&mut expanded, &mut pending_wait);
                 }
             }
             for dependency in expanded.iter().filter(|dep| dep.name != b".WAIT") {

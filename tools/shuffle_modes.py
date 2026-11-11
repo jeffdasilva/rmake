@@ -142,6 +142,26 @@ def pattern_wait_cases(reference, candidate, root):
         makefile = (f'.SECONDEXPANSION:\n.NOTPARALLEL: {targets}\nDYNAMIC := x y\n' + declarations
                     + 'p1: ; @python3 worker.py left observe\nx y: ; @$(file >>seen,$@):\n')
         scenarios.append(('targeted-grouped-single-' + name, 'none', makefile, held_effects, effects))
+    overlap = (b'x\ny\n', b'x\ny\nleft\n')
+    blocked = (b'', b'left\nx\ny\n')
+    boundaries = (
+        ('trailing-before-next', '', 'all.out: p1 .WAIT\nall.out: x y\n', overlap),
+        ('trailing-before-order-only', '', 'all.out: p1 .WAIT | x y\n', overlap),
+        ('leading-order-only', '', 'all.out: p1 | .WAIT x y\n', blocked),
+        ('leading-in-next', '', 'all.out: p1\nall.out: .WAIT x y\n', blocked),
+        ('duplicate-effective', '', 'all.out: p1 .WAIT .WAIT x y\n', blocked),
+        ('deferred-trailing-before-next', 'DEPS := p1 .WAIT\n', 'all.out: $$(DEPS)\nall.out: x y\n', overlap),
+        ('deferred-trailing-before-order-only', 'DEPS := p1 .WAIT | x y\n', 'all.out: $$(DEPS)\n', overlap),
+        ('deferred-effective', 'DEPS := p1 .WAIT x y\n', 'all.out: $$(DEPS)\n', blocked),
+        ('targeted-trailing-before-deferred', '.NOTPARALLEL: all.out\nDEPS := x y\n',
+         'all.out: p1 .WAIT\nall.out: $$(DEPS)\n', overlap),
+        ('targeted-trailing-before-immediate', '.NOTPARALLEL: all.out\n',
+         'all.out: p1 .WAIT\nall.out: x y\n', blocked),
+    )
+    for name, setup, declarations, (held_effects, effects) in boundaries:
+        makefile = ('.SECONDEXPANSION:\n' + setup + declarations + 'all.out:' + group_recipe
+                    + 'p1: ; @python3 worker.py left observe\nx y: ; @$(file >>seen,$@):\n')
+        scenarios.append(('declaration-' + name, 'none', makefile, held_effects, effects))
     records = []
     runtime = root / 'observation'
     for (name, seed, makefile, held_effects, effects), transport in itertools.product(

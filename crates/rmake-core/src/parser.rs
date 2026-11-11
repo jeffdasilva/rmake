@@ -302,6 +302,27 @@ pub struct Dependency {
     pub hidden: bool,
 }
 
+impl Dependency {
+    /// A wait marks the next prerequisite in the same normal or order-only
+    /// partition. A marker left at the end of a partition is discarded.
+    pub fn append_to_partition(
+        self,
+        dependencies: &mut Vec<Self>,
+        pending_wait: &mut Option<Self>,
+    ) {
+        if self.name == b".WAIT" {
+            *pending_wait = Some(self);
+            return;
+        }
+        if let Some(wait) = pending_wait.take()
+            && wait.order_only == self.order_only
+        {
+            dependencies.push(wait);
+        }
+        dependencies.push(self);
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct SecondaryPrerequisite {
     pub index: usize,
@@ -5327,6 +5348,7 @@ impl Database {
                             crate::filenames::words(if observed_prereqs { b"" } else { order })
                                 .map(|name| (name, true)),
                         );
+                    let mut pending_wait = None;
                     for (name, order_only) in names {
                         let name = if let Some(stem) = &stem {
                             static_prerequisite(&name, stem).map_err(|error| ParseError {
@@ -5355,11 +5377,12 @@ impl Database {
                         {
                             history.intern(&name);
                         }
-                        rule.dependencies.push(Dependency {
+                        Dependency {
                             name,
                             order_only,
                             hidden: false,
-                        });
+                        }
+                        .append_to_partition(&mut rule.dependencies, &mut pending_wait);
                     }
                 }
             }
