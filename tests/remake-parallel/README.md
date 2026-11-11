@@ -66,7 +66,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 1,394 profiles. Leading `./` spellings share one target record and
+run all 1,454 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -133,7 +133,9 @@ jobserver transports, and a restart after an optional group fails.
 Sixty named primary profiles check explicit `.WAIT` barriers with local
 files and with earlier required includes. Both jobserver transports cover
 dry-run, question and touch, including the order of effects and the contents
-of automatic prerequisite variables around the barrier.
+of automatic prerequisite variables around the barrier. Another sixty profiles
+add a separate deferred clause and compare its effect before the barrier and
+after a restart.
 
 Sixty-six required named include profiles record secondary expansion before
 and after a restart. They cover first, middle and final include visits,
