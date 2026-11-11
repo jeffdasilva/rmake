@@ -93,6 +93,11 @@ original serial `all` target through `lib`, `src`, and `tests`. It watches
 version definition, and the fresh and rebuilt binaries must report their
 respective versions and apply a unified diff with the expected result.
 
+The same pinned archive runs with four FIFO jobserver slots and recursive
+output synchronization. The build, no-op, and header rebuild each announce
+the original `lib`, `src`, and `tests` directory visits. Each run also
+checks the watched timestamps and independently verifies the patched file.
+
 The official archive SHA-256 is
 `308a4983ff324521b9b21310bfc2398ca861798f02307c79eb99bb0e0d2bf980`.
 The detached signature was verified against release signer fingerprint
