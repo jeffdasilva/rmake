@@ -87,6 +87,21 @@ class HttpsOnly(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(request, fp, code, message, headers, newurl)
 
 
+def download_bytes(url, limit):
+    if not url.startswith('https://'):
+        raise ProfileError('invalid pinned profile download')
+    opener = urllib.request.build_opener(HttpsOnly())
+
+    def attempt():
+        with opener.open(url, timeout=30) as response:
+            return response.read(limit + 1)
+
+    try:
+        return oracle.retry_download(attempt)
+    except oracle.DOWNLOAD_ERRORS as error:
+        raise ProfileError(f'Guile profile download failed for {url}: {error}') from error
+
+
 def cached_download(path, url, expected, size):
     if not url.startswith('https://') or size < 0 or size > MAX_INDEX:
         raise ProfileError('invalid pinned profile download')
@@ -95,9 +110,7 @@ def cached_download(path, url, expected, size):
     if path.exists():
         data = path.read_bytes()
     else:
-        opener = urllib.request.build_opener(HttpsOnly())
-        with opener.open(url, timeout=30) as response:
-            data = response.read(size + 1)
+        data = download_bytes(url, size)
     if len(data) != size or digest(data) != expected:
         raise ProfileError('profile download/cache size or digest differs: ' + path.name)
     if not path.exists():
@@ -157,9 +170,7 @@ def authenticate(lock, destination):
     if not release.exists():
         # Size is intentionally discovered only for the fixed digest-checked
         # release. Index/package lengths come from signed metadata and the lock.
-        opener = urllib.request.build_opener(HttpsOnly())
-        with opener.open(lock['release_url'], timeout=30) as response:
-            data = response.read(1024 * 1024 + 1)
+        data = download_bytes(lock['release_url'], 1024 * 1024)
         if len(data) > 1024 * 1024 or digest(data) != lock['release_sha256']:
             raise ProfileError('pinned noble release differs')
         release.write_bytes(data)
