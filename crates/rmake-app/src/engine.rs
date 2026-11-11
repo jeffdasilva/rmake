@@ -3697,7 +3697,8 @@ impl Engine {
         let mut stopped_on_failure = false;
         let mut requested = Vec::new();
         let initial_goal_generation = self.filesystem.borrow().generation();
-        for goal in goals {
+        let goal_count = goals.len();
+        for (index, goal) in goals.into_iter().enumerate() {
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let name = self.aliases.resolve(&goal);
             let already_done = (self.done.contains_key(name)
@@ -3761,10 +3762,15 @@ impl Engine {
                     && outcome.goal_verdict() == Some(Status::Question);
                 first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
                 self.report_goal(&goal, started_command, completed_report.unwrap_or(outcome));
-                if first_question && !self.options.keep_going && self.parallel_graph() {
-                    // The first direct query verdict ends the pass. Without
-                    // a child completion or file effect, wait before visiting
-                    // later goals. Already considered goals remain pruned.
+                if first_question
+                    && !self.options.keep_going
+                    && self.parallel_graph()
+                    && (index + 1 < goal_count
+                        || requested.iter().any(|goal| self.pending(&goal.name)))
+                {
+                    // A first query verdict ends the pass. If goals remain
+                    // and no child or file effect advanced it, wait before
+                    // visiting them. Otherwise only the final job drain runs.
                     if self.filesystem.borrow().generation() == initial_goal_generation
                         && !self.parallel_jobs.is_empty()
                     {
