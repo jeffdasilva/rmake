@@ -941,18 +941,22 @@ def primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[
 
 
 def named_secondary_variant(held: HeldModel, expansion_point: bytes,
-                            target: bytes = b'Makefile') -> HeldModel:
+                            target: bytes = b'Makefile', *,
+                            effect: tuple[str, bytes] | None = None) -> HeldModel:
     model = held.model
     source = model.files['Makefile']
     original = target + b': primer ; '
     if original not in source:
         original = target + b': ; '
     assert original in source
+    suffix, expression = effect or ('secondary', b'$$(file >>seen,secondary-$$@-$$(MAKE_RESTARTS))')
     secondary = (b'.SECONDEXPANSION:\nINPUT := primer\n'
-                 + target + b': $$(file >>seen,secondary-$$@-$$(MAKE_RESTARTS)) $$(INPUT) ; ')
+                 + target + b': ' + expression + b' $$(INPUT) ; ')
     marker = b'secondary-' + target + b'-'
 
     def record_expansion(seen: bytes) -> bytes:
+        if effect is not None:
+            return seen
         seen = seen.replace(expansion_point, expansion_point + marker + b'\n', 1)
         return seen.replace(b'read-1\n', b'read-1\n' + marker + b'1\n', 1)
 
@@ -964,7 +968,7 @@ def named_secondary_variant(held: HeldModel, expansion_point: bytes,
     updates = model.updates.copy()
     if 'Makefile' in updates:
         updates['Makefile'] = updates['Makefile'].replace(original, secondary, 1)
-    model = replace(model, id=model.id + '-secondary', files=files, seen=record_expansion(model.seen),
+    model = replace(model, id=f'{model.id}-{suffix}', files=files, seen=record_expansion(model.seen),
                     updates=updates, mtimes_ns=times)
     assert held.before_second is not None
     return replace(held, model=model, before_first=record_expansion(held.before_first),
@@ -1187,6 +1191,9 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                                             updates=updates, mtimes_ns=times)
                         held = HeldModel(model, True, second, first,
                                          before_second_stdout=second_out, before_first_stdout=first_out)
+                        ordered_completion = policy == 'optional' and saturated and mode in ('q', 't')
+                        if ordered_completion:
+                            held = order_named_before_right(held)
                         results.append(held)
                         expansion_point = first if position == 'last' else BEFORE_FIRST
                         if slots == 2:
@@ -1206,12 +1213,10 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                             duplicate = replace(model, id=ident + '-duplicate',
                                                 files={**files, 'Makefile': duplicate_source})
                             repeated = replace(held, model=duplicate)
-                            if policy == 'optional' and mode == 'q' and saturated:
+                            if ordered_completion:
                                 repeated = order_named_before_right(repeated)
                             results.append(repeated)
-                            if policy == 'required' or slots != 2 or mode != 'q':
-                                results.append(named_secondary_variant(
-                                    repeated, expansion_point, b'named.gen'))
+                            results.append(named_secondary_variant(repeated, expansion_point, b'named.gen'))
 
             failed_source = (header + 'include left.gen right.gen named.gen\n' + rules).encode()
             failed_source = failed_source.replace(b'+@printf "NAMED := loaded\\n" > "$@"', b'+@false')
@@ -1396,6 +1401,18 @@ def named_include_file_prerequisite_models(worker: bytes, markers: dict[str, byt
                         results.append(held)
                     if not optional or optional_effect == 'secondary':
                         results.append(named_secondary_variant(held, expansion_point, b'named.gen'))
+                    if optional and position == 'middle':
+                        if optional_effect == 'secondary':
+                            effects = (('secondary-shell-success', b'$$(shell true)'),
+                                       ('secondary-shell-nonzero', b'$$(shell false)'))
+                        elif optional_effect is None:
+                            effects = (('secondary-shell-empty', b'$$(shell )'),
+                                       ('secondary-eval', b'$$(eval EXTRA = value)'))
+                        else:
+                            effects = ()
+                        for effect in effects:
+                            results.append(named_secondary_variant(
+                                held, expansion_point, b'named.gen', effect=effect))
                     if optional_effect == 'left-file':
                         continue
                     duplicate_source = source.replace(f'{directive} {order}\n'.encode(),

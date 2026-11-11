@@ -3288,7 +3288,7 @@ impl Engine {
             let mut pending = Vec::new();
             let initial_reaps = self.recipe_reaps;
             let mut pass_reaps = initial_reaps;
-            let mut pass_progress = self.debug_progress();
+            let mut pass_progress = self.filesystem.borrow().generation();
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
@@ -4533,7 +4533,12 @@ impl Engine {
                                                 || (file.optional
                                                     && rule.secondary.is_some()
                                                     && self.is_makefile_goal(name, named_sources)
-                                                    && self.simple_named_remake(file, name, &[], false)))
+                                                    && self.simple_named_remake(
+                                                        file,
+                                                        name,
+                                                        &[],
+                                                        false,
+                                                    )))
                                     })
                             })
                     }
@@ -5426,9 +5431,11 @@ impl Engine {
 
     fn settle_optional_remake_pass(&mut self, previous_progress: u64) -> (u64, u64) {
         self.poll_jobs();
-        // A make-function file write advances the pass even while every
-        // recipe child is still running.
-        if self.debug_progress() == previous_progress && !self.parallel_jobs.is_empty() {
+        // Directory generation counts make-function effects and all
+        // completed children, including a synchronous shell expansion.
+        if self.filesystem.borrow().generation() == previous_progress
+            && !self.parallel_jobs.is_empty()
+        {
             let previous_jobs = self.parallel_jobs.len();
             while self.parallel_jobs.len() >= previous_jobs
                 && self.shutdown.get() == Shutdown::Running
@@ -5439,7 +5446,7 @@ impl Engine {
             self.poll_jobs();
         }
         self.advance_debug_pass();
-        (self.recipe_reaps, self.debug_progress())
+        (self.recipe_reaps, self.filesystem.borrow().generation())
     }
 
     fn wait_makefile_remakes(
