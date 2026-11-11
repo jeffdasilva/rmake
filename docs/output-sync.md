@@ -15,6 +15,13 @@ output drains before makefile rebuilding; restarts create a fresh reader buffer.
 GNU disables line/target grouping for a configured single job, while retaining
 its recursive option spelling. Recurse still groups serial recipes.
 
+A line or target reader can fail to create a temporary spool before its
+first warning or `$(shell)` command. GNU replaces that first formatted
+warning with a second suppression diagnostic and preserves direct shell
+stderr. Post-read flag setup retries synchronization before recipes run.
+The restart observer checks these streams and file modes through a generated
+include, including a tempfile directory repaired by the remake recipe.
+
 Linux spools are append-mode, close-on-exec, unnamed temporary files. Combined
 stdout/stderr share one spool; separate streams drain stdout then stderr.
 `--sync-mutex=fnm:PATH` joins GNU's POSIX byte-range locking protocol. A root

@@ -407,7 +407,7 @@ impl Plan {
             state.output.set_mode(inherited_mode);
             let reader_output = inherited_mode
                 .root_buffered()
-                .then(|| state.output.make_buffer())
+                .then(|| state.output.reader_buffer())
                 .flatten();
             state.output.select(reader_output.as_ref());
             let mut construction =

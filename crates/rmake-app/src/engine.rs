@@ -644,9 +644,9 @@ fn emit_output(controller: &crate::output::Controller, program: &[u8], output: O
         Output::SystemWarning { .. } => unreachable!("typed warning was formatted above"),
         Output::Warning { location, message } => {
             if let Some(location) = location.filter(|location| !location.file.is_null()) {
-                controller.write_parts(true, &[&location_prefix(location), message, b"\n"]);
+                controller.write_diagnostic_parts(&[&location_prefix(location), message, b"\n"]);
             } else {
-                controller.write_parts(true, &[program, b": ", message, b"\n"]);
+                controller.write_diagnostic_parts(&[program, b": ", message, b"\n"]);
             }
         }
     }
@@ -1424,7 +1424,7 @@ impl Engine {
                 buffer.dump();
             }
         } else if reader_output.is_none() {
-            reader_output = output.make_buffer();
+            reader_output = output.reader_buffer();
         }
         output.select(reader_output.as_ref());
         construction.replace_buffer(reader_output.clone());

@@ -1,0 +1,11 @@
+id = "output-sync-reader-restart-temp-replay"
+requirement = "runtime.output-sync-reader-restart-temp-replay"
+candidate = "required"
+provenance = "Original GNU Make 4.4.1 output-sync observer with real makefile restarts and a controlled tempfile path."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 20
+
+[expected]
+exit_code = 0
+stdout = "verified 96 reader restart profiles\n"
+stderr = ""
