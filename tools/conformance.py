@@ -302,7 +302,7 @@ def reset_workspace(case: Case, root: Path, executable: Path) -> None:
     (root / "bin").mkdir(exist_ok=True)
     alias = root / "bin" / "make"
     alias.unlink(missing_ok=True)
-    alias.symlink_to(executable)
+    alias.symlink_to(executable.absolute())
 
 
 def process_group_exists(group: int) -> bool:
