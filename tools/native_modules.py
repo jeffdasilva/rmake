@@ -288,7 +288,7 @@ def loader_debug_models() -> list[Model]:
          b"Unloading shared object probe.so\nSuccessfully remade target file 'probe.so'.\n", b'',
          b'anchor\nctor\nsetup\ndtor\nrebuild\n'),
     )
-    return [
+    result = [
         Model('native-loader-debug-' + ident, {'Makefile': makefile, 'seen': b'anchor\n'},
               {'exit_code': status, 'stdout_hex': stdout.hex(), 'stderr_hex': stderr.hex()}, seen,
               (Module('loader_debug.c', 'probe.so'),) if dso else (),
@@ -296,6 +296,40 @@ def loader_debug_models() -> list[Model]:
               symlinks={'alias.so': 'probe.so'} if alias else {})
         for ident, args, makefile, dso, alias, status, stdout, stderr, seen in cases
     ]
+    cache_load = (b'before := $(wildcard *.input missing/*.input)\n'
+                  b'load ./probe_api.so\n')
+    cache_tail = b'after := $(wildcard *.input missing/*.input)\nall: ; @:\n'
+    cache_read = (verbose + b'Loading symbol probe_api_gmk_setup from probe_api.so\n'
+                  b'Loaded shared object probe_api.so\n')
+
+    def stale(command: int) -> bytes:
+        return b''.join(
+            b'Directory %s cache invalidated (count 1 != command %d)\n' % (path, command)
+            for path in (b'.', b'missing')
+        )
+
+    for ident, body, output in (
+        ('registration', b'', b''),
+        ('pure-and-null',
+         b'$(info a=$(probe_args one))\n$(info b=$(probe_null ))\n',
+         b'a=argc=1[one]\nb=\n' + stale(3)),
+        ('eager-write', b'$(info a=$(probe_args $(file >>seen)))\n',
+         b'a=argc=1[]\n' + stale(3)),
+        ('nested-expansion',
+         b'$(info a=$(probe_expand $$(wildcard *.input missing/*.input)))\n',
+         stale(2) + b'a=file.input\n'),
+        ('call-dispatch', b'$(info a=$(call probe_args,one,two))\n',
+         b'a=argc=2[one][two]\n' + stale(2)),
+    ):
+        result.append(Model(
+            'native-directory-epoch-' + ident,
+            {'Makefile': cache_load + body + cache_tail, 'seen': b'anchor\n',
+             'file.input': b'file'},
+            {'exit_code': 0, 'stdout_hex': (cache_read + output + all).hex(),
+             'stderr_hex': ''},
+            b'anchor\n', args=('-rR', '--no-print-directory', '--debug=v', 'all'),
+        ))
+    return result
 
 
 def additional_models() -> list[Model]:
