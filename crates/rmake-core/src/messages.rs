@@ -27,6 +27,8 @@ pub enum MessageId {
     MultipleDefaultGoals,
     OrphanRecipe,
     InvalidConditional,
+    ExtraneousConditional,
+    DuplicateElse,
     MissingEndif,
     EmptyVariableName,
     MissingEndef,
@@ -72,7 +74,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 62] = [
+    pub const ALL: [Self; 64] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -93,6 +95,8 @@ impl MessageId {
         Self::MultipleDefaultGoals,
         Self::OrphanRecipe,
         Self::InvalidConditional,
+        Self::ExtraneousConditional,
+        Self::DuplicateElse,
         Self::MissingEndif,
         Self::EmptyVariableName,
         Self::MissingEndef,
@@ -178,6 +182,8 @@ impl MessageId {
             Self::MultipleDefaultGoals => Message::MultipleDefaultGoals,
             Self::OrphanRecipe => Message::OrphanRecipe,
             Self::InvalidConditional => Message::InvalidConditional,
+            Self::ExtraneousConditional => Message::ExtraneousConditional(b"endif"),
+            Self::DuplicateElse => Message::DuplicateElse,
             Self::MissingEndif => Message::MissingEndif,
             Self::EmptyVariableName => Message::EmptyVariableName,
             Self::MissingEndef => Message::MissingEndef,
@@ -307,6 +313,8 @@ impl MessageId {
             Self::MultipleDefaultGoals => c".DEFAULT_GOAL contains more than one target",
             Self::OrphanRecipe => c"recipe commences before first target",
             Self::InvalidConditional => c"invalid syntax in conditional",
+            Self::ExtraneousConditional => c"extraneous '%s'",
+            Self::DuplicateElse => c"only one 'else' per conditional",
             Self::MissingEndif => c"missing 'endif'",
             Self::EmptyVariableName => c"empty variable name",
             Self::MissingEndef => c"missing 'endef', unterminated 'define'",
@@ -445,6 +453,8 @@ pub enum Message<'a> {
     MultipleDefaultGoals,
     OrphanRecipe,
     InvalidConditional,
+    ExtraneousConditional(&'a [u8]),
+    DuplicateElse,
     MissingEndif,
     EmptyVariableName,
     MissingEndef,
@@ -553,6 +563,8 @@ impl<'a> Message<'a> {
             Self::MultipleDefaultGoals => MessageId::MultipleDefaultGoals,
             Self::OrphanRecipe => MessageId::OrphanRecipe,
             Self::InvalidConditional => MessageId::InvalidConditional,
+            Self::ExtraneousConditional(_) => MessageId::ExtraneousConditional,
+            Self::DuplicateElse => MessageId::DuplicateElse,
             Self::MissingEndif => MessageId::MissingEndif,
             Self::EmptyVariableName => MessageId::EmptyVariableName,
             Self::MissingEndef => MessageId::MissingEndef,
@@ -626,6 +638,7 @@ impl<'a> Message<'a> {
             | Self::MultipleDefaultGoals
             | Self::OrphanRecipe
             | Self::InvalidConditional
+            | Self::DuplicateElse
             | Self::MissingEndif
             | Self::EmptyVariableName
             | Self::MissingEndef
@@ -645,6 +658,7 @@ impl<'a> Message<'a> {
             | Self::UpToDate(name)
             | Self::LowResolutionTime(name)
             | Self::DirectiveTail(name)
+            | Self::ExtraneousConditional(name)
             | Self::InvalidFileOperation(name)
             | Self::FailedMakefileRemake(name)
             | Self::LoadFailed(name)

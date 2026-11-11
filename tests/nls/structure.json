@@ -1,5 +1,5 @@
 {
-  "classification": "Original16 GNU2-qualified structural NLS models. Only machine-specific input LOCPATH is supplied by the verified test profile.",
+  "classification": "20 original GNU2-qualified structural NLS models. Only machine-specific input LOCPATH is supplied by the verified test profile.",
   "original_models_sha256": "bfbf1aba4a8f821ef33bbc2014a2a4fbc00649a4498988b455794582bad4766c",
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
   "rows": [
@@ -380,6 +380,99 @@
         "exit_code": 2,
         "stdout_hex": "",
         "stderr_hex": "4d616b6566696c653a343a207761726e696e673a206f766572726964696e672072656369706520666f72207461726765742027616c6c270a4d616b6566696c653a333a207761726e696e673a2069676e6f72696e67206f6c642072656369706520666f72207461726765742027616c6c270a4d616b6566696c653a373a202a2a2a2072617720ff2e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "fr-conditional-reader-bad-else-then-plain",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "696665712028612c62290a2428696e666f2077726f6e672d6669727374290a656c736520756e737570706f727465640a2428696e666f2063686f73656e290a656c73650a2428696e666f2077726f6e67290a656e6469660a616c6c3a203b20403a0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "63686f73656e0a",
+        "stderr_hex": "4d616b6566696c653a333a207465787465207375706572666c7520617072c3a873206c612064697265637469766520c2abc2a0656c7365c2a0c2bb0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "fr-conditional-reader-bad-else-then-plain-fatal",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "696665712028612c62290a2428696e666f2077726f6e672d6669727374290a656c736520756e737570706f727465640a2428696e666f2063686f73656e290a656c73650a2428696e666f2077726f6e67290a656c73650a2428696e666f2077726f6e67290a656e6469660a616c6c3a203b20403a0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "63686f73656e0a",
+        "stderr_hex": "4d616b6566696c653a333a207465787465207375706572666c7520617072c3a873206c612064697265637469766520c2abc2a0656c7365c2a0c2bb0a4d616b6566696c653a373a202a2a2a20756e207365756c20c2abc2a0656c7365c2a0c2bb2070617220636f6e646974696f6e2e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "fr-conditional-reader-bare-else-tail-control",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "656c736520756e737570706f727465640a616c6c3a203b20403a0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a313a202a2a2a20c2abc2a0656c7365c2a0c2bb207375706572666c752e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "fr-conditional-reader-eval-bare-endif-with-tail",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "232070616464696e670a232070616464696e670a232070616464696e670a232070616464696e670a232070616464696e670a232070616464696e670a24286576616c20242866696c65203c6576616c2e74787429290a616c6c3a203b20403a0a",
+        "eval.txt": "656e64696620747261696c696e670a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a373a207465787465207375706572666c7520617072c3a873206c612064697265637469766520c2abc2a0656e646966c2a0c2bb0a4d616b6566696c653a373a202a2a2a20c2abc2a0656e646966c2a0c2bb207375706572666c752e20417272c3aa742e0a",
         "seen_hex": "616e63686f720a"
       }
     }

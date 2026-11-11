@@ -1,0 +1,2 @@
+else unsupported
+all: ; @:
