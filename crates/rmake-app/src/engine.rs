@@ -3302,13 +3302,20 @@ impl Engine {
                                     .map_or(no_recipe_fallback, |recipes| recipes.len() <= 1))
                     })
                 };
+            let optional_dependency_load_debug = ordinary_mode
+                && basic_load_debug
+                && direct_mode_remakes
+                && self.qualified_optional_dependency_load_debug(&read_files);
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
                     || (((debug_before_remake.bits() == remake_debug_bits && !basic_load_debug)
                         || verbose_mode_remakes
                         || direct_mode_remakes)
-                        && self
-                            .qualified_debug_remake_sources(&read_files, named_sources.as_ref())))
+                        && (optional_dependency_load_debug
+                            || self.qualified_debug_remake_sources(
+                                &read_files,
+                                named_sources.as_ref(),
+                            ))))
                     && self.ordinary_mode_remakes_settle(
                         &read_files,
                         named_sources.as_ref(),
@@ -3747,6 +3754,7 @@ impl Engine {
                     &visited,
                     previous_progress,
                     track_remake_effects,
+                    optional_dependency_load_debug,
                     question_or_failure,
                 );
                 if !stopped {
@@ -4420,6 +4428,53 @@ impl Engine {
                                 )))
                 })
         })
+    }
+
+    fn qualified_optional_dependency_load_debug(&self, read_files: &[(Makefile, bool)]) -> bool {
+        use rmake_core::filenames::without_dot_prefix;
+
+        if !self.no_remake_recipe_fallback() {
+            return false;
+        }
+        let mut has_optional_dependencies = false;
+        for (file, skip) in read_files {
+            if *skip {
+                continue;
+            }
+            let Some(rule) = self.database.rules.get(without_dot_prefix(&file.name)) else {
+                continue;
+            };
+            if rule.secondary.is_some() || rule.group.is_some() || rule.double_colon.is_some() {
+                return false;
+            }
+            if rule.dependencies.is_empty() {
+                continue;
+            }
+            if !file.optional
+                || !rule.dependencies.iter().all(|dep| {
+                    let name = dep.name.as_slice();
+                    !dep.hidden
+                        && !name.contains(&b'/')
+                        && !name.starts_with(b".")
+                        && !name.starts_with(b"~")
+                        && !name.starts_with(b"-l")
+                        && rmake_core::filenames::archive_parts(name).is_none()
+                        && self.database.rules.get(name).is_some_and(|child| {
+                            child.dependencies.is_empty()
+                                && child.secondary.is_none()
+                                && child.group.is_none()
+                                && child.double_colon.is_none()
+                                && child.recipes.as_ref().is_some_and(|recipes| {
+                                    recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
+                                })
+                        })
+                })
+            {
+                return false;
+            }
+            has_optional_dependencies = true;
+        }
+        has_optional_dependencies
     }
 
     fn simple_named_remake(
@@ -5522,6 +5577,7 @@ impl Engine {
         visited: &MakefileVisits<'_>,
         mut previous_progress: Option<u64>,
         track_effects: bool,
+        block_for_recipe: bool,
         mut question_or_failure: bool,
     ) -> bool {
         let wait_for_completed_job = previous_progress.is_none();
@@ -5551,8 +5607,11 @@ impl Engine {
                 && self.parallel_jobs.values().any(|job| !job.waiting_load)
             {
                 self.reap_job();
-                while wait_for_completed_job
+                // A blocking GNU reap follows a continuing recipe until a job
+                // ends. Visiting its owner after each command adds a trace pass.
+                while (wait_for_completed_job || block_for_recipe)
                     && self.parallel_jobs.len() >= previous_jobs
+                    && self.parallel_jobs.values().any(|job| !job.waiting_load)
                     && self.shutdown.get() == Shutdown::Running
                     && self.graph_abort.is_none()
                     && !self.forced_query_stop
