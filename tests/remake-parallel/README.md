@@ -135,6 +135,8 @@ the completed worker's mode and the subsequent restart.
 The named primary can also depend on an earlier direct include already
 being remade. The held profiles check both prerequisite choices, source
 spellings with and without `./`, and the modes applied to each completion.
+Required named include duplicates share the same remake record under all
+three modes, including a forced recipe after two earlier workers start.
 
 Default goals and simple explicit goals can run required makefile remakes
 in parallel under `-n`, `-q`, and `-t`. The explicit controls cover leading

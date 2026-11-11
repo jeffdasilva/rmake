@@ -4287,7 +4287,7 @@ impl Engine {
         {
             return false;
         }
-        let mut named = HashSet::new();
+        let mut named = HashMap::new();
         read_files.iter().enumerate().all(|(index, (file, skip))| {
             let name = without_dot_prefix(&file.name);
             // A plain subdirectory goal cannot name a leaf makefile.
@@ -4298,9 +4298,14 @@ impl Engine {
                 || goals.is_empty()
                 || (!name.starts_with(b"-l")
                     && archive_parts(name).is_none()
-                    && (!self.is_makefile_goal(name, named_sources)
-                        || (named.insert(name)
-                            && self.simple_named_remake(file, name, &read_files[..index]))))
+                    && (!self.is_makefile_goal(name, named_sources) || {
+                        let required_include = !file.optional && file.location.is_some();
+                        let compatible_read = named
+                            .insert(name, required_include)
+                            .is_none_or(|earlier_required| earlier_required && required_include);
+                        compatible_read
+                            && self.simple_named_remake(file, name, &read_files[..index])
+                    }))
         })
     }
 
