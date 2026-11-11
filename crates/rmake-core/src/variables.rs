@@ -5048,6 +5048,19 @@ pub struct Pattern {
 }
 
 impl Pattern {
+    pub(crate) fn for_rule_target(input: &[u8]) -> Self {
+        let first = input.iter().position(|byte| matches!(byte, b'%' | b'\\'));
+        if first.is_none_or(|position| input[position] == b'%') {
+            // Quoting after the selected wildcard leaves the bytes intact.
+            Self {
+                bytes: input.to_vec(),
+                wildcard: first,
+            }
+        } else {
+            Self::new(input)
+        }
+    }
+
     pub fn new(input: &[u8]) -> Self {
         let mut bytes = Vec::new();
         let mut wildcard = None;

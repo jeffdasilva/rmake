@@ -5120,7 +5120,7 @@ impl Database {
                 )?);
             for target in targets {
                 let target = target.as_ref();
-                let pattern = Pattern::new(target);
+                let pattern = Pattern::for_rule_target(target);
                 declaration.target_patterns.push(pattern.has_wildcard());
                 if pattern.has_wildcard() {
                     declaration
