@@ -27,6 +27,11 @@ BEFORE_FIRST = ANCHOR + b'read-\n'
 BEFORE_SECOND = BEFORE_FIRST + b'left\n'
 INPUT_TIME = 1_000_000_000_000_000_000
 WORKERS = ('left', 'right')
+PRIMARY_BARRIERS = (
+    b" Considering target file 'Makefile'.\n Still updating file 'Makefile'.\n",
+    b" Considering target file 'Makefile'.\n File 'Makefile' was considered already.\n",
+    b" Considering target file 'right.gen'.\n Still updating file 'right.gen'.\n",
+)
 WAIT_CHANNELS = {'core_sys_select', 'do_wait', '__x64_sys_poll'}
 X86_64 = os.uname().machine == 'x86_64'
 
@@ -58,6 +63,8 @@ class HeldModel:
     load: LoadProfile | None = None
     before_first_stdout: bytes = b''
     release_order: tuple[str, str] = WORKERS
+    before_primary: bytes | None = None
+    before_primary_stdout: bytes = b''
 
 
 def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list[HeldModel]:
@@ -912,9 +919,35 @@ def primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[
                         ident += f'-{style}'
                     model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
                                         updates={**markers, **generated, **changes, **updates}, mtimes_ns=times)
-                    results.append(HeldModel(model, True, second, first,
-                                             before_second_stdout=prefix, before_first_stdout=prefix))
+                    held = HeldModel(model, True, second, first,
+                                     before_second_stdout=prefix, before_first_stdout=prefix)
+                    results.append(held)
+                    if discovery == 'explicit' and slots == 3 and ruled and style == 'plain':
+                        results.append(primary_named_secondary_variant(held, BEFORE_FIRST))
     return results
+
+
+def primary_named_secondary_variant(held: HeldModel, expansion_point: bytes) -> HeldModel:
+    original = b'Makefile: primer ; '
+    secondary = (
+        b'.SECONDEXPANSION:\nINPUT := primer\n'
+        b'Makefile: $$(file >>seen,secondary-$$@-$$(MAKE_RESTARTS)) $$(INPUT) ; '
+    )
+
+    def record_expansion(seen: bytes) -> bytes:
+        seen = seen.replace(expansion_point, expansion_point + b'secondary-Makefile-\n', 1)
+        return seen.replace(b'read-1\n', b'read-1\nsecondary-Makefile-1\n', 1)
+
+    model = held.model
+    makefile = model.files['Makefile'].replace(original, secondary, 1)
+    updates = model.updates.copy()
+    if 'Makefile' in updates:
+        updates['Makefile'] = updates['Makefile'].replace(original, secondary, 1)
+    model = replace(model, id=model.id + '-secondary', files={**model.files, 'Makefile': makefile},
+                    seen=record_expansion(model.seen), updates=updates)
+    assert held.before_second is not None
+    return replace(held, model=model, before_first=record_expansion(held.before_first),
+                   before_second=record_expansion(held.before_second))
 
 
 def later_primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
@@ -1000,9 +1033,11 @@ def later_primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) ->
                                     'stderr_template_hex': stderr.hex()}
                         model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
                                             updates=updates, mtimes_ns=times)
-                        results.append(HeldModel(model, True, second, first,
-                                                 before_second_stdout=second_stdout,
-                                                 before_first_stdout=first_stdout))
+                        held = HeldModel(model, True, second, first,
+                                         before_second_stdout=second_stdout, before_first_stdout=first_stdout)
+                        results.append(held)
+                        if slots == 3 and not sync and style == 'forced':
+                            results.append(primary_named_secondary_variant(held, first))
     return results
 
 
@@ -1077,9 +1112,9 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                             prerequisite = replace(model, id=ident + '-prerequisite', files=with_primer,
                                                    mtimes_ns={**times, 'primer': INPUT_TIME})
                             results.append(replace(held, model=prerequisite))
-                        if directive == 'include' and position == 'last':
-                            duplicate_source = source.replace(b'include left.gen right.gen named.gen\n',
-                                                              b'include left.gen right.gen named.gen ./named.gen\n', 1)
+                        if position == 'last':
+                            duplicate_source = source.replace(f'{directive} {order}\n'.encode(),
+                                                              f'{directive} {order} ./named.gen\n'.encode(), 1)
                             duplicate = replace(model, id=ident + '-duplicate',
                                                 files={**files, 'Makefile': duplicate_source})
                             results.append(replace(held, model=duplicate))
@@ -1230,20 +1265,28 @@ def named_include_file_prerequisite_models(worker: bytes, markers: dict[str, byt
                                         updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                     results.append(HeldModel(model, not split_pass, second, first,
                                              before_second_stdout=second_out, before_first_stdout=first_out))
-                    if not optional:
-                        duplicate_source = source.replace(f'include {order}\n'.encode(),
-                                                          f'include {order} ./named.gen\n'.encode(), 1)
-                        duplicate_source = duplicate_source.replace(b'named.gen: primer ;', b'named.gen: ;')
-                        duplicate_files = {'Makefile': duplicate_source, 'worker.py': worker, 'seen': ANCHOR}
-                        for slots in (2, 3):
-                            duplicate_args = (*args[:2], f'-j{slots}', *args[3:])
-                            duplicate = replace(model, args=duplicate_args, files=duplicate_files,
-                                                id=f'duplicate-named-include-{position}-{mode}-{transport}-{slots}-slots',
-                                                mtimes_ns=dict.fromkeys(duplicate_files, INPUT_TIME))
-                            waits_for_slot = mode == 'n' and position == 'last' and slots == 2
-                            results.append(HeldModel(duplicate, True, second, first,
-                                                     before_second_stdout=second_out,
-                                                     before_first_stdout=b'' if waits_for_slot else first_out))
+                    duplicate_source = source.replace(f'{directive} {order}\n'.encode(),
+                                                      f'{directive} {order} ./named.gen\n'.encode(), 1)
+                    duplicate_source = duplicate_source.replace(b'named.gen: primer ;', b'named.gen: ;')
+                    duplicate_files = {'Makefile': duplicate_source, 'worker.py': worker, 'seen': ANCHOR}
+                    touches_earlier = optional and position == 'last' and mode == 't'
+                    duplicate_second = second_out + b'touch left.gen\n' if touches_earlier else second_out
+                    duplicate_expected = expected
+                    if touches_earlier:
+                        duplicate_stdout = duplicate_second + stdout[len(second_out):]
+                        duplicate_expected = {**expected, 'stdout_template_hex': duplicate_stdout.hex()}
+                    for slots in (2, 3):
+                        duplicate_args = (*args[:2], f'-j{slots}', *args[3:])
+                        duplicate_ident = f'duplicate-named-include-{position}-{mode}-{transport}-{slots}-slots'
+                        if optional:
+                            duplicate_ident += '-optional'
+                        duplicate = replace(model, args=duplicate_args, files=duplicate_files,
+                                            id=duplicate_ident, expected=duplicate_expected,
+                                            mtimes_ns=dict.fromkeys(duplicate_files, INPUT_TIME))
+                        waits_for_slot = mode == 'n' and position == 'last' and slots == 2
+                        results.append(HeldModel(duplicate, not split_pass, second, first,
+                                                 before_second_stdout=duplicate_second,
+                                                 before_first_stdout=b'' if waits_for_slot else first_out))
     return results
 
 
@@ -1548,11 +1591,34 @@ def load_goal_summary_models(worker: bytes, markers: dict[str, bytes]) -> list[H
     return results
 
 
+def held_primary_debug_model(held: HeldModel) -> HeldModel:
+    model = held.model
+    command = b'+@printf "# remade\\n" >> "$@"'
+    makefile = model.files['Makefile']
+    if makefile.count(command) != 1 or held.before_second is None:
+        raise h.HarnessError('invalid named primary debug fixture')
+    makefile = makefile.replace(command, b'+@python3 worker.py primary append-primary')
+    files = {**model.files, 'Makefile': makefile}
+    updates = {**model.updates, 'Makefile': makefile + b'# remade\n',
+               'primary.started': b'started\n', 'primary.release': b'yes\n',
+               'primary.done': b'done\n'}
+    prefix = held.before_first
+    first = prefix + b'primary\n'
+    model = replace(model, id=model.id.replace('forced-stale', 'held-forced-stale'),
+                    files=files, updates=updates, seen=model.seen.replace(prefix, first, 1))
+    return replace(held, model=model, before_primary=prefix, before_first=first,
+                   before_second=held.before_second.replace(prefix, first, 1))
+
+
 def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     data = tomllib.loads((SOURCES / 'debug-models.toml').read_text())
     if data.get('schema_version') != 1:
         raise h.HarnessError('unsupported remake debug model schema')
     by_id = {held.model.id: held for held in held_models}
+    for mode in 'nqt':
+        base = f'later-primary-named-mode-forced-stale-{mode}-pipe-3-slots'
+        held = held_primary_debug_model(by_id[base])
+        by_id[held.model.id] = held
     selected = []
     seen = set()
     for row in data['profiles']:
@@ -1564,18 +1630,27 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
             raise h.HarnessError('invalid remake debug model')
         seen.add((name, flag))
         stdout = row['stdout'].encode()
-        first, second = row['release_prefixes']
-        if not 0 < first <= second <= len(stdout) or b'@BIN@' in stdout[:second]:
+        prefixes = row['release_prefixes']
+        primary = held.before_primary is not None
+        if (len(prefixes) != (3 if primary else 2) or prefixes != sorted(prefixes)
+                or not 0 < prefixes[0] <= prefixes[-1] <= len(stdout)
+                or b'@BIN@' in stdout[:prefixes[-1]]):
             raise h.HarnessError('invalid remake debug release prefixes')
+        if primary and any(not stdout[:end].endswith(barrier)
+                           for end, barrier in zip(prefixes, PRIMARY_BARRIERS, strict=True)):
+            raise h.HarnessError('invalid named primary debug release barrier')
+        first, second = prefixes[-2:]
         args = (*held.model.args[:-1], f'--debug={flag}', held.model.args[-1])
         model = replace(held.model, id=f'remake-debug-{name}-{flag.replace(",", "")}', args=args,
                         expected={**held.model.expected, 'stdout_template_hex': stdout.hex()})
         selected.append(replace(held, model=model, before_first_stdout=stdout[:first],
-                                before_second_stdout=stdout[:second]))
+                                before_second_stdout=stdout[:second],
+                                before_primary_stdout=stdout[:prefixes[0]] if primary else b''))
     return selected
 
 
-def active_workers(parent: int, proc: Path) -> dict[str, tuple[int, int]]:
+def active_workers(parent: int, proc: Path,
+                   allowed: tuple[str, ...] = WORKERS) -> dict[str, tuple[int, int]]:
     workers = {}
     for token in (proc / 'task' / str(parent) / 'children').read_bytes().split():
         pid = int(token)
@@ -1587,7 +1662,7 @@ def active_workers(parent: int, proc: Path) -> dict[str, tuple[int, int]]:
             owner, started_at = proc_identity(pid)
         except (FileNotFoundError, ProcessLookupError):
             continue
-        if name not in WORKERS or name in workers or owner != parent or started_at <= 0:
+        if name not in allowed or name in workers or owner != parent or started_at <= 0:
             raise h.HarnessError('invalid held remake worker identity')
         workers[name] = (pid, started_at)
     return workers
@@ -1622,9 +1697,10 @@ def execute(case: h.Case, runtime: Path, binary: Path,
             wait_samples: set[tuple[str, int | None]] | None = None, *,
             load: LoadProfile | None = None, load_shim: Path | None = None,
             wait_stdout: Callable[[Path, bytes], bytes] | None = None,
-            release_order: tuple[str, str] = WORKERS):
+            release_order: tuple[str, str] = WORKERS, hold_primary: bool = False):
     if sorted(release_order) != list(WORKERS):
         raise h.HarnessError('held release order must name both workers')
+    order = ('primary', *release_order) if hold_primary else release_order
     work = runtime / 'work'
     trace = runtime / 'load.trace'
     if load is not None:
@@ -1640,7 +1716,10 @@ def execute(case: h.Case, runtime: Path, binary: Path,
 
     def observe(parent: int, stdout: bytes) -> None:
         nonlocal previous
-        if len(released) == len(WORKERS):
+        phase = len(releases)
+        if phase == len(order):
+            return
+        if hold_primary and not stdout.endswith(PRIMARY_BARRIERS[phase]):
             return
         proc = Path('/proc', str(parent))
         try:
@@ -1650,8 +1729,12 @@ def execute(case: h.Case, runtime: Path, binary: Path,
                 wait_samples.add((channel, number))
             if not blocked:
                 return
-            workers = active_workers(parent, proc)
+            workers = active_workers(parent, proc, order)
             if not workers or released.intersection(workers):
+                return
+            if hold_primary and (set(workers) != set(order[phase:])
+                                 or any((work / f'{name}.done').read_bytes() != b'done\n'
+                                        for name in order[:phase])):
                 return
             for name in workers:
                 if (work / f'{name}.started').read_bytes() != b'started\n':
@@ -1673,7 +1756,7 @@ def execute(case: h.Case, runtime: Path, binary: Path,
             previous = signature
             return
         release_stdout = wait_stdout(proc, stdout) if wait_stdout is not None else stdout
-        name = next(name for name in release_order if name in workers)
+        name = next(name for name in order if name in workers)
         temporary = work / f'{name}.release.tmp'
         temporary.write_bytes(b'yes\n')
         temporary.chmod(0o644)
@@ -1692,9 +1775,23 @@ def execute(case: h.Case, runtime: Path, binary: Path,
 
 def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
     order = list(held.release_order[:1] if held.before_second is None else held.release_order)
-    if [release['name'] for release in releases] != order:
+    wanted = ['primary', *order] if held.before_primary is not None else order
+    if [release['name'] for release in releases] != wanted:
         return ['held release sequence']
     errors = []
+    if held.before_primary is not None:
+        primary, *releases = releases
+        first = releases[0]
+        if set(primary['workers']) != {'primary', *WORKERS}:
+            errors.append('active workers at primary release')
+        if primary['parent'] != first['parent'] or any(
+            primary['workers'].get(name) != first['workers'].get(name) for name in WORKERS
+        ):
+            errors.append('worker identities after primary release')
+        if primary['seen_hex'] != held.before_primary.hex():
+            errors.append('file effects at primary release')
+        if primary['stdout_hex'] != held.before_primary_stdout.hex():
+            errors.append('stdout at primary release')
     if held.load is not None and any(
         release.get('load_hex') != held.load.at_release.hex()
         or release.get('load_trace_hex') != held.load.trace.hex()
@@ -1782,7 +1879,7 @@ def main() -> int:
                 samples = [set() for _ in executables]
                 observations, releases = zip(*(
                     execute(case, runtime, binary, waits, load=held.load, load_shim=load_shim,
-                            release_order=held.release_order)
+                            release_order=held.release_order, hold_primary=held.before_primary is not None)
                     for binary, waits in zip(executables, samples, strict=True)
                 ))
                 record = debug.assess(model, case, runtime, filesystem, list(observations))

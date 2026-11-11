@@ -4303,6 +4303,9 @@ impl Expansion<'_, '_> {
                 count: args.len(),
             });
         }
+        if self.context.has_filesystem() {
+            self.filesystem(name, FilesystemEffect::InvalidateDirectoryCache)?;
+        }
         let mut value = function.callback.invoke(name, args, self)?;
         if let Some(end) = value.iter().position(|&byte| byte == 0) {
             value.truncate(end);
@@ -7031,6 +7034,7 @@ mod tests {
                 | FilesystemEffect::RuleGlob(_)
                 | FilesystemEffect::IncludeGlob(_)
                 | FilesystemEffect::Tilde(_)
+                | FilesystemEffect::InvalidateDirectoryCache
                 | FilesystemEffect::DirectoryName(_) => {
                     panic!("unexpected filesystem operation")
                 }

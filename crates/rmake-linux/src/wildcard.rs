@@ -85,8 +85,9 @@ pub struct DirectoryContents {
     pub files: usize,
 }
 
-#[derive(Default)]
-pub struct Wildcard {
+pub(crate) type InvalidationObserver<O> = fn(&O, &[u8], Option<u64>, u64);
+
+pub struct Wildcard<O = ()> {
     // Stable indices share contents across inode aliases without copying names
     // or sharing a mutable libc stream between Rust owners.
     directories: HashMap<(u64, u64), usize>,
@@ -96,6 +97,7 @@ pub struct Wildcard {
     bytes: usize,
     generation: u64,
     database_history: Option<rmake_core::database::History>,
+    invalidation_observer: Option<(O, InvalidationObserver<O>)>,
 }
 
 pub fn magic(pattern: &[u8]) -> bool {
@@ -197,7 +199,26 @@ fn literal(pattern: &[u8]) -> Option<Result<Vec<u8>, Vec<u8>>> {
     None
 }
 
-impl Wildcard {
+impl Default for Wildcard {
+    fn default() -> Self {
+        Self::new(None)
+    }
+}
+
+impl<O> Wildcard<O> {
+    pub(crate) fn new(invalidation_observer: Option<(O, InvalidationObserver<O>)>) -> Self {
+        Self {
+            directories: HashMap::new(),
+            paths: HashMap::new(),
+            contents: Vec::new(),
+            open_streams: 0,
+            bytes: 0,
+            generation: 0,
+            database_history: None,
+            invalidation_observer,
+        }
+    }
+
     pub fn rule(&mut self, pattern: &[u8]) -> Result<Vec<u8>, FilesystemError> {
         if rmake_core::filenames::archive_parts(pattern).is_some() {
             return self.archive_rule(pattern);
@@ -354,6 +375,12 @@ impl Wildcard {
         self.contents[index] = Contents::default();
     }
 
+    fn observe_invalidation(&self, path: &[u8], observed: Option<u64>) {
+        if let Some((context, observer)) = &self.invalidation_observer {
+            observer(context, path, observed, self.generation);
+        }
+    }
+
     fn directory(&mut self, path: &[u8]) -> Result<Option<usize>, FilesystemError> {
         let key_path = if path.is_empty() {
             b".".as_slice()
@@ -365,12 +392,16 @@ impl Wildcard {
         }
         if let Some(previous) = self.paths.get(key_path).copied() {
             if let Some(index) = previous.contents {
-                if self.contents[index].generation == Some(self.generation) {
+                let observed = self.contents[index].generation;
+                if observed == Some(self.generation) {
                     return Ok(Some(index));
                 }
+                self.observe_invalidation(key_path, observed);
                 self.clear_contents(index);
             } else if previous.generation == self.generation {
                 return Ok(None);
+            } else {
+                self.observe_invalidation(key_path, Some(previous.generation));
             }
         } else {
             self.charge(key_path.len() + 64)?;

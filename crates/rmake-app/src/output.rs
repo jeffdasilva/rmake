@@ -231,23 +231,24 @@ impl Controller {
         stored.extend_from_slice(program);
         self.0.directory_program.set((base_length, depth));
     }
-    fn allocate_buffer(&self, enabled: bool) -> Rc<Buffer> {
+    fn allocate_buffer(&self, reader: bool) -> Rc<Buffer> {
         Rc::new(Buffer {
             controller: self.clone(),
-            enabled: Cell::new(enabled),
+            enabled: Cell::new(self.mode() != Mode::None),
+            reader,
             spool: RefCell::new(None),
             failure: Cell::new(None),
             owner: RefCell::new(None),
             reaped: Cell::new(false),
         })
     }
-    pub fn make_buffer(&self) -> Option<Rc<Buffer>> {
+    pub fn reader_buffer(&self) -> Option<Rc<Buffer>> {
         (self.mode() != Mode::None).then(|| self.allocate_buffer(true))
     }
     // A recipe can enable output sync through eval while its body or shell
     // configuration expands. Keep its lazy lifetime even when it starts off.
     pub fn recipe_buffer(&self) -> Rc<Buffer> {
-        self.allocate_buffer(self.mode() != Mode::None)
+        self.allocate_buffer(false)
     }
     pub fn select(&self, buffer: Option<&Rc<Buffer>>) {
         self.0.current.replace(buffer.map(Rc::downgrade));
@@ -279,6 +280,20 @@ impl Controller {
         } else {
             plain_parts(error, parts);
         }
+    }
+    pub(crate) fn write_diagnostic_parts(&self, parts: &[&[u8]]) {
+        if self.mode().root_buffered()
+            && let Some(buffer) = self.current().filter(|buffer| buffer.reader)
+        {
+            self.start();
+            if buffer.prepare(true) {
+                // GNU formats the suppression while the reader's warning is
+                // pending and writes that suppression in its place.
+                self.warn_spool_unavailable();
+                return;
+            }
+        }
+        self.write_parts(true, parts);
     }
     pub(crate) fn write_option_notice(&self, message: &[u8]) {
         if crate::native::has_modules() && self.current().is_none() {
@@ -426,12 +441,13 @@ pub struct Owner {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SpoolFailure {
     Terminal,
-    TemporaryFileDuringStdout,
+    ReaderTemporaryFile,
 }
 
 pub struct Buffer {
     controller: Controller,
     enabled: Cell<bool>,
+    reader: bool,
     spool: RefCell<Option<Spool>>,
     failure: Cell<Option<SpoolFailure>>,
     owner: RefCell<Option<Owner>>,
@@ -465,20 +481,23 @@ impl Buffer {
     pub fn set_enabled(&self, enabled: bool) {
         self.enabled.set(enabled);
     }
-    pub(crate) fn failed_to_buffer_stdout(&self) -> bool {
-        self.failure.get() == Some(SpoolFailure::TemporaryFileDuringStdout)
+    pub(crate) fn failed_to_buffer_reader_output(&self) -> bool {
+        self.failure.get() == Some(SpoolFailure::ReaderTemporaryFile)
     }
-    fn prepare(&self, writing_stdout: bool) {
+    /// Report a temporary-file creation failure from this attempt.
+    fn prepare(&self, retry_reader: bool) -> bool {
         if self.failure.get().is_some() || self.spool.borrow().is_some() {
-            return;
+            return false;
         }
         match Spool::new() {
             Ok(spool) => {
                 self.spool.replace(Some(spool));
+                false
             }
             Err(error) => {
-                let failure = if writing_stdout && error.creation_path.is_some() {
-                    SpoolFailure::TemporaryFileDuringStdout
+                let creation_failed = error.creation_path.is_some();
+                let failure = if retry_reader && creation_failed {
+                    SpoolFailure::ReaderTemporaryFile
                 } else {
                     SpoolFailure::Terminal
                 };
@@ -490,11 +509,12 @@ impl Buffer {
                 }
                 self.controller.warn_spool_unavailable();
                 self.controller.disable();
+                creation_failed
             }
         }
     }
     pub fn write(&self, error: bool, bytes: &[u8]) {
-        self.prepare(!error);
+        self.prepare(self.reader && !error);
         if let Some(spool) = self.spool.borrow().as_ref() {
             let _ = spool.write(error, bytes);
         } else {
@@ -505,7 +525,7 @@ impl Buffer {
         if !self.enabled() {
             return None;
         }
-        self.prepare(false);
+        self.prepare(self.reader && self.controller.mode().root_buffered());
         Ref::filter_map(self.spool.borrow(), Option::as_ref).ok()
     }
     pub fn configure_child(&self, child: &mut std::process::Command) -> io::Result<()> {

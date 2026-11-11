@@ -34,6 +34,11 @@ if mode in ('write-optional', 'write-optional-restart', 'write-fallback-restart'
         required = Path(name + '.gen')
         required.write_bytes(b'# changed\n')
         os.utime(required, ns=(1_000_000_005_000_000_000,) * 2)
+if mode == 'append-primary':
+    primary = Path('Makefile')
+    with primary.open('ab') as stream:
+        stream.write(b'# remade\n')
+    os.utime(primary, ns=(1_000_000_004_000_000_000,) * 2)
 Path(name + '.done').write_bytes(b'done\n')
 if mode == 'fail':
     print(name, flush=True)

@@ -118,9 +118,14 @@ impl Host {
             self.filesystem.borrow_mut().execute(effect)
         };
         let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
-            let result = crate::shell::run(request, &self.program, self.level, &self.output, None);
-            self.filesystem.borrow_mut().child_completed();
-            result
+            crate::shell::run(
+                request,
+                &self.program,
+                self.level,
+                &self.output,
+                None,
+                || self.filesystem.borrow_mut().child_completed(),
+            )
         };
         let mut include = |name: &[u8]| {
             self.include_search.as_ref().map_or_else(

@@ -722,6 +722,149 @@
       "mtime_seconds": {
         "Makefile": 1600000000
       }
+    },
+    {
+      "id": "directory-cache-file-write",
+      "makefile": "before := $(wildcard *.input entrée/*.input missing/*.input)\n$(file >>unchanged)\nafter := $(wildcard *.input entrée/*.input missing/*.input)\nagain := $(wildcard *.input entrée/*.input missing/*.input)\nall: ; @:\n",
+      "initial_file_offsets": {
+        "fresh.input": 0,
+        "entrée/child.input": 0,
+        "unchanged": 0
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nDirectory . cache invalidated (count 1 != command 2)\nDirectory entrée cache invalidated (count 1 != command 2)\nDirectory missing cache invalidated (count 1 != command 2)\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nDirectory . cache invalidated (count 1 != command 2)\nDirectory entrée cache invalidated (count 1 != command 2)\nDirectory missing cache invalidated (count 1 != command 2)\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Le fichier « all » n'existe pas.\nFin des dépendances du fichier cible « all ».\nIl faut refabriquer la cible « all ».\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "fresh.input": 1600000000,
+        "entrée/child.input": 1600000000,
+        "unchanged": 1600000000
+      }
+    },
+    {
+      "id": "directory-cache-post-remake",
+      "makefile": ".DEFAULT_GOAL := all\nbefore := $(wildcard *.input missing/*.input)\n-include side.mk\nside.mk: ; @/bin/sh -c 'test -f Makefile'\nall: ; @: $(wildcard *.input missing/*.input)\n",
+      "initial_file_offsets": {
+        "fresh.input": 0
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nReading makefile 'side.mk' (search path) (don't care) (no ~ expansion)...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nDirectory . cache invalidated (count 1 != command 2)\nDirectory missing cache invalidated (count 1 != command 2)\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nLecture du makefile « side.mk » (chemin de recherche) (peu importe) (pas de remplacement du ~)...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Le fichier « all » n'existe pas.\nFin des dépendances du fichier cible « all ».\nIl faut refabriquer la cible « all ».\nDirectory . cache invalidated (count 1 != command 2)\nDirectory missing cache invalidated (count 1 != command 2)\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "fresh.input": 1600000000
+      }
+    },
+    {
+      "id": "directory-cache-no-command",
+      "makefile": "before := $(wildcard *.input missing/*.input)\nempty := $(shell )\nafter := $(wildcard *.input missing/*.input)\nall: ; @:\n",
+      "initial_file_offsets": {
+        "fresh.input": 0
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Le fichier « all » n'existe pas.\nFin des dépendances du fichier cible « all ».\nIl faut refabriquer la cible « all ».\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "fresh.input": 1600000000
+      }
+    },
+    {
+      "id": "directory-cache-rebound-alias",
+      "makefile": "setup := $(shell ln -s old one && ln -s old two)\nbefore := $(wildcard one/*.input two/*.input)\n$(file >>unchanged)\nintermediate := $(wildcard one/*.input)\nchange := $(shell ln -sfn new one)\nafter := $(wildcard one/*.input two/*.input)\ncleanup := $(shell rm one two)\nall: ; @:\n",
+      "initial_file_offsets": {
+        "old/fresh.input": 0,
+        "new/fresh.input": 0,
+        "unchanged": 0
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nDirectory one cache invalidated (count 2 != command 3)\nDirectory one cache invalidated (count 3 != command 4)\nDirectory two cache invalidated (count 0 != command 4)\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nDirectory one cache invalidated (count 2 != command 3)\nDirectory one cache invalidated (count 3 != command 4)\nDirectory two cache invalidated (count 0 != command 4)\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Le fichier « all » n'existe pas.\nFin des dépendances du fichier cible « all ».\nIl faut refabriquer la cible « all ».\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "old/fresh.input": 1600000000,
+        "new/fresh.input": 1600000000,
+        "unchanged": 1600000000
+      }
+    },
+    {
+      "id": "directory-cache-failed-shell-launch",
+      "makefile": "before := $(wildcard *.input missing/*.input)\nignored := $(shell ./missing-program)\nafter := $(wildcard *.input missing/*.input)\nall: ; @:\n",
+      "initial_file_offsets": {
+        "fresh.input": 0
+      },
+      "args": [
+        "--debug=v",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n",
+          "stderr": "make: ./missing-program: No such file or directory\n",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Le fichier « all » n'existe pas.\nFin des dépendances du fichier cible « all ».\nIl faut refabriquer la cible « all ».\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "make: ./missing-program: No such file or directory\n",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "fresh.input": 1600000000
+      }
     }
   ]
 }

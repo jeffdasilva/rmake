@@ -644,9 +644,9 @@ fn emit_output(controller: &crate::output::Controller, program: &[u8], output: O
         Output::SystemWarning { .. } => unreachable!("typed warning was formatted above"),
         Output::Warning { location, message } => {
             if let Some(location) = location.filter(|location| !location.file.is_null()) {
-                controller.write_parts(true, &[&location_prefix(location), message, b"\n"]);
+                controller.write_diagnostic_parts(&[&location_prefix(location), message, b"\n"]);
             } else {
-                controller.write_parts(true, &[program, b": ", message, b"\n"]);
+                controller.write_diagnostic_parts(&[program, b": ", message, b"\n"]);
             }
         }
     }
@@ -1424,7 +1424,7 @@ impl Engine {
                 buffer.dump();
             }
         } else if reader_output.is_none() {
-            reader_output = output.make_buffer();
+            reader_output = output.reader_buffer();
         }
         output.select(reader_output.as_ref());
         construction.replace_buffer(reader_output.clone());
@@ -1857,15 +1857,14 @@ impl Engine {
             .with_target_reads(&mut target_reads)
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
             .with_shell(&mut |request| {
-                let result = crate::shell::run(
+                crate::shell::run(
                     request,
                     &self.program,
                     self.makelevel,
                     &self.output,
                     self.jobserver.as_ref(),
-                );
-                self.filesystem.borrow_mut().child_completed();
-                result
+                    || self.filesystem.borrow_mut().child_completed(),
+                )
             })
             .with_includes(&mut |name| self.include_search.borrow().read(name)),
         );
@@ -1893,15 +1892,14 @@ impl Engine {
             .with_makeflags(&mut self.flag_state.receiver())
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
             .with_shell(&mut |request| {
-                let result = crate::shell::run(
+                crate::shell::run(
                     request,
                     &self.program,
                     self.makelevel,
                     &self.output,
                     self.jobserver.as_ref(),
-                );
-                self.filesystem.borrow_mut().child_completed();
-                result
+                    || self.filesystem.borrow_mut().child_completed(),
+                )
             })
             .with_includes(&mut |name| self.include_search.borrow().read(name)),
         );
@@ -1925,15 +1923,14 @@ impl Engine {
                 self.filesystem.borrow_mut().execute(effect)
             };
             let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
-                let result = crate::shell::run(
+                crate::shell::run(
                     request,
                     &self.program,
                     self.makelevel,
                     &self.output,
                     self.jobserver.as_ref(),
-                );
-                self.filesystem.borrow_mut().child_completed();
-                result
+                    || self.filesystem.borrow_mut().child_completed(),
+                )
             };
             let mut include = |name: &[u8]| self.include_search.borrow().read(name);
             let mut context = runtime_context(location, &mut output)
@@ -2009,15 +2006,14 @@ impl Engine {
             self.filesystem.borrow_mut().execute(effect)
         };
         let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
-            let result = crate::shell::run(
+            crate::shell::run(
                 request,
                 &self.program,
                 self.makelevel,
                 &self.output,
                 self.jobserver.as_ref(),
-            );
-            self.filesystem.borrow_mut().child_completed();
-            result
+                || self.filesystem.borrow_mut().child_completed(),
+            )
         };
         let mut include = |name: &[u8]| self.include_search.borrow().read(name);
         let mut context = runtime_context(None, &mut output)
@@ -2367,15 +2363,14 @@ impl Engine {
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result = crate::shell::run(
+                    crate::shell::run(
                         request,
                         &self.program,
                         self.makelevel,
                         &self.output,
                         self.jobserver.as_ref(),
-                    );
-                    self.filesystem.borrow_mut().child_completed();
-                    result
+                        || self.filesystem.borrow_mut().child_completed(),
+                    )
                 }),
             ) {
                 Ok(path) => path,
@@ -2451,15 +2446,14 @@ impl Engine {
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result = crate::shell::run(
+                    crate::shell::run(
                         request,
                         &self.program,
                         self.makelevel,
                         &self.output,
                         self.jobserver.as_ref(),
-                    );
-                    self.filesystem.borrow_mut().child_completed();
-                    result
+                        || self.filesystem.borrow_mut().child_completed(),
+                    )
                 })
                 .with_includes(&mut |name| self.include_search.borrow().read(name)),
             ) {
@@ -2541,15 +2535,14 @@ impl Engine {
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result = crate::shell::run(
+                    crate::shell::run(
                         request,
                         &self.program,
                         self.makelevel,
                         &self.output,
                         self.jobserver.as_ref(),
-                    );
-                    self.filesystem.borrow_mut().child_completed();
-                    result
+                        || self.filesystem.borrow_mut().child_completed(),
+                    )
                 })
                 .with_includes(&mut |name| self.include_search.borrow().read(name)),
             );
@@ -2902,15 +2895,14 @@ impl Engine {
                     .with_makeflags(&mut self.flag_state.receiver())
                     .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                     .with_shell(&mut |request| {
-                        let result = crate::shell::run(
+                        crate::shell::run(
                             request,
                             &self.program,
                             self.makelevel,
                             &self.output,
                             self.jobserver.as_ref(),
-                        );
-                        self.filesystem.borrow_mut().child_completed();
-                        result
+                            || self.filesystem.borrow_mut().child_completed(),
+                        )
                     })
                     .with_includes(&mut |name| self.include_search.borrow().read(name)),
                 ) {
@@ -2959,15 +2951,14 @@ impl Engine {
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result = crate::shell::run(
+                    crate::shell::run(
                         request,
                         &self.program,
                         self.makelevel,
                         &self.output,
                         self.jobserver.as_ref(),
-                    );
-                    self.filesystem.borrow_mut().child_completed();
-                    result
+                        || self.filesystem.borrow_mut().child_completed(),
+                    )
                 }),
             ) {
                 Ok(names) => self.inherited_exports.extend(names),
@@ -3059,15 +3050,14 @@ impl Engine {
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result = crate::shell::run(
+                    crate::shell::run(
                         request,
                         &self.program,
                         self.makelevel,
                         &self.output,
                         self.jobserver.as_ref(),
-                    );
-                    self.filesystem.borrow_mut().child_completed();
-                    result
+                        || self.filesystem.borrow_mut().child_completed(),
+                    )
                 })
                 .with_includes(&mut |name| self.include_search.borrow().read(name)),
             ) {
@@ -3109,15 +3099,14 @@ impl Engine {
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result = crate::shell::run(
+                    crate::shell::run(
                         request,
                         &self.program,
                         self.makelevel,
                         &self.output,
                         self.jobserver.as_ref(),
-                    );
-                    self.filesystem.borrow_mut().child_completed();
-                    result
+                        || self.filesystem.borrow_mut().child_completed(),
+                    )
                 })
                 .with_includes(&mut |name| self.include_search.borrow().read(name)),
             ) {
@@ -3264,7 +3253,6 @@ impl Engine {
             let verbose_mode_remakes = ordinary_mode
                 && qualified_remake_debug
                 && debug_before_remake.has(Mask::VERBOSE)
-                && self.no_remake_recipe_fallback()
                 && read_files
                     .iter()
                     .all(|(file, skip)| *skip || !file.optional)
@@ -3916,15 +3904,14 @@ impl Engine {
                                 self.filesystem.borrow_mut().execute(effect)
                             })
                             .with_shell(&mut |request| {
-                                let result = crate::shell::run(
+                                crate::shell::run(
                                     request,
                                     &self.program,
                                     self.makelevel,
                                     &self.output,
                                     self.jobserver.as_ref(),
-                                );
-                                self.filesystem.borrow_mut().child_completed();
-                                result
+                                    || self.filesystem.borrow_mut().child_completed(),
+                                )
                             })
                             .with_includes(&mut |name| self.include_search.borrow().read(name)),
                         );
@@ -4323,10 +4310,13 @@ impl Engine {
                 || (!name.starts_with(b"-l")
                     && archive_parts(name).is_none()
                     && (!self.is_makefile_goal(name, named_sources) || {
-                        let required_include = !file.optional && file.location.is_some();
-                        let compatible_read = named
-                            .insert(name, required_include)
-                            .is_none_or(|earlier_required| earlier_required && required_include);
+                        let include_policy = file.location.as_ref().map(|_| file.optional);
+                        let compatible_read =
+                            named
+                                .insert(name, include_policy)
+                                .is_none_or(|earlier_policy| {
+                                    include_policy.is_some() && include_policy == earlier_policy
+                                });
                         compatible_read
                             && self.simple_named_remake(file, name, &read_files[..index])
                     }))
@@ -4344,13 +4334,13 @@ impl Engine {
             let name = without_dot_prefix(&file.name);
             *skip
                 || self.database.rules.get(name).is_none_or(|rule| {
-                    rule.dependencies.is_empty()
-                        && rule.secondary.is_none()
+                    rule.secondary.is_none()
                         && rule.group.is_none()
                         && rule.double_colon.is_none()
+                        && (rule.dependencies.is_empty()
+                            || (self.is_makefile_goal(name, named_sources)
+                                && self.simple_named_remake(file, name, &[])))
                 })
-                || (self.is_makefile_goal(name, named_sources)
-                    && self.simple_named_remake(file, name, &[]))
         })
     }
 
@@ -4374,13 +4364,22 @@ impl Engine {
             .rules
             .get(name)
             .map_or(primary && no_default_recipe, |rule| {
-                rule.secondary.is_none()
-                    && rule.group.is_none()
+                if rule.secondary.is_some() && (!primary || !no_default_recipe) {
+                    return false;
+                }
+                let mut deferred = rule
+                    .secondary
+                    .iter()
+                    .flat_map(|clauses| clauses.iter())
+                    .peekable();
+                rule.group.is_none()
                     && rule.double_colon.is_none()
                     && (rule.dependencies.is_empty()
                         || (no_default_recipe
-                            && rule.dependencies.iter().all(|dep| {
-                                self.simple_named_remake_prerequisite(dep, earlier_sources)
+                            && rule.dependencies.iter().enumerate().all(|(index, dep)| {
+                                // The remake visit owns expansion of this slot.
+                                deferred.next_if(|clause| clause.index == index).is_some()
+                                    || self.simple_named_remake_prerequisite(dep, earlier_sources)
                             })))
                     && rule.recipes.is_some()
             })
@@ -4463,7 +4462,7 @@ impl Engine {
                 return false;
             }
         }
-        let mut names = HashSet::new();
+        let mut names = HashMap::new();
         read_files.iter().all(|(file, skip)| {
             let name = without_dot_prefix(&file.name);
             *skip
@@ -4471,7 +4470,24 @@ impl Engine {
                     && !name.starts_with(b"~")
                     && !name.starts_with(b"-l")
                     && archive_parts(name).is_none()
-                    && names.insert(name)
+                    && {
+                        let include_policy = file.location.as_ref().map(|_| file.optional);
+                        names
+                            .insert(name, include_policy)
+                            .is_none_or(|earlier_policy| {
+                                include_policy.is_some()
+                                    && include_policy == earlier_policy
+                                    && self.options.load_limit.is_none()
+                                    && !self.database.loaded_modules.contains_key(name)
+                                    && self.database.rules.get(name).is_some_and(|rule| {
+                                        rule.dependencies.is_empty()
+                                            && rule.secondary.is_none()
+                                            && rule.group.is_none()
+                                            && rule.double_colon.is_none()
+                                            && rule.recipes.is_some()
+                                    })
+                            })
+                    }
                     && (!file.optional
                         || self
                             .database
@@ -5397,6 +5413,16 @@ impl Engine {
             let pass_epoch = self.graph_epoch;
             for request in requests.iter_mut().filter(|request| request.active) {
                 let name = request.file.name.as_slice();
+                if request.duplicate
+                    && request.file.optional
+                    && request.modes.active()
+                    && !self.pending(name)
+                {
+                    // A settled optional duplicate cannot select the mode
+                    // used by an earlier source's pending continuation.
+                    request.active = false;
+                    continue;
+                }
                 request.modes.apply(&mut self.options);
                 self.remake_error_cursor = request.context.open_error.clone();
                 let needs_visit = if request.duplicate {
@@ -8017,15 +8043,14 @@ impl Engine {
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result = crate::shell::run(
+                    crate::shell::run(
                         request,
                         &self.program,
                         self.makelevel,
                         &self.output,
                         self.jobserver.as_ref(),
-                    );
-                    self.filesystem.borrow_mut().child_completed();
-                    result
+                        || self.filesystem.borrow_mut().child_completed(),
+                    )
                 })
                 .with_includes(&mut |name| self.include_search.borrow().read(name)),
             )?;
@@ -8091,15 +8116,14 @@ impl Engine {
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result = crate::shell::run(
+                    crate::shell::run(
                         request,
                         &self.program,
                         self.makelevel,
                         &self.output,
                         self.jobserver.as_ref(),
-                    );
-                    self.filesystem.borrow_mut().child_completed();
-                    result
+                        || self.filesystem.borrow_mut().child_completed(),
+                    )
                 })
                 .with_includes(&mut |name| self.include_search.borrow().read(name)),
             )?
@@ -8249,15 +8273,14 @@ impl Engine {
                 self.filesystem.borrow_mut().execute(effect)
             };
             let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
-                let result = crate::shell::run(
+                crate::shell::run(
                     request,
                     &self.program,
                     self.makelevel,
                     &self.output,
                     self.jobserver.as_ref(),
-                );
-                self.filesystem.borrow_mut().child_completed();
-                result
+                    || self.filesystem.borrow_mut().child_completed(),
+                )
             };
             let mut includes = |name: &[u8]| self.include_search.borrow().read(name);
             let mut makeflags = self.flag_state.receiver();
@@ -8969,7 +8992,6 @@ impl Engine {
                             && mask.has(crate::debug::Mask::MAKEFILES)
                             && mask.has(crate::debug::Mask::VERBOSE)
                             && MakefileModes::from_options(&self.options).active()
-                            && self.no_remake_recipe_fallback()
                             && self.makefile_names.contains(target)
                             && self.is_makefile_goal(target, None)
                         {
@@ -11257,15 +11279,14 @@ impl Engine {
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
                 .with_shell(&mut |request| {
-                    let result = crate::shell::run(
+                    crate::shell::run(
                         request,
                         &self.program,
                         self.makelevel,
                         &self.output,
                         self.jobserver.as_ref(),
-                    );
-                    self.filesystem.borrow_mut().child_completed();
-                    result
+                        || self.filesystem.borrow_mut().child_completed(),
+                    )
                 })
                 .with_includes(&mut |name| self.include_search.borrow().read(name)),
             )?
@@ -12047,15 +12068,14 @@ impl Engine {
                                 self.filesystem.borrow_mut().execute(effect)
                             })
                             .with_shell(&mut |request| {
-                                let result = crate::shell::run(
+                                crate::shell::run(
                                     request,
                                     &self.program,
                                     self.makelevel,
                                     &self.output,
                                     self.jobserver.as_ref(),
-                                );
-                                self.filesystem.borrow_mut().child_completed();
-                                result
+                                    || self.filesystem.borrow_mut().child_completed(),
+                                )
                             })
                             .with_includes(&mut |name| self.include_search.borrow().read(name)),
                         ) {

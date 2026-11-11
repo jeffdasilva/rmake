@@ -301,9 +301,10 @@ impl Plan {
             }
         };
         database.variables.set_startup_directory_pending();
-        let filesystem = RefCell::new(FilesystemRuntime::with_missing_read_observer(
+        let filesystem = RefCell::new(FilesystemRuntime::with_observers(
             output.clone(),
             crate::debug::missing_file_read,
+            crate::debug::directory_cache_invalidated,
         ));
         filesystem.borrow_mut().set_database_history(
             database
@@ -407,7 +408,7 @@ impl Plan {
             state.output.set_mode(inherited_mode);
             let reader_output = inherited_mode
                 .root_buffered()
-                .then(|| state.output.make_buffer())
+                .then(|| state.output.reader_buffer())
                 .flatten();
             state.output.select(reader_output.as_ref());
             let mut construction =
@@ -572,9 +573,9 @@ impl State {
             self.filesystem.borrow_mut().execute(effect)
         };
         let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
-            let result = crate::shell::run(request, program, 0, &self.output, None);
-            self.filesystem.borrow_mut().child_completed();
-            result
+            crate::shell::run(request, program, 0, &self.output, None, || {
+                self.filesystem.borrow_mut().child_completed()
+            })
         };
         let mut include = |name: &[u8]| IncludeSearch::default().read(name);
         action(
