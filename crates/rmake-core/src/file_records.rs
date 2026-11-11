@@ -263,8 +263,13 @@ pub(crate) fn fingerprint(name: &[u8]) -> u32 {
         }
     }
     for (lane, tail) in lanes.iter_mut().zip(blocks.remainder().chunks(4)) {
-        let mut word = [0; 4];
-        word[..tail.len()].copy_from_slice(tail);
+        let word = match *tail {
+            [a] => [a, 0, 0, 0],
+            [a, b] => [a, b, 0, 0],
+            [a, b, c] => [a, b, c, 0],
+            [a, b, c, d] => [a, b, c, d],
+            _ => unreachable!("each chunk has one to four bytes"),
+        };
         *lane = lane.wrapping_add(u32::from_le_bytes(word));
     }
     for (step, angle) in [14, 11, 25, 16, 4, 14, 24].into_iter().enumerate() {
