@@ -216,7 +216,10 @@ incomplete right include. Earlier question results suppress the pass
 transition in both ordinary and keep-going controls. Saturated dry-run
 profiles also check both orders, with and without secondary expansion
 and repeated reads. A right-first completion runs the right recipe tail
-and a named-first completion prints it.
+and a named-first completion prints it. Eight touch profiles hold the forced
+named recipe until the final right recipe process is reaped. They check that
+the right tail runs without an additional touch, including repeated reads
+and secondary expansion on both jobserver transports.
 Named primary secondary expansion records the automatic target and restart
 counter exactly once per visit, including while earlier workers are held.
 

@@ -1281,8 +1281,8 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                         results.append(direct)
                         if slots == 2:
                             results.append(named_secondary_variant(direct, expansion_point, b'named.gen'))
-                        if ordered_completion and mode == 'n':
-                            results.extend(right_first_dry_run_models(held, expansion_point))
+                        if ordered_completion and mode in ('n', 't'):
+                            results.extend(right_first_named_models(held, expansion_point, mode))
                         if slots == 3:
                             source_with_primer = source.replace(b'named.gen: ;', b'named.gen: primer ;')
                             with_primer = {**files, 'Makefile': source_with_primer, 'primer': b'base input\n'}
@@ -1298,8 +1298,8 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                             duplicate = replace(model, id=ident + '-duplicate',
                                                 files={**files, 'Makefile': duplicate_source})
                             repeated = replace(held, model=duplicate)
-                            if ordered_completion and mode == 'n':
-                                results.extend(right_first_dry_run_models(repeated, expansion_point))
+                            if ordered_completion and mode in ('n', 't'):
+                                results.extend(right_first_named_models(repeated, expansion_point, mode))
                             if ordered_completion:
                                 repeated = order_named_completion(repeated)
                             if policy == 'optional' and mode == 'q' and saturated:
@@ -1310,7 +1310,7 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                                     updates=written,
                                 )
                                 right_first = order_named_completion(
-                                    replace(held, model=right_first), right_first=True)
+                                    replace(held, model=right_first), after='right')
                                 results.append(right_first)
                                 for keep_going in (False, True):
                                     results.append(earlier_named_question(
@@ -1331,28 +1331,33 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
     return results
 
 
-def order_named_completion(held: HeldModel, *, right_first: bool = False) -> HeldModel:
+def order_named_completion(held: HeldModel, *, after: str | None = None) -> HeldModel:
     model = held.model
     named_recipe = b'+@printf "NAMED := loaded\\n" > "$@"'
     named_command = b'+@python3 named_reap.py'
-    if right_first:
-        named_command += b' after-right'
-        worker_anchor = b'name, mode = sys.argv[1:]'
-        worker_replacement = (worker_anchor + b"\nif name == 'right':\n"
-                              b"    from named_reap import record_process\n"
-                              b"    record_process('right.pid')")
-    else:
-        worker_anchor = b"with Path('seen').open('ab') as stream:"
-        worker_replacement = (b"if name == 'right':\n"
-                              b"    from named_reap import wait_for_reap\n"
-                              b"    wait_for_reap('named.pid')\n\n" + worker_anchor)
     makefile = model.files['Makefile']
     worker = model.files['worker.py']
-    assert makefile.count(named_recipe) == worker.count(worker_anchor) == 1
-    files = {**model.files,
-             'Makefile': makefile.replace(named_recipe, named_command),
-             'worker.py': worker.replace(worker_anchor, worker_replacement),
-             'named_reap.py': (SOURCES / 'named_reap.py').read_bytes()}
+    if after == 'tail':
+        named_command += b' after-right-tail'
+        tail = b'printf "tail\\n" >> seen'
+        assert makefile.count(tail) == 1
+        makefile = makefile.replace(tail, b'python3 named_reap.py write-right-tail')
+    elif after == 'right':
+        named_command += b' after-right'
+        anchor = b'name, mode = sys.argv[1:]'
+        assert worker.count(anchor) == 1
+        worker = worker.replace(anchor, anchor + b"\nif name == 'right':\n"
+                                b"    from named_reap import record_process\n"
+                                b"    record_process('right.pid')")
+    else:
+        anchor = b"with Path('seen').open('ab') as stream:"
+        assert worker.count(anchor) == 1
+        worker = worker.replace(anchor, b"if name == 'right':\n"
+                                b"    from named_reap import wait_for_reap\n"
+                                b"    wait_for_reap('named.pid')\n\n" + anchor)
+    assert makefile.count(named_recipe) == 1
+    files = {**model.files, 'Makefile': makefile.replace(named_recipe, named_command),
+             'worker.py': worker, 'named_reap.py': (SOURCES / 'named_reap.py').read_bytes()}
     echoed_recipe = named_recipe.removeprefix(b'+@').replace(b'$@', b'named.gen') + b'\n'
     echoed_command = named_command.removeprefix(b'+@') + b'\n'
     stdout = bytes.fromhex(model.expected['stdout_template_hex'])
@@ -1367,15 +1372,16 @@ def order_named_completion(held: HeldModel, *, right_first: bool = False) -> Hel
                    before_second_stdout=held.before_second_stdout.replace(echoed_recipe, echoed_command))
 
 
-def right_first_dry_run_models(held: HeldModel, expansion_point: bytes) -> tuple[HeldModel, HeldModel]:
+def right_first_named_models(held: HeldModel, expansion_point: bytes,
+                             mode: str) -> tuple[HeldModel, HeldModel]:
     model = held.model
-    tail = b'printf "tail\\n" >> seen\n'
+    tail = b'printf "tail\\n" >> seen\n' if mode == 'n' else b'touch right.gen\n' * 2
     stdout = bytes.fromhex(model.expected['stdout_template_hex'])
     assert stdout.count(tail) == model.seen.count(b'right\n') == 1
     expected = {**model.expected, 'stdout_template_hex': stdout.replace(tail, b'').hex()}
     model = replace(model, id=model.id + '-right-first', expected=expected,
                     seen=model.seen.replace(b'right\n', b'right\ntail\n'))
-    ordered = order_named_completion(replace(held, model=model), right_first=True)
+    ordered = order_named_completion(replace(held, model=model), after='right' if mode == 'n' else 'tail')
     return ordered, named_secondary_variant(ordered, expansion_point, b'named.gen')
 
 
