@@ -1,0 +1,15 @@
+id = "recipe-prefix-binding-environment-conditional-activation"
+requirement = "variables.metadata"
+candidate = "required"
+description = "Selected recipe prefix and visible special variable binding."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[environment]
+".RECIPEPREFIX" = ">"
+
+[expected]
+exit_code = 0
+stdout_hex = "7072656669783d656e7669726f6e6d656e747c5b3e5d0a637573746f6d0a"
+stderr_hex = ""

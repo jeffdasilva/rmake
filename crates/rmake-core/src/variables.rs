@@ -1309,6 +1309,11 @@ impl VariableStore {
         self.lookup_from(name, 0).map(|(_, value)| value)
     }
 
+    pub(crate) fn has_local_binding(&self, name: &[u8]) -> bool {
+        self.lookup_from(name, 0)
+            .is_some_and(|(layer, _)| !self.global_layer(layer))
+    }
+
     pub fn remove(&mut self, name: &[u8]) -> Option<Variable> {
         Arc::make_mut(&mut self.variables).remove(name)
     }
