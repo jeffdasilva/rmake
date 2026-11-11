@@ -1,0 +1,12 @@
+id = "inline-post-expansion-prefix-dollar-escaped-literal"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Physical inline command prefixes are removed after make expansion."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "3c6c656674205c0a6c69746572616c3e0a"
+stderr_hex = ""

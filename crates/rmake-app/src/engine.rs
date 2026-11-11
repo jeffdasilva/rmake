@@ -11769,12 +11769,12 @@ impl Engine {
         // An expanded inline declaration can still contain several raw commands
         // in one stored recipe. Keep its locations until those slots are split.
         let mut logical_locations = None;
-        for (index, recipe) in recipes.iter().enumerate() {
+        for (index, source) in recipes.iter().enumerate() {
             let mut recipe = Recipe {
-                bytes: recipe.execution_bytes().into_owned(),
-                location: recipe.location.clone(),
-                prefix: recipe.prefix,
-                builtin: recipe.builtin,
+                bytes: source.expansion_source().into_owned(),
+                location: source.location.clone(),
+                prefix: source.prefix,
+                builtin: source.builtin,
                 continued_inline: false,
             };
             let line = first.location.line.saturating_add(index);
@@ -11788,7 +11788,15 @@ impl Engine {
                 recipe.location.line = line;
             }
             match self.expand(&mut variables, &recipe.bytes, Some(&recipe.location)) {
-                Ok(bytes) => expanded.push_back((index, bytes, recipe)),
+                Ok(mut bytes) => {
+                    if source.continued_inline {
+                        rmake_core::reader::strip_recipe_continuation_prefix(
+                            &mut bytes,
+                            source.prefix,
+                        );
+                    }
+                    expanded.push_back((index, bytes, recipe));
+                }
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
                     return Execution::fatal(false);
