@@ -3236,10 +3236,9 @@ impl Engine {
             let remake_debug_bits = Mask::BASIC.bits() | Mask::MAKEFILES.bits();
             let qualified_remake_debug = debug_before_remake.bits() == remake_debug_bits
                 || (debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits())
-                    && self
-                        .jobserver
-                        .as_ref()
-                        .is_some_and(|server| !server.auth().starts_with(b"fifo:")));
+                    && self.jobserver.as_ref().is_some_and(|server| {
+                        modes.active() || !server.auth().starts_with(b"fifo:")
+                    }));
             let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
                 || (self.options.load_limit.is_none() && qualified_remake_debug);
             // Required makefiles settle before the ordinary mode resumes.
@@ -4349,6 +4348,7 @@ impl Engine {
                         && rule.double_colon.is_none()
                         && (rule.dependencies.is_empty()
                             || (self.is_makefile_goal(name, named_sources)
+                                && rule.dependencies.iter().all(|dep| dep.name != b".WAIT")
                                 && self.simple_named_remake(file, name, &[], false)))
                 })
         })
@@ -4376,7 +4376,7 @@ impl Engine {
             .get(name)
             .map_or(primary && no_default_recipe, |rule| {
                 if rule.secondary.is_some()
-                    && (!primary || !no_default_recipe || rule.group.is_some())
+                    && (file.optional || !no_default_recipe || rule.group.is_some())
                 {
                     return false;
                 }
@@ -4414,6 +4414,11 @@ impl Engine {
                             && rule.dependencies.iter().enumerate().all(|(index, dep)| {
                                 // The remake visit owns expansion of this slot.
                                 deferred.next_if(|clause| clause.index == index).is_some()
+                                    || (primary
+                                        && rule.secondary.is_none()
+                                        && rule.group.is_none()
+                                        && !dep.hidden
+                                        && dep.name == b".WAIT")
                                     || self.simple_remake_prerequisite(dep, earlier_sources)
                             })))
                     && rule.recipes.is_some()

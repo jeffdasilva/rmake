@@ -66,7 +66,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 1,238 profiles. Leading `./` spellings share one target record and
+run all 1,394 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -93,11 +93,12 @@ visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 
-The 134 debug profiles check the entire debug trace and the exact trace prefix
+The 164 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging with the pipe
-transport. Verbose FIFO output contains a live controller PID and is outside
-this exact fixture set.
+transport. Thirty named primary verbose profiles also run with FIFO. The
+suite checks the controller path against the observed make PID and retains
+the raw trace before comparing the remaining bytes.
 
 ~~~sh
 python3 tools/remake_parallel.py --remake-debug --self-test
@@ -128,6 +129,15 @@ Ninety-six grouped optional profiles add an existing normal or order-only
 prerequisite to success and failure cases under dry-run, question and touch.
 They cover optional and required peer reads, two visitation orders, both
 jobserver transports, and a restart after an optional group fails.
+
+Sixty named primary profiles check explicit `.WAIT` barriers with local
+files and with earlier required includes. Both jobserver transports cover
+dry-run, question and touch, including the order of effects and the contents
+of automatic prerequisite variables around the barrier.
+
+Sixty-six required named include profiles record secondary expansion before
+and after a restart. They cover first, middle and final include visits,
+ordinary and forced recipes, repeated reads, and both jobserver transports.
 
 The named primary makefile profiles hold both include workers under `-n`,
 `-q`, and `-t`. They cover default discovery and `-f ./Makefile`, two or

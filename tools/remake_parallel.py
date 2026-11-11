@@ -65,6 +65,7 @@ class HeldModel:
     release_order: tuple[str, str] = WORKERS
     before_primary: bytes | None = None
     before_primary_stdout: bytes = b''
+    fifo_controller: bool = False
 
 
 def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list[HeldModel]:
@@ -152,6 +153,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += primary_named_implicit_models(worker, markers)
     results += named_include_file_prerequisite_models(worker, markers)
     results += primary_shared_include_models(worker, markers)
+    results += primary_named_wait_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
@@ -932,28 +934,36 @@ def primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[
                                      before_second_stdout=prefix, before_first_stdout=prefix)
                     results.append(held)
                     if discovery == 'explicit' and slots == 3 and ruled and style == 'plain':
-                        results.append(primary_named_secondary_variant(held, BEFORE_FIRST))
+                        results.append(named_secondary_variant(held, BEFORE_FIRST))
     return results
 
 
-def primary_named_secondary_variant(held: HeldModel, expansion_point: bytes) -> HeldModel:
-    original = b'Makefile: primer ; '
-    secondary = (
-        b'.SECONDEXPANSION:\nINPUT := primer\n'
-        b'Makefile: $$(file >>seen,secondary-$$@-$$(MAKE_RESTARTS)) $$(INPUT) ; '
-    )
+def named_secondary_variant(held: HeldModel, expansion_point: bytes,
+                            target: bytes = b'Makefile') -> HeldModel:
+    model = held.model
+    source = model.files['Makefile']
+    original = target + b': primer ; '
+    if original not in source:
+        original = target + b': ; '
+    assert original in source
+    secondary = (b'.SECONDEXPANSION:\nINPUT := primer\n'
+                 + target + b': $$(file >>seen,secondary-$$@-$$(MAKE_RESTARTS)) $$(INPUT) ; ')
+    marker = b'secondary-' + target + b'-'
 
     def record_expansion(seen: bytes) -> bytes:
-        seen = seen.replace(expansion_point, expansion_point + b'secondary-Makefile-\n', 1)
-        return seen.replace(b'read-1\n', b'read-1\nsecondary-Makefile-1\n', 1)
+        seen = seen.replace(expansion_point, expansion_point + marker + b'\n', 1)
+        return seen.replace(b'read-1\n', b'read-1\n' + marker + b'1\n', 1)
 
-    model = held.model
-    makefile = model.files['Makefile'].replace(original, secondary, 1)
+    files = {**model.files, 'Makefile': source.replace(original, secondary, 1)}
+    times = model.mtimes_ns
+    if 'primer' not in files:
+        files['primer'] = b'base input\n'
+        times = {**times, 'primer': INPUT_TIME}
     updates = model.updates.copy()
     if 'Makefile' in updates:
         updates['Makefile'] = updates['Makefile'].replace(original, secondary, 1)
-    model = replace(model, id=model.id + '-secondary', files={**model.files, 'Makefile': makefile},
-                    seen=record_expansion(model.seen), updates=updates)
+    model = replace(model, id=model.id + '-secondary', files=files, seen=record_expansion(model.seen),
+                    updates=updates, mtimes_ns=times)
     assert held.before_second is not None
     return replace(held, model=model, before_first=record_expansion(held.before_first),
                    before_second=record_expansion(held.before_second))
@@ -1107,7 +1117,7 @@ def later_primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) ->
                                          before_second_stdout=second_stdout, before_first_stdout=first_stdout)
                         results.append(held)
                         if slots == 3 and not sync and style == 'forced':
-                            results.append(primary_named_secondary_variant(held, first))
+                            results.append(named_secondary_variant(held, first))
     return results
 
 
@@ -1176,12 +1186,19 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                         held = HeldModel(model, True, second, first,
                                          before_second_stdout=second_out, before_first_stdout=first_out)
                         results.append(held)
+                        expansion_point = first if position == 'last' else BEFORE_FIRST
+                        if policy == 'required' and slots == 2:
+                            results.append(named_secondary_variant(held, expansion_point, b'named.gen'))
                         if slots == 3:
                             source_with_primer = source.replace(b'named.gen: ;', b'named.gen: primer ;')
                             with_primer = {**files, 'Makefile': source_with_primer, 'primer': b'base input\n'}
                             prerequisite = replace(model, id=ident + '-prerequisite', files=with_primer,
                                                    mtimes_ns={**times, 'primer': INPUT_TIME})
-                            results.append(replace(held, model=prerequisite))
+                            with_prerequisite = replace(held, model=prerequisite)
+                            results.append(with_prerequisite)
+                            if policy == 'required':
+                                results.append(named_secondary_variant(
+                                    with_prerequisite, expansion_point, b'named.gen'))
                         if position == 'last':
                             duplicate_source = source.replace(f'{directive} {order}\n'.encode(),
                                                               f'{directive} {order} ./named.gen\n'.encode(), 1)
@@ -1191,6 +1208,9 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                             if policy == 'optional' and mode == 'q' and saturated:
                                 repeated = order_named_before_right(repeated)
                             results.append(repeated)
+                            if policy == 'required':
+                                results.append(named_secondary_variant(
+                                    repeated, expansion_point, b'named.gen'))
 
             failed_source = (header + 'include left.gen right.gen named.gen\n' + rules).encode()
             failed_source = failed_source.replace(b'+@printf "NAMED := loaded\\n" > "$@"', b'+@false')
@@ -1355,8 +1375,12 @@ def named_include_file_prerequisite_models(worker: bytes, markers: dict[str, byt
                                 'stderr_template_hex': stderr.hex()}
                     model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
                                         updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
-                    results.append(HeldModel(model, not split_pass, second, first,
-                                             before_second_stdout=second_out, before_first_stdout=first_out))
+                    held = HeldModel(model, not split_pass, second, first,
+                                     before_second_stdout=second_out, before_first_stdout=first_out)
+                    results.append(held)
+                    if not optional:
+                        expansion_point = first if position == 'last' else BEFORE_FIRST
+                        results.append(named_secondary_variant(held, expansion_point, b'named.gen'))
                     duplicate_source = source.replace(f'{directive} {order}\n'.encode(),
                                                       f'{directive} {order} ./named.gen\n'.encode(), 1)
                     duplicate_source = duplicate_source.replace(b'named.gen: primer ;', b'named.gen: ;')
@@ -1434,6 +1458,94 @@ def primary_shared_include_models(worker: bytes, markers: dict[str, bytes]) -> l
                     model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
                                         updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                     results.append(HeldModel(model, True, second, first, before_second_stdout=second_out))
+    return results
+
+
+def primary_named_wait_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = b'.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    include = b'include left.gen right.gen\n'
+    rules = (
+        b'left.gen: ; @python3 worker.py left include\n'
+        b'right.gen:\n'
+        b'\t@python3 worker.py right include\n'
+        b'\t@$(file >>seen,tail-expanded)printf "tail\\n" >> seen\n'
+        b'all: result\n'
+        b'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT))printf "ordinary\\n" > "$@"\n'
+    )
+    recipe = b' ; @printf "# remade %s/%s\\n" "$^" "$|" >> "$@"\n'
+    command = b'printf "# remade %s/%s\\n" '
+    current = b"make: 'Makefile' is up to date.\n"
+    ordinary = b'printf "ordinary\\n" > "result"\n'
+    tail = b'printf "tail\\n" >> seen\n'
+    touch_primary = b'touch Makefile\n'
+    touch_result = current + b'touch result\n'
+    touch_left = b'touch left.gen\n'
+    touch_right = b'touch right.gen\ntouch right.gen\n'
+    deletion = b"make: *** Deleting file 'right.gen'\n"
+    first = BEFORE_FIRST + b'tail-expanded\n'
+    second = first + b'left\n'
+    generated_left = {**markers, 'left.gen': b'LEFT := loaded\n'}
+    generated_both = {**generated_left, 'right.gen': b'RIGHT := loaded\n'}
+    shapes = (
+        ('local-normal', b'older .WAIT primer', False, b'older primer', False),
+        ('local-order-only', b'| older .WAIT primer', False, b'', False),
+        ('local-later', b'older .WAIT primer', True, b'older primer', False),
+        ('shared-left-right', b'left.gen .WAIT right.gen', True, b'left.gen right.gen', True),
+        ('shared-right-left', b'right.gen .WAIT left.gen', True, b'right.gen left.gen', True),
+        ('shared-left-file', b'left.gen .WAIT primer', True, b'left.gen primer', True),
+        ('shared-file-right', b'older .WAIT right.gen', True, b'older right.gen', True),
+    )
+    results = []
+    for name, prerequisites, later, normal, shared in shapes:
+        source = header + (b'' if later else include) + b'Makefile: ' + prerequisites + recipe + rules
+        files = {'Makefile': source, 'worker.py': worker, 'seen': ANCHOR,
+                 'older': b'older\n', 'primer': b'primer\n'}
+        if later:
+            files['earlier.mk'] = include
+        append = command + b'"' + normal + b'" "" >> "Makefile"\n'
+        completed = second + (b'right\n' if shared else b'right\ntail\n')
+        restarted = completed + b'read-1\n'
+        loaded = restarted + b'ordinary-loaded-loaded\n'
+        for newer in ((False,) if shared else (False, True)):
+            times = dict.fromkeys(files, INPUT_TIME)
+            times['older'] -= 2_000_000_000
+            times['primer'] += 500_000_000 if newer else -1_000_000_000
+            stale = newer and bool(normal)
+            if shared:
+                early = name == 'shared-left-file'
+                dry = (append + tail if early else tail + append) + append
+                touched = touch_left + (touch_primary + touch_right if early else touch_right + touch_primary)
+                cases = (
+                    ('n', 0, b'', append if early else b'', dry + current + ordinary,
+                     b'', loaded, generated_both),
+                    ('q', 1, b'', b'', b'', deletion, completed + b'ordinary--\n', generated_left),
+                    ('t', 0, b'', touch_left + (touch_primary if early else b''),
+                     touched + touch_result, b'', restarted, {**generated_both, 'result': b''}),
+                )
+            else:
+                dry = append if stale else b''
+                touched = touch_primary if stale else b''
+                cases = (
+                    ('n', 0, dry, dry, dry * 2 + current + ordinary, b'', loaded, generated_both),
+                    ('q', 1, b'', b'', b'', b'',
+                     completed + b'ordinary--\n' if stale else loaded, generated_both),
+                    ('t', 0, touched, touched, touched + touch_result,
+                     b'', restarted, {**generated_both, 'result': b''}),
+                )
+            for mode, status, first_out, second_out, stdout, stderr, seen, updates in cases:
+                for transport in ('pipe', 'fifo'):
+                    args = ('-rR', '--no-print-directory', '-j3', f'--jobserver-style={transport}', '-' + mode)
+                    if later:
+                        args += ('-f', 'earlier.mk')
+                    args += ('-f', './Makefile', './Makefile', 'all')
+                    age = 'newer' if newer else 'older'
+                    ident = f'primary-named-wait-{name}-{mode}-{transport}-{age}'
+                    expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                                'stderr_template_hex': stderr.hex()}
+                    model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
+                                        updates=updates, mtimes_ns=times)
+                    results.append(HeldModel(model, True, second, first,
+                                             before_second_stdout=second_out, before_first_stdout=first_out))
     return results
 
 
@@ -1715,9 +1827,11 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     seen = set()
     for row in data['profiles']:
         name, flag = row['case'], row['flag']
+        fifo = row.get('fifo', False)
         held = by_id.get(name)
         if (held is None or held.before_second is None or (name, flag) in seen
-                or flag not in ('m', 'm,v')
+                or flag not in ('m', 'm,v') or not isinstance(fifo, bool)
+                or (fifo and flag != 'm,v')
                 or (flag == 'm,v' and '--jobserver-style=pipe' not in held.model.args)):
             raise h.HarnessError('invalid remake debug model')
         seen.add((name, flag))
@@ -1738,6 +1852,19 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         selected.append(replace(held, model=model, before_first_stdout=stdout[:first],
                                 before_second_stdout=stdout[:second],
                                 before_primary_stdout=stdout[:prefixes[0]] if primary else b''))
+        if fifo:
+            # Keep the same expected trace around the separately verified live path.
+            if '-pipe' not in name or b'Using jobserver controller 3,4\n' not in stdout[:first]:
+                raise h.HarnessError('FIFO debug model requires a pipe controller trace')
+            fifo_stdout = stdout.replace(b'--jobserver-style=pipe', b'--jobserver-style=fifo')
+            fifo_args = tuple('--jobserver-style=fifo' if arg == '--jobserver-style=pipe' else arg
+                              for arg in args)
+            fifo_model = replace(model, id=model.id.replace('-pipe', '-fifo'), args=fifo_args,
+                                 expected={**model.expected, 'stdout_template_hex': fifo_stdout.hex()})
+            selected.append(replace(held, model=fifo_model, fifo_controller=True,
+                                    before_first_stdout=fifo_stdout[:first],
+                                    before_second_stdout=fifo_stdout[:second],
+                                    before_primary_stdout=fifo_stdout[:prefixes[0]] if primary else b''))
     return selected
 
 
@@ -1865,6 +1992,27 @@ def execute(case: h.Case, runtime: Path, binary: Path,
     return h.execute(case, runtime, binary, observe=observe), releases
 
 
+def bind_fifo_controller(observation: h.Observation, releases: list[dict], runtime: Path):
+    if not releases:
+        return observation, releases, ['missing live FIFO controller identity']
+    prefix = b'Using jobserver controller '
+    path = runtime / 'tmp' / f"GMfifo{releases[0]['parent']}"
+    controller = prefix + b'fifo:' + os.fsencode(path) + b'\n'
+    errors = []
+
+    def bind(stdout: bytes, phase: str) -> bytes:
+        lines = [line for line in stdout.splitlines(keepends=True) if line.startswith(prefix)]
+        if not lines or any(line != controller for line in lines):
+            errors.append(f'{phase} FIFO controller identity')
+            return stdout
+        return stdout.replace(controller, prefix + b'3,4\n')
+
+    stdout = bind(observation.stdout, 'final')
+    prefixes = [dict(release, stdout_hex=bind(bytes.fromhex(release['stdout_hex']),
+                                             release['name']).hex()) for release in releases]
+    return replace(observation, stdout=stdout), prefixes, errors
+
+
 def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
     order = list(held.release_order[:1] if held.before_second is None else held.release_order)
     wanted = ['primary', *order] if held.before_primary is not None else order
@@ -1974,8 +2122,19 @@ def main() -> int:
                             release_order=held.release_order, hold_primary=held.before_primary is not None)
                     for binary, waits in zip(executables, samples, strict=True)
                 ))
+                raw_observations, raw_releases = observations, releases
+                fifo_errors = [[] for _ in executables]
+                if held.fifo_controller:
+                    observations, releases, fifo_errors = zip(*(
+                        bind_fifo_controller(observed, release, runtime)
+                        for observed, release in zip(observations, releases, strict=True)
+                    ))
                 record = debug.assess(model, case, runtime, filesystem, list(observations))
-                errors = [release_errors(held, release) for release in releases]
+                errors = [release_errors(held, release) + identity_errors
+                          for release, identity_errors in zip(releases, fifo_errors, strict=True)]
+                if held.fifo_controller:
+                    record.update(raw_stdout_hex=[observed.stdout.hex() for observed in raw_observations],
+                                  raw_releases=raw_releases)
                 wait_samples = [sorted(waits, key=lambda pair: (pair[0], pair[1] or -1))
                                 for waits in samples]
                 record.update(id=model.id, releases=releases, release_errors=errors,
