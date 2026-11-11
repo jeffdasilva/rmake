@@ -3388,19 +3388,35 @@ impl Engine {
                                     .entry(name)
                                     .or_insert((failure.before, failure.refresh_timestamp));
                             }
-                        } else if !makefile.optional
-                            && context.is_none()
-                            && self.output.debug_mask().has(Mask::VERBOSE)
-                        {
-                            // The duplicate reader entry revisits every
-                            // declaration, including the cached head.
-                            let declarations =
-                                self.serial_double_colon_declarations(name).unwrap_or(1);
-                            for _ in 0..declarations {
-                                crate::debug::emit(
-                                    &self.output,
-                                    crate::debug::Event::Pruning(self.aliases.resolve(name), 1),
-                                );
+                        } else if context.is_none() && self.output.debug_mask().has(Mask::VERBOSE) {
+                            let source = self.aliases.resolve(name);
+                            let before = first.get().0;
+                            let unchanged = before.is_some()
+                                && !visit_modes.active()
+                                && self.done.get(source).is_some_and(|outcome| {
+                                    !outcome.failed
+                                        && !outcome.fatal
+                                        && !outcome.question_outdated
+                                        && outcome.time == before
+                                });
+                            if !makefile.optional || unchanged {
+                                // An unchanged source revisits every cached
+                                // declaration, including any grouped entries.
+                                let declarations = if unchanged {
+                                    self.database
+                                        .rules
+                                        .get(source)
+                                        .and_then(|rule| rule.double_colon.as_ref())
+                                        .map_or(1, Vec::len)
+                                } else {
+                                    self.serial_double_colon_declarations(name).unwrap_or(1)
+                                };
+                                for _ in 0..declarations {
+                                    crate::debug::emit(
+                                        &self.output,
+                                        crate::debug::Event::Pruning(source, 1),
+                                    );
+                                }
                             }
                         }
                         continue;

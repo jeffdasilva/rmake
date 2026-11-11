@@ -2930,3 +2930,36 @@ cases = [
   "serial-remake-optional-cached-shared-missing-normal",
   "serial-remake-optional-cached-shared-missing-normal-merged",
 ]
+
+[[requirements]]
+id = "debug.serial-unchanged-duplicate-prunes"
+title = "Verbose cached prunes for unchanged repeated serial makefile reads"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 22
+fixture_count = 22
+cases = [
+  "serial-remake-optional-duplicate-prune-interleaved-double-order-only-normal",
+  "serial-remake-optional-duplicate-prune-leading-dot-rule-free-normal",
+  "serial-remake-optional-duplicate-prune-mixed-optional-repeat-double-noop-normal",
+  "serial-remake-optional-duplicate-prune-mixed-optional-repeat-mixed-declarations-normal",
+  "serial-remake-optional-duplicate-prune-mixed-optional-repeat-rule-free-normal",
+  "serial-remake-optional-duplicate-prune-mixed-required-repeat-grouped-double-normal",
+  "serial-remake-optional-duplicate-prune-same-line-double-noop-dry-run",
+  "serial-remake-optional-duplicate-prune-same-line-double-noop-normal",
+  "serial-remake-optional-duplicate-prune-same-line-double-noop-query",
+  "serial-remake-optional-duplicate-prune-same-line-double-noop-touch",
+  "serial-remake-optional-duplicate-prune-same-line-double-order-only-normal",
+  "serial-remake-optional-duplicate-prune-same-line-grouped-double-normal",
+  "serial-remake-optional-duplicate-prune-same-line-grouped-noop-normal",
+  "serial-remake-optional-duplicate-prune-same-line-grouped-single-normal",
+  "serial-remake-optional-duplicate-prune-same-line-rule-free-normal",
+  "serial-remake-optional-duplicate-prune-same-line-single-noop-normal",
+  "serial-remake-optional-duplicate-prune-same-line-single-order-only-normal",
+  "serial-remake-optional-duplicate-prune-split-double-noop-normal",
+  "serial-remake-optional-duplicate-prune-split-grouped-triple-normal",
+  "serial-remake-optional-duplicate-prune-split-rule-free-normal",
+  "serial-remake-optional-duplicate-prune-triple-double-noop-normal",
+  "serial-remake-optional-duplicate-prune-triple-rule-free-normal",
+]
