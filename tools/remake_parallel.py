@@ -594,17 +594,22 @@ def direct_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> lis
             files = {'Makefile': (header + source + ordinary).encode(), 'worker.py': worker,
                      'seen': ANCHOR}
             for mode, status, stdout, ordinary_updates in modes:
-                args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}',
-                        '-' + mode, *flags, 'all')
-                expected = {'exit_code': status, 'stdout_template_hex': (prefix + stdout).hex(),
-                            'stderr_template_hex': ''}
-                effects = seen if mode == 't' else seen + b'ordinary-' + value + b'\n'
-                model = debug.Model(f'direct-optional-mode-{name}-{mode}-{transport}', files, args,
-                                    {'GNUMAKEFLAGS': ''}, expected, effects,
-                                    updates={**markers, **updates, **ordinary_updates},
-                                    mtimes_ns=dict.fromkeys(files, INPUT_TIME))
-                results.append(HeldModel(model, True, before_first + b'left\n', before_first,
-                                         before_second_stdout=prefix))
+                for builtins in (False, True):
+                    flags_for_builtins = () if builtins else ('-rR',)
+                    ident = f'direct-optional-mode-{name}-{mode}-{transport}'
+                    if builtins:
+                        ident += '-builtins'
+                    args = (*flags_for_builtins, '--no-print-directory', '-j2', f'--jobserver-style={transport}',
+                            '-' + mode, *flags, 'all')
+                    expected = {'exit_code': status, 'stdout_template_hex': (prefix + stdout).hex(),
+                                'stderr_template_hex': ''}
+                    effects = seen if mode == 't' else seen + b'ordinary-' + value + b'\n'
+                    model = debug.Model(ident, files, args,
+                                        {'GNUMAKEFLAGS': ''}, expected, effects,
+                                        updates={**markers, **updates, **ordinary_updates},
+                                        mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                    results.append(HeldModel(model, True, before_first + b'left\n', before_first,
+                                             before_second_stdout=prefix))
     return results
 
 

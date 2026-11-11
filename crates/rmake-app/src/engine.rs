@@ -3934,18 +3934,18 @@ impl Engine {
 
         // Limit the build-mode handoff to simple file identities and
         // ungrouped single-colon optional roots.
-        if !self.options.no_rules
-            || self.options.check_symlink_times
+        if self.options.check_symlink_times
             || self.assumptions.is_some()
             || !self.options.include_directories.is_empty()
             || self.database.has_vpaths()
             || !self.vpath_dirs.is_empty()
             || !self.gpath_dirs.is_empty()
-            || !self.database.database_implicit_rules().is_empty()
-            || self.database.rules.contains_key(b".DEFAULT".as_slice())
         {
             return false;
         }
+        let no_recipe_fallback = self.options.no_rules
+            && self.database.database_implicit_rules().is_empty()
+            && !self.database.rules.contains_key(b".DEFAULT".as_slice());
         let mut names = HashSet::new();
         read_files.iter().all(|(file, skip)| {
             let name = without_dot_prefix(&file.name);
@@ -3956,12 +3956,20 @@ impl Engine {
                     && archive_parts(name).is_none()
                     && names.insert(name)
                     && (!file.optional
-                        || self.database.rules.get(name).is_none_or(|rule| {
-                            (rule.dependencies.is_empty() || self.options.load_limit.is_none())
-                                && rule.secondary.is_none()
-                                && rule.group.is_none()
-                                && rule.double_colon.is_none()
-                        })))
+                        || self
+                            .database
+                            .rules
+                            .get(name)
+                            .map_or(no_recipe_fallback, |rule| {
+                                rule.secondary.is_none()
+                                    && rule.group.is_none()
+                                    && rule.double_colon.is_none()
+                                    && if rule.dependencies.is_empty() {
+                                        rule.recipes.is_some() || no_recipe_fallback
+                                    } else {
+                                        no_recipe_fallback && self.options.load_limit.is_none()
+                                    }
+                            })))
         })
     }
 
@@ -12283,6 +12291,9 @@ mod tests {
         };
         let mut reads = vec![(source.clone(), false)];
         assert!(engine.ordinary_mode_remakes_settle(&reads));
+        engine.options.no_rules = false;
+        assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        engine.options.no_rules = true;
 
         let mut alias = source.clone();
         alias.name = b"./optional.gen".to_vec();
@@ -12299,6 +12310,9 @@ mod tests {
             .read(b"optional.gen: ; @:\n", b"Makefile")
             .unwrap();
         assert!(engine.ordinary_mode_remakes_settle(&reads));
+        engine.options.no_rules = false;
+        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        engine.options.no_rules = true;
         engine
             .database
             .read(b"optional.gen: prerequisite\n", b"Makefile")

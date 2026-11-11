@@ -65,7 +65,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 285 profiles. Leading `./` spellings share one target record and still appear
+run all 309 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
@@ -128,7 +128,7 @@ The direct optional-source cases cover independent explicit recipes with no
 prerequisites. They compare successful restarts with two optional sources or a
 mixed required and optional pair. They also verify that a failed optional
 recipe leaves the other root's running recipe and its remaining command in
-the remake phase, with and without `-k`. Each of the 24 profiles checks both
+the remake phase, with and without `-k`. The 48 profiles run with and without built-in rules. Each checks both
 worker releases, the exact output and status, and the resulting files.
 
 The named-source profiles compare `-n`, `-q`, and `-t` when an included
