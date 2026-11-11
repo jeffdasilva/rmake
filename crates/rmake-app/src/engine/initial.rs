@@ -301,9 +301,10 @@ impl Plan {
             }
         };
         database.variables.set_startup_directory_pending();
-        let filesystem = RefCell::new(FilesystemRuntime::with_missing_read_observer(
+        let filesystem = RefCell::new(FilesystemRuntime::with_observers(
             output.clone(),
             crate::debug::missing_file_read,
+            crate::debug::directory_cache_invalidated,
         ));
         filesystem.borrow_mut().set_database_history(
             database
