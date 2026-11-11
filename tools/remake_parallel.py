@@ -51,6 +51,7 @@ class LoadProfile:
     mode: str
     at_release: bytes
     trace: bytes
+    second_trace: bytes | None = None
 
 
 @dataclass(frozen=True)
@@ -168,6 +169,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
         results += load_direct_build_mode_models(direct_load)
         results += load_goal_summary_models(worker, markers)
         results += load_build_mode_models(results, markers)
+        results += named_load_models(results)
     return results
 
 
@@ -1982,6 +1984,66 @@ def load_direct_build_mode_models(available: list[HeldModel]) -> list[HeldModel]
     return results
 
 
+def named_load_models(available: list[HeldModel]) -> list[HeldModel]:
+    dry_named = b'printf "VALUE := rebuilt\\n" > named.gen\n'
+    dry_right = b'python3 worker.py right include\n'
+    dry_tail = b'printf "tail\\n" >> seen\n'
+    rebuilt = b'right\ntail\nread-1\nordinary-loaded-loaded-rebuilt\n'
+    results = []
+    for held in available:
+        base = held.model
+        named_source = base.id.startswith('named-source-mode-')
+        parallel_named = base.id.startswith('parallel-named-mode-') and base.id.endswith('-2-slots')
+        if not (named_source or parallel_named):
+            continue
+        if parallel_named:
+            position, mode, _, _, _ = base.id.removeprefix('parallel-named-mode-').split('-')
+        for tag, load_bytes in (('high', LOAD_HIGH), ('low', LOAD_LOW)):
+            files = {**base.files, 'load.input': load_bytes}
+            model = replace(base, id=f'load-{base.id}-{tag}', files=files,
+                            args=(*base.args[:2], '-l2', *base.args[2:]),
+                            mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+            load = LoadProfile('normal', load_bytes, b'proc\n')
+            if named_source:
+                # Its only live worker does not need a load sample.
+                results.append(replace(held, model=model, load=replace(load, trace=b'')))
+                continue
+
+            high = tag == 'high'
+            stdout = bytes.fromhex(base.expected['stdout_template_hex'])
+            seen, updates = base.seen, base.updates
+            first_stdout = held.before_first_stdout
+            before_second, second_stdout = held.before_second, held.before_second_stdout
+            if high and position == 'middle' and mode in ('n', 'q'):
+                # The named recipe executes with the queued ordinary remake
+                # visit and is already current when the requested mode resumes.
+                seen = before_second + rebuilt
+                updates = {**updates, 'named.gen': b'VALUE := rebuilt\n'}
+                stdout = stdout.removeprefix(dry_named * 2)
+                first_stdout = second_stdout = b''
+            elif high and position == 'last':
+                if mode == 'n':
+                    # The right worker starts only after a restart. Its tail
+                    # and the named recipe are simulated again on that pass.
+                    second_stdout = dry_right + dry_tail + dry_named
+                    before_second += b'read-1\ntail-expanded\n'
+                    seen = before_second + b'right\nread-2\nordinary-loaded-loaded-\n'
+                    stdout = second_stdout + dry_tail + stdout
+                    load = replace(load, second_trace=b'proc\nproc\n')
+                elif mode == 'q':
+                    # The query verdict retires the queued right recipe.
+                    seen = before_second + b'ordinary---\n'
+                    updates = {name: value for name, value in updates.items()
+                               if not name.startswith('right.')}
+                    before_second = second_stdout = None
+            expected = {**model.expected, 'stdout_template_hex': stdout.hex()}
+            model = replace(model, expected=expected, seen=seen, updates=updates)
+            results.append(replace(held, model=model, load=load, overlap=not high,
+                                   before_first_stdout=first_stdout, before_second=before_second,
+                                   before_second_stdout=second_stdout))
+    return results
+
+
 def load_build_mode_models(available: list[HeldModel], markers: dict[str, bytes]) -> list[HeldModel]:
     left_markers = {name: data for name, data in markers.items() if name.startswith('left.')}
     dry_worker = b'python3 worker.py right success\n'
@@ -2394,8 +2456,11 @@ def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
             errors.append('stdout at primary release')
     if held.load is not None and any(
         release.get('load_hex') != held.load.at_release.hex()
-        or release.get('load_trace_hex') != held.load.trace.hex()
-        for release in releases
+        or release.get('load_trace_hex') != (
+            held.load.second_trace if index == 1 and held.load.second_trace is not None
+            else held.load.trace
+        ).hex()
+        for index, release in enumerate(releases)
     ):
         errors.append('load observation at release')
     first = releases[0]
