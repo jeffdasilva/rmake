@@ -3587,7 +3587,11 @@ impl Engine {
                 }
             }
             if !stopped && !pending.is_empty() {
-                if MakefileModes::from_options(&self.options).active() {
+                // Reaping before the next source visit retains the last
+                // named mode while that source still has a pending recipe.
+                if MakefileModes::from_options(&self.options).active()
+                    && !pending.last().is_some_and(|remake| remake.modes.active())
+                {
                     // Pending sources resume with their own build mode. The
                     // last pending source supplies the open error.
                     self.remake_error_cursor = pending
@@ -3609,6 +3613,13 @@ impl Engine {
                             continue;
                         }
                         ran_remake_recipe |= result.ran;
+                        if result.question_outdated {
+                            if !failed && !optional_remake_failed {
+                                remake_question = true;
+                            } else if !remake_question && !remake.file.optional {
+                                failed_remakes.entry(name).or_insert((before, false));
+                            }
+                        }
                         optional_remake_failed |= result.failed && remake.file.optional;
                         if result.failed {
                             if !remake.file.optional {
@@ -3627,7 +3638,13 @@ impl Engine {
                             }
                         } else {
                             self.database_unchecked_times.borrow_mut().remove(name);
-                            if remake.modes.check_update(result) {
+                            // A different named source can have supplied the
+                            // mode when this recipe completed. Check the real
+                            // write when revisiting the source in normal mode.
+                            let completed_in_other_mode = !remake.modes.active()
+                                && result.ran
+                                && result.completion == CompletionTime::AssumeNew;
+                            if remake.modes.check_update(result) || completed_in_other_mode {
                                 changed |= self.modified(name) != before;
                             }
                         }
@@ -4178,15 +4195,14 @@ impl Engine {
             return false;
         }
         let mut named = HashSet::new();
-        read_files.iter().enumerate().all(|(index, (file, skip))| {
+        read_files.iter().all(|(file, skip)| {
             let name = without_dot_prefix(&file.name);
             *skip
                 || goals.is_empty()
                 || (!name.starts_with(b"-l")
                     && archive_parts(name).is_none()
                     && (!self.is_makefile_goal(name, named_sources)
-                        || (named.insert(name)
-                            && self.simple_named_remake(file, name, index == 0))))
+                        || (named.insert(name) && self.simple_named_remake(file, name))))
         })
     }
 
@@ -4202,7 +4218,7 @@ impl Engine {
         })
     }
 
-    fn simple_named_remake(&self, file: &Makefile, name: &[u8], first: bool) -> bool {
+    fn simple_named_remake(&self, file: &Makefile, name: &[u8]) -> bool {
         use rmake_core::filenames::archive_parts;
 
         let primary = file.location.is_none();
@@ -4237,10 +4253,7 @@ impl Engine {
                                         .is_ok_and(|metadata| metadata.is_file())
                             })))
                     && rule.recipes.as_ref().is_some_and(|recipes| {
-                        // Forced lines can run synchronously under a named
-                        // mode. Admit them before any other source can queue work.
-                        (primary && first)
-                            || recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
+                        primary || recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
                     })
             })
     }
@@ -9630,11 +9643,15 @@ impl Engine {
         }
         self.pending_rules.insert(target.to_vec(), state);
         let outcome = self.resume_rule(target);
-        if !self.parallel_graph() {
+        if self.parallel_graph()
+            || (self.remaking
+                && self.parallel_makefile_remakes
+                && self.parallel_jobs.contains_key(target))
+        {
+            outcome
+        } else {
             self.wait_target(target);
             self.done.get(target).copied().unwrap_or(outcome)
-        } else {
-            outcome
         }
     }
 
@@ -11142,7 +11159,14 @@ impl Engine {
         // Empty/shortcut recipes never consume a continuation bitmap. Keep
         // their raw recursion/touch decisions without allocating one per leaf.
         let flow = Flow::new(recipes.iter().map(recursive_line));
-        let parallel = self.parallel_graph();
+        // A forced named source can run its recipe alongside earlier source
+        // jobs even though its prerequisite traversal uses the named mode.
+        let parallel_named_recipe = self.remaking
+            && self.parallel_makefile_remakes
+            && recursive
+            && !self.parallel_jobs.is_empty()
+            && MakefileModes::from_options(&self.options).active();
+        let parallel = self.parallel_graph() || parallel_named_recipe;
         if self.graph_abort == Some(Status::Fatal) {
             return Execution::fatal(false);
         }
