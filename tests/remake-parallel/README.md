@@ -46,8 +46,9 @@ without timing out.
 
 The serial remake path remains for broader debug combinations and makefile
 debug with load limits. With `-n`, `-q`, or `-t`, grouped or double-colon
-optional sources and optional sources with prerequisites under a load
-limit use the serial path. Makefile debug and explicitly requested primary
+optional sources use the serial path. A load-limited optional source with
+prerequisites also uses that path when another read source has a rule.
+Makefile debug and explicitly requested primary
 makefiles also use the serial path. An included makefile named as a goal
 uses the requested mode for its visit.
 
@@ -65,7 +66,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 353 profiles. Leading `./` spellings share one target record and still appear
+run all 389 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
@@ -153,3 +154,10 @@ a later worker failure.
 Two additional query cases use an ordinary recipe expansion without a file
 write. They require the unfinished-jobs diagnostic while the last optional
 remake worker is still held.
+
+The 36 build-mode load cases hold workers under both jobserver transports.
+At high load, a stopped optional remake leaves its prepared sibling queued
+until dry-run, question, or touch takes effect. Keep-going launches that
+worker during the remake. Low-load controls compare an already running
+sibling. A goal with only secondary-expansion effects checks its own
+question result after the queued optional worker is considered.

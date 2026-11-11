@@ -408,6 +408,10 @@ struct MakefileRemake {
 }
 
 impl MakefileRemake {
+    fn stopped(&self) -> bool {
+        self.stopped.as_deref().is_some_and(Cell::get)
+    }
+
     fn take_open_error(&self) -> Option<PendingIncludeError> {
         self.open_error.as_ref()?.take()
     }
@@ -825,6 +829,13 @@ impl ParallelJobs {
         self.overlapping.remove(&(name.to_vec(), identity))
     }
 
+    fn get(&self, name: &[u8], identity: u64) -> Option<&ParallelJob> {
+        self.primary
+            .get(name)
+            .filter(|job| job.identity == identity)
+            .or_else(|| self.overlapping.get(&(name.to_vec(), identity)))
+    }
+
     fn contains_key(&self, name: &[u8]) -> bool {
         self.primary.contains_key(name) || self.overlapping.keys().any(|(target, _)| target == name)
     }
@@ -1163,6 +1174,7 @@ pub struct Engine {
     shutdown_launch_failure: RefCell<Option<FailedOwner>>,
     remaking: bool,
     parallel_makefile_remakes: bool,
+    defer_stopped_remake_load: bool,
     active_makefile_remake: Option<MakefileRemake>,
     // A child owns its failure policy, but source-open diagnostics follow the
     // last root visited by the remake traversal.
@@ -1738,6 +1750,7 @@ impl Engine {
             shutdown_launch_failure: RefCell::new(None),
             remaking: false,
             parallel_makefile_remakes: false,
+            defer_stopped_remake_load: false,
             active_makefile_remake: None,
             remake_error_cursor: None,
             optional_remake_failures: HashMap::new(),
@@ -3236,6 +3249,7 @@ impl Engine {
             self.parallel_makefile_remakes =
                 self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
             self.remaking = true;
+            self.defer_stopped_remake_load = ordinary_mode;
             let mut changed = false;
             let mut ran_remake_recipe = false;
             let mut failed = false;
@@ -3522,6 +3536,7 @@ impl Engine {
             }
             // Only a continuing ordinary build may overlap an already
             // running sibling from a stopped optional remake.
+            self.defer_stopped_remake_load = false;
             if stopped || changed || failed || self.shutdown.get() != Shutdown::Running {
                 self.wait_all_jobs();
             }
@@ -4071,6 +4086,23 @@ impl Engine {
         let no_recipe_fallback = self.options.no_rules
             && self.database.database_implicit_rules().is_empty()
             && !self.database.rules.contains_key(b".DEFAULT".as_slice());
+        if self.options.load_limit.is_some() {
+            let ruled_sources = || {
+                read_files.iter().filter_map(|(file, skip)| {
+                    (!skip)
+                        .then(|| self.database.rules.get(without_dot_prefix(&file.name)))
+                        .flatten()
+                        .map(|rule| (file, rule))
+                })
+            };
+            if ruled_sources().any(|(file, rule)| file.optional && !rule.dependencies.is_empty())
+                && ruled_sources().take(2).count() > 1
+            {
+                // A different root can still change the restart decision
+                // before a stopped optional owner's queue settles.
+                return false;
+            }
+        }
         let mut names = HashSet::new();
         read_files.iter().all(|(file, skip)| {
             let name = without_dot_prefix(&file.name);
@@ -4092,7 +4124,7 @@ impl Engine {
                                     && if rule.dependencies.is_empty() {
                                         rule.recipes.is_some() || no_recipe_fallback
                                     } else {
-                                        no_recipe_fallback && self.options.load_limit.is_none()
+                                        no_recipe_fallback
                                     }
                             })))
         })
@@ -4944,7 +4976,9 @@ impl Engine {
             // Reap against the previous pass's cursor. A pass with no newly
             // completed commands waits before changing which root is current.
             self.poll_jobs();
-            if self.recipe_reaps == last_reaps && !self.parallel_jobs.is_empty() {
+            if self.recipe_reaps == last_reaps
+                && self.parallel_jobs.values().any(|job| !job.waiting_load)
+            {
                 self.reap_job();
                 self.poll_jobs();
             }
@@ -5007,7 +5041,9 @@ impl Engine {
                 }
             }
             if self.graph_epoch == pass_epoch
-                && self.parallel_jobs.is_empty()
+                && (self.parallel_jobs.is_empty()
+                    || (self.defer_stopped_remake_load
+                        && self.parallel_jobs.values().all(|job| job.waiting_load)))
                 && requests.iter().any(|request| request.active)
             {
                 self.fatal(None, b"cannot advance pending makefile remakes");
@@ -5351,13 +5387,30 @@ impl Engine {
             }
             return;
         }
-        while !self.load_waiting.is_empty() {
+        while let Some(last) = self.load_waiting.len().checked_sub(1) {
             if self.parallel_jobs.values().any(|job| !job.waiting_load) && self.load_high() {
                 break;
             }
-            // A stopped optional traversal can leave an already-admitted
-            // recipe queued. Its reservation survives the owner's stop.
-            let (target, identity) = self.load_waiting.pop().expect("nonempty waiting queue");
+            let next = if self.defer_stopped_remake_load
+                && self
+                    .active_makefile_remake
+                    .as_ref()
+                    .is_none_or(MakefileRemake::stopped)
+            {
+                // A queued sibling of a stopped optional remake keeps its
+                // reservation and sees the ordinary build mode on dispatch.
+                self.load_waiting.iter().rposition(|(name, identity)| {
+                    !self
+                        .parallel_jobs
+                        .get(name, *identity)
+                        .and_then(|job| job.continuation.remake.as_ref())
+                        .is_some_and(MakefileRemake::stopped)
+                })
+            } else {
+                Some(last)
+            };
+            let Some(index) = next else { break };
+            let (target, identity) = self.load_waiting.remove(index);
             self.complete_job((target, identity, None), false);
         }
     }
@@ -11154,7 +11207,9 @@ impl Engine {
                 }
             }
             if self.options.question && !force {
-                self.would_build = true;
+                if self.remaking || !self.optional_remake() {
+                    self.would_build = true;
+                }
                 return Execution::question(ran, flow.continuation_cleanup())
                     .with_recursion(!flow.has_ordinary());
             }
@@ -12517,7 +12572,18 @@ mod tests {
             .unwrap();
         assert!(engine.ordinary_mode_remakes_settle(&reads));
         engine.options.load_limit = Some(1.0);
+        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        let mut required = source;
+        required.name = b"required.gen".to_vec();
+        required.optional = false;
+        engine
+            .database
+            .read(b"required.gen: ; @:\n", b"Makefile")
+            .unwrap();
+        reads.push((required, false));
         assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        engine.options.load_limit = None;
+        assert!(engine.ordinary_mode_remakes_settle(&reads));
     }
 
     #[test]
