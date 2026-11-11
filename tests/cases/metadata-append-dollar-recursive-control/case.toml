@@ -1,0 +1,12 @@
+id = "metadata-append-dollar-recursive-control"
+requirement = "variables.metadata"
+candidate = "required"
+description = "MAKEFILE_LIST append flavor and byte-preserving source metadata."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6c6973743d66696c657c7265637572736976657c5b7072656669782024782e6d6b5d7c5b70726566697820657870616e6465642e6d6b5d0a6c6973743d66696c657c7265637572736976657c5b7072656669782024782e6d6b5d7c5b70726566697820657870616e6465642e6d6b5d0a"
+stderr_hex = ""

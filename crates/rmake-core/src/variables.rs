@@ -2385,6 +2385,7 @@ impl VariableStore {
     }
 
     /// Append already-expanded metadata bytes, keeping the previous flavor.
+    /// An absent binding is created as recursive, as with ordinary append.
     /// Unlike ordinary +=, a simple binding must not evaluate these bytes again.
     pub fn append_literal_at(
         &mut self,
@@ -2402,7 +2403,7 @@ impl VariableStore {
             return Ok(());
         }
         let (mut combined, flavor) = self.get(name).map_or_else(
-            || (Vec::new(), Flavor::Simple),
+            || (Vec::new(), Flavor::Recursive),
             |old| (old.value.clone(), old.flavor),
         );
         if !combined.is_empty() {
