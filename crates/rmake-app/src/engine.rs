@@ -8876,7 +8876,7 @@ impl Engine {
             // Expansion is per file, not once for every peer traversal.
             self.store_expanded_rule(target, rule.clone());
         }
-        let serial_phase = (double_colon || grouped)
+        let serial_phase = grouped
             && !rule.dependencies.is_empty()
             && rule.grouped_double_id().is_none()
             && self.special(b".NOTPARALLEL", target, false);

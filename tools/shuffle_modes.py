@@ -96,6 +96,18 @@ def pattern_wait_cases(reference, candidate, root):
                     + '%.out: p1 p2 ; @$(file >>seen,goal):\n'
                     'p1: ; @python3 worker.py left observe\np2 a b x y: ; @$(file >>seen,$@):\n')
         scenarios.append(('targeted-' + name, 'none', makefile, held_effects, effects))
+    double_colon = (
+        ('head-deferred', 'p1 $$(DYNAMIC)', 'z', b'x\ny\n', b'x\ny\nleft\nhead\nz\n'),
+        ('tail-deferred', 'z', 'p1 $$(DYNAMIC)', b'z\nhead\nx\ny\n', b'z\nhead\nx\ny\nleft\n'),
+        ('head-static', 'p1 x y', 'z', b'', b'left\nx\ny\nhead\nz\n'),
+        ('tail-static', 'z', 'p1 x y', b'z\nhead\n', b'z\nhead\nleft\nx\ny\n'),
+    )
+    for name, head, tail, held_effects, effects in double_colon:
+        makefile = ('.SECONDEXPANSION:\n.NOTPARALLEL: all.out\nDYNAMIC := x y\n'
+                    f'all.out:: {head} ; @$(file >>seen,head):\n'
+                    f'all.out:: {tail} ; @$(file >>seen,goal):\n'
+                    'p1: ; @python3 worker.py left observe\nx y z: ; @$(file >>seen,$@):\n')
+        scenarios.append(('targeted-double-' + name, 'none', makefile, held_effects, effects))
     records = []
     runtime = root / 'observation'
     for (name, seed, makefile, held_effects, effects), transport in itertools.product(

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "targeted-notparallel-double-waits-tail-deferred-reverse"
+requirement = "parallel.targeted-notparallel-waits"
+candidate = "required"
+provenance = "Original targeted double-colon model observed twice against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "--shuffle=reverse", "all.out"]
+
+[expected]
+exit_code = 0
+stdout = "leaf a\nleaf b\nhead a b | \nleaf e\nleaf d\nleaf c\nleaf x\ntail x c d e | \n"
+stderr = ""

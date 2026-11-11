@@ -3751,10 +3751,14 @@ impl Database {
                 .map(|dependency| dependency.name.clone())
                 .collect();
             for target in serial_targets {
-                if let Some(rule) = self.rules.get_mut(&target)
-                    && rule.group.is_none()
-                    && rule.double_colon.is_none()
-                {
+                let Some(rule) = self.rules.get_mut(&target) else {
+                    continue;
+                };
+                if let Some(branches) = &mut rule.double_colon {
+                    for branch in branches.iter_mut().filter(|branch| branch.group.is_none()) {
+                        branch.insert_targeted_waits();
+                    }
+                } else if rule.group.is_none() {
                     rule.insert_targeted_waits();
                 }
             }

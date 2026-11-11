@@ -219,17 +219,11 @@ impl Enabled {
             .filter(|d| d.name != b".WAIT")
             .count();
         let targeted = count > 1
+            && rule.group.is_some()
             && db
                 .rules
                 .get(b".NOTPARALLEL".as_slice())
-                .is_some_and(|special| {
-                    special.dependencies.iter().any(|dep| dep.name == name)
-                        && (rule.group.is_some()
-                            || db
-                                .rules
-                                .get(name)
-                                .is_some_and(|root| root.double_colon.is_some()))
-                });
+                .is_some_and(|special| special.dependencies.iter().any(|dep| dep.name == name));
         let wait = rule
             .dependencies
             .iter()
