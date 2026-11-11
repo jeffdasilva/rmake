@@ -4645,9 +4645,15 @@ impl Expansion<'_, '_> {
                 };
                 let paths = words(first)
                     .filter(|path| directory.is_some() || path.starts_with(b"/"))
-                    .filter_map(|path| absolute_path(directory.unwrap_or(b"/"), path))
-                    .collect::<Vec<_>>();
-                join_words(paths.iter().map(Vec::as_slice))
+                    .filter_map(|path| absolute_path(directory.unwrap_or(b"/"), path));
+                let mut output = Vec::new();
+                for path in paths {
+                    if !output.is_empty() {
+                        push(&mut output, b" ")?;
+                    }
+                    push(&mut output, &path)?;
+                }
+                Ok(output)
             }
             _ => Err(ExpandError::Unsupported(name.to_vec())),
         }
