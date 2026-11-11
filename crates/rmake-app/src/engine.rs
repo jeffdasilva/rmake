@@ -7566,7 +7566,7 @@ impl Engine {
                 );
             }
         }
-        let candidates = if archive_search {
+        let mut candidates = if archive_search {
             self.database
                 .implicit_archive_candidates_excluding(target, active)
         } else {
@@ -7583,7 +7583,7 @@ impl Engine {
                     crate::debug::Event::TryingHarder(debug_depth + active.len() + 2),
                 );
             }
-            for (ordinal, candidate) in candidates.iter().enumerate() {
+            for (ordinal, candidate) in candidates.iter_mut().enumerate() {
                 if *budget == 0 {
                     return Ok(None);
                 }
@@ -7969,7 +7969,7 @@ impl Engine {
                             ),
                         );
                     }
-                    let mut selected = candidate.rule.clone();
+                    let mut selected = std::mem::take(&mut candidate.rule);
                     // A pattern barrier cannot cross into the target's explicit prerequisites.
                     Self::trim_implicit_waits(&mut dependencies);
                     selected.dependencies = dependencies;
