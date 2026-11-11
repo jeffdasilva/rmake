@@ -3883,7 +3883,7 @@ impl Engine {
             return false;
         }
         if read_files.iter().any(|(file, skip)| file.optional && !skip)
-            && !self.optional_mode_sources_have_no_rules(read_files)
+            && !self.optional_mode_sources_settle(read_files)
         {
             return false;
         }
@@ -3897,11 +3897,11 @@ impl Engine {
         })
     }
 
-    fn optional_mode_sources_have_no_rules(&self, read_files: &[(Makefile, bool)]) -> bool {
+    fn optional_mode_sources_settle(&self, read_files: &[(Makefile, bool)]) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
-        // The frozen rule table rules out dispatch by an optional source.
-        // A physical write can still affect the next reader after a restart.
+        // Simple optional roots can run their own recipes without abandoning
+        // running prerequisites when a remake fails.
         if !self.options.no_rules
             || self.options.check_symlink_times
             || self.assumptions.is_some()
@@ -3923,7 +3923,13 @@ impl Engine {
                     && !name.starts_with(b"-l")
                     && archive_parts(name).is_none()
                     && names.insert(name)
-                    && (!file.optional || !self.database.rules.contains_key(name)))
+                    && (!file.optional
+                        || self.database.rules.get(name).is_none_or(|rule| {
+                            rule.dependencies.is_empty()
+                                && rule.secondary.is_none()
+                                && rule.group.is_none()
+                                && rule.double_colon.is_none()
+                        })))
         })
     }
 
@@ -12180,7 +12186,7 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_mode_optional_sources_require_unique_rule_free_names() {
+    fn ordinary_mode_optional_sources_require_unique_independent_names() {
         let launch = Engine::invocation(
             ["-r", "-n", "all"].into_iter().map(OsString::from),
             b"rmake",
@@ -12211,6 +12217,11 @@ mod tests {
         engine.vpath_dirs.push(b"search".to_vec());
         assert!(!engine.ordinary_mode_remakes_settle(&reads));
         engine.vpath_dirs.clear();
+        engine
+            .database
+            .read(b"optional.gen: ; @:\n", b"Makefile")
+            .unwrap();
+        assert!(engine.ordinary_mode_remakes_settle(&reads));
         engine
             .database
             .read(b"optional.gen: prerequisite\n", b"Makefile")
