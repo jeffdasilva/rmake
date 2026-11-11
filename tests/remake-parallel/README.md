@@ -48,6 +48,7 @@ The serial remake path remains for broader debug combinations and makefile
 debug with load limits. With `-n`, `-q`, or `-t`, optional sources with
 prerequisites, grouped targets or double-colon rules still use the serial
 path, as do command-line goals naming a read makefile and makefile debug.
+A read makefile named as a goal uses the requested mode for its visit.
 
 ## Duplicate reads
 
@@ -63,7 +64,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 223 profiles. Leading `./` spellings share one target record and still appear
+run all 237 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
@@ -128,3 +129,9 @@ mixed required and optional pair. They also verify that a failed optional
 recipe leaves the other root's running recipe and its remaining command in
 the remake phase, with and without `-k`. Each of the 24 profiles checks both
 worker releases, the exact output and status, and the resulting files.
+
+The named-source profiles compare `-n`, `-q`, and `-t` when an included
+makefile is also a command-line goal. Only the unnamed worker runs. The
+cases check the second dry-run print after a restart, the retained query
+result that prevents a restart, optional query diagnostics with and without
+keep-going, and the new input created by touch mode.
