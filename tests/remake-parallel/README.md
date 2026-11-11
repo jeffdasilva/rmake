@@ -65,13 +65,19 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 353 profiles. Leading `./` spellings share one target record and still appear
+run all 395 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
 The prototype at `0dc03fcaf` serialized the workers in all 20 initial
 duplicate-read cases and matched the final ordinary observations in ten.
 The overlap checks detected all twenty.
+
+The named primary makefile profiles hold both include workers under `-n`,
+`-q`, and `-t`. They cover default discovery and `-f ./Makefile`, two or
+three job slots, and both jobserver transports. A current source, a source
+made stale by an existing prerequisite, and an unruled source exercise the
+summary, restart, and ordinary-goal effects independently.
 
 ## Load limits
 

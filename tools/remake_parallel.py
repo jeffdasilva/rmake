@@ -134,6 +134,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += direct_optional_mode_models(worker, markers)
     results += named_source_mode_models(worker, markers)
     results += parallel_named_mode_models(worker, markers)
+    results += primary_named_mode_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
@@ -723,6 +724,67 @@ def parallel_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list
                                 updates={**markers, 'right.gen': generated['right.gen']},
                                 mtimes_ns=dict.fromkeys(failed, INPUT_TIME))
             results.append(HeldModel(model, True, second, first, before_second_stdout=b'left\n'))
+    return results
+
+
+def primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    source = (
+        '.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+        'include left.gen right.gen\n'
+        'left.gen: ; @python3 worker.py left include\n'
+        'right.gen:\n'
+        '\t@python3 worker.py right include\n'
+        '\t@$(file >>seen,tail-expanded)printf "tail\\n" >> seen\n'
+        'all: result\n'
+        'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT))printf "ordinary\\n" > "$@"\n'
+    )
+    primary_rule = 'Makefile: primer ; @printf "# remade\\n" >> "$@"\n'
+    first = BEFORE_FIRST + b'tail-expanded\n'
+    second = first + b'left\n'
+    completed = second + b'right\ntail\n'
+    restarted = completed + b'read-1\n'
+    loaded = restarted + b'ordinary-loaded-loaded\n'
+    generated = {'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
+    current = b"make: 'Makefile' is up to date.\n"
+    unruled = b"make: Nothing to be done for 'Makefile'.\n"
+    dry_remake = b'printf "# remade\\n" >> "Makefile"\n'
+    ordinary = b'printf "ordinary\\n" > "result"\n'
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for discovery, slots in (('explicit', 3), ('explicit', 2), ('default', 3)):
+            for age in ('current', 'stale', 'unruled'):
+                if age == 'unruled' and (discovery, slots) != ('explicit', 3):
+                    continue
+                ruled = age != 'unruled'
+                stale = age == 'stale'
+                makefile = source + primary_rule if ruled else source
+                files = {'Makefile': makefile.encode(), 'worker.py': worker, 'seen': ANCHOR}
+                if ruled:
+                    files['primer'] = b'primer\n'
+                times = dict.fromkeys(files, INPUT_TIME)
+                if ruled:
+                    times['primer'] += 2_000_000_000 if stale else -2_000_000_000
+                summary = current if ruled else unruled
+                dry_prefix = dry_remake if stale else b''
+                touch_prefix = b'touch Makefile\n' if stale else b''
+                cases = (
+                    ('n', 0, dry_prefix, dry_prefix + summary + ordinary, loaded, {}),
+                    ('q', 1, b'', b'', completed + b'ordinary--\n' if stale else loaded, {}),
+                    ('t', 0, touch_prefix, summary + b'touch result\n', restarted, {'result': b''}),
+                )
+                for mode, status, prefix, suffix, seen, updates in cases:
+                    args = ('-rR', '--no-print-directory', f'-j{slots}', f'--jobserver-style={transport}',
+                            '-' + mode)
+                    if discovery == 'explicit':
+                        args += ('-f', './Makefile')
+                    args += ('./Makefile', 'all')
+                    expected = {'exit_code': status, 'stdout_template_hex': (prefix + suffix).hex(),
+                                'stderr_template_hex': ''}
+                    ident = f'primary-named-mode-{discovery}-{age}-{mode}-{transport}-{slots}-slots'
+                    model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
+                                        updates={**markers, **generated, **updates}, mtimes_ns=times)
+                    results.append(HeldModel(model, True, second, first,
+                                             before_second_stdout=prefix, before_first_stdout=prefix))
     return results
 
 
