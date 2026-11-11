@@ -3748,6 +3748,21 @@ impl Database {
         self.export_all
     }
 
+    fn notparallel_prerequisites(&self) -> Option<&[Dependency]> {
+        let rule = self.rules.get(b".NOTPARALLEL".as_slice())?;
+        let head = rule
+            .double_colon
+            .as_ref()
+            .and_then(|branches| branches.first())
+            .unwrap_or(rule);
+        Some(&head.dependencies)
+    }
+
+    pub fn globally_serial(&self) -> bool {
+        self.notparallel_prerequisites()
+            .is_some_and(|prerequisites| prerequisites.iter().all(|dependency| dependency.hidden))
+    }
+
     /// After the initial dependency snapshot, global setup expansions share
     /// recipe expansion's restriction on introducing new rules. A fresh
     /// database on Makefile restart restores the reader phase.
@@ -3764,10 +3779,9 @@ impl Database {
             });
             self.export_all |= named || phony;
             let serial_targets: HashSet<_> = self
-                .rules
-                .get(b".NOTPARALLEL".as_slice())
+                .notparallel_prerequisites()
                 .into_iter()
-                .flat_map(|rule| &rule.dependencies)
+                .flatten()
                 .filter(|dependency| !dependency.hidden && dependency.name != b".WAIT")
                 .map(|dependency| dependency.name.clone())
                 .collect();

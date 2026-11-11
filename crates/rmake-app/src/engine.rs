@@ -3656,7 +3656,7 @@ impl Engine {
         self.debug_pass = self.debug_progress();
         crate::debug::emit(&self.output, crate::debug::Event::UpdatingGoals);
         if self.shuffle.enabled() {
-            let disabled = self.special(b".NOTPARALLEL", b"", true);
+            let disabled = self.database.globally_serial();
             self.shuffle.start(&mut goals, &self.database, disabled);
         }
         let mut failed = false;
@@ -4670,11 +4670,7 @@ impl Engine {
     fn job_slots(&self) -> usize {
         if (self.remaking && !self.parallel_makefile_remakes)
             || self.options.inherited_jobs
-            || self
-                .database
-                .rules
-                .get(b".NOTPARALLEL".as_slice())
-                .is_some_and(|rule| rule.dependencies.iter().all(|dep| dep.hidden))
+            || self.database.globally_serial()
         {
             1
         } else if self.jobserver.is_some() || self.unbounded_auth_jobs {
@@ -6710,7 +6706,7 @@ impl Engine {
             }
             self.intermediates.extend(intermediate_names);
             if self.shuffle.enabled() && (implicit_prefix != 0 || !self.shuffle.has_plan(&name)) {
-                let disabled = self.special(b".NOTPARALLEL", b"", true);
+                let disabled = self.database.globally_serial();
                 self.shuffle
                     .regenerate(&name, &rule, &self.database, disabled, implicit_prefix);
             }
@@ -7584,7 +7580,7 @@ impl Engine {
             self.retain_database_context(target, branch, &variables);
         }
         if self.shuffle.enabled() {
-            let disabled = self.special(b".NOTPARALLEL", b"", true);
+            let disabled = self.database.globally_serial();
             self.shuffle
                 .regenerate(target, rule, &self.database, disabled, 0);
         }

@@ -162,6 +162,20 @@ def pattern_wait_cases(reference, candidate, root):
         makefile = ('.SECONDEXPANSION:\n' + setup + declarations + 'all.out:' + group_recipe
                     + 'p1: ; @python3 worker.py left observe\nx y: ; @$(file >>seen,$@):\n')
         scenarios.append(('declaration-' + name, 'none', makefile, held_effects, effects))
+    special_branches = (
+        ('first-named-target', '.NOTPARALLEL:: all.out\n', blocked),
+        ('first-named-other', '.NOTPARALLEL:: other.out\n', overlap),
+        ('later-named-target', '.NOTPARALLEL:: other.out\n.NOTPARALLEL:: all.out\n', overlap),
+        ('first-named-target-later-empty', '.NOTPARALLEL:: all.out\n.NOTPARALLEL::\n', blocked),
+        ('first-named-other-later-empty', '.NOTPARALLEL:: other.out\n.NOTPARALLEL::\n', overlap),
+        ('first-empty-later-named', '.NOTPARALLEL::\n.NOTPARALLEL:: all.out\n', blocked),
+        ('first-order-only-target', '.NOTPARALLEL:: | all.out\n', blocked),
+        ('first-deferred', '.NOTPARALLEL:: $$(NAMED)\n', overlap),
+    )
+    for name, special, (held_effects, effects) in special_branches:
+        makefile = ('.SECONDEXPANSION:\nNAMED := all.out\n' + special + 'all.out: p1 x y' + group_recipe
+                    + 'p1: ; @python3 worker.py left observe\nx y: ; @$(file >>seen,$@):\n')
+        scenarios.append(('notparallel-special-' + name, 'none', makefile, held_effects, effects))
     records = []
     runtime = root / 'observation'
     for (name, seed, makefile, held_effects, effects), transport in itertools.product(

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "notparallel-special-first-branch-empty-before-named-target"
+requirement = "parallel.notparallel-special-first-branch"
+candidate = "required"
+provenance = "Original special-target branch model observed twice against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "--shuffle=reverse", "all.out"]
+
+[expected]
+exit_code = 0
+stdout = "leaf a\nleaf b\nleaf c\ngoal all.out a b c | \n"
+stderr = ""
