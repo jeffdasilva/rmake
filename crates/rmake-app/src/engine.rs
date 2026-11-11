@@ -4006,6 +4006,20 @@ impl Engine {
             && !stopped_on_failure
             && !fatal
             && self.graph_abort.is_none();
+        if query_first
+            && !failed
+            && !self.forced_query_stop
+            && self.shutdown.get() == Shutdown::Running
+            && self.options.question
+            && !self.options.keep_going
+            && self.has_unfinished_query_tail()
+        {
+            self.expansion_error(
+                None,
+                &ExpandError::Safety(rmake_core::safety::SafetyError::StalledDoubleColonQuery),
+            );
+            return 2;
+        }
         if failed && (!self.forced_query_stop || fatal) && !query_first {
             2
         } else if self.would_build || query_first {
@@ -4912,6 +4926,25 @@ impl Engine {
                 return Ok(None);
             }
         }
+    }
+
+    fn has_unfinished_query_tail(&self) -> bool {
+        // Once a query verdict is established, a later goal cannot remove its
+        // unfinished tail from the pass. A grouped recipe may have completed
+        // one of those branches through a different goal.
+        self.ordinary_queries
+            .deferred_tails
+            .iter()
+            .any(|(target, tail)| {
+                if !tail.queued {
+                    return false;
+                }
+                let mut branch_key = (target.clone(), 0);
+                tail.state.branches.iter().any(|(ordinal, rule)| {
+                    branch_key.1 = *ordinal;
+                    rule.is_some() && !self.database_branch_outcomes.contains_key(&branch_key)
+                })
+            })
     }
 
     fn queued_query_tail(&self, target: &[u8]) -> bool {

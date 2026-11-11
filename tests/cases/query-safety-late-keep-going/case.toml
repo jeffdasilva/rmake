@@ -1,0 +1,9 @@
+id = "query-safety-late-keep-going"
+requirement = "compatibility.double-colon-query-boundaries"
+candidate = "required"
+args = ["-rR", "-s", "--no-print-directory", "-q", "-f", "Makefile", "a", "b", "late"]
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

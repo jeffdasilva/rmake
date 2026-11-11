@@ -1,0 +1,9 @@
+id = "query-safety-single-goal"
+requirement = "compatibility.double-colon-query-boundaries"
+candidate = "required"
+args = ["-rR", "-s", "--no-print-directory", "-q", "-f", "Makefile", "a"]
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""
