@@ -94,7 +94,7 @@ The [locale collation slice](locale-collation.md) closes 33 observed preceding m
 
 ## Parallel modes, makefile remakes, and jobserver paths
 
-The held remake gate covers 1,004 profiles using both Linux jobserver
+The held remake gate covers 1,001 profiles using both Linux jobserver
 transports. It includes direct grouped optional recipes, stopped optional
 workers retained across load limits, named include and primary makefile goals,
 and exact remake-debug prefixes under dry-run, question, and touch. The
