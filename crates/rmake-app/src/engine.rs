@@ -4349,6 +4349,7 @@ impl Engine {
                         && rule.double_colon.is_none()
                         && (rule.dependencies.is_empty()
                             || (self.is_makefile_goal(name, named_sources)
+                                && rule.dependencies.iter().all(|dep| dep.name != b".WAIT")
                                 && self.simple_named_remake(file, name, &[], false)))
                 })
         })
@@ -4414,6 +4415,11 @@ impl Engine {
                             && rule.dependencies.iter().enumerate().all(|(index, dep)| {
                                 // The remake visit owns expansion of this slot.
                                 deferred.next_if(|clause| clause.index == index).is_some()
+                                    || (primary
+                                        && rule.secondary.is_none()
+                                        && rule.group.is_none()
+                                        && !dep.hidden
+                                        && dep.name == b".WAIT")
                                     || self.simple_remake_prerequisite(dep, earlier_sources)
                             })))
                     && rule.recipes.is_some()
