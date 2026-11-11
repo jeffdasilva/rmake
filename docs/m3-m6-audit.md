@@ -61,7 +61,7 @@ pinned development profile does not establish those surfaces.
 | Localized diagnostics | [Typed diagnostics and directory output](nls-diagnostics.md) run 161 cases, including include replay and real restarts. [Catalog coverage](../tests/catalog-coverage/README.md) exercises all 30 attributed release languages and three fallback controls. [Startup usage](startup-usage.md) checks the libc option domain with portable and separately authenticated cases. Broader producer and profile interactions remain open. |
 | Integration and self-hosting | The [pinned project corpus](project-integration.md) covers xxHash and zlib as serial leaf builds, GNU gzip and GNU Patch as serial recursive builds, and Lua with a two-slot pipe jobserver. Both build profiles require exact GNU2 comparisons across builds, no-ops, header rebuilds and independently checked executable output. The selected self-host flow exercises xxHash. The developer gate checks verified warm oracle bootstrap, six cleanup modes, benchmark error handling, and positive untimed benchmark reports under both outer engines. A separate cold/warm bootstrap audit uses verified inputs in disposable installation prefixes. Broader project, compiler, developer environment and performance coverage remains open. |
 | Performance | [Prepared startup retention](startup-retention.md) removes unused copies with repeated allocation observations and mixed paired timing evidence. [Automatic snapshots](automatic-snapshots.md) avoid unused owned preparation with raw glibc-request and paired timing evidence. General performance parity, persistent cache correctness and complete workload/profile acceptance remain open. |
-| Unsafe oracle behavior | The owner approved [documented safe errors](safety-exceptions.md), including the explicit normal-exit nested-short extension. The separate gate covers 32 inputs: 17 recorded crash/hang cases plus 15 approved state hazards, with zero exact-conformance credit. Eighteen nested-short boundaries retain exact GNU behavior. CLI eval/restart controls remain required ordinary fixtures. Broader decoder/resource/profile work stays open. |
+| Unsafe oracle behavior | The owner approved [documented safe errors](safety-exceptions.md), including the explicit normal-exit nested-short extension. The separate gate covers 34 inputs, including two stalled double-colon query tails. All 134 candidate-only cells run twice and earn zero exact-conformance credit. Eighteen nested-short boundaries retain exact GNU behavior. CLI eval/restart controls remain required ordinary fixtures. Broader decoder/resource/profile work stays open. |
 
 The live target declaration gate now includes eager recipe-time `eval` in the
 active file scope. It verifies inherited, pattern and automatic variables,
@@ -94,7 +94,7 @@ The [locale collation slice](locale-collation.md) closes 33 observed preceding m
 
 ## Parallel modes, makefile remakes, and jobserver paths
 
-The held remake gate covers 761 profiles using both Linux jobserver
+The held remake gate covers 893 profiles using both Linux jobserver
 transports. It includes direct grouped optional recipes, stopped optional
 workers retained across load limits, named include and primary makefile goals,
 and exact remake-debug prefixes under dry-run, question, and touch. The
@@ -104,11 +104,14 @@ exercise two- and three-slot scheduling alongside earlier include workers.
 Forced named includes exercise required and optional sources in three read
 positions, including an early question exit. Primary prerequisite profiles
 cover stock C rules, user pattern rules, and an existing source with no
-applicable rule. Expanded file identities and combined load, grouped-remake,
-and debug paths need broader coverage.
+applicable rule or a prerequisite already running as an earlier include.
+Named includes with file prerequisites exercise optional immediate pass boundaries.
+Plain subdirectory goals overlap leaf-named required and optional makefile remakes.
+Directory-qualified sources, expanded identities, and combined load,
+grouped-remake, and debug paths need broader coverage.
 [Held remake gate](../tests/remake-parallel/README.md)
 
-The ordinary inventory contains 30,163 case manifests and 223 requirements.
+The ordinary inventory contains 30,169 case manifests and 224 requirements.
 Serial double-colon failure recovery, returned-failure diagnostics, and cached
 visits for repeated required makefiles and failed optional declarations have
 independent expectations for exit status, streams, and file effects.
@@ -137,6 +140,14 @@ took 99.70 and 82.96 ms. Each dry run verified status, streams, and file
 paths, contents, and mtimes. Global `.SECONDARY` and live aliases retain
 the explicit-goal-first check.
 [Intermediate goal benchmark](https://github.com/jeffdasilva/rmake/pull/384)
+
+Filtering large implicit rule tables by the last literal suffix byte cut
+median time from 41.64 to 31.98 ms for 512 patterns and 1,000 lookups and
+from 66.31 to 45.35 ms for 1,024 patterns and 1,500 directory lookups. GNU Make
+4.4.1 took 22.34 and 35.72 ms. Both workloads verified streams, status, and
+file and directory state. The filter preserves declaration order and full
+pattern matching, and uses the direct scan for small or dense selections.
+[Implicit suffix benchmark](https://github.com/jeffdasilva/rmake/pull/391)
 
 The [shuffle fixtures](shuffle.md) qualify implicit WAIT and targeted
 NOTPARALLEL across ordinary, grouped, and double-colon rules. The

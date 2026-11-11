@@ -3276,6 +3276,7 @@ impl Engine {
             let mut stopped = false;
             let mut pending = Vec::new();
             let initial_reaps = self.recipe_reaps;
+            let mut pass_reaps = initial_reaps;
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
@@ -3287,7 +3288,7 @@ impl Engine {
                 .filter(|(file, _)| !file.optional)
                 .map(|(file, _)| file.name.as_slice())
                 .collect();
-            for (makefile, skip) in &read_files {
+            for (source_index, (makefile, skip)) in read_files.iter().enumerate() {
                 self.database_remake_started.insert(makefile.name.clone());
                 if *skip {
                     if !makefile.optional
@@ -3589,11 +3590,41 @@ impl Engine {
                         .remove(&makefile.name);
                     // A completed recipe can invalidate the makefile's time.
                     // Expansion effects alone leave its cached observation intact.
-                    if visit_modes.check_update(result) {
-                        changed |= self.modified(&makefile.name) != before;
+                    let physically_changed =
+                        visit_modes.check_update(result) && self.modified(&makefile.name) != before;
+                    changed |= physically_changed;
+                    let simulated_change =
+                        visit_modes.dry_run && result.completion == CompletionTime::AssumeNew;
+                    if self.parallel_makefile_remakes
+                        && optional
+                        && visit_modes.active()
+                        && !result.question_outdated
+                        && (physically_changed || simulated_change)
+                        && !pending.is_empty()
+                        && read_files[source_index + 1..]
+                            .iter()
+                            .any(|(_, skip)| !*skip)
+                    {
+                        // An immediate optional update ends this visit pass.
+                        // A previous worker can complete under the named mode
+                        // before the next unvisited source starts.
+                        self.poll_jobs();
+                        if self.recipe_reaps == pass_reaps && !self.parallel_jobs.is_empty() {
+                            let previous_jobs = self.parallel_jobs.len();
+                            while self.parallel_jobs.len() >= previous_jobs
+                                && self.shutdown.get() == Shutdown::Running
+                                && self.graph_abort.is_none()
+                            {
+                                self.reap_job();
+                            }
+                            self.poll_jobs();
+                        }
+                        pass_reaps = self.recipe_reaps;
+                        self.advance_debug_pass();
                     }
                 }
-                if result.fatal
+                if self.forced_query_stop
+                    || result.fatal
                     || (result.failed
                         && !optional
                         && !self.options.keep_going
@@ -3617,7 +3648,7 @@ impl Engine {
                         .and_then(|remake| remake.context.open_error.clone());
                     MakefileModes::default().apply(&mut self.options);
                 }
-                stopped = !self.wait_makefile_remakes(&mut pending, &visited, initial_reaps);
+                stopped = !self.wait_makefile_remakes(&mut pending, &visited, pass_reaps);
                 if !stopped {
                     for remake in pending {
                         let name = remake.file.name.as_slice();
@@ -4147,6 +4178,20 @@ impl Engine {
             && !stopped_on_failure
             && !fatal
             && self.graph_abort.is_none();
+        if query_first
+            && !failed
+            && !self.forced_query_stop
+            && self.shutdown.get() == Shutdown::Running
+            && self.options.question
+            && !self.options.keep_going
+            && self.has_unfinished_query_tail()
+        {
+            self.expansion_error(
+                None,
+                &ExpandError::Safety(rmake_core::safety::SafetyError::StalledDoubleColonQuery),
+            );
+            return 2;
+        }
         if failed && (!self.forced_query_stop || fatal) && !query_first {
             2
         } else if self.would_build || query_first {
@@ -4196,17 +4241,26 @@ impl Engine {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
         let goals = &self.options.goals;
-        // Keep names that can be expanded or merged by directory search on
-        // the guarded path. CLI decoding already strips leading ./.
+        let mut has_subdirectory_goal = false;
+        // CLI decoding strips leading ./ before ordinary mode admission.
+        // Other relative aliases and expanded identities stay guarded.
         if !goals.is_empty()
             && (self.database.has_vpaths()
                 || !self.vpath_dirs.is_empty()
                 || !self.gpath_dirs.is_empty()
                 || goals.iter().any(|goal| {
-                    goal.contains(&b'/')
-                        || goal.starts_with(b"~")
+                    if goal.starts_with(b"~")
                         || goal.starts_with(b"-l")
                         || archive_parts(goal).is_some()
+                    {
+                        return true;
+                    }
+                    if !goal.contains(&b'/') {
+                        return false;
+                    }
+                    has_subdirectory_goal = true;
+                    goal.split(|&byte| byte == b'/')
+                        .any(|component| matches!(component, b"" | b"." | b".."))
                 }))
         {
             return false;
@@ -4217,14 +4271,19 @@ impl Engine {
             return false;
         }
         let mut named = HashSet::new();
-        read_files.iter().all(|(file, skip)| {
+        read_files.iter().enumerate().all(|(index, (file, skip))| {
             let name = without_dot_prefix(&file.name);
+            // A plain subdirectory goal cannot name a leaf makefile.
+            if has_subdirectory_goal && name.contains(&b'/') {
+                return false;
+            }
             *skip
                 || goals.is_empty()
                 || (!name.starts_with(b"-l")
                     && archive_parts(name).is_none()
                     && (!self.is_makefile_goal(name, named_sources)
-                        || (named.insert(name) && self.simple_named_remake(file, name))))
+                        || (named.insert(name)
+                            && self.simple_named_remake(file, name, &read_files[..index]))))
         })
     }
 
@@ -4240,9 +4299,12 @@ impl Engine {
         })
     }
 
-    fn simple_named_remake(&self, file: &Makefile, name: &[u8]) -> bool {
-        use rmake_core::filenames::archive_parts;
-
+    fn simple_named_remake(
+        &self,
+        file: &Makefile,
+        name: &[u8],
+        earlier_sources: &[(Makefile, bool)],
+    ) -> bool {
         let primary = file.location.is_none();
         if (primary && (file.optional || file.missing))
             || self.database.loaded_modules.contains_key(name)
@@ -4251,31 +4313,61 @@ impl Engine {
         {
             return false;
         }
-        let primary_without_default_recipe =
-            primary && !self.database.rules.contains_key(b".DEFAULT".as_slice());
+        let no_default_recipe = !self.database.rules.contains_key(b".DEFAULT".as_slice());
+        let earlier_sources = if primary { earlier_sources } else { &[] };
         self.database
             .rules
             .get(name)
-            .map_or(primary_without_default_recipe, |rule| {
+            .map_or(primary && no_default_recipe, |rule| {
                 rule.secondary.is_none()
                     && rule.group.is_none()
                     && rule.double_colon.is_none()
                     && (rule.dependencies.is_empty()
-                        || (primary_without_default_recipe
+                        || (no_default_recipe
                             && rule.dependencies.iter().all(|dep| {
-                                !dep.hidden
-                                    && dep.name != b".WAIT"
-                                    && !dep.name.contains(&b'/')
-                                    && !dep.name.starts_with(b"~")
-                                    && !dep.name.starts_with(b"-l")
-                                    && archive_parts(&dep.name).is_none()
-                                    && !self.database.rules.contains_key(&dep.name)
-                                    && !self.special(b".PHONY", &dep.name, false)
-                                    && fs::metadata(os(&dep.name))
-                                        .is_ok_and(|metadata| metadata.is_file())
+                                self.simple_named_remake_prerequisite(dep, earlier_sources)
                             })))
                     && rule.recipes.is_some()
             })
+    }
+
+    fn simple_named_remake_prerequisite(
+        &self,
+        dependency: &Dependency,
+        earlier_sources: &[(Makefile, bool)],
+    ) -> bool {
+        use rmake_core::filenames::{archive_parts, without_dot_prefix};
+
+        let name = dependency.name.as_slice();
+        if dependency.hidden
+            || name == b".WAIT"
+            || name.contains(&b'/')
+            || name.starts_with(b"~")
+            || name.starts_with(b"-l")
+            || archive_parts(name).is_some()
+            || self.special(b".PHONY", name, false)
+        {
+            return false;
+        }
+        let Some(rule) = self.database.rules.get(name) else {
+            return fs::metadata(os(name)).is_ok_and(|metadata| metadata.is_file());
+        };
+        // A direct earlier include can already be running when the named
+        // primary reaches it as a prerequisite.
+        earlier_sources.iter().any(|(source, skip)| {
+            !*skip
+                && !source.optional
+                && source.location.is_some()
+                && without_dot_prefix(&source.name) == name
+        }) && !self.database.loaded_modules.contains_key(name)
+            && rule.dependencies.is_empty()
+            && rule.secondary.is_none()
+            && rule.group.is_none()
+            && rule.double_colon.is_none()
+            && rule
+                .recipes
+                .as_ref()
+                .is_some_and(|recipes| recipes.iter().all(|recipe| !recipe_is_recursive(recipe)))
     }
 
     fn no_remake_recipe_fallback(&self) -> bool {
@@ -5154,6 +5246,25 @@ impl Engine {
                 return Ok(None);
             }
         }
+    }
+
+    fn has_unfinished_query_tail(&self) -> bool {
+        // Once a query verdict is established, a later goal cannot remove its
+        // unfinished tail from the pass. A grouped recipe may have completed
+        // one of those branches through a different goal.
+        self.ordinary_queries
+            .deferred_tails
+            .iter()
+            .any(|(target, tail)| {
+                if !tail.queued {
+                    return false;
+                }
+                let mut branch_key = (target.clone(), 0);
+                tail.state.branches.iter().any(|(ordinal, rule)| {
+                    branch_key.1 = *ordinal;
+                    rule.is_some() && !self.database_branch_outcomes.contains_key(&branch_key)
+                })
+            })
     }
 
     fn queued_query_tail(&self, target: &[u8]) -> bool {
@@ -12999,7 +13110,7 @@ mod tests {
         engine.vpath_dirs.push(b"search".to_vec());
         assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
         engine.vpath_dirs.clear();
-        for goal in ["dir/all", "~/all", "-lwidget", "archive.a(member)"] {
+        for goal in ["~/all", "-lwidget", "archive.a(member)"] {
             engine.options.goals = vec![goal.as_bytes().to_vec()];
             assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
         }
@@ -13043,6 +13154,64 @@ mod tests {
             engine.ordinary_mode_remakes_settle(&reads, Some(&indexed)),
             engine.ordinary_mode_remakes_settle(&reads, None),
         );
+    }
+
+    #[test]
+    fn ordinary_mode_remakes_admit_plain_subdirectory_goals_with_leaf_sources() {
+        let launch = Engine::invocation(
+            ["-n", "./build/result", "obj/deep/output"]
+                .into_iter()
+                .map(OsString::from),
+            b"rmake",
+            OsStr::new("rmake"),
+            None,
+            None,
+        )
+        .unwrap();
+        let mut engine =
+            Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+        let leaf = |name: &[u8]| Makefile {
+            name: name.to_vec(),
+            optional: false,
+            missing: false,
+            location: None,
+            read_error: None,
+        };
+        let mut reads = [(leaf(b"././Makefile"), false), (leaf(b"left.gen"), false)];
+        assert_eq!(engine.options.goals[0], b"build/result");
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
+
+        for name in [
+            b"build/result".as_slice(),
+            b"sub/other.gen",
+            b"sub/../left.gen",
+        ] {
+            reads[1] = (leaf(name), false);
+            assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+            reads[1].1 = true;
+            assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+        }
+        reads[1] = (leaf(b"left.gen"), false);
+        for goal in [
+            b"/build/result".as_slice(),
+            b"build//result",
+            b"build/./result",
+            b"build/../result",
+            b"build/result/",
+            b"archive.a(build/result)",
+        ] {
+            engine.options.goals[0] = goal.to_vec();
+            assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+        }
+        engine.options.goals[0] = b"build/result".to_vec();
+        engine.gpath_dirs.insert(b"build".to_vec());
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+        engine.gpath_dirs.clear();
+        engine
+            .database
+            .read(b"vpath %.gen build\n", b"Makefile")
+            .unwrap();
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
     }
 
     #[test]

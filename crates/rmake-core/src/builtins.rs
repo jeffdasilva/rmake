@@ -130,7 +130,7 @@ impl Database {
             .iter()
             .any(|(old, existing)| *old == pattern && existing.dependencies == rule.dependencies)
         {
-            self.invalidate_implicit_rule_shadow();
+            self.invalidate_implicit_rule_indexes();
             self.implicit_rules.push((pattern, rule));
         }
     }

@@ -21,7 +21,7 @@ import conformance as harness
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / 'tests/safety/manifest.json'
-CODES = {'S001', 'S002', 'S003', 'S004', 'S005'}
+CODES = {'S001', 'S002', 'S003', 'S004', 'S005', 'S006'}
 NORMAL_SHORT_APPROVAL = 'nested-short-state-2026-11-02'
 NORMAL_SHORT_SCOPE = ({'flag-payload-ordered-14'}
     | {f'nested-cursor-tail-{count}-{kind}-short' for count in range(2, 7)
@@ -198,6 +198,9 @@ def variants(case):
     # safety error. Count these cells separately from the exception inventory.
     for label, args in (('normal', ()), ('ignore', ('-i',)),
                         ('keep-going', ('-k',)), ('parallel', ('-j4',))):
+        # Keep-going lets GNU visit the otherwise blocked double-colon tail.
+        if case.requirement == 'safety.S006' and label == 'keep-going':
+            continue
         yield label, dataclasses.replace(case, args=case.args + args)
 
 

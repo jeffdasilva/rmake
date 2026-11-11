@@ -1,0 +1,209 @@
+{
+  "schema": 1,
+  "classification": "bounded GNU query nontermination; no exact conformance credit",
+  "oracle_version": "4.4.1",
+  "oracle_sha256": "b8806e8eb7452ed9b7ed5e18cb7e76ff9abd488c9d62a266a398d8044fade974",
+  "oracle_profile_id": "92525c9784f4dd471cceb12ce66a9d367e267b638e1384cdc29962b738d16de7",
+  "oracle_source_sha256": "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3",
+  "timeout_seconds": 1.0,
+  "records": [
+    {
+      "id": "query-stalled-grouped-tail",
+      "args": [
+        "-rR",
+        "-s",
+        "--no-print-directory",
+        "-q",
+        "-f",
+        "Makefile",
+        "a",
+        "b"
+      ],
+      "environment": {},
+      "inputs_hex": {
+        "Makefile": "2e5345434f4e44455850414e53494f4e3a0a4e203a3d206e202e57414954207a0a4d203a3d20676174650a61206220263a3a202424284e29203b20403a0a61206220263a3a202424284d29203b20403a0a",
+        "n": "696e7075740a",
+        "gate": "696e7075740a",
+        "z": "696e7075740a"
+      },
+      "oracle_runs": [
+        {
+          "status": -9,
+          "stdout_hex": "",
+          "stderr_hex": "",
+          "limit": "timeout",
+          "leftovers": false
+        },
+        {
+          "status": -9,
+          "stdout_hex": "",
+          "stderr_hex": "",
+          "limit": "timeout",
+          "leftovers": false
+        }
+      ],
+      "variant_runs": {
+        "normal": {
+          "extra_args": [],
+          "observations": [
+            {
+              "status": -9,
+              "stdout_hex": "",
+              "stderr_hex": "",
+              "limit": "timeout",
+              "leftovers": false
+            },
+            {
+              "status": -9,
+              "stdout_hex": "",
+              "stderr_hex": "",
+              "limit": "timeout",
+              "leftovers": false
+            }
+          ]
+        },
+        "ignore": {
+          "extra_args": [
+            "-i"
+          ],
+          "observations": [
+            {
+              "status": -9,
+              "stdout_hex": "",
+              "stderr_hex": "",
+              "limit": "timeout",
+              "leftovers": false
+            },
+            {
+              "status": -9,
+              "stdout_hex": "",
+              "stderr_hex": "",
+              "limit": "timeout",
+              "leftovers": false
+            }
+          ]
+        },
+        "parallel": {
+          "extra_args": [
+            "-j4"
+          ],
+          "observations": [
+            {
+              "status": -9,
+              "stdout_hex": "",
+              "stderr_hex": "",
+              "limit": "timeout",
+              "leftovers": false
+            },
+            {
+              "status": -9,
+              "stdout_hex": "",
+              "stderr_hex": "",
+              "limit": "timeout",
+              "leftovers": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "query-stalled-ordinary-tail",
+      "args": [
+        "-rR",
+        "-s",
+        "--no-print-directory",
+        "-q",
+        "-f",
+        "Makefile",
+        "a",
+        "b"
+      ],
+      "environment": {},
+      "inputs_hex": {
+        "Makefile": "613a206e203b20403a0a623a3a206e203b20403a0a623a3a2067617465203b20403a0a",
+        "n": "696e7075740a",
+        "gate": "696e7075740a",
+        "z": "696e7075740a"
+      },
+      "oracle_runs": [
+        {
+          "status": -9,
+          "stdout_hex": "",
+          "stderr_hex": "",
+          "limit": "timeout",
+          "leftovers": false
+        },
+        {
+          "status": -9,
+          "stdout_hex": "",
+          "stderr_hex": "",
+          "limit": "timeout",
+          "leftovers": false
+        }
+      ],
+      "variant_runs": {
+        "normal": {
+          "extra_args": [],
+          "observations": [
+            {
+              "status": -9,
+              "stdout_hex": "",
+              "stderr_hex": "",
+              "limit": "timeout",
+              "leftovers": false
+            },
+            {
+              "status": -9,
+              "stdout_hex": "",
+              "stderr_hex": "",
+              "limit": "timeout",
+              "leftovers": false
+            }
+          ]
+        },
+        "ignore": {
+          "extra_args": [
+            "-i"
+          ],
+          "observations": [
+            {
+              "status": -9,
+              "stdout_hex": "",
+              "stderr_hex": "",
+              "limit": "timeout",
+              "leftovers": false
+            },
+            {
+              "status": -9,
+              "stdout_hex": "",
+              "stderr_hex": "",
+              "limit": "timeout",
+              "leftovers": false
+            }
+          ]
+        },
+        "parallel": {
+          "extra_args": [
+            "-j4"
+          ],
+          "observations": [
+            {
+              "status": -9,
+              "stdout_hex": "",
+              "stderr_hex": "",
+              "limit": "timeout",
+              "leftovers": false
+            },
+            {
+              "status": -9,
+              "stdout_hex": "",
+              "stderr_hex": "",
+              "limit": "timeout",
+              "leftovers": false
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

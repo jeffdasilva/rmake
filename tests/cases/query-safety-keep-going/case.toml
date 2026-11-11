@@ -1,0 +1,9 @@
+id = "query-safety-keep-going"
+requirement = "compatibility.double-colon-query-boundaries"
+candidate = "required"
+args = ["-rR", "-s", "--no-print-directory", "-q", "-k", "-f", "Makefile", "a", "b"]
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

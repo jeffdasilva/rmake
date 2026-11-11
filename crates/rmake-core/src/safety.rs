@@ -11,6 +11,7 @@ pub enum SafetyError {
     ActiveExportDeletion,
     NestedFlags,
     OneShellConfiguration,
+    StalledDoubleColonQuery,
 }
 
 impl SafetyError {
@@ -30,6 +31,9 @@ impl SafetyError {
             }
             Self::OneShellConfiguration => {
                 "rmake safety error [S005]: unsafe .ONESHELL shell configuration"
+            }
+            Self::StalledDoubleColonQuery => {
+                "rmake safety error [S006]: double-colon query cannot reach an unfinished branch"
             }
         }
     }
