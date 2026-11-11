@@ -445,7 +445,7 @@ fn comment_end(line: &[u8], mut compact: impl FnMut(usize, usize)) -> usize {
     line.len()
 }
 
-pub(crate) fn inline_recipe_continuations(source: &[u8], prefix: u8) -> Vec<u8> {
+pub(crate) fn inline_recipe_continuations(source: &[u8], prefix: Option<u8>) -> Vec<u8> {
     if !source.contains(&b'\n') {
         return source.to_vec();
     }
@@ -468,15 +468,20 @@ pub(crate) fn inline_recipe_continuations(source: &[u8], prefix: u8) -> Vec<u8> 
     output.extend_from_slice(&source[copied..]);
 
     // A dollar still has its make expansion meaning at the start of a line.
-    if prefix != b'$' {
-        let mut after_newline = false;
-        output.retain(|&byte| {
-            let keep = !(after_newline && byte == prefix);
-            after_newline = keep && byte == b'\n';
-            keep
-        });
+    if let Some(prefix) = prefix.filter(|&byte| byte != b'$') {
+        strip_recipe_continuation_prefix(&mut output, prefix);
     }
     output
+}
+
+/// Remove one recipe prefix immediately after each newline in a command.
+pub fn strip_recipe_continuation_prefix(bytes: &mut Vec<u8>, prefix: u8) {
+    let mut after_newline = false;
+    bytes.retain(|&byte| {
+        let keep = !(after_newline && byte == prefix);
+        after_newline = keep && byte == b'\n';
+        keep
+    });
 }
 
 fn fold_recipe_reference(mut source: &[u8], output: &mut Vec<u8>) {
@@ -653,12 +658,15 @@ mod tests {
         assert_eq!(
             super::inline_recipe_continuations(
                 b"$(info left \\\n\t\x0b right) raw\\\n\t\t tail",
-                b'\t'
+                Some(b'\t')
             ),
             b"$(info left right) raw\\\n\t tail"
         );
         assert_eq!(
-            super::inline_recipe_continuations(b"$(info left \\\n>right) raw\\\n>>tail", b'>'),
+            super::inline_recipe_continuations(
+                b"$(info left \\\n>right) raw\\\n>>tail",
+                Some(b'>')
+            ),
             b"$(info left >right) raw\\\n>tail"
         );
     }

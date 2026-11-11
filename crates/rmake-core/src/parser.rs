@@ -168,8 +168,17 @@ pub struct Recipe {
 impl Recipe {
     /// Fold make references and remove physical continuation prefixes on demand.
     pub fn execution_bytes(&self) -> Cow<'_, [u8]> {
+        self.inline_bytes(Some(self.prefix))
+    }
+
+    /// Keep physical prefixes through expansion so generated prefixes count too.
+    pub fn expansion_source(&self) -> Cow<'_, [u8]> {
+        self.inline_bytes(None)
+    }
+
+    fn inline_bytes(&self, prefix: Option<u8>) -> Cow<'_, [u8]> {
         if self.continued_inline {
-            Cow::Owned(inline_recipe_continuations(&self.bytes, self.prefix))
+            Cow::Owned(inline_recipe_continuations(&self.bytes, prefix))
         } else {
             Cow::Borrowed(&self.bytes)
         }

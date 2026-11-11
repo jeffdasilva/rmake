@@ -1,0 +1,12 @@
+id = "inline-post-expansion-prefix-angle-generated-dry"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Physical inline command prefixes are removed after make expansion."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7072696e746620273c25733e5c6e2720276c656674205c0a7269676874270a"
+stderr_hex = ""
