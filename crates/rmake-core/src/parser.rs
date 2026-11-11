@@ -13,7 +13,7 @@ use crate::diagnostic::{
     Output,
 };
 use crate::messages::Message;
-use crate::reader::{Input, ParserReader, strip_comment};
+use crate::reader::{Input, ParserReader, has_comment, strip_comment};
 use crate::variables::{
     Assignment, ConditionalFlagBinding, ExpandError, Flavor, MAX_OUTPUT, Origin, Pattern,
     PatternVariable, TargetScope, VariableStore, reference_end,
@@ -5071,8 +5071,8 @@ impl Database {
                 declaration.ignore_recipes = true;
                 continue;
             }
-            let source_inline = separator(&line.bytes, b';')
-                .filter(|i| separator(&line.bytes[..*i], b'#').is_none());
+            let source_inline =
+                separator(&line.bytes, b';').filter(|i| !has_comment(&line.bytes[..*i]));
             let tail = match expanded_recipe_tail {
                 Some(tail) => tail,
                 None => self.expand(

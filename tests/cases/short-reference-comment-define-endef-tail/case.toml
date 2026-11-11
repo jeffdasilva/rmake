@@ -1,0 +1,12 @@
+id = "short-reference-comment-define-endef-tail"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Comment quoting near short variable references."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7261773d5b6f6e655d20657870616e6465643d5b6f6e655d0a"
+stderr_hex = "4d616b6566696c653a31323a2065787472616e656f757320746578742061667465722027656e64656627206469726563746976650a"

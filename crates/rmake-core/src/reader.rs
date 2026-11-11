@@ -343,61 +343,53 @@ fn trim_start_blanks(bytes: &[u8]) -> &[u8] {
 /// Recipes and `define` bodies must bypass this function.
 pub fn strip_comment(line: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(line.len());
+    let mut copied = 0;
+    let end = comment_end(line, |index, slashes| {
+        result.extend_from_slice(&line[copied..index - slashes]);
+        result.extend(std::iter::repeat_n(b'\\', slashes / 2));
+        copied = index;
+    });
+    result.extend_from_slice(&line[copied..end]);
+    result
+}
+
+pub(crate) fn has_comment(line: &[u8]) -> bool {
+    comment_end(line, |_, _| {}) < line.len()
+}
+
+fn comment_end(line: &[u8], mut compact: impl FnMut(usize, usize)) -> usize {
     let mut index = 0;
-    while index < line.len() {
-        match line[index] {
-            b'#' => break,
-            b'\\' => {
-                let start = index;
-                while index < line.len() && line[index] == b'\\' {
-                    index += 1;
+    while let Some(&byte) = line.get(index) {
+        match byte {
+            b'#' => {
+                // The source run can include the byte of a short dollar reference.
+                let slashes = line[..index]
+                    .iter()
+                    .rev()
+                    .take_while(|&&b| b == b'\\')
+                    .count();
+                if slashes != 0 {
+                    compact(index, slashes);
                 }
-                let count = index - start;
-                if line.get(index) == Some(&b'#') {
-                    result.extend(std::iter::repeat_n(b'\\', count / 2));
-                    if count % 2 == 0 {
+                if slashes % 2 == 0 {
+                    return index;
+                }
+                index += 1;
+            }
+            b'$' => match line.get(index + 1) {
+                Some(b'(' | b'{') => {
+                    let Ok(close) = crate::variables::reference_end(line, index + 1) else {
                         break;
-                    }
-                    result.push(b'#');
-                    index += 1;
-                } else {
-                    result.extend_from_slice(&line[start..index]);
+                    };
+                    index = close + 1;
                 }
-            }
-            b'$' => {
-                result.push(b'$');
-                index += 1;
-                let Some(&next) = line.get(index) else {
-                    break;
-                };
-                result.push(next);
-                index += 1;
-                let close = match next {
-                    b'(' => b')',
-                    b'{' => b'}',
-                    _ => continue,
-                };
-                let mut depth = 1usize;
-                while let Some(&byte) = line.get(index) {
-                    result.push(byte);
-                    index += 1;
-                    if byte == next {
-                        depth += 1;
-                    } else if byte == close {
-                        depth -= 1;
-                        if depth == 0 {
-                            break;
-                        }
-                    }
-                }
-            }
-            byte => {
-                result.push(byte);
-                index += 1;
-            }
+                Some(_) => index += 2,
+                None => break,
+            },
+            _ => index += 1,
         }
     }
-    result
+    line.len()
 }
 
 #[cfg(test)]
