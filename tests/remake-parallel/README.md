@@ -166,7 +166,9 @@ spellings with and without `./`, and the modes applied to each completion.
 Required named include duplicates share the same remake record under all
 three modes, including a forced recipe after two earlier workers start.
 Optional named duplicates preserve that shared record and the mode used by
-earlier workers after the optional source settles.
+earlier workers after the optional source settles. The two-slot forced
+question profiles observe the named child being reaped before the right
+include completes.
 Named primary secondary expansion records the automatic target and restart
 counter exactly once per visit, including while earlier workers are held.
 
