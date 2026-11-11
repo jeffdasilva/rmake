@@ -1,0 +1,10 @@
+id = "serial-remake-optional-cached-missing-success-normal"
+requirement = "debug.optional-serial-double-colon-cached-visits"
+candidate = "required"
+provenance = "Original optional makefile cached-visit fixture verified against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "--debug=m,v", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nREAD:\nReading makefile 'inc.mk' (search path) (don't care) (no ~ expansion)...\nUpdating makefiles....\n Considering target file 'Makefile'.\n Finished prerequisites of target file 'Makefile'.\n No need to remake target 'Makefile'.\n Considering target file 'inc.mk'.\n  File 'inc.mk' does not exist.\n  Considering target file 'absent'.\n   File 'absent' does not exist.\n  Finished prerequisites of target file 'absent'.\n  Must remake target 'absent'.\n  Failed to remake target file 'absent'.\n Finished prerequisites of target file 'inc.mk'.\n Giving up on target file 'inc.mk'.\n Considering target file 'inc.mk'.\n  File 'inc.mk' does not exist.\n  Considering target file 'force2'.\n   File 'force2' does not exist.\n  Finished prerequisites of target file 'force2'.\n  Must remake target 'force2'.\n  Successfully remade target file 'force2'.\n Finished prerequisites of target file 'inc.mk'.\n Must remake target 'inc.mk'.\nBRANCH:2\n Successfully remade target file 'inc.mk'.\n Considering target file 'inc.mk'.\n Recently tried and failed to update file 'inc.mk'.\n Considering target file 'inc.mk'.\n File 'inc.mk' was considered already.\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nALL:\nSuccessfully remade target file 'all'.\n"
+stderr = "make: *** No rule to make target 'absent', needed by 'inc.mk'.\n"

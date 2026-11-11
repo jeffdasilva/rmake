@@ -3486,6 +3486,20 @@ impl Engine {
                             emit(&self.output, Event::Considering(name, 1));
                             emit(&self.output, Event::RecentlyFailed(name, 1));
                             self.show_retained_optional_failure(name, None, cause.clone());
+                            if self.options.keep_going {
+                                self.debug_completed_double_colon_declarations(
+                                    name,
+                                    1..declarations,
+                                    1,
+                                );
+                            }
+                        }
+                        if self.options.keep_going && cause.is_none() {
+                            // A directly failed head has one full revisit.
+                            // The remaining goal entries prune the chain.
+                            for _ in 2..declarations {
+                                emit(&self.output, Event::Pruning(name, 1));
+                            }
                         }
                         if cause.is_none() || !self.options.keep_going {
                             self.optional_remake_failures.remove(name);
@@ -3522,6 +3536,10 @@ impl Engine {
                     .active_makefile_remake
                     .take()
                     .expect("active makefile remake");
+                if self.forced_query_stop {
+                    stopped = true;
+                    break;
+                }
                 if self.parallel_makefile_remakes && self.pending(name) {
                     pending.push(PendingMakefileRemake {
                         modes: visit_modes,
@@ -3665,7 +3683,11 @@ impl Engine {
             self.remake_error_cursor = None;
             if stopped || self.shutdown.get() != Shutdown::Running {
                 self.remove_intermediates();
-                return 2;
+                return if self.forced_query_stop && self.shutdown.get() == Shutdown::Running {
+                    1
+                } else {
+                    2
+                };
             }
             // A question verdict leaves the loaded makefiles in use and
             // prevents later keep-going failures from deciding the phase.
@@ -4229,17 +4251,17 @@ impl Engine {
         {
             return false;
         }
-        let no_recipe_fallback = self.no_remake_recipe_fallback();
+        let primary_without_default_recipe =
+            primary && !self.database.rules.contains_key(b".DEFAULT".as_slice());
         self.database
             .rules
             .get(name)
-            .map_or(primary && no_recipe_fallback, |rule| {
+            .map_or(primary_without_default_recipe, |rule| {
                 rule.secondary.is_none()
                     && rule.group.is_none()
                     && rule.double_colon.is_none()
                     && (rule.dependencies.is_empty()
-                        || (primary
-                            && no_recipe_fallback
+                        || (primary_without_default_recipe
                             && rule.dependencies.iter().all(|dep| {
                                 !dep.hidden
                                     && dep.name != b".WAIT"
@@ -4252,9 +4274,7 @@ impl Engine {
                                     && fs::metadata(os(&dep.name))
                                         .is_ok_and(|metadata| metadata.is_file())
                             })))
-                    && rule.recipes.as_ref().is_some_and(|recipes| {
-                        primary || recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
-                    })
+                    && rule.recipes.is_some()
             })
     }
 
@@ -4452,14 +4472,19 @@ impl Engine {
         }
     }
 
-    fn debug_completed_double_colon_prefix(&self, target: &[u8], ordinal: usize, depth: usize) {
+    fn debug_completed_double_colon_declarations(
+        &self,
+        target: &[u8],
+        declarations: std::ops::Range<usize>,
+        depth: usize,
+    ) {
         use crate::debug::{Event, Mask, emit};
 
-        if ordinal == 0 || !self.output.debug_mask().has(Mask::VERBOSE) {
+        if declarations.is_empty() || !self.output.debug_mask().has(Mask::VERBOSE) {
             return;
         }
         let mut key = (target.to_vec(), 0);
-        for prior in 0..ordinal {
+        for prior in declarations {
             key.1 = prior;
             if let Some(outcome) = self.database_branch_outcomes.get(&key) {
                 // Every finished declaration has its own diagnostic visit.
@@ -5158,6 +5183,7 @@ impl Engine {
     fn parallel_graph(&self) -> bool {
         self.job_slots() > 1
             && (!self.remaking
+                || self.parallel_makefile_remakes
                 || !(self.options.dry_run || self.options.question || self.options.touch))
     }
 
@@ -5180,7 +5206,7 @@ impl Engine {
                 self.reap_job();
                 self.poll_jobs();
             }
-            if self.shutdown.get() != Shutdown::Running {
+            if self.forced_query_stop || self.shutdown.get() != Shutdown::Running {
                 return false;
             }
             last_reaps = self.recipe_reaps;
@@ -5633,7 +5659,8 @@ impl Engine {
 
     fn forced_query_completed(&mut self) {
         self.would_build = true;
-        if !self.remaking
+        // A required child can stop a parallel remake pass with status one.
+        if (!self.remaking || self.parallel_makefile_remakes)
             && !self.options.keep_going
             && !self.optional_remake()
             && self.graph_abort.is_none()
@@ -8243,7 +8270,7 @@ impl Engine {
                 .get(target)
                 .and_then(|rule| rule.double_colon.as_ref())
                 .map_or(0, Vec::len);
-            self.debug_completed_double_colon_prefix(target, branches, depth);
+            self.debug_completed_double_colon_declarations(target, 0..branches, depth);
         }
         self.debug_consider(target, target, depth);
         match input {
@@ -8628,6 +8655,25 @@ impl Engine {
                 && self.done.get(target).is_some_and(|outcome| outcome.failed)
                 && self.trace_cached_unruled_makefile(considering_name, target, depth, true)
             {
+                traced_optional_failure = true;
+            }
+            if !traced_optional_failure
+                && self.remaking
+                && !self.parallel_makefile_remakes
+                && self.options.keep_going
+                && parent.is_some()
+                && self
+                    .done
+                    .get(target)
+                    .is_some_and(|outcome| outcome.failed && !outcome.fatal)
+            {
+                use crate::debug::{Event, emit};
+
+                emit(
+                    &self.output,
+                    Event::Considering(considering_name, depth + 1),
+                );
+                emit(&self.output, Event::RecentlyFailed(target, depth + 1));
                 traced_optional_failure = true;
             }
             self.show_retained_optional_failure(target, parent.map(|parent| parent.target), cause);
@@ -9075,7 +9121,7 @@ impl Engine {
                     use crate::debug::{Event, emit};
 
                     replay_cached_after_recipe = true;
-                    self.debug_completed_double_colon_prefix(target, ordinal, state.depth);
+                    self.debug_completed_double_colon_declarations(target, 0..ordinal, state.depth);
                     emit(&self.output, Event::Considering(target, state.depth));
                     emit(
                         &self.output,
@@ -9086,13 +9132,15 @@ impl Engine {
                         },
                     );
                 }
-                if result.database_result != DatabaseResult::RecipeUnstarted {
-                    // Group completion can already have observed the owner's
-                    // timestamp after a failed child was reaped.
-                    self.database_branch_outcomes
+                // A failed owner can already have a physical observation
+                // because it is also a member of the completed group.
+                let group_observed = result.database_result != DatabaseResult::RecipeUnstarted
+                    && self
+                        .database_branch_outcomes
                         .entry((target.to_vec(), ordinal))
-                        .or_insert(result);
-                }
+                        .or_insert(result)
+                        .database_result
+                        == DatabaseResult::ObservedGroup;
                 let assumed_time = state
                     .synthetic_tail
                     .as_ref()
@@ -9113,9 +9161,10 @@ impl Engine {
                 ) {
                     state.combined.database_result = result.database_result;
                 }
-                if (result.database_result == DatabaseResult::Simulated
-                    || result.database_result == DatabaseResult::ObservedDoubleColon
-                    || result.completion >= CompletionTime::Refresh)
+                if !group_observed
+                    && (result.database_result == DatabaseResult::Simulated
+                        || result.database_result == DatabaseResult::ObservedDoubleColon
+                        || result.completion >= CompletionTime::Refresh)
                     && let Some(time) = self
                         .database_group_peer_times
                         .get_mut(target)
@@ -9643,11 +9692,7 @@ impl Engine {
         }
         self.pending_rules.insert(target.to_vec(), state);
         let outcome = self.resume_rule(target);
-        if self.parallel_graph()
-            || (self.remaking
-                && self.parallel_makefile_remakes
-                && self.parallel_jobs.contains_key(target))
-        {
+        if self.parallel_graph() {
             outcome
         } else {
             self.wait_target(target);
@@ -9708,7 +9753,7 @@ impl Engine {
             if let Some(ordinal) = state.branch
                 && !self.remaking
             {
-                self.debug_completed_double_colon_prefix(target, ordinal, debug_depth);
+                self.debug_completed_double_colon_declarations(target, 0..ordinal, debug_depth);
             }
             self.debug_consider(target, target, debug_depth);
         }
@@ -9778,10 +9823,8 @@ impl Engine {
                         }
                     })
                     .unwrap_or_default();
-                let peer_parent = self.scope_parents.get(target).cloned().flatten();
-                self.scope_parents
-                    .entry(peer.clone())
-                    .or_insert(peer_parent);
+                // Expanding a grouped peer uses its own scope. Only the
+                // prerequisites visited below inherit the recipe owner's scope.
                 if let Err(error) = self.expand_dependencies(&peer, &mut peer_rule, peer_branch) {
                     self.expansion_error(peer_rule.prerequisite_location.as_ref(), &error);
                     state.outcome.failed = true;
@@ -10620,9 +10663,11 @@ impl Engine {
                     );
                 }
                 outcome.ran |= execution.ran;
+                // A pending remake takes its completion mode from the reap.
                 outcome.completion =
                     if (self.options.dry_run || self.options.question || self.options.touch)
                         && !execution.all_recursive
+                        && (!self.remaking || !execution.pending)
                     {
                         if rule.grouped_targets().is_none() || execution.ran {
                             if phony {
@@ -10797,7 +10842,8 @@ impl Engine {
             if !unstarted_query {
                 self.completed_group_branches.insert(id, cached);
             }
-            let observe_dry_group = self.output.database_requested()
+            let database_requested = self.output.database_requested();
+            let observe_dry_group = database_requested
                 && self.options.dry_run
                 && !self.options.question
                 && !self.options.touch
@@ -10846,10 +10892,13 @@ impl Engine {
                     } else {
                         self.observed_modified(&peer, false)
                     };
-                    let mut peer_times = (observe_dry_group
-                        && !owner
+                    let mut peer_times = (database_requested
                         && !phony
-                        && branches.iter().any(|rule| rule.group.is_none()))
+                        && if owner {
+                            outcome.failed && branches.len() > 1
+                        } else {
+                            branches.iter().any(|rule| rule.group.is_none())
+                        })
                     .then(|| {
                         let initial = self
                             .double_colon_before
@@ -11159,14 +11208,7 @@ impl Engine {
         // Empty/shortcut recipes never consume a continuation bitmap. Keep
         // their raw recursion/touch decisions without allocating one per leaf.
         let flow = Flow::new(recipes.iter().map(recursive_line));
-        // A forced named source can run its recipe alongside earlier source
-        // jobs even though its prerequisite traversal uses the named mode.
-        let parallel_named_recipe = self.remaking
-            && self.parallel_makefile_remakes
-            && recursive
-            && !self.parallel_jobs.is_empty()
-            && MakefileModes::from_options(&self.options).active();
-        let parallel = self.parallel_graph() || parallel_named_recipe;
+        let parallel = self.parallel_graph();
         if self.graph_abort == Some(Status::Fatal) {
             return Execution::fatal(false);
         }

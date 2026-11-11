@@ -94,21 +94,24 @@ The [locale collation slice](locale-collation.md) closes 33 observed preceding m
 
 ## Parallel modes, makefile remakes, and jobserver paths
 
-The held remake gate covers 637 profiles using both Linux jobserver
+The held remake gate covers 761 profiles using both Linux jobserver
 transports. It includes direct grouped optional recipes, stopped optional
 workers retained across load limits, named include and primary makefile goals,
 and exact remake-debug prefixes under dry-run, question, and touch. The
 explicit primary cases include existing normal and order-only prerequisites,
 forced shell recipes, and recursive Make recipes. Later named primary sources
 exercise two- and three-slot scheduling alongside earlier include workers.
-Expanded file identities, forced named includes, and combined load,
-grouped-remake, and debug paths need broader coverage.
+Forced named includes exercise required and optional sources in three read
+positions, including an early question exit. Primary prerequisite profiles
+cover stock C rules, user pattern rules, and an existing source with no
+applicable rule. Expanded file identities and combined load, grouped-remake,
+and debug paths need broader coverage.
 [Held remake gate](../tests/remake-parallel/README.md)
 
-The ordinary inventory contains 30,135 case manifests and 222 requirements.
+The ordinary inventory contains 30,163 case manifests and 223 requirements.
 Serial double-colon failure recovery, returned-failure diagnostics, and cached
-visits for repeated required makefiles have independent expectations for exit
-status, streams, and file effects.
+visits for repeated required makefiles and failed optional declarations have
+independent expectations for exit status, streams, and file effects.
 [Serial remake diagnostics](debug-output.md)
 
 The development and optimized builds from #374 each matched all 505

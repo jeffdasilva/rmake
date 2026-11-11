@@ -1,0 +1,10 @@
+id = "serial-remake-optional-cached-cross-direct-failing-recipe"
+requirement = "debug.optional-serial-double-colon-cached-visits"
+candidate = "required"
+provenance = "Original serial optional prerequisite fixture verified against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "--debug=m,v", "-k", "all"]
+
+[expected]
+exit_code = 2
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nReading makefile 'opt.mk' (search path) (don't care) (no ~ expansion)...\nReading makefile 'req.mk' (search path) (no ~ expansion)...\nUpdating makefiles....\n Considering target file 'Makefile'.\n Finished prerequisites of target file 'Makefile'.\n No need to remake target 'Makefile'.\n Considering target file 'opt.mk'.\n  Considering target file 'leaf'.\n   File 'leaf' does not exist.\n  Finished prerequisites of target file 'leaf'.\n  Must remake target 'leaf'.\nLEAF\n  Failed to remake target file 'leaf'.\n Finished prerequisites of target file 'opt.mk'.\n Giving up on target file 'opt.mk'.\n Considering target file 'req.mk'.\n  Considering target file 'leaf'.\n  Recently tried and failed to update file 'leaf'.\n Finished prerequisites of target file 'req.mk'.\n Giving up on target file 'req.mk'.\n"
+stderr = "make: *** No rule to make target 'leaf', needed by 'req.mk'.\nMakefile:2: Failed to remake makefile 'req.mk'.\n"
