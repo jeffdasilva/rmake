@@ -113,7 +113,7 @@ expanded identities, and combined load, grouped-remake, and debug paths need
 broader coverage.
 [Held remake gate](../tests/remake-parallel/README.md)
 
-The ordinary inventory contains 30,279 case manifests and 226 requirements.
+The ordinary inventory contains 30,298 case manifests and 226 requirements.
 Serial double-colon failure recovery, returned-failure diagnostics, and cached
 visits for repeated required makefiles and failed or unchanged optional
 declarations have independent expectations for exit status, streams, and file effects.
