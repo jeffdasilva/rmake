@@ -411,26 +411,25 @@ impl Rule {
     }
 
     fn canonical(&self, visible_only: bool) -> Vec<Dependency> {
-        let normal: HashSet<_> = self
-            .dependencies
-            .iter()
-            .filter(|dep| !dep.order_only && (!visible_only || !dep.hidden))
-            .map(|dep| dep.name.as_slice())
-            .collect();
-        let mut seen = HashSet::new();
-        self.dependencies
-            .iter()
-            .filter(|dependency| {
-                dependency.name != b".WAIT"
-                    && (!visible_only || !dependency.hidden)
-                    && seen.insert(dependency.name.as_slice())
-            })
-            .map(|dependency| Dependency {
-                name: dependency.name.clone(),
-                order_only: !normal.contains(dependency.name.as_slice()),
-                hidden: dependency.hidden,
-            })
-            .collect()
+        use std::collections::hash_map::Entry;
+
+        let mut positions: HashMap<&[u8], usize> = HashMap::new();
+        let mut dependencies: Vec<Dependency> = Vec::new();
+        for dependency in &self.dependencies {
+            if dependency.name == b".WAIT" || (visible_only && dependency.hidden) {
+                continue;
+            }
+            match positions.entry(dependency.name.as_slice()) {
+                Entry::Occupied(position) => {
+                    dependencies[*position.get()].order_only &= dependency.order_only;
+                }
+                Entry::Vacant(position) => {
+                    position.insert(dependencies.len());
+                    dependencies.push(dependency.clone());
+                }
+            }
+        }
+        dependencies
     }
 }
 
@@ -7775,6 +7774,20 @@ mod tests {
         assert_eq!(orders(rule), [b"x", b"x", b"z", b"y"].map(Vec::from));
         assert_eq!(rule.dependencies, raw);
         assert_eq!(rule.canonical_dependencies(), canonical);
+
+        let mut hidden_normal = rule.clone();
+        hidden_normal.dependencies.push(Dependency {
+            name: b"y".to_vec(),
+            order_only: false,
+            hidden: true,
+        });
+        assert_eq!(hidden_normal.automatic_dependencies(), canonical);
+        let displayed = hidden_normal.canonical_dependencies();
+        assert_eq!(
+            dependency_pairs(&displayed).last(),
+            Some(&(b"y".as_slice(), false))
+        );
+        assert!(!displayed.last().unwrap().hidden);
     }
 
     #[test]
