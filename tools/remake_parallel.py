@@ -138,6 +138,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     if include_load:
         results += load_models(worker, markers)
         results += load_goal_summary_models(worker, markers)
+        results += load_build_mode_models(results, markers)
     return results
 
 
@@ -869,6 +870,61 @@ def load_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
             results.append(HeldModel(model, overlap, before_second, before_first,
                                      before_second_stdout=stdout if name == 'optional-stop' else None,
                                      load=load))
+    return results
+
+
+def load_build_mode_models(available: list[HeldModel], markers: dict[str, bytes]) -> list[HeldModel]:
+    left_markers = {name: data for name, data in markers.items() if name.startswith('left.')}
+    dry_worker = b'python3 worker.py right success\n'
+    touch_worker = b'touch right\ntouch right\n'
+    high = LoadProfile('normal', LOAD_HIGH, b'proc\n')
+    low = LoadProfile('normal', LOAD_LOW, b'proc\n')
+    results = []
+    for held in available:
+        model = held.model
+        if model.id.startswith('carried-optional-mode-') and model.id.endswith('-none'):
+            shape, tail, mode, transport, _ = model.id.removeprefix('carried-optional-mode-').split('-')
+            files = {**model.files, 'load.input': LOAD_HIGH}
+            args = ('-l2', *model.args)
+            ident = f'load-carried-mode-{shape}-{tail}-{mode}-{transport}'
+            if shape == 'keep':
+                queued = replace(model, id=ident + '-high', files=files, args=args,
+                                 mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                results.append(replace(held, model=queued, overlap=False, load=high))
+                continue
+
+            before = held.before_first + b'left\n'
+            stdout = b'left\n'
+            if mode == 'n':
+                stdout += dry_worker
+                if tail == 'tail':
+                    stdout += b'printf "right-tail\\n" >> seen\n'
+                stdout += b'printf "ordinary\\n" > "result"\n'
+            if mode == 't':
+                stdout += touch_worker + b'touch result\n'
+            updates = {**left_markers, **({'right': b'', 'result': b''} if mode == 't' else {})}
+            expected = {**model.expected, 'stdout_template_hex': stdout.hex(), 'stderr_template_hex': ''}
+            queued = replace(model, id=ident + '-high', files=files, args=args, updates=updates,
+                             expected=expected, seen=before if mode == 't' else before + b'ordinary\n',
+                             mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+            results.append(HeldModel(queued, False, None, held.before_first, load=high))
+            if tail == 'tail':
+                files = {**model.files, 'load.input': LOAD_LOW}
+                overlapping = replace(model, id=ident + '-low', files=files, args=args,
+                                      mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                results.append(replace(held, model=overlapping, load=low))
+        elif model.id.startswith('load-optional-stop-'):
+            # A goal with only secondary-expansion effects does not inherit
+            # the queued optional recipe's question result.
+            summary = b"make: Nothing to be done for 'all'.\n"
+            modes = (('n', dry_worker + summary), ('q', b''), ('t', touch_worker + summary))
+            for mode, stdout in modes:
+                expected = {**model.expected, 'stdout_template_hex': (b'left\n' + stdout).hex()}
+                ident = model.id.replace('load-optional-stop-', 'load-optional-build-mode-') + '-' + mode
+                queued = replace(model, id=ident, args=('-' + mode, *model.args), expected=expected,
+                                 updates={**left_markers, **({'right': b''} if mode == 't' else {})},
+                                 seen=held.before_second)
+                results.append(HeldModel(queued, False, None, held.before_first, load=high))
     return results
 
 
