@@ -94,7 +94,7 @@ The [locale collation slice](locale-collation.md) closes 33 observed preceding m
 
 ## Parallel modes, makefile remakes, and jobserver paths
 
-The [held remake gate](../tests/remake-parallel/README.md) covers 353
+The [held remake gate](../tests/remake-parallel/README.md) covers 379
 profiles. It includes optional recipes with built-ins, named include goals
 under dry-run, question and touch modes, and workers that finish after a
 stopping optional remake. The held controls verify the handoff with both

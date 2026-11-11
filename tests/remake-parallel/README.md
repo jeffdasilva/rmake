@@ -65,7 +65,7 @@ python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmak
 ~~~
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 353 profiles. Leading `./` spellings share one target record and still appear
+run all 379 profiles. Leading `./` spellings share one target record and still appear
 twice in `MAKEFILE_LIST`. A spelling with an internal `../` retains a separate
 target record even when it refers to the same physical file.
 
@@ -92,7 +92,7 @@ visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 
-The 27 debug profiles check the entire debug trace and the exact trace prefix
+The 53 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging with the pipe
 transport. Verbose FIFO output contains a live controller PID and is outside
@@ -153,3 +153,8 @@ a later worker failure.
 Two additional query cases use an ordinary recipe expansion without a file
 write. They require the unfinished-jobs diagnostic while the last optional
 remake worker is still held.
+
+Basic remake debugging also covers direct named and unnamed sources under
+dry-run, question, and touch. The 26 profiles check both release prefixes
+and the complete trace, including optional failures with built-ins and a
+named query followed by a keep-going failure.
