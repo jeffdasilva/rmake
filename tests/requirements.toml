@@ -2699,3 +2699,26 @@ cases = [
   "debug-remake-double-colon-missing-stub-basic",
   "debug-remake-double-colon-missing-optional-stub-verbose",
 ]
+
+[[requirements]]
+id = "parallel.notparallel-special-first-branch"
+title = "First branch controls the NOTPARALLEL double-colon special target"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/shuffle.md"
+candidate_required = 12
+fixture_count = 12
+cases = [
+  "notparallel-special-first-branch-deferred-first-branch",
+  "notparallel-special-first-branch-empty-before-named-target",
+  "notparallel-special-first-branch-first-named-target",
+  "notparallel-special-first-branch-first-named-unrelated",
+  "notparallel-special-first-branch-marker-only-first-branch",
+  "notparallel-special-first-branch-named-only-in-second-branch",
+  "notparallel-special-first-branch-named-other-before-empty",
+  "notparallel-special-first-branch-named-target-before-empty",
+  "notparallel-special-first-branch-order-only-first-target",
+  "notparallel-special-first-branch-two-goals-first-targeted",
+  "notparallel-special-first-branch-two-goals-global",
+  "notparallel-special-first-branch-two-goals-second-targeted",
+]

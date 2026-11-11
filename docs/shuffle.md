@@ -35,6 +35,8 @@ branch has its own barriers. A grouped rule can advance another peer while one
 peer waits at a barrier. Implicit prerequisites inserted later join the first
 group. Replacing a deferred occurrence in secondary expansion drops its
 targeted barrier. Barriers before retained prerequisite occurrences survive.
+With `.NOTPARALLEL::`, the first branch determines both global serialization
+and the set of named targets.
 
 Secondary expansion retains normalized per-file `MAKEFLAGS`/`MFLAGS` in the
 reusable target context without inheriting its temporary automatic variables.
