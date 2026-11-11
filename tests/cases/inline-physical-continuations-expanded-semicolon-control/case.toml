@@ -1,0 +1,12 @@
+id = "inline-physical-continuations-expanded-semicolon-control"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Physical inline recipe continuation and ordinary syntax controls."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "3c706f723e0a3c7461626c653e0a"
+stderr_hex = ""
