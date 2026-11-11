@@ -8,3 +8,51 @@ timeout_seconds = 5
 [expected]
 exit_code = 0
 stderr = ""
+stdout_template = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'fragment.mk' does not exist.
+   File 'left' does not exist.
+  Must remake target 'left'.
+  Successfully remade target file 'left'.
+ Must remake target 'fragment.mk'.
+ Successfully remade target file 'fragment.mk'.
+   File 'right' does not exist.
+  Must remake target 'right'.
+  Successfully remade target file 'right'.
+  Prerequisite 'right' of target 'fragment.mk' does not exist.
+ Must remake target 'fragment.mk'.
+ Successfully remade target file 'fragment.mk'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -j1 --debug=m,b all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+   File 'left' does not exist.
+  Must remake target 'left'.
+  Successfully remade target file 'left'.
+  Prerequisite 'left' of target 'fragment.mk' does not exist.
+ Must remake target 'fragment.mk'.
+ Successfully remade target file 'fragment.mk'.
+   File 'right' does not exist.
+  Must remake target 'right'.
+  Successfully remade target file 'right'.
+  Prerequisite 'right' of target 'fragment.mk' does not exist.
+ Must remake target 'fragment.mk'.
+ Successfully remade target file 'fragment.mk'.
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+ordinary=left:right
+Successfully remade target file 'all'.
+'''

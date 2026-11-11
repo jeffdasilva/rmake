@@ -81,7 +81,7 @@ class CorpusTests(unittest.TestCase):
                     case = conformance.load_case(path)
                     self.assertIn("exit_code", case.expected)
                     self.assertEqual(
-                        len({"stdout", "stdout_hex"}.intersection(case.expected)), 1,
+                        len(conformance.STDOUT_EXPECTATIONS.intersection(case.expected)), 1,
                         "exactly one independent stdout expectation is required",
                     )
 
