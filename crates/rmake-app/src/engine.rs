@@ -4612,23 +4612,27 @@ impl Engine {
 
     fn intermediate(&self, target: &[u8]) -> bool {
         let target = self.aliases.resolve(target);
-        if self
-            .options
-            .goals
-            .iter()
-            .any(|goal| self.aliases.resolve(goal) == target)
-        {
-            return false;
+        let eligible = || {
+            self.special(b".INTERMEDIATE", target, false)
+                || self.special(b".SECONDARY", target, false)
+                || (!self.intermediate_policy.no_intermediates
+                    && (self.intermediate_policy.global_intermediate(target)
+                        || self.intermediates.contains(target))
+                    && !self.special_for_rule(b".NOTINTERMEDIATE", target))
+        };
+        let explicitly_requested = || {
+            self.options
+                .goals
+                .iter()
+                .any(|goal| self.aliases.resolve(goal) == target)
+        };
+        if self.intermediate_policy.all_secondary || !self.aliases.is_empty() {
+            // Broad eligibility and live aliases can make the policy check
+            // more expensive than finding a requested goal.
+            !explicitly_requested() && eligible()
+        } else {
+            eligible() && !explicitly_requested()
         }
-        if self.special(b".INTERMEDIATE", target, false)
-            || self.special(b".SECONDARY", target, false)
-        {
-            return true;
-        }
-        !self.special_for_rule(b".NOTINTERMEDIATE", target)
-            && !self.intermediate_policy.no_intermediates
-            && (self.intermediate_policy.global_intermediate(target)
-                || self.intermediates.contains(target))
     }
 
     fn special_for_rule(&self, special: &[u8], target: &[u8]) -> bool {
@@ -12767,6 +12771,40 @@ mod tests {
         engine.done.insert(b".PHONY".to_vec(), Outcome::default());
         assert!(!engine.build(b".PHONY", None, 0).failed);
         assert!(engine.phony_names.is_none());
+    }
+
+    #[test]
+    fn intermediate_goal_override_resolves_aliases_after_policy_selection() {
+        let launch = Engine::invocation(
+            ["-rR", "goal"].into_iter().map(OsString::from),
+            b"rmake",
+            OsStr::new("rmake"),
+            None,
+            None,
+        )
+        .unwrap();
+        let mut engine =
+            Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+        engine
+            .database
+            .read(
+                b".INTERMEDIATE: listed resolved\n.SECONDARY: second\n.NOTINTERMEDIATE: excluded\n",
+                b"Makefile",
+            )
+            .unwrap();
+        engine.intermediate_policy = crate::intermediates::Policy::read(&engine.database).unwrap();
+        engine.intermediates.insert(b"inferred".to_vec());
+        engine.intermediates.insert(b"excluded".to_vec());
+        assert!(engine.intermediate(b"resolved"));
+        engine.aliases.insert(b"goal", b"resolved", false);
+
+        assert!(engine.intermediate(b"listed"));
+        assert!(engine.intermediate(b"second"));
+        assert!(engine.intermediate(b"inferred"));
+        assert!(!engine.intermediate(b"excluded"));
+        assert!(!engine.intermediate(b"ordinary"));
+        assert!(!engine.intermediate(b"resolved"));
+        assert!(!engine.intermediate(b"goal"));
     }
 
     #[test]
