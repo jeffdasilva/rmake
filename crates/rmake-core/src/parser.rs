@@ -512,6 +512,9 @@ pub struct Database {
     pub export_all: bool,
     /// Sticky reader mode selected by an actual .POSIX rule declaration.
     pub posix: bool,
+    // Importing or deleting the variable does not change the active prefix.
+    recipe_prefix: Option<u8>,
+    recipe_prefix_setter_removed: bool,
     pub warnings: Vec<(Location, Diagnostic)>,
     pub makefiles: Vec<Makefile>,
     /// Module identities remain distinct while sharing makefile remake traversal.
@@ -2892,6 +2895,20 @@ impl Database {
             result
         };
         result?;
+        if spec.name == b".RECIPEPREFIX" && !self.recipe_prefix_setter_removed {
+            let retained_local = (spec.kind == Assignment::Conditional
+                || (spec.kind == Assignment::Append && spec.value.is_empty()))
+                && lookup_scope
+                    .as_ref()
+                    .is_some_and(|scope| scope.has_local_binding(spec.name));
+            if !retained_local {
+                self.recipe_prefix = self
+                    .variables
+                    .get(spec.name)
+                    .and_then(|variable| variable.raw_value().first().copied())
+                    .filter(|byte| *byte != 0);
+            }
+        }
         // A conditional can return an ordinary file or pattern binding.
         // The live setter runs only when that selected binding is special.
         let replay_flags = live_makeflags
@@ -4379,11 +4396,7 @@ impl Database {
                 ..
             } = frame;
             let evaluated_at = *evaluated_at;
-            let prefix = self
-                .variables
-                .get(b".RECIPEPREFIX")
-                .and_then(|v| v.raw_value().first().copied())
-                .unwrap_or(b'\t');
+            let prefix = self.recipe_prefix.unwrap_or(b'\t');
             reader.set_posix(self.posix);
             if evaluated_at == Some(1) {
                 reader.skip_eval_bom();
@@ -4725,6 +4738,9 @@ impl Database {
                         });
                     }
                     self.variables.remove(name);
+                    if name == b".RECIPEPREFIX" {
+                        self.recipe_prefix_setter_removed = true;
+                    }
                     self.exports.remove(name);
                     self.unexports.remove(name);
                 }
