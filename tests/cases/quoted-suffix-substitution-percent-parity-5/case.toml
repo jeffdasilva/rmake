@@ -1,0 +1,12 @@
+id = "quoted-suffix-substitution-percent-parity-5"
+requirement = "variables.expansion"
+candidate = "required"
+description = "Escaped percent bytes in variable suffix substitutions."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d5b70726525207072655c25207072652e6f75742025205c25202e6f757420706c61696e5d0a"
+stderr_hex = ""
