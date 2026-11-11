@@ -1,0 +1,12 @@
+id = "short-reference-semicolon-ordinary-short-variable-control"
+requirement = "rules.quoted-semicolon-phases"
+candidate = "required"
+description = "Semicolon quoting near short variable references."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6974656d783b7461696c0a"
+stderr_hex = ""

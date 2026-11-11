@@ -2226,12 +2226,20 @@ impl Database {
 
 /// Find a separator outside nested make references. It is deliberately not a
 /// shell parser: quotes have no special meaning in make rule/assignment syntax.
-fn separator(bytes: &[u8], needle: u8) -> Option<usize> {
+fn separator<const SOURCE: bool>(bytes: &[u8], needle: u8) -> Option<usize> {
     let mut closes = Vec::new();
     let mut i = 0;
     while i < bytes.len() {
         match bytes[i] {
             b'\\' if i + 1 < bytes.len() => i += 2,
+            // A short reference's backslash counts in the run before the separator.
+            b'$' if SOURCE
+                && closes.is_empty()
+                && bytes.get(i + 1) == Some(&b'\\')
+                && bytes[i + 1..].iter().find(|&&byte| byte != b'\\') == Some(&needle) =>
+            {
+                i += 1;
+            }
             b'$' if i + 1 < bytes.len() => {
                 match bytes[i + 1] {
                     b'(' => closes.push(b')'),
@@ -2275,9 +2283,8 @@ fn expanded_separator(bytes: &[u8], separator: u8) -> Option<usize> {
     None
 }
 
-/// Remove one level of semicolon quoting before the known boundary. Raw rule
-/// references remain intact until expansion, and recipe bytes are outside the
-/// scan in both phases.
+/// Remove one level of semicolon quoting before the known boundary. Long
+/// source references and recipe bytes are outside this scan.
 fn unquote_semicolons<const SOURCE: bool>(bytes: &[u8], end: usize) -> (Cow<'_, [u8]>, usize) {
     if !bytes[..end].contains(&b'\\') {
         return (Cow::Borrowed(bytes), end);
@@ -2287,7 +2294,9 @@ fn unquote_semicolons<const SOURCE: bool>(bytes: &[u8], end: usize) -> (Cow<'_, 
     let mut offset = 0;
     while offset < end {
         match bytes[offset] {
-            b'$' if SOURCE => offset = rule_reference_end(&bytes[..end], offset),
+            b'$' if SOURCE && bytes.get(offset + 1) != Some(&b'\\') => {
+                offset = rule_reference_end(&bytes[..end], offset);
+            }
             b'\\' => {
                 let start = offset;
                 while offset < end && bytes[offset] == b'\\' {
@@ -2659,7 +2668,7 @@ impl Database {
             if has_colon || has_semicolon {
                 let colon = expanded_separator(&expanded, b':');
                 if scan_expanded_inline
-                    && separator(&expanded, b';')
+                    && separator::<false>(&expanded, b';')
                         .is_some_and(|semicolon| colon.is_none_or(|colon| semicolon < colon))
                 {
                     return Ok(RulePrefix {
@@ -4938,7 +4947,7 @@ impl Database {
                 return Err(ParseError::system(location, Message::OrphanRecipe, context));
             }
             self.finish_declaration(declaration, &location, context)?;
-            let raw_rule_end = separator(text, b';').unwrap_or(text.len());
+            let raw_rule_end = separator::<true>(text, b';').unwrap_or(text.len());
             let (text, rule_end) = unquote_semicolons::<true>(text, raw_rule_end);
             // Keep the raw assignment tail until a source word has produced
             // an inline recipe boundary during expansion.
@@ -5038,7 +5047,7 @@ impl Database {
                 continue;
             }
             let source_inline =
-                separator(&line.bytes, b';').filter(|i| !has_comment(&line.bytes[..*i]));
+                separator::<true>(&line.bytes, b';').filter(|i| !has_comment(&line.bytes[..*i]));
             let tail = match expanded_recipe_tail {
                 Some(tail) => tail,
                 None => self.expand(
@@ -5071,7 +5080,7 @@ impl Database {
                 }
                 semicolon.map(|_| delimiter.tail_start + end)
             } else {
-                separator(&expanded_line, b';')
+                separator::<false>(&expanded_line, b';')
             };
             let expanded =
                 expanded_inline.map_or(expanded_line.as_slice(), |i| &expanded_line[..i]);
