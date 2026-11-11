@@ -4516,18 +4516,18 @@ impl Database {
             }
             if let Some(rest) = directive(text, b"else") {
                 let Some(top) = conditions.last_mut() else {
-                    return Err(ParseError {
-                        unlocated: false,
+                    return Err(ParseError::system(
                         location,
-                        message: "extraneous 'else'".into(),
-                    });
+                        Message::ExtraneousConditional(b"else"),
+                        context,
+                    ));
                 };
                 if top.otherwise {
-                    return Err(ParseError {
-                        unlocated: false,
+                    return Err(ParseError::system(
                         location,
-                        message: "only one 'else' per conditional".into(),
-                    });
+                        Message::DuplicateElse,
+                        context,
+                    ));
                 }
                 let eligible = top.parent && !top.taken;
                 top.active = if rest.is_empty() {
@@ -4544,20 +4544,12 @@ impl Database {
                         location.clone(),
                         Diagnostic::system(Message::DirectiveTail(b"else")),
                     );
-                    top.otherwise = true;
                     eligible
                 };
                 top.taken |= top.active;
                 continue;
             }
             if let Some(rest) = directive(text, b"endif") {
-                if conditions.pop().is_none() {
-                    return Err(ParseError {
-                        unlocated: false,
-                        location,
-                        message: "extraneous 'endif'".into(),
-                    });
-                }
                 if !rest.is_empty() {
                     record_warning(
                         &mut self.warnings,
@@ -4565,6 +4557,13 @@ impl Database {
                         location.clone(),
                         Diagnostic::system(Message::DirectiveTail(b"endif")),
                     );
+                }
+                if conditions.pop().is_none() {
+                    return Err(ParseError::system(
+                        location,
+                        Message::ExtraneousConditional(b"endif"),
+                        context,
+                    ));
                 }
                 continue;
             }

@@ -1,0 +1,5 @@
+ifeq (a,b)
+$(info wrong-first)
+else unsupported
+else
+endif

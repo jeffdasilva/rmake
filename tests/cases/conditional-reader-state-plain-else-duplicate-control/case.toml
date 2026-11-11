@@ -1,0 +1,12 @@
+id = "conditional-reader-state-plain-else-duplicate-control"
+requirement = "syntax.conditionals"
+candidate = "required"
+description = "Conditional branch selection and warning order after trailing text."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "63686f73656e0a"
+stderr_hex = "4d616b6566696c653a353a202a2a2a206f6e6c79206f6e652027656c7365272070657220636f6e646974696f6e616c2e202053746f702e0a"

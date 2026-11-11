@@ -310,10 +310,10 @@ id = "syntax.conditionals"
 title = "Conditional directives"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 6
+candidate_required = 25
 reference = "https://www.gnu.org/software/make/manual/html_node/Conditional-Syntax.html"
-fixture_count = 6
-cases = ["conditional-ifeq-match", "conditional-ifneq-match", "conditional-ifdef-defined", "conditional-ifndef-empty", "conditional-else-if", "conditional-ignored-error"]
+fixture_count = 25
+cases = ["conditional-ifeq-match", "conditional-ifneq-match", "conditional-ifdef-defined", "conditional-ifndef-empty", "conditional-else-if", "conditional-ignored-error", "conditional-reader-state-bad-else-then-plain", "conditional-reader-state-bad-else-after-true", "conditional-reader-state-bad-else-then-conditional", "conditional-reader-state-bad-else-then-plain-fatal", "conditional-reader-state-multiple-bad-else", "conditional-reader-state-bad-else-nested-inactive", "conditional-reader-state-bad-else-end-keyword", "conditional-reader-state-bad-else-else-keyword", "conditional-reader-state-bad-else-expansion-literal", "conditional-reader-state-bare-else-control", "conditional-reader-state-bare-else-tail-control", "conditional-reader-state-bare-endif-control", "conditional-reader-state-bare-endif-with-tail", "conditional-reader-state-matched-endif-with-tail-control", "conditional-reader-state-plain-else-duplicate-control", "conditional-reader-state-clean-else-if-control", "conditional-reader-state-include-bare-endif-with-tail", "conditional-reader-state-eval-bad-else-then-plain", "conditional-reader-state-eval-bare-endif-with-tail"]
 
 [[requirements]]
 id = "syntax.reader"
