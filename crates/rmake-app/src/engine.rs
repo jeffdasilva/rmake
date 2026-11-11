@@ -4322,12 +4322,7 @@ impl Engine {
                                     include_policy.is_some() && include_policy == earlier_policy
                                 });
                         compatible_read
-                            && self.simple_named_remake(
-                                file,
-                                name,
-                                &read_files[..index],
-                                !modes.touch && (modes.dry_run ^ modes.question),
-                            )
+                            && self.simple_named_remake(file, name, &read_files[..index], modes)
                     }))
         })
     }
@@ -4349,7 +4344,12 @@ impl Engine {
                         && (rule.dependencies.is_empty()
                             || (self.is_makefile_goal(name, named_sources)
                                 && rule.dependencies.iter().all(|dep| dep.name != b".WAIT")
-                                && self.simple_named_remake(file, name, &[], false)))
+                                && self.simple_named_remake(
+                                    file,
+                                    name,
+                                    &[],
+                                    MakefileModes::default(),
+                                )))
                 })
         })
     }
@@ -4359,7 +4359,7 @@ impl Engine {
         file: &Makefile,
         name: &[u8],
         earlier_sources: &[(Makefile, bool)],
-        grouped_simulation: bool,
+        modes: MakefileModes,
     ) -> bool {
         let primary = file.location.is_none();
         if (primary && (file.optional || file.missing))
@@ -4387,7 +4387,8 @@ impl Engine {
                 // touching a primary or running a recursive recipe.
                 let group_can_simulate = rule.group.as_ref().is_none_or(|group| {
                     primary
-                        && grouped_simulation
+                        && !modes.touch
+                        && (modes.dry_run ^ modes.question)
                         && group.double_id.is_none()
                         && group.targets.len() == 2
                         && group.targets.iter().any(|target| target == name)
@@ -4398,7 +4399,8 @@ impl Engine {
                                 && !peer.starts_with(b"~")
                                 && !peer.starts_with(b"-l")
                                 && rmake_core::filenames::archive_parts(peer).is_none()
-                                && !self.makefile_names.contains(peer)
+                                && (!self.makefile_names.contains(peer)
+                                    || (modes.question && rule.secondary.is_none()))
                                 && !self.special(b".PHONY", peer, false)
                         })
                         && rule.recipes.as_ref().is_some_and(|recipes| {
@@ -11103,12 +11105,11 @@ impl Engine {
         let cached = self.cached_recipe_outcome(outcome);
         // A query can inspect an expanded recipe without starting it. Only
         // its owner has a verdict in that case, so peers can still be goals.
-        let unstarted_query = group.ordinary
-            && outcome.question_outdated
-            && outcome.completion == CompletionTime::Preserve;
+        let unstarted_query =
+            outcome.question_outdated && outcome.completion == CompletionTime::Preserve;
         if let Some((id, owner_branch)) = group.double_colon {
             self.active_group_branches.remove(&id);
-            if !unstarted_query {
+            if !(group.ordinary && unstarted_query) {
                 self.completed_group_branches.insert(id, cached);
             }
             let database_requested = self.output.database_requested();
@@ -11235,7 +11236,12 @@ impl Engine {
                 continue;
             }
             self.active_peers.remove(&peer);
-            if unstarted_query {
+            if unstarted_query
+                && (group.ordinary
+                    || (self.remaking && !group.implicit && self.makefile_names.contains(&peer)))
+            {
+                // A read peer has its own remake visit, which may run without
+                // the named owner's question mode.
                 continue;
             }
             if group.implicit && (!outcome.failed || outcome.ran) {
