@@ -1982,6 +1982,30 @@ cases = [
 ]
 
 [[requirements]]
+id = "options.shuffle-pattern-wait-plan"
+title = "Preserve explicit shuffle plans behind effective implicit WAIT barriers"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/shuffle.md"
+candidate_required = 13
+fixture_count = 13
+cases = [
+  "shuffle-pattern-wait-plan-explicit-order-only-suffix-12345",
+  "shuffle-pattern-wait-plan-genuine-barrier-explicit-secondary",
+  "shuffle-pattern-wait-plan-genuine-barrier-new-child-reverse",
+  "shuffle-pattern-wait-plan-genuine-barrier-new-child-seeded",
+  "shuffle-pattern-wait-plan-genuine-barrier-unplanned-include",
+  "shuffle-pattern-wait-plan-order-only-pattern-before-12345",
+  "shuffle-pattern-wait-plan-pattern-no-wait-added-control-12345",
+  "shuffle-pattern-wait-plan-pattern-wait-before-one-12345",
+  "shuffle-pattern-wait-plan-pattern-wait-between-and-after-12345",
+  "shuffle-pattern-wait-plan-pattern-wait-between-reverse",
+  "shuffle-pattern-wait-plan-secondary-expansion-between-12345",
+  "shuffle-pattern-wait-plan-secondary-expansion-to-order-only-12345",
+  "shuffle-pattern-wait-plan-wait-before-first-order-only-12345",
+]
+
+[[requirements]]
 id = "resolution.implicit-prerequisite-spelling"
 title = "Raw implicit prerequisite spelling and unchanged literal preparation"
 status = "fixture-ready"

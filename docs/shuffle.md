@@ -15,9 +15,11 @@ boundary. Initial makefile-remake goals keep their read order; ordinary goals
 are planned after rereading. The first static double-colon branch and subsequent
 branches preserve their distinct GNU behavior.
 
-An effective `.WAIT` prevents permutation of its whole prerequisite list;
-trailing markers have no following edge. Empty `.NOTPARALLEL` disables graph
-shuffling, and targeted serial lists retain their barriers. FIFO/pipe jobservers,
+An effective `.WAIT` prevents a new permutation of the prerequisite list.
+When implicit rule selection inserts an effective barrier, traversal visits the
+implicit prerequisites in declaration order, then follows any existing explicit
+permutation. Trailing markers have no following edge. Empty `.NOTPARALLEL`
+disables graph shuffling, and targeted serial lists retain their barriers. FIFO/pipe jobservers,
 output synchronization, recursive invocations and restarts use the existing
 runtime. Recipe failures append the active canonical `shuffle=MODE`, including
 ignored failures. Circular traversal separates the skipped edge from GNU's
