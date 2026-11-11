@@ -4643,15 +4643,21 @@ impl Expansion<'_, '_> {
                     StartingDirectory::Pending => None,
                     StartingDirectory::Selected(directory) => Some(directory.as_ref()),
                 };
-                let paths = words(first)
-                    .filter(|path| directory.is_some() || path.starts_with(b"/"))
-                    .filter_map(|path| absolute_path(directory.unwrap_or(b"/"), path));
+                let paths =
+                    words(first).filter(|path| directory.is_some() || path.starts_with(b"/"));
                 let mut output = Vec::new();
+                let mut parts = Vec::new();
+                let mut normalized = Vec::new();
                 for path in paths {
+                    let Some(path) =
+                        absolute_path(directory.unwrap_or(b"/"), path, &mut parts, &mut normalized)
+                    else {
+                        continue;
+                    };
                     if !output.is_empty() {
                         push(&mut output, b" ")?;
                     }
-                    push(&mut output, &path)?;
+                    push(&mut output, path)?;
                 }
                 Ok(output)
             }
@@ -5217,8 +5223,14 @@ fn pattern_substitute(from: &[u8], to: &[u8], text: &[u8]) -> Result<Vec<u8>, Ex
     Ok(output)
 }
 
-fn absolute_path(directory: &[u8], path: &[u8]) -> Option<Vec<u8>> {
+fn absolute_path<'path, 'output>(
+    directory: &'path [u8],
+    path: &'path [u8],
+    parts: &mut Vec<&'path [u8]>,
+    result: &'output mut Vec<u8>,
+) -> Option<&'output [u8]> {
     const LINUX_PATH_LIMIT: usize = 4096;
+    parts.clear();
     if path.len() >= LINUX_PATH_LIMIT {
         return None;
     }
@@ -5227,7 +5239,6 @@ fn absolute_path(directory: &[u8], path: &[u8]) -> Option<Vec<u8>> {
     } else {
         directory
     };
-    let mut parts: Vec<&[u8]> = Vec::new();
     let mut length = 1;
     for part in base
         .split(|byte| *byte == b'/')
@@ -5249,7 +5260,8 @@ fn absolute_path(directory: &[u8], path: &[u8]) -> Option<Vec<u8>> {
             }
         }
     }
-    let mut result = Vec::with_capacity(length);
+    result.clear();
+    result.reserve(length);
     result.push(b'/');
     for (index, part) in parts.iter().enumerate() {
         if index != 0 {
@@ -5263,6 +5275,13 @@ fn absolute_path(directory: &[u8], path: &[u8]) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn absolute_path(directory: &[u8], path: &[u8]) -> Option<Vec<u8>> {
+        let mut parts = Vec::new();
+        let mut result = Vec::new();
+        super::absolute_path(directory, path, &mut parts, &mut result)?;
+        Some(result)
+    }
 
     fn define(store: &mut VariableStore, name: &[u8], value: &[u8], assignment: Assignment) {
         store.define(name, value, assignment, Origin::File).unwrap();
