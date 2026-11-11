@@ -43,6 +43,61 @@
       "candidate_private_pipe": []
     },
     {
+      "id": "low12-term-live-recipe",
+      "nofile": 12,
+      "signal": 15,
+      "status": -15,
+      "stdout": "",
+      "stderr": "make: *** Deleting file 'out'\nmake: *** [Makefile:5: out] Terminated\n",
+      "forwarded_signal": "15",
+      "candidate_private_pipe": []
+    },
+    {
+      "id": "low12-int-live-recipe",
+      "nofile": 12,
+      "signal": 2,
+      "status": -2,
+      "stdout": "",
+      "stderr": "make: *** Deleting file 'out'\n",
+      "forwarded_signal": null,
+      "candidate_private_pipe": []
+    },
+    {
+      "id": "low13-term-live-recipe",
+      "nofile": 13,
+      "signal": 15,
+      "status": -15,
+      "stdout": "",
+      "stderr": "make: *** Deleting file 'out'\nmake: *** [Makefile:5: out] Terminated\n",
+      "forwarded_signal": "15",
+      "candidate_private_pipe": []
+    },
+    {
+      "id": "low13-int-live-recipe",
+      "nofile": 13,
+      "signal": 2,
+      "status": -2,
+      "stdout": "",
+      "stderr": "make: *** Deleting file 'out'\n",
+      "forwarded_signal": null,
+      "candidate_private_pipe": []
+    },
+    {
+      "id": "low14-term-live-recipe",
+      "nofile": 14,
+      "signal": 15,
+      "status": -15,
+      "stdout": "",
+      "stderr": "make: *** Deleting file 'out'\nmake: *** [Makefile:5: out] Terminated\n",
+      "forwarded_signal": "15",
+      "candidate_private_pipe": [
+        [
+          5,
+          6
+        ]
+      ]
+    },
+    {
       "id": "roomy32-term-live-recipe",
       "nofile": 32,
       "signal": 15,
