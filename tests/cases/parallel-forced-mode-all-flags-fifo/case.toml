@@ -1,0 +1,11 @@
+id = "parallel-forced-mode-all-flags-fifo"
+requirement = "runtime.parallel-forced-modes"
+candidate = "required"
+provenance = "Original held-recipe fixture tested against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j2", "-nqt", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "printf 'held\\n' >ready; until test -f release; do sleep 0.01; done\nuntil test -f ready; do sleep 0.01; done; : >release\n"
+stderr = ""

@@ -1,0 +1,10 @@
+id = "output-sync-temp-creation-failure"
+requirement = "runtime.output-sync-temp-creation-failure"
+candidate = "required"
+provenance = "Original rmake differential fixture for failed named lock and recipe spool creation after changing directory."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout = "verified none\nverified line\nverified target\nverified recurse\nverified recurse with reader\n"
+stderr = ""

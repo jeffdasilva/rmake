@@ -1,0 +1,11 @@
+id = "live-query-keep-going-fatal-before-resume"
+requirement = "runtime.live-query-keep-going"
+candidate = "required"
+provenance = "Original finite fixture for GNU Make 4.4.1 live keep-going policy."
+args = ["-rR", "--no-print-directory", "-q", "gate", "cached", "enable", "fatal", "after"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "gate\nhead\nenable\nfatal\n"
+stderr = "Makefile:8: *** later fatal.  Stop.\n"

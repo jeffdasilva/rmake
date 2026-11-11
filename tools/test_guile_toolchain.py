@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import guile_frontend_gate as frontend
 import guile_toolchain as g
@@ -37,6 +38,44 @@ class GuileToolchainTests(unittest.TestCase):
             path.unlink(); path.symlink_to(Path(tmp) / 'missing')
             with self.assertRaisesRegex(g.ProfileError, 'symlink'): g.cached_download(path, 'https://example.com/pinned', expected, 8)
             network.assert_not_called()
+
+    def test_package_retries_response_read_and_caches_verified_bytes(self):
+        payload = b'verified Guile package'
+        stalled = MagicMock()
+        stalled.__enter__.return_value = stalled
+        stalled.read.side_effect = TimeoutError('stalled package response')
+        with (tempfile.TemporaryDirectory() as tmp,
+              patch.object(g.urllib.request, 'build_opener') as network,
+              patch.object(g.oracle.time, 'sleep') as sleep):
+            path = Path(tmp) / 'package.deb'
+            transport = network.return_value.open
+            transport.side_effect = [stalled, io.BytesIO(payload)]
+            self.assertEqual(g.cached_download(path, 'https://example.com/package', g.digest(payload), len(payload)),
+                             payload)
+            self.assertEqual(path.read_bytes(), payload)
+            self.assertEqual(list(Path(tmp).iterdir()), [path])
+            self.assertEqual(transport.call_count, 2)
+            sleep.assert_called_once_with(1)
+
+    def test_release_retries_response_read_but_never_caches_wrong_digest(self):
+        stalled = MagicMock()
+        stalled.__enter__.return_value = stalled
+        stalled.read.side_effect = TimeoutError('stalled release response')
+        with (tempfile.TemporaryDirectory() as tmp,
+              patch.object(g.urllib.request, 'build_opener') as network,
+              patch.object(g.oracle.time, 'sleep') as sleep,
+              patch.object(g, 'run') as verify):
+            root = Path(tmp)
+            lock = {'release_url': 'https://example.com/InRelease',
+                    'release_sha256': g.digest(b'verified release')}
+            transport = network.return_value.open
+            transport.side_effect = [stalled, io.BytesIO(b'wrong release')]
+            with self.assertRaisesRegex(g.ProfileError, 'pinned noble release differs'):
+                g.authenticate(lock, root)
+            self.assertFalse((root / 'provenance/noble-InRelease').exists())
+            self.assertEqual(transport.call_count, 2)
+            sleep.assert_called_once_with(1)
+            verify.assert_not_called()
 
     def test_release_hash_section_rejects_duplicates_escape_and_malformed_records(self):
         identity = '1' * 64

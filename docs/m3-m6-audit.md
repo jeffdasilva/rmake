@@ -91,3 +91,24 @@ plugin APIs retain their separate correctness and compatibility gates.
 
 
 The [locale collation slice](locale-collation.md) closes 33 observed preceding mismatches in 74 original full-stream/full-filesystem models, including malformed-byte ties, table growth and live native locale selection. Both profiles retain all 183 earlier C/CUTF8 controls. Wider locale/cache histories, localized diagnostics, resource profiles and general performance remain separate M3/M6 requirements.
+
+## Parallel modes, makefile remakes, and jobserver paths
+
+The [held remake gate](../tests/remake-parallel/README.md) covers 353
+profiles. It includes optional recipes with built-ins, named include goals
+under dry-run, question and touch modes, and workers that finish after a
+stopping optional remake. The held controls verify the handoff with both
+Linux jobserver transports. Explicit primary makefiles, expanded file
+identities, and combinations with load limits and remake debug still need
+broader coverage.
+
+The [shuffle fixtures](shuffle.md) qualify implicit WAIT and targeted
+NOTPARALLEL across ordinary, grouped, and double-colon rules. The
+[forced recipe fixtures](forced-touch.md) qualify parallel ordinary build
+modes and verify resumed double-colon work when a later goal enables
+keep-going. Further grouped and live-option combinations remain open.
+
+FIFO and named output mutex publication preserve relative path bytes.
+The output gates qualify recursive directory changes and a selection of
+temporary-file creation failures. Line and target synchronization with
+reader output before a failed temporary-file creation still need coverage.

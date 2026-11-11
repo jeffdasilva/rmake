@@ -1,0 +1,11 @@
+id = "parallel-forced-mode-touch-twice-pipe"
+requirement = "runtime.parallel-forced-modes"
+candidate = "required"
+provenance = "Original held-recipe fixture tested against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j2", "-t", "--jobserver-style=pipe", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "touch held\ntouch held\ntouch all\n"
+stderr = ""

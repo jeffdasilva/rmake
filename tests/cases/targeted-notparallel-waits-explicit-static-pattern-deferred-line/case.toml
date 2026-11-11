@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "targeted-notparallel-waits-explicit-static-pattern-deferred-line"
+requirement = "parallel.targeted-notparallel-waits"
+candidate = "required"
+provenance = "Original targeted serialization model observed twice against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "--shuffle=12345", "all.out"]
+
+[expected]
+exit_code = 0
+stdout = "leaf a\nleaf d\nleaf b\nleaf e\nleaf f\nleaf c\ngoal a b c d e f | \n"
+stderr = ""

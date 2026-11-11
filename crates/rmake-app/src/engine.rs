@@ -366,6 +366,25 @@ impl Outcome {
     }
 }
 
+#[derive(Default)]
+struct OrdinaryQueries {
+    first_verdict: Option<Status>,
+    pass: u64,
+    deferred_tails: HashMap<Vec<u8>, DeferredQueryTail>,
+}
+
+impl OrdinaryQueries {
+    fn record(&mut self, verdict: Option<Status>) {
+        self.first_verdict = self.first_verdict.or(verdict);
+    }
+}
+
+struct DeferredQueryTail {
+    pass: u64,
+    queued: bool,
+    state: DoubleColonState,
+}
+
 struct RequestedGoal {
     name: Vec<u8>,
     already_done: bool,
@@ -394,7 +413,44 @@ impl MakefileRemake {
     }
 }
 
+#[derive(Clone, Copy, Default)]
+struct MakefileModes {
+    dry_run: bool,
+    question: bool,
+    touch: bool,
+}
+
+impl MakefileModes {
+    fn from_options(options: &Options) -> Self {
+        Self {
+            dry_run: options.dry_run,
+            question: options.question,
+            touch: options.touch,
+        }
+    }
+
+    fn apply(self, options: &mut Options) {
+        options.dry_run = self.dry_run;
+        options.question = self.question;
+        options.touch = self.touch;
+    }
+
+    fn active(self) -> bool {
+        self.dry_run || self.question || self.touch
+    }
+
+    fn check_update(self, outcome: Outcome) -> bool {
+        !self.dry_run
+            && !self.question
+            && (matches!(
+                outcome.completion,
+                CompletionTime::Refresh | CompletionTime::ArchiveUnknown
+            ) || (self.touch && outcome.ran))
+    }
+}
+
 struct PendingMakefileRemake<'a> {
+    modes: MakefileModes,
     file: &'a Makefile,
     context: MakefileRemake,
     duplicate: bool,
@@ -727,6 +783,7 @@ struct ParallelJob {
     program: Vec<u8>,
     location: Location,
     ignore: bool,
+    recursive: bool,
     before: Option<SystemTime>,
     phony: bool,
     continuation: RecipeState,
@@ -847,8 +904,6 @@ struct RuleState {
     phony: bool,
     next: usize,
     order: Vec<usize>,
-    serial_dependency: Option<usize>,
-    serial_phase: bool,
     inspections: HashMap<usize, (u64, Outcome)>,
     // Rebuild evidence is rare; keep ordinary suspended graph frames compact.
     #[allow(clippy::box_collection)]
@@ -880,26 +935,20 @@ impl RuleState {
     }
 
     fn visited_prerequisites(&self) -> bool {
-        self.group.is_none() && !self.serial_phase && self.next == self.rule.dependencies.len()
+        self.group.is_none() && self.next == self.rule.dependencies.len()
     }
 
     fn visited_group_prerequisites(&self) -> bool {
-        !self.serial_phase
-            && self.next == self.rule.dependencies.len()
+        self.next == self.rule.dependencies.len()
             && self
                 .group
                 .as_ref()
                 .is_some_and(|group| group.peer_targets.is_empty())
     }
 
-    fn waiting_at_serial_prerequisite(&self) -> bool {
-        self.branch.is_none() && self.group.is_none() && self.serial_dependency.is_some()
-    }
-
     fn waiting_at_barrier(&self) -> bool {
         let index = self.order.get(self.next).copied().unwrap_or(self.next);
         self.group.as_ref().is_none_or(|group| group.run.implicit)
-            && !self.serial_phase
             && self
                 .rule
                 .dependencies
@@ -964,7 +1013,6 @@ struct GroupSegment {
     start: usize,
     target: Vec<u8>,
     ordinal: usize,
-    serial: bool,
 }
 
 struct GroupRun {
@@ -1091,6 +1139,7 @@ pub struct Engine {
     impossible_generation: u64,
     would_build: bool,
     forced_query_stop: bool,
+    ordinary_queries: OrdinaryQueries,
     parallel_jobs: ParallelJobs,
     aborted_recipe_permit: Option<Permit>,
     job_debug: crate::debug::Jobs,
@@ -1665,6 +1714,7 @@ impl Engine {
             impossible_generation: 0,
             would_build: false,
             forced_query_stop: false,
+            ordinary_queries: OrdinaryQueries::default(),
             parallel_jobs: ParallelJobs::default(),
             aborted_recipe_permit: None,
             job_debug: crate::debug::Jobs::default(),
@@ -3138,17 +3188,11 @@ impl Engine {
                 self.expansion_error(None, &error);
                 return 2;
             }
-            // Makefiles are ordinary build goals, but -n/-q/-t never suppress their
-            // recipes. A fresh database is constructed only when a file changed.
-            let modes = (
-                self.options.dry_run,
-                self.options.question,
-                self.options.touch,
-                self.options.always,
-            );
-            self.options.dry_run = false;
-            self.options.question = false;
-            self.options.touch = false;
+            // A makefile named on the command line uses the requested build mode.
+            // All other makefile visits can run recipes even under -n/-q/-t.
+            let modes = MakefileModes::from_options(&self.options);
+            let always = self.options.always;
+            MakefileModes::default().apply(&mut self.options);
             if restarts > 0 {
                 self.options.always = false;
             }
@@ -3185,7 +3229,7 @@ impl Engine {
                 || (self.options.load_limit.is_none() && qualified_remake_debug);
             // Required makefiles settle before the ordinary mode resumes.
             // An explicit goal can also name a makefile and use that mode.
-            let ordinary_mode = modes.0 || modes.1 || modes.2;
+            let ordinary_mode = modes.active();
             let remakes_can_overlap = !ordinary_mode
                 || (!debug_before_remake.has(Mask::MAKEFILES)
                     && self.ordinary_mode_remakes_settle(&read_files));
@@ -3203,6 +3247,7 @@ impl Engine {
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
             let mut visited = MakefileVisits::new();
             let mut optional_remake_failed = false;
+            let mut remake_question = false;
             let required_names: HashSet<_> = read_files
                 .iter()
                 .filter(|(file, _)| !file.optional)
@@ -3223,6 +3268,16 @@ impl Engine {
                     continue;
                 }
                 let name = makefile.name.as_slice();
+                let named_source = ordinary_mode
+                    && self.options.goals.iter().any(|goal| {
+                        goal.as_slice() == rmake_core::filenames::without_dot_prefix(name)
+                    });
+                let visit_modes = if named_source {
+                    modes
+                } else {
+                    MakefileModes::default()
+                };
+                visit_modes.apply(&mut self.options);
                 let visit = match visited.entry(name) {
                     std::collections::hash_map::Entry::Vacant(visit) => visit,
                     std::collections::hash_map::Entry::Occupied(first) => {
@@ -3242,6 +3297,7 @@ impl Engine {
                             self.remake_error_cursor = context.open_error.clone();
                             if self.pending(name) {
                                 pending.push(PendingMakefileRemake {
+                                    modes: visit_modes,
                                     file: makefile,
                                     context: context.clone(),
                                     duplicate: true,
@@ -3356,6 +3412,7 @@ impl Engine {
                     .expect("active makefile remake");
                 if self.parallel_makefile_remakes && self.pending(name) {
                     pending.push(PendingMakefileRemake {
+                        modes: visit_modes,
                         file: makefile,
                         context,
                         duplicate: false,
@@ -3368,6 +3425,15 @@ impl Engine {
                     || (pending_peer
                         && result.optional_group_peer_failure
                         && self.cached_optional_group_peer_failure(name));
+                if result.question_outdated {
+                    if !failed && !optional_remake_failed {
+                        remake_question = true;
+                    } else if !remake_question && !optional {
+                        // An earlier failure selects the remake error pass,
+                        // which also reports required out-of-date sources.
+                        failed_remakes.entry(name).or_insert((before, false));
+                    }
+                }
                 failed |= result.failed && !optional;
                 optional_remake_failed |= result.failed && optional;
                 if result.failed && !result.fatal {
@@ -3391,10 +3457,7 @@ impl Engine {
                         .remove(&makefile.name);
                     // A completed recipe can invalidate the makefile's time.
                     // Expansion effects alone leave its cached observation intact.
-                    if matches!(
-                        result.completion,
-                        CompletionTime::Refresh | CompletionTime::ArchiveUnknown
-                    ) {
+                    if visit_modes.check_update(result) {
                         changed |= self.modified(&makefile.name) != before;
                     }
                 }
@@ -3410,6 +3473,14 @@ impl Engine {
                 }
             }
             if !stopped && !pending.is_empty() {
+                if MakefileModes::from_options(&self.options).active() {
+                    // A completed named include leaves the enclosing remake
+                    // pass in normal mode, with the pending source current.
+                    self.remake_error_cursor = pending
+                        .last()
+                        .and_then(|remake| remake.context.open_error.clone());
+                    MakefileModes::default().apply(&mut self.options);
+                }
                 stopped = !self.wait_makefile_remakes(&mut pending, &visited, initial_reaps);
                 if !stopped {
                     for remake in pending {
@@ -3442,10 +3513,7 @@ impl Engine {
                             }
                         } else {
                             self.database_unchecked_times.borrow_mut().remove(name);
-                            if matches!(
-                                result.completion,
-                                CompletionTime::Refresh | CompletionTime::ArchiveUnknown
-                            ) {
+                            if remake.modes.check_update(result) {
                                 changed |= self.modified(name) != before;
                             }
                         }
@@ -3457,12 +3525,8 @@ impl Engine {
             if stopped || changed || failed || self.shutdown.get() != Shutdown::Running {
                 self.wait_all_jobs();
             }
-            (
-                self.options.dry_run,
-                self.options.question,
-                self.options.touch,
-                self.options.always,
-            ) = modes;
+            modes.apply(&mut self.options);
+            self.options.always = always;
             self.output.set_debug_mask(debug_before_remake);
             self.remaking = false;
             self.parallel_makefile_remakes = false;
@@ -3471,9 +3535,15 @@ impl Engine {
                 self.remove_intermediates();
                 return 2;
             }
+            // A question verdict leaves the loaded makefiles in use and
+            // prevents later keep-going failures from deciding the phase.
+            if remake_question {
+                self.parallel_failed = false;
+                failed = false;
+            }
+            failed |= !skipped_errors.is_empty();
             // These are reported after the remake chain, using the locale
             // and gettext domain that its recipes left in effect.
-            failed |= !skipped_errors.is_empty();
             for error in skipped_errors.iter().rev() {
                 let detail = error.bytes();
                 emit_output(
@@ -3490,7 +3560,7 @@ impl Engine {
             }
             // Use the settled peer outcomes and the original visit timestamps
             // for the required read reports and the restart decision.
-            if !failed_remakes.is_empty() || optional_remake_failed {
+            if !remake_question && (!failed_remakes.is_empty() || optional_remake_failed) {
                 for (makefile, skip) in read_files.iter().filter(|(file, _)| !file.optional) {
                     let name = makefile.name.as_slice();
                     // A later optional group can replace an earlier required
@@ -3535,7 +3605,7 @@ impl Engine {
                     }
                 }
             }
-            if changed {
+            if changed && !remake_question {
                 self.wait_all_jobs();
                 self.remove_intermediates();
                 break 'makefiles true;
@@ -3670,10 +3740,11 @@ impl Engine {
         }
         let mut failed = false;
         let mut fatal = false;
-        let mut first_goal_verdict = None;
         let mut stopped_on_failure = false;
         let mut requested = Vec::new();
-        for goal in goals {
+        let initial_goal_generation = self.filesystem.borrow().generation();
+        let goal_count = goals.len();
+        for (index, goal) in goals.into_iter().enumerate() {
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let name = self.aliases.resolve(&goal);
             let already_done = (self.done.contains_key(name)
@@ -3697,7 +3768,8 @@ impl Engine {
                 break;
             }
             self.debug_double_colon_goal_prunes(&goal, outcome);
-            let pending = self.pending(&goal);
+            let deferred_query = self.queued_query_tail(&goal);
+            let pending = self.pending(&goal) || deferred_query;
             let outcome = if pending {
                 outcome
             } else {
@@ -3714,7 +3786,13 @@ impl Engine {
                     completed_report = Some(outcome);
                 }
             }
-            if completed_report.is_none() && self.parallel_graph() && pending {
+            if completed_report.is_none() && (deferred_query || (self.parallel_graph() && pending))
+            {
+                if self.options.question {
+                    // An earlier double-colon branch can have reported a
+                    // verdict before a later branch finishes its recipe.
+                    self.ordinary_queries.record(outcome.first_branch_verdict);
+                }
                 let awaiting_recipe = !already_done && self.goal_recipe_waiting(&goal);
                 let awaiting_group_peer = self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
                     && self.ordinary_group_peer_pending(&goal);
@@ -3728,8 +3806,34 @@ impl Engine {
                 });
             } else {
                 failed |= outcome.failed;
-                first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
+                let verdict = outcome.goal_verdict();
+                let first_question = self.ordinary_queries.first_verdict.is_none()
+                    && verdict == Some(Status::Question);
+                self.ordinary_queries.record(verdict);
                 self.report_goal(&goal, started_command, completed_report.unwrap_or(outcome));
+                if first_question
+                    && !self.options.keep_going
+                    && self.parallel_graph()
+                    && (index + 1 < goal_count
+                        || requested.iter().any(|goal| self.pending(&goal.name)))
+                {
+                    // A first query verdict ends the pass. If goals remain
+                    // and no child or file effect advanced it, wait before
+                    // visiting them. Otherwise only the final job drain runs.
+                    if self.filesystem.borrow().generation() == initial_goal_generation
+                        && !self.parallel_jobs.is_empty()
+                    {
+                        self.reap_job();
+                    }
+                    self.poll_jobs();
+                    if self.forced_query_stop || self.graph_abort.is_some() {
+                        stopped_on_failure = self.graph_abort.is_some();
+                        break;
+                    }
+                    for prior in &requested {
+                        self.debug_cached_prerequisite_visit(&prior.name, 0, prior.initial);
+                    }
+                }
             }
             fatal |= outcome.fatal;
             if outcome.fatal || (outcome.failed && !self.options.keep_going) {
@@ -3739,14 +3843,26 @@ impl Engine {
         }
         let mut last_goal_pass = self.debug_pass;
         'goal_passes: while !self.forced_query_stop
-            && requested.iter().any(|goal| self.pending(&goal.name))
+            && requested.iter().any(|goal| {
+                self.pending(&goal.name)
+                    || (!stopped_on_failure
+                        && !fatal
+                        && self.graph_abort.is_none()
+                        && (self.options.keep_going || !self.parallel_jobs.is_empty())
+                        && self.queued_query_tail(&goal.name))
+            })
         {
+            self.ordinary_queries.pass = self.ordinary_queries.pass.wrapping_add(1);
             self.advance_debug_pass();
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let pass_epoch = self.graph_epoch;
             let mut first_goal = true;
             for goal in &mut requested {
-                if self.graph_pending(&goal.name) {
+                let deferred = !stopped_on_failure
+                    && !fatal
+                    && self.graph_abort.is_none()
+                    && self.queued_query_tail(&goal.name);
+                if self.graph_pending(&goal.name) || deferred {
                     let visit = if first_goal {
                         BuildVisit::GoalPassStart
                     } else {
@@ -3765,9 +3881,15 @@ impl Engine {
                         fatal |= outcome.fatal;
                         break 'goal_passes;
                     }
-                    if outcome.late_input_failed && !self.pending(&goal.name) {
+                    if self.options.question {
+                        self.ordinary_queries.record(outcome.first_branch_verdict);
+                    }
+                    if !self.pending(&goal.name)
+                        && !self.queued_query_tail(&goal.name)
+                        && (outcome.late_input_failed || self.options.question)
+                    {
                         failed |= outcome.failed;
-                        first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
+                        self.ordinary_queries.record(outcome.goal_verdict());
                     }
                     if self.debug_pass != last_goal_pass {
                         self.debug_double_colon_goal_prunes(&goal.name, outcome);
@@ -3780,6 +3902,11 @@ impl Engine {
                     first_goal = false;
                     self.debug_completed_goal_visit(&goal.name, false);
                     goal.awaiting_recipe = false;
+                    if self.options.question
+                        && let Some(outcome) = self.done.get(self.aliases.resolve(&goal.name))
+                    {
+                        self.ordinary_queries.record(outcome.goal_verdict());
+                    }
                 } else if self.debug_pass != last_goal_pass
                     && self.graph_abort.is_none()
                     && self.shutdown.get() == Shutdown::Running
@@ -3796,8 +3923,10 @@ impl Engine {
             // the next pass. Rescan before blocking on the remaining children.
             if self.graph_epoch == pass_epoch
                 && self.debug_progress() == self.debug_pass
-                && requested.iter().any(|goal| self.pending(&goal.name))
                 && !self.parallel_jobs.is_empty()
+                && requested
+                    .iter()
+                    .any(|goal| self.pending(&goal.name) || self.queued_query_tail(&goal.name))
             {
                 self.reap_job();
             }
@@ -3820,11 +3949,22 @@ impl Engine {
             let outcome = self.observe_updated(&goal.name, outcome);
             failed |= outcome.failed;
             fatal |= outcome.fatal;
-            first_goal_verdict = first_goal_verdict.or_else(|| outcome.goal_verdict());
+            self.ordinary_queries.record(outcome.goal_verdict());
             self.report_goal(&goal.name, goal.started_command, outcome);
+        }
+        if self.options.question
+            && self.would_build
+            && !self.options.keep_going
+            && self
+                .parallel_jobs
+                .values()
+                .any(|job| job.continuation.remake.is_some() && !job.waiting_load)
+        {
+            self.notice_waiting_for_jobs();
         }
         self.wait_all_jobs();
         failed |= self.parallel_failed;
+        fatal |= self.graph_abort == Some(Status::Fatal);
         let jobserver_error = self.jobserver.as_ref().and_then(Jobserver::take_error);
         if matches!(self.clock_skew.get(), ClockSkew::Detected)
             && self.interrupt.is_none()
@@ -3849,10 +3989,9 @@ impl Engine {
         }
         // Keep-going retains the first observed query or failure while still
         // visiting other goals. An invocation-wide stop takes precedence.
-        let query_first = first_goal_verdict == Some(Status::Question)
+        let query_first = self.ordinary_queries.first_verdict == Some(Status::Question)
             && !stopped_on_failure
             && !fatal
-            && !self.parallel_failed
             && self.graph_abort.is_none();
         if failed && (!self.forced_query_stop || fatal) && !query_first {
             2
@@ -3883,37 +4022,55 @@ impl Engine {
             return false;
         }
         if read_files.iter().any(|(file, skip)| file.optional && !skip)
-            && !self.optional_mode_sources_have_no_rules(read_files)
+            && !self.optional_mode_sources_settle(read_files)
         {
             return false;
         }
+        let mut named = HashSet::new();
         read_files.iter().all(|(file, skip)| {
             let name = without_dot_prefix(&file.name);
             *skip
                 || goals.is_empty()
                 || (!name.starts_with(b"-l")
                     && archive_parts(name).is_none()
-                    && !goals.iter().any(|goal| goal.as_slice() == name))
+                    && (!goals.iter().any(|goal| goal.as_slice() == name)
+                        || (named.insert(name) && self.simple_named_include_remake(file, name))))
         })
     }
 
-    fn optional_mode_sources_have_no_rules(&self, read_files: &[(Makefile, bool)]) -> bool {
+    fn simple_named_include_remake(&self, file: &Makefile, name: &[u8]) -> bool {
+        file.location.is_some()
+            && !self.database.loaded_modules.contains_key(name)
+            && self.assumptions.is_none()
+            && self.options.load_limit.is_none()
+            && self.database.rules.get(name).is_some_and(|rule| {
+                rule.dependencies.is_empty()
+                    && rule.secondary.is_none()
+                    && rule.group.is_none()
+                    && rule.double_colon.is_none()
+                    && rule.recipes.as_ref().is_some_and(|recipes| {
+                        recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
+                    })
+            })
+    }
+
+    fn optional_mode_sources_settle(&self, read_files: &[(Makefile, bool)]) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
-        // The frozen rule table rules out dispatch by an optional source.
-        // A physical write can still affect the next reader after a restart.
-        if !self.options.no_rules
-            || self.options.check_symlink_times
+        // Limit the build-mode handoff to simple file identities and
+        // ungrouped single-colon optional roots.
+        if self.options.check_symlink_times
             || self.assumptions.is_some()
             || !self.options.include_directories.is_empty()
             || self.database.has_vpaths()
             || !self.vpath_dirs.is_empty()
             || !self.gpath_dirs.is_empty()
-            || !self.database.database_implicit_rules().is_empty()
-            || self.database.rules.contains_key(b".DEFAULT".as_slice())
         {
             return false;
         }
+        let no_recipe_fallback = self.options.no_rules
+            && self.database.database_implicit_rules().is_empty()
+            && !self.database.rules.contains_key(b".DEFAULT".as_slice());
         let mut names = HashSet::new();
         read_files.iter().all(|(file, skip)| {
             let name = without_dot_prefix(&file.name);
@@ -3923,7 +4080,21 @@ impl Engine {
                     && !name.starts_with(b"-l")
                     && archive_parts(name).is_none()
                     && names.insert(name)
-                    && (!file.optional || !self.database.rules.contains_key(name)))
+                    && (!file.optional
+                        || self
+                            .database
+                            .rules
+                            .get(name)
+                            .map_or(no_recipe_fallback, |rule| {
+                                rule.secondary.is_none()
+                                    && rule.group.is_none()
+                                    && rule.double_colon.is_none()
+                                    && if rule.dependencies.is_empty() {
+                                        rule.recipes.is_some() || no_recipe_fallback
+                                    } else {
+                                        no_recipe_fallback && self.options.load_limit.is_none()
+                                    }
+                            })))
         })
     }
 
@@ -4721,12 +4892,22 @@ impl Engine {
             self.child_events(true, Some(server.readiness()?))?;
             self.observe_interrupt();
             if self.graph_abort.is_some()
+                || self.forced_query_stop
                 || self.remake_stopped()
                 || (self.parallel_failed && !self.options.keep_going)
             {
                 return Ok(None);
             }
         }
+    }
+
+    fn queued_query_tail(&self, target: &[u8]) -> bool {
+        !self.ordinary_queries.deferred_tails.is_empty()
+            && self
+                .ordinary_queries
+                .deferred_tails
+                .get(self.aliases.resolve(target))
+                .is_some_and(|tail| tail.queued)
     }
 
     fn graph_pending(&self, target: &[u8]) -> bool {
@@ -4746,9 +4927,8 @@ impl Engine {
 
     fn parallel_graph(&self) -> bool {
         self.job_slots() > 1
-            && !self.options.dry_run
-            && !self.options.question
-            && !self.options.touch
+            && (!self.remaking
+                || !(self.options.dry_run || self.options.question || self.options.touch))
     }
 
     fn wait_makefile_remakes(
@@ -4777,6 +4957,7 @@ impl Engine {
             let pass_epoch = self.graph_epoch;
             for request in requests.iter_mut().filter(|request| request.active) {
                 let name = request.file.name.as_slice();
+                request.modes.apply(&mut self.options);
                 self.remake_error_cursor = request.context.open_error.clone();
                 let needs_visit = if request.duplicate {
                     !request.file.optional
@@ -4978,7 +5159,7 @@ impl Engine {
         }
         self.observe_interrupt();
         if let Some(completion) = observed_completion.or_else(|| self.ready_parallel_job(&ready)) {
-            self.complete_job(completion);
+            self.complete_job(completion, block && additional.is_none());
             return Ok(true);
         }
         Ok(false)
@@ -5152,7 +5333,10 @@ impl Engine {
     }
 
     fn start_load_waiting(&mut self) {
-        if self.graph_abort.is_some() || self.shutdown.get() != Shutdown::Running {
+        if self.graph_abort.is_some()
+            || self.forced_query_stop
+            || self.shutdown.get() != Shutdown::Running
+        {
             while let Some((target, identity)) = self.load_waiting.pop() {
                 let job = self
                     .parallel_jobs
@@ -5174,7 +5358,7 @@ impl Engine {
             // A stopped optional traversal can leave an already-admitted
             // recipe queued. Its reservation survives the owner's stop.
             let (target, identity) = self.load_waiting.pop().expect("nonempty waiting queue");
-            self.complete_job((target, identity, None));
+            self.complete_job((target, identity, None), false);
         }
     }
 
@@ -5192,6 +5376,20 @@ impl Engine {
                     self.fatal(None, os_error(&error).as_bytes());
                     return;
                 }
+            }
+        }
+    }
+
+    fn forced_query_completed(&mut self) {
+        self.would_build = true;
+        if !self.remaking
+            && !self.options.keep_going
+            && !self.optional_remake()
+            && self.graph_abort.is_none()
+        {
+            self.forced_query_stop = true;
+            if self.parallel_jobs.values().any(|job| !job.waiting_load) {
+                self.notice_waiting_for_jobs();
             }
         }
     }
@@ -5257,14 +5455,14 @@ impl Engine {
         }
     }
 
-    fn complete_job(&mut self, (target, identity, result): JobResult) {
+    fn complete_job(&mut self, (target, identity, result): JobResult, blocking_reap: bool) {
         self.graph_epoch = self.graph_epoch.wrapping_add(1);
         let job = self
             .parallel_jobs
             .remove(&target, identity)
             .expect("reserved parallel target");
         self.with_makefile_remake(job.continuation.remake.clone(), |engine| {
-            engine.finish_parallel_job(target, job, result);
+            engine.finish_parallel_job(target, job, result, blocking_reap);
         });
     }
 
@@ -5273,6 +5471,7 @@ impl Engine {
         target: Vec<u8>,
         mut job: ParallelJob,
         result: Option<io::Result<std::process::ExitStatus>>,
+        blocking_reap: bool,
     ) {
         let output = job.continuation.output.clone();
         let debug_job = job.continuation.debug_job.clone();
@@ -5310,9 +5509,11 @@ impl Engine {
             Some(Err(_)) => Some(127),
             None => None,
         };
+        let command_question =
+            self.options.question && job.recursive && !job.ignore && error_code == Some(1);
         let error = match result {
             None => None,
-            Some(Ok(status)) if status.success() => None,
+            Some(Ok(status)) if status.success() || command_question => None,
             Some(Ok(status)) => Some(
                 status
                     .code()
@@ -5370,7 +5571,7 @@ impl Engine {
             self.output.select(None);
         }
         let mut cleanup_fatal = false;
-        if failed && launched && !job.signal_cleaned {
+        if (failed || command_question) && launched && !job.signal_cleaned {
             cleanup_fatal = self.cleanup_target(
                 &target,
                 job.before,
@@ -5406,18 +5607,25 @@ impl Engine {
         }
         let mut outcome = self.done.get(&target).copied().unwrap_or_default();
         outcome.fatal |= cleanup_fatal || self.interrupt.is_some();
-        let completed_permit = if !failed {
+        let mut all_recursive = !job.continuation.flow.has_ordinary();
+        let (completed_permit, continued) = if command_question {
+            outcome.question_outdated = true;
+            failed |= cleanup_fatal;
+            (job.continuation.permit.take(), false)
+        } else if !failed {
             let (execution, permit) =
                 self.continue_recipe(&target, job.continuation, job.phony, job.before, true);
             failed |= matches!(execution.status, Status::Failure | Status::Fatal);
             outcome.fatal |= execution.status == Status::Fatal;
+            outcome.question_outdated |= execution.status == Status::Question;
+            all_recursive = execution.all_recursive;
             if self.cleanup_target(&target, job.before, job.phony, execution.cleanup) {
                 failed = true;
                 outcome.fatal = true;
             }
-            permit
+            (permit, execution.pending)
         } else {
-            job.continuation.permit.take()
+            (job.continuation.permit.take(), false)
         };
         if let Some(buffer) = output {
             if outcome.fatal && self.interrupt.is_none() {
@@ -5432,10 +5640,34 @@ impl Engine {
                 buffer.dump();
             }
         }
+        let pending = self.parallel_jobs.contains_key(&target);
+        let mode = self.options.dry_run || self.options.question || self.options.touch;
+        if mode && !pending {
+            outcome.completion = if all_recursive {
+                CompletionTime::Refresh
+            } else if job.phony {
+                CompletionTime::AssumeNewPhony
+            } else {
+                CompletionTime::AssumeNew
+            };
+            if self.options.dry_run
+                && !self.options.question
+                && !self.options.touch
+                && !failed
+                && outcome.completion == CompletionTime::AssumeNew
+                && self
+                    .running_groups
+                    .get(&target)
+                    .is_none_or(|group| group.implicit)
+            {
+                outcome.database_result = DatabaseResult::Simulated;
+            }
+        }
         // Inspect archive metadata only after the last command exits. A child
         // may temporarily leave a partial header while updating its archive.
         if !failed
-            && !self.parallel_jobs.contains_key(&target)
+            && (!mode || outcome.completion == CompletionTime::Refresh)
+            && !pending
             && self.archive_metadata_error(&target, false)
         {
             failed = true;
@@ -5467,25 +5699,25 @@ impl Engine {
                 .or_default();
         }
         self.record_graph_failure(outcome);
-        if !self.parallel_jobs.contains_key(&target) {
+        if !pending && !outcome.completion.preserves() {
             self.release_assumed_new(&target);
         }
         outcome.time = if job.phony {
             None
-        } else if self.parallel_jobs.contains_key(&target) {
+        } else if pending || outcome.completion.preserves() {
             outcome.time
         } else {
             self.modified(&target)
         };
-        outcome.search_after_update = self.update_search_pending(&target, job.phony, true);
-        if !job.phony && !self.parallel_jobs.contains_key(&target) {
+        outcome.search_after_update = self.update_search_pending(&target, job.phony, all_recursive);
+        if !job.phony && !pending {
             self.database_unchecked_times
                 .borrow_mut()
                 .insert(target.clone());
         }
         let cached = self.cached_recipe_outcome(outcome);
         self.done.insert(target.clone(), cached);
-        if !self.parallel_jobs.contains_key(&target) {
+        if !pending {
             self.finish_group(&target, outcome);
         }
         if !outcome.fatal {
@@ -5493,7 +5725,14 @@ impl Engine {
         }
         self.finish_debug_job(debug_job.as_ref());
         self.reuse_implicit_job_slot(!outcome.fatal);
-        self.job_debug.live(self.output.debug_mask());
+        // A blocking reap scans a continued command at its next wait. A
+        // completed recipe or a token or poll wake still reports its scan here.
+        if !blocking_reap || !continued {
+            self.job_debug.live(self.output.debug_mask());
+        }
+        if command_question {
+            self.forced_query_completed();
+        }
     }
 
     fn gpath_match(&self, original: &[u8], resolved: &[u8]) -> bool {
@@ -5517,6 +5756,7 @@ impl Engine {
             || self.assumed_time(target).is_some()
             || self.done.contains_key(target)
             || self.pending(target)
+            || self.ordinary_queries.deferred_tails.contains_key(target)
             || self.visiting.contains(target)
             || self.special(b".PHONY", target, false)
         {
@@ -7553,6 +7793,7 @@ impl Engine {
                 .with_shell(&mut shell)
                 .with_includes(&mut includes);
             let mut expanded = Vec::new();
+            let mut pending_wait = None;
             let (normal, order) = if order_only {
                 (std::borrow::Cow::Borrowed(value.as_slice()), None)
             } else {
@@ -7563,21 +7804,24 @@ impl Engine {
                 (order.unwrap_or_default(), true),
             ] {
                 for name in self.database.rule_filenames(text, &mut context)? {
-                    expanded.push(Dependency {
+                    Dependency {
                         name: name.into_owned(),
                         order_only: role,
                         hidden: false,
-                    });
+                    }
+                    .append_to_partition(&mut expanded, &mut pending_wait);
                 }
             }
             for dependency in expanded.iter().filter(|dep| dep.name != b".WAIT") {
                 self.database.file_records.insert(&dependency.name);
             }
+            let removed_wait = usize::from(clause.discard_targeted_wait);
+            let replaced = index - removed_wait..=index;
             original_next = clause.index + 1;
-            expanded_next = index + expanded.len();
-            ready_count += expanded.len();
-            ready.splice(index..=index, std::iter::repeat_n(true, expanded.len()));
-            rule.dependencies.splice(index..=index, expanded);
+            expanded_next = index - removed_wait + expanded.len();
+            ready_count = ready_count - removed_wait + expanded.len();
+            ready.splice(replaced.clone(), std::iter::repeat_n(true, expanded.len()));
+            rule.dependencies.splice(replaced, expanded);
         }
         if let Some(context) = self.target_contexts.get_mut(target) {
             let retain_shell_status = !grouped_double && branch.is_none_or(|ordinal| ordinal == 0);
@@ -7667,7 +7911,7 @@ impl Engine {
                 && dropped.is_none_or(|dropped| !dropped.contains(&dependency.name))
                 && self.done.get(&dependency.name).map_or_else(
                     || self.optional_remake_failures.contains_key(&dependency.name),
-                    |child| child.failed,
+                    |child| child.failed || child.question_outdated,
                 )
         }) else {
             return;
@@ -8003,6 +8247,12 @@ impl Engine {
         if !cached_wait || self.shutdown.get() != Shutdown::Running {
             self.poll_jobs();
         }
+        if self.forced_query_stop {
+            return Outcome {
+                question_outdated: true,
+                ..Outcome::default()
+            };
+        }
         if visit == BuildVisit::GoalPassStart {
             // The existing first poll can observe an already waitable child
             // before this pass starts visiting its goals.
@@ -8062,7 +8312,8 @@ impl Engine {
             outcome.failed = true;
             outcome.fatal = true;
         }
-        if self.optional_remake() && outcome.failed && !outcome.fatal {
+        if self.optional_remake() && (outcome.failed || outcome.question_outdated) && !outcome.fatal
+        {
             self.optional_remake_failures
                 .entry(target.to_vec())
                 .or_default();
@@ -8088,13 +8339,37 @@ impl Engine {
         {
             // A later required visit exposes the original failure hidden by
             // the optional remake, including the edge to a deeper failure.
-            if !self.remaking
+            let query = self
+                .done
+                .get(target)
+                .copied()
+                .filter(|outcome| outcome.question_outdated);
+            if query.is_some() {
+                use crate::debug::{Event, emit};
+
+                let debug_depth = depth + usize::from(self.remaking);
+                emit(
+                    &self.output,
+                    Event::Considering(considering_name, debug_depth),
+                );
+                emit(&self.output, Event::RecentlyFailed(target, debug_depth));
+                traced_optional_failure = true;
+            } else if !self.remaking
                 && self.done.get(target).is_some_and(|outcome| outcome.failed)
                 && self.trace_cached_unruled_makefile(considering_name, target, depth, true)
             {
                 traced_optional_failure = true;
             }
             self.show_retained_optional_failure(target, parent.map(|parent| parent.target), cause);
+            if let Some(outcome) = query
+                && !self.options.keep_going
+            {
+                return Outcome {
+                    failed: true,
+                    fatal: true,
+                    ..outcome
+                };
+            }
         }
         if let Some(owner) = self.active_peers.get(target)
             && owner != target
@@ -8109,6 +8384,25 @@ impl Engine {
             }
             outcome.time = self.modified(target);
             return outcome;
+        }
+        if let Some(tail) = self.ordinary_queries.deferred_tails.get_mut(target) {
+            // The goal that first set the verdict was removed from the
+            // current pass. A repeated explicit goal can request its tail.
+            tail.queued |= parent.is_none();
+            if !tail.queued
+                || !self.options.keep_going
+                || self.graph_abort.is_some()
+                || tail.pass == self.ordinary_queries.pass
+            {
+                return tail.state.combined;
+            }
+            let tail = self
+                .ordinary_queries
+                .deferred_tails
+                .remove(target)
+                .expect("deferred query tail");
+            self.pending_double_colon
+                .insert(target.to_vec(), tail.state);
         }
         if self.pending_double_colon.contains_key(target) {
             return self.resume_double_colon(target);
@@ -8149,7 +8443,15 @@ impl Engine {
                     debug_depth,
                     outcome.failed,
                 ) {
-                    if visit == BuildVisit::PrerequisiteAfterRecipe
+                    if outcome.question_outdated && self.makefile_names.contains(target) {
+                        use crate::debug::{Event, emit};
+
+                        emit(
+                            &self.output,
+                            Event::Considering(considering_name, debug_depth),
+                        );
+                        emit(&self.output, Event::RecentlyFailed(target, debug_depth));
+                    } else if visit == BuildVisit::PrerequisiteAfterRecipe
                         || outcome.debug_serial_group_peer
                     {
                         self.debug_cached_prerequisite_visit(target, debug_depth, outcome);
@@ -8518,9 +8820,29 @@ impl Engine {
                 }
                 self.record_graph_failure(result);
                 state.active = None;
-                if result.fatal
-                    || ((result.failed || result.question_outdated) && !self.options.keep_going)
-                {
+                if result.fatal || (result.failed && !self.options.keep_going) {
+                    state.branches.clear();
+                } else if result.question_outdated && !self.options.keep_going {
+                    let earlier_verdict = self.ordinary_queries.first_verdict.is_some();
+                    if !self.remaking
+                        && self.active_makefile_remake.is_none()
+                        && state.depth == 0
+                        && (earlier_verdict || self.options.goals.len() > 1)
+                        && !state.branches.is_empty()
+                    {
+                        // A later goal can turn on keep-going. Leave the tail
+                        // outside active prerequisite waits until a new pass.
+                        let outcome = state.combined;
+                        self.ordinary_queries.deferred_tails.insert(
+                            target.to_vec(),
+                            DeferredQueryTail {
+                                pass: self.ordinary_queries.pass,
+                                queued: earlier_verdict,
+                                state,
+                            },
+                        );
+                        return outcome;
+                    }
                     state.branches.clear();
                 }
             }
@@ -8874,9 +9196,6 @@ impl Engine {
             // Expansion is per file, not once for every peer traversal.
             self.store_expanded_rule(target, rule.clone());
         }
-        let serial_phase = !rule.dependencies.is_empty()
-            && rule.grouped_double_id().is_none()
-            && self.special(b".NOTPARALLEL", target, false);
         let group = rule.grouped_targets().map(|_| {
             Box::new(GroupState {
                 recipe_rule: rule.clone(),
@@ -8884,7 +9203,6 @@ impl Engine {
                     start: 0,
                     target: target.to_vec(),
                     ordinal: rule.grouped_double_ordinal(),
-                    serial: serial_phase,
                 }],
                 peer_targets,
                 wait_frontiers: Vec::new(),
@@ -8936,8 +9254,6 @@ impl Engine {
             phony,
             next: 0,
             order,
-            serial_dependency: None,
-            serial_phase,
             inspections: HashMap::new(),
             intermediate_stale: None,
             debug_changed_edges: None,
@@ -9009,8 +9325,7 @@ impl Engine {
                     .group
                     .as_ref()
                     .is_some_and(|group| !group.wait_frontiers.is_empty())
-                || state.waiting_at_barrier()
-                || state.waiting_at_serial_prerequisite());
+                || state.waiting_at_barrier());
         let replay_debug = can_replay_debug
             && state.last_debug_pass != self.debug_pass
             && self.graph_abort.is_none()
@@ -9053,10 +9368,9 @@ impl Engine {
             .map(|group| std::mem::take(&mut group.wait_frontiers))
             .unwrap_or_default();
         let mut group_frontier = !previous_frontiers.is_empty();
-        let scan_group = group_frontier
+        let mut scan_group = group_frontier
             || (!self.remaking
                 && self.parallel_graph()
-                && state.serial_dependency.is_none()
                 && state
                     .group
                     .as_ref()
@@ -9108,19 +9422,24 @@ impl Engine {
                     state.stopped = true;
                     break;
                 }
-                state.serial_phase = state.rule.grouped_double_id().is_none()
-                    && self.special(b".NOTPARALLEL", &peer, false);
-                state
+                let group = state
                     .group
                     .as_mut()
-                    .expect("peer traversal has group state")
-                    .peer_segments
-                    .push(GroupSegment {
-                        start: state.rule.dependencies.len(),
-                        target: peer.clone(),
-                        ordinal,
-                        serial: state.serial_phase,
-                    });
+                    .expect("peer traversal has group state");
+                if !group.frontiers_enabled
+                    && peer_rule
+                        .dependencies
+                        .iter()
+                        .any(|dep| dep.name == b".WAIT")
+                {
+                    group.frontiers_enabled = true;
+                    scan_group |= !self.remaking && self.parallel_graph();
+                }
+                group.peer_segments.push(GroupSegment {
+                    start: state.rule.dependencies.len(),
+                    target: peer.clone(),
+                    ordinal,
+                });
                 let peer_order = self.shuffle.order(&peer, peer_rule.dependencies.len());
                 let offset = state.rule.dependencies.len();
                 if !peer_order.is_empty() && state.order.is_empty() {
@@ -9144,37 +9463,6 @@ impl Engine {
                 self.store_expanded_rule(&peer, peer_rule);
                 continue;
             }
-            if let Some(index) = state.serial_dependency {
-                let visit = std::mem::replace(&mut resume_visit, PrerequisiteVisit::Resume);
-                if visit == PrerequisiteVisit::DebugReplay {
-                    // The serial frontier is the last visited occurrence. The
-                    // earlier ones only need their cached diagnostic view.
-                    for position in 0..state.next - 1 {
-                        let prior = state.order.get(position).copied().unwrap_or(position);
-                        let dependency = &state.rule.dependencies[prior].name;
-                        if !state.dropped.contains(dependency)
-                            && let Some(outcome) = self.done.get(dependency).copied()
-                        {
-                            self.debug_cached_prerequisite_visit(
-                                dependency,
-                                debug_depth + 1,
-                                outcome,
-                            );
-                        }
-                    }
-                }
-                let (child, pending) = self.visit_prerequisite(target, &mut state, index, visit);
-                merge_child(&mut state.outcome, child);
-                if pending {
-                    waiting = true;
-                    break;
-                }
-                state.serial_dependency = None;
-                if state.outcome.fatal || (state.outcome.failed && !self.options.keep_going) {
-                    state.stopped = true;
-                    break;
-                }
-            }
             let index = state.order.get(state.next).copied().unwrap_or(state.next);
             if (self.database.has_vpaths() || !self.vpath_dirs.is_empty())
                 && state.rule.dependencies[index].name != b".WAIT"
@@ -9192,7 +9480,10 @@ impl Engine {
             }
             let occurrence = &state.rule.dependencies[index];
             let dependency = &occurrence.name;
-            if scan_group && let Some(group) = state.group.as_mut() {
+            if dependency == b".WAIT"
+                && scan_group
+                && let Some(group) = state.group.as_mut()
+            {
                 while group
                     .peer_segments
                     .get(segment_index + 1)
@@ -9200,26 +9491,20 @@ impl Engine {
                 {
                     segment_index += 1;
                 }
-                let segment = &group.peer_segments[segment_index];
-                let serial_boundary = segment.serial && state.next > segment.start;
-                if dependency == b".WAIT" || serial_boundary {
-                    if group_waiting {
-                        // Defer this segment's tail while other peers can still
-                        // reach their own prerequisite barrier.
-                        let end = group
-                            .peer_segments
-                            .get(segment_index + 1)
-                            .map_or(state.rule.dependencies.len(), |segment| segment.start);
-                        group.wait_frontiers.push(state.next..end);
-                        state.next = end;
-                        group_frontier = true;
-                        continue;
-                    }
-                    if dependency == b".WAIT" {
-                        state.next += 1;
-                        continue;
-                    }
+                if group_waiting {
+                    // Defer this segment's tail while other peers can still
+                    // reach their own prerequisite barrier.
+                    let end = group
+                        .peer_segments
+                        .get(segment_index + 1)
+                        .map_or(state.rule.dependencies.len(), |segment| segment.start);
+                    group.wait_frontiers.push(state.next..end);
+                    state.next = end;
+                    group_frontier = true;
+                } else {
+                    state.next += 1;
                 }
+                continue;
             }
             if dependency == b".WAIT" {
                 // Only the first prefix scan is a visit in this goal pass.
@@ -9286,9 +9571,6 @@ impl Engine {
             let (child, pending) = self.visit_prerequisite(target, &mut state, index, visit);
             group_waiting |= pending;
             merge_child(&mut state.outcome, child);
-            if state.serial_phase && !scan_group {
-                state.serial_dependency = Some(index);
-            }
             let deferred = child.deferred_spawn_failure && self.optional_remake();
             if child.fatal
                 || (((child.failed && !deferred) || child.question_outdated)
@@ -9704,7 +9986,10 @@ impl Engine {
                 }
             }
         }
-        if self.retain_remake_failure() && outcome.blocked && !outcome.fatal {
+        if self.retain_remake_failure()
+            && (outcome.blocked || outcome.question_outdated)
+            && !outcome.fatal
+        {
             self.remember_optional_prerequisite(target, &rule, Some(&dropped));
         }
         let debug_depth = depth + usize::from(self.remaking);
@@ -9909,13 +10194,7 @@ impl Engine {
                         (b"%", target_variable_names(target).1.to_vec()),
                     ]
                 });
-                let recursive = recipes.iter().any(|recipe| {
-                    has_force_prefix(&recipe.bytes)
-                        || recipe
-                            .bytes
-                            .windows(7)
-                            .any(|part| part == b"$(MAKE)" || part == b"${MAKE}")
-                });
+                let recursive = recipes.iter().any(recipe_is_recursive);
                 if (!self.options.touch || recursive)
                     && let Some(group) = group
                 {
@@ -10378,13 +10657,7 @@ impl Engine {
         if self.interrupt.is_some() {
             return Execution::fatal(false);
         }
-        let recursive_line = |recipe: &Recipe| {
-            has_force_prefix(&recipe.bytes)
-                || recipe
-                    .bytes
-                    .windows(7)
-                    .any(|part| part == b"$(MAKE)" || part == b"${MAKE}")
-        };
+        let recursive_line = recipe_is_recursive;
         let one_shell = self.database.rules.contains_key(b".ONESHELL".as_slice());
         let combined;
         let (recipes, has_commands, recursive) = if one_shell {
@@ -10407,11 +10680,7 @@ impl Engine {
                     .iter()
                     .any(|byte| !matches!(byte, b' ' | b'\t' | b'\n' | b'@' | b'-' | b'+'))
             });
-            let recursive = recipes.iter().any(|recipe| {
-                has_force_prefix(&recipe.bytes)
-                    || recipe.bytes.windows(7).any(|s| s == b"$(MAKE)")
-                    || recipe.bytes.windows(7).any(|s| s == b"${MAKE}")
-            });
+            let recursive = recipes.iter().any(recipe_is_recursive);
             (recipes, has_commands, recursive)
         };
         if self.options.touch && !recursive {
@@ -10440,12 +10709,12 @@ impl Engine {
         // Empty/shortcut recipes never consume a continuation bitmap. Keep
         // their raw recursion/touch decisions without allocating one per leaf.
         let flow = Flow::new(recipes.iter().map(recursive_line));
-        let parallel = self.job_slots() > 1
-            && !self.options.dry_run
-            && !self.options.question
-            && !self.options.touch;
+        let parallel = self.parallel_graph();
         if self.graph_abort == Some(Status::Fatal) {
             return Execution::fatal(false);
+        }
+        if self.forced_query_stop {
+            return Execution::question(false, Cleanup::None);
         }
         if self.graph_abort.is_some()
             || self.remake_stopped()
@@ -10510,8 +10779,17 @@ impl Engine {
             }
         }
         self.retain_database_context(target, branch, &variables);
-        if parallel {
-            while self.parallel_jobs.len() >= self.job_slots() {
+        // A stopped optional remake can leave a live worker while ordinary
+        // dry-run or question mode visits its next goal.
+        let live_remake = (!self.remaking || self.parallel_makefile_remakes)
+            && !recursive
+            && (self.options.dry_run || self.options.question)
+            && self
+                .parallel_jobs
+                .values()
+                .any(|job| job.continuation.remake.is_some());
+        if parallel || live_remake {
+            while !self.forced_query_stop && self.parallel_jobs.len() >= self.job_slots() {
                 self.reap_job();
             }
         } else {
@@ -10519,6 +10797,9 @@ impl Engine {
         }
         if self.graph_abort == Some(Status::Fatal) {
             return Execution::fatal(false);
+        }
+        if self.forced_query_stop {
+            return Execution::question(false, Cleanup::None);
         }
         if self.graph_abort.is_some()
             || self.remake_stopped()
@@ -10545,6 +10826,9 @@ impl Engine {
         };
         if self.graph_abort == Some(Status::Fatal) {
             return Execution::fatal(false);
+        }
+        if self.forced_query_stop {
+            return Execution::question(false, Cleanup::None);
         }
         if self.graph_abort.is_some()
             || self.remake_stopped()
@@ -10619,6 +10903,7 @@ impl Engine {
                     program: Vec::new(),
                     location: recipes[0].location.clone(),
                     ignore: false,
+                    recursive: false,
                     before,
                     phony,
                     continuation: state,
@@ -11240,6 +11525,7 @@ impl Engine {
                                 program,
                                 location: recipe.location.clone(),
                                 ignore,
+                                recursive: force,
                                 before,
                                 phony,
                                 stdin_owner,
@@ -11330,12 +11616,7 @@ impl Engine {
                 // query mode. GNU applies that convention to every forced
                 // command; ignored errors retain their ordinary handling.
                 Ok(status) if self.options.question && !ignore && status.code() == Some(1) => {
-                    self.would_build = true;
-                    // A physical child can end a stopping query from the
-                    // reaper, before the goal chain visits another target.
-                    self.forced_query_stop |= !self.remaking
-                        && !self.options.keep_going
-                        && !remake.as_ref().is_some_and(|remake| remake.optional);
+                    self.forced_query_completed();
                     return Execution::question(ran, failure_cleanup)
                         .with_recursion(!flow.has_ordinary());
                 }
@@ -11631,6 +11912,14 @@ fn trim_leading(bytes: &[u8]) -> &[u8] {
 }
 
 /// Prefix markers can appear in any order, interleaved with leading blanks.
+fn recipe_is_recursive(recipe: &Recipe) -> bool {
+    has_force_prefix(&recipe.bytes)
+        || recipe
+            .bytes
+            .windows(7)
+            .any(|part| part == b"$(MAKE)" || part == b"${MAKE}")
+}
+
 fn has_force_prefix(bytes: &[u8]) -> bool {
     let mut bytes = trim_leading(bytes);
     while let Some(prefix) = bytes.first() {
@@ -12180,7 +12469,7 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_mode_optional_sources_require_unique_rule_free_names() {
+    fn ordinary_mode_optional_sources_require_simple_names() {
         let launch = Engine::invocation(
             ["-r", "-n", "all"].into_iter().map(OsString::from),
             b"rmake",
@@ -12200,6 +12489,9 @@ mod tests {
         };
         let mut reads = vec![(source.clone(), false)];
         assert!(engine.ordinary_mode_remakes_settle(&reads));
+        engine.options.no_rules = false;
+        assert!(!engine.ordinary_mode_remakes_settle(&reads));
+        engine.options.no_rules = true;
 
         let mut alias = source.clone();
         alias.name = b"./optional.gen".to_vec();
@@ -12213,8 +12505,18 @@ mod tests {
         engine.vpath_dirs.clear();
         engine
             .database
+            .read(b"optional.gen: ; @:\n", b"Makefile")
+            .unwrap();
+        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        engine.options.no_rules = false;
+        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        engine.options.no_rules = true;
+        engine
+            .database
             .read(b"optional.gen: prerequisite\n", b"Makefile")
             .unwrap();
+        assert!(engine.ordinary_mode_remakes_settle(&reads));
+        engine.options.load_limit = Some(1.0);
         assert!(!engine.ordinary_mode_remakes_settle(&reads));
     }
 

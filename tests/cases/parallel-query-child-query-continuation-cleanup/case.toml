@@ -1,0 +1,11 @@
+id = "parallel-query-child-query-continuation-cleanup"
+requirement = "runtime.parallel-query"
+candidate = "required"
+provenance = "Original held-recipe fixture informed by GNU Make 4.4.1 observations and the upstream behavior study."
+args = ["-rR", "--no-print-directory", "-j2", "-q", "target", "release"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "held\nrelease\n"
+stderr = "make: *** Deleting file 'target'\n"

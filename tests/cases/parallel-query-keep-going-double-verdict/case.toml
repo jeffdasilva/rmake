@@ -1,0 +1,11 @@
+id = "parallel-query-keep-going-double-verdict"
+requirement = "runtime.parallel-query"
+candidate = "required"
+provenance = "Original held-recipe fixture informed by GNU Make 4.4.1 observations and the upstream behavior study."
+args = ["-rR", "--no-print-directory", "-j2", "-q", "-k", "all", "failure"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "held\nfailure\nfinished\n"
+stderr = "make: *** [Makefile:9: failure] Error 7\n"

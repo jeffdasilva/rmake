@@ -131,6 +131,62 @@ checked against the oracle where applicable. The differential snapshot checks
 these filesystem outcomes on every run. Exported recursive-variable timing and
 broader timestamp behavior still require additional coverage.
 
+## Parallel query execution
+
+Ordinary `-q` can run forced recipe commands concurrently when the job pool has
+multiple slots. An unforced command can end its target's update without
+starting a child. If that is the first query verdict in a stopping invocation,
+GNU begins another pass before visiting later goals. It can wait for an
+outstanding child at that boundary. A preceding child completion or a make
+function that writes a file makes the new pass eligible to advance without a
+blocking wait.
+
+An unignored forced child that exits 1 ends a stopping invocation at the reap
+boundary. GNU drains already running recipes and permits them to run their
+remaining forced lines. In keep-going mode it continues visiting goals. A
+query verdict from a completed direct goal or double-colon branch can remain
+the final status even when a later visit reports a child failure.
+
+Eight original differential fixtures hold forced children across these
+boundaries with both pipe and FIFO jobservers. They check independent
+prerequisites, double-colon progression, a stopping goal-pass yield and its
+file-write control, keep-going status, draining and deletion after a child
+exits 1, and unchanged-target deletion after a child reaches an unforced
+continuation. Exact verbose output and the broader synthetic double-colon,
+grouped, and combined-mode cases remain separate acceptance work.
+
+## Keep-going changes during query execution
+
+After an earlier goal sets the query verdict, a stopping query can leave
+unvisited double-colon branches on a later direct goal. The pending branches
+resume on a later pass if another goal enables keep-going. The goal that
+sets the verdict leaves the pass. An explicit repeat of that target can
+request its remaining branches for a later pass. A forced child's
+subsequent command configuration can also enable keep-going, and an
+invocation-wide fatal error ends the traversal.
+
+Nine fixtures cover normalized aliases, an earlier error, a tail that
+disables keep-going, forced exit status and configuration, and a fatal stop.
+If the remaining query tails are suspended and no child or eligible goal
+can advance the traversal, rmake returns the established status. GNU Make
+4.4.1 can keep rescanning in that state.
+
+## Parallel dry-run and touch execution
+
+Ordinary `-n` and `-t` keep the available recipe slots for forced lines. Each
+running child retains the remaining recipe and its slot. When the child
+finishes, dry-run can echo a nonforced line without launching it, touch mode
+can skip the line and touch at completion, and query mode can stop the
+recipe before a later forced line. Completion keeps the synthetic timestamp
+for a simulated update and observes the filesystem for a recipe consisting
+entirely of forced commands.
+
+Eight held-prerequisite fixtures exercise these paths with both local
+jobserver transports. They check target-synchronized dry-run output, repeated
+touches after a skipped final command, and the `-nt`, `-nq`, `-qt`, and
+`-nqt` combinations. Each fixture compares status, output, and the retained
+files with GNU Make.
+
 ## Reference provenance
 
 The first 20 committed fixtures predate source inspection. The additional 16

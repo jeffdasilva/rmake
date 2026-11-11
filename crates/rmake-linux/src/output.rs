@@ -3,17 +3,18 @@
 
 //! Owned output spools and GNU-compatible POSIX byte-range coordination.
 //! Only this adapter deals with temporary descriptors and fcntl lock records.
-use std::ffi::{CStr, CString, c_char, c_int, c_short};
+use std::ffi::{CStr, CString, c_char, c_int, c_short, c_uint};
 use std::fs::{self, File, Metadata, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::fs::MetadataExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 unsafe extern "C" {
     fn mkostemp(template: *mut c_char, flags: c_int) -> c_int;
+    fn umask(mask: c_uint) -> c_uint;
     fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
     fn ttyname(descriptor: c_int) -> *mut c_char;
     fn isatty(descriptor: c_int) -> c_int;
@@ -103,13 +104,32 @@ fn directory() -> PathBuf {
     crate::temporary::initialize().directory().to_owned()
 }
 
+fn temporary_spelling(path: &Path) -> PathBuf {
+    directory().join(path.file_name().expect("temporary file name"))
+}
+
+#[derive(Debug)]
+pub struct TemporaryError {
+    pub creation_path: Option<PathBuf>,
+    pub error: io::Error,
+}
+
+impl From<io::Error> for TemporaryError {
+    fn from(error: io::Error) -> Self {
+        Self {
+            creation_path: None,
+            error,
+        }
+    }
+}
+
 struct Temporary {
     file: File,
     named: Option<(PathBuf, u64, u64)>,
 }
 
 impl Temporary {
-    fn new(named: bool) -> io::Result<Self> {
+    fn new(named: bool) -> Result<Self, TemporaryError> {
         let directory = directory();
         let directory = if directory.is_absolute() {
             directory
@@ -123,7 +143,16 @@ impl Temporary {
         // in our uniquely owned, terminated template. CLOEXEC/APPEND are atomic.
         let descriptor = unsafe { mkostemp(template.as_mut_ptr().cast(), 0x80000 | 0x400) };
         if descriptor < 0 {
-            return Err(io::Error::last_os_error());
+            let error = io::Error::last_os_error();
+            // GNU leaves the temporary-file creation mask active on failure.
+            // SAFETY: umask updates process permissions and takes no pointers.
+            unsafe { umask(0o077) };
+            template.pop();
+            let path = Path::new(std::ffi::OsStr::from_bytes(&template));
+            return Err(TemporaryError {
+                creation_path: Some(temporary_spelling(path)),
+                error,
+            });
         }
         let file = crate::process::private_descriptor(unsafe { File::from_raw_fd(descriptor) })?;
         template.pop();
@@ -174,10 +203,13 @@ pub struct Coordination {
 }
 
 impl Coordination {
-    pub fn create() -> io::Result<Self> {
+    pub fn create() -> Result<Self, TemporaryError> {
         let temp = Temporary::new(true)?;
         let path = &temp.named.as_ref().expect("named mutex").0;
-        let authentication = [b"fnm:".as_slice(), path.as_os_str().as_bytes()].concat();
+        // The owner retains an absolute cleanup path. Descendants receive
+        // the selected spelling and resolve it in their own directories.
+        let spelling = temporary_spelling(path);
+        let authentication = [b"fnm:".as_slice(), spelling.as_os_str().as_bytes()].concat();
         Ok(Self {
             file: None,
             owner: Some(temp),
@@ -278,7 +310,7 @@ pub struct Spool {
 }
 
 impl Spool {
-    pub fn new() -> io::Result<Self> {
+    pub fn new() -> Result<Self, TemporaryError> {
         let out = stream_metadata(1);
         let err = stream_metadata(2);
         let combined = out
@@ -296,7 +328,7 @@ impl Spool {
             None
         };
         if stdout.is_none() && stderr.is_none() {
-            return Err(io::Error::from_raw_os_error(9));
+            return Err(io::Error::from_raw_os_error(9).into());
         }
         Ok(Self {
             out: stdout,
