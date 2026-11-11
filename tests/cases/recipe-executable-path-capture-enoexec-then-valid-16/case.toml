@@ -1,0 +1,12 @@
+id = "recipe-executable-path-capture-enoexec-then-valid-16"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+description = "Shell capture ordering under a Linux file-descriptor limit."
+provenance = "Original Makefiles with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "706c61696e3d5b46414c4c4241434b3a2e2f706c61696e5d207374617475733d5b305d0a76616c69643d5b52414e5d207374617475733d5b305d0a"
+stderr_hex = ""

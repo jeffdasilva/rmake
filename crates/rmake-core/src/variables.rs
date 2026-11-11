@@ -65,7 +65,7 @@ mod shell_effect_tests {
         let mut run = |_: ShellRequest<'_>| {
             Ok(ShellResult {
                 stdout: b"first\r\nsecond\n\n".to_vec(),
-                status: 7,
+                status: Some(7),
             })
         };
         assert_eq!(
@@ -4137,29 +4137,32 @@ impl Expansion<'_, '_> {
                 ifs: ifs.as_deref(),
                 environment: &environment,
                 original_shell: original_shell.as_deref(),
+                reading_location: self.context.location,
                 one_shell,
             })
             .ok_or_else(|| ExpandError::Unsupported(b"shell".to_vec()))?
             .map_err(ExpandError::UnlocatedError)?;
-        let status = result.status.to_string();
-        if let Some(frame) = self.bindings.last_mut() {
-            // A completion writes only to the active scope. Its automatic
-            // bindings retain precedence over the override origin.
-            let name = b".SHELLSTATUS".as_slice();
-            if let Some(previous) = frame.get_mut(name) {
-                if previous.origin <= Origin::Override {
-                    previous.value = status.into_bytes();
+        if let Some(status) = result.status {
+            let status = status.to_string();
+            if let Some(frame) = self.bindings.last_mut() {
+                // A completion writes only to the active scope. Its automatic
+                // bindings retain precedence over the override origin.
+                let name = b".SHELLSTATUS".as_slice();
+                if let Some(previous) = frame.get_mut(name) {
+                    if previous.origin <= Origin::Override {
+                        previous.value = status.into_bytes();
+                    }
+                } else {
+                    let mut variable = local(status.into_bytes());
+                    variable.origin = Origin::Override;
+                    frame.insert(name.to_vec(), variable);
                 }
             } else {
-                let mut variable = local(status.into_bytes());
-                variable.origin = Origin::Override;
-                frame.insert(name.to_vec(), variable);
+                self.store
+                    .writable()
+                    .expect("mutable shell host")
+                    .define_literal(b".SHELLSTATUS", status.as_bytes(), Origin::Override)?;
             }
-        } else {
-            self.store
-                .writable()
-                .expect("mutable shell host")
-                .define_literal(b".SHELLSTATUS", status.as_bytes(), Origin::Override)?;
         }
         if result.stdout.len() > MAX_OUTPUT {
             return Err(ExpandError::ExpansionLimit);

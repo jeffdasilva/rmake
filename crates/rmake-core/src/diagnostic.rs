@@ -253,12 +253,14 @@ pub struct ShellRequest<'a> {
     /// active recursive export. Interpretation performs no implicit OS reads.
     pub environment: &'a [(Vec<u8>, EnvironmentValue)],
     pub original_shell: Option<&'a [u8]>,
+    pub reading_location: Option<&'a Location>,
     pub one_shell: bool,
 }
 
 pub struct ShellResult {
     pub stdout: Vec<u8>,
-    pub status: i32,
+    /// A capture pipe failure leaves .SHELLSTATUS unchanged.
+    pub status: Option<i32>,
 }
 
 type ShellReceiver<'a> = dyn FnMut(ShellRequest<'_>) -> Result<ShellResult, Vec<u8>> + 'a;

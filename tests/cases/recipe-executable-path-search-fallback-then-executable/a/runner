@@ -1,0 +1,1 @@
+printf "fallback:%s:%s\n" "$0" "$1"

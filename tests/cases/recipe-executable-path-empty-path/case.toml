@@ -1,0 +1,11 @@
+id = "recipe-executable-path-empty-path"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "artifact"]
+description = "Linux executable selection for recipe-executable-path-empty-path."
+provenance = "Original fixture and expectations independently derived from pinned GNU Make 4.4.1 observations."
+
+[expected]
+exit_code = 2
+stdout_hex = "27270a"
+stderr_hex = "6d616b653a203a204e6f20737563682066696c65206f72206469726563746f72790a6d616b653a202a2a2a205b4d616b6566696c653a323a2061727469666163745d204572726f72203132370a"
