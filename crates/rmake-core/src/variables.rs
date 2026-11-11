@@ -5023,6 +5023,17 @@ fn word_index(value: &[u8], function: &[u8], second: bool) -> Result<i64, Expand
 
 fn substitute(from: &[u8], to: &[u8], text: &[u8]) -> Result<Vec<u8>, ExpandError> {
     let mut output = Vec::new();
+    if text.len() >= 64
+        && let ([from], [to]) = (from, to)
+    {
+        push(&mut output, text)?;
+        for byte in &mut output {
+            if byte == from {
+                *byte = *to;
+            }
+        }
+        return Ok(output);
+    }
     if from.is_empty() {
         push(&mut output, text)?;
         push(&mut output, to)?;
