@@ -4057,8 +4057,8 @@ impl Engine {
     fn optional_mode_sources_settle(&self, read_files: &[(Makefile, bool)]) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
-        // Limit the build-mode handoff to simple file identities and
-        // ungrouped single-colon optional roots.
+        // Use simple file identities and single-colon optional roots. A
+        // grouped root qualifies when its own recipe starts directly.
         if self.options.check_symlink_times
             || self.assumptions.is_some()
             || !self.options.include_directories.is_empty()
@@ -4087,7 +4087,9 @@ impl Engine {
                             .get(name)
                             .map_or(no_recipe_fallback, |rule| {
                                 rule.secondary.is_none()
-                                    && rule.group.is_none()
+                                    && (rule.group.is_none()
+                                        || (rule.dependencies.is_empty()
+                                            && self.options.load_limit.is_none()))
                                     && rule.double_colon.is_none()
                                     && if rule.dependencies.is_empty() {
                                         rule.recipes.is_some() || no_recipe_fallback
