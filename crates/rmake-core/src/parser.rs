@@ -2262,6 +2262,8 @@ fn separator<const SOURCE: bool>(bytes: &[u8], needle: u8) -> Option<usize> {
     let mut i = 0;
     while i < bytes.len() {
         match bytes[i] {
+            // A source backslash does not hide the next dollar reference.
+            b'\\' if SOURCE && closes.is_empty() && bytes.get(i + 1) == Some(&b'$') => i += 1,
             b'\\' if i + 1 < bytes.len() => i += 2,
             // A short reference's backslash counts in the run before the separator.
             b'$' if SOURCE
