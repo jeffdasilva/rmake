@@ -3,7 +3,7 @@
 On 2026-10-28 the project owner explicitly selected deterministic safe errors for
 recorded inputs that crash or hang GNU Make. On 2026-11-02 the owner explicitly
 extended S004 to fifteen recorded normal-exit inputs from the unstable nested
-short-option class. The total is 32 documented inputs. These exceptions do
+short-option class. The total is 34 documented inputs. These exceptions do
 **not** count as exact conformance. Other ordinary mismatches remain compatibility work. M3/M6
 and general performance parity remain open.
 
@@ -14,6 +14,7 @@ and general performance parity remain open.
 | S003 | Deleting a global binding while expanding its exported value | 3 | Track selected global recursive exports capable of evaluation effects. Reject effective deletion of an active binding before removing it. Unwind markers on errors; target-local selection does not refer to the deleted global object. |
 | S004 | Reentrant flag decoding that rewinds/repeats an outer stream or retains unstable short-option scan state | 20 | Five recorded hangs plus fifteen owner-approved normal-exit state hazards. Refuse the first nested short word when a following definition and additional words leave the recorded hazardous continuation; retain the original rewind/replay guard. One-tail streams, long-option resets and an intervening option before that definition remain supported. |
 | S005 | Custom-shell `.ONESHELL` argument preparation with recorded allocator hazards | 7 | Refuse unquoted interpreter syntax, unmatched quotes, and the literal-SHELL-LF/leading-double-quoted-flag case. Preserve ordinary quoted/escaped flags and Bourne shells. Apply only when execution is selected; ordinary dry-run/query/touch skips remain supported. |
+| S006 | An unvisited double-colon branch after an earlier query verdict | 2 | After goal advancement and job drain, fail if question mode still has keep-going disabled and a later queued goal has an unvisited declared branch. Single goals, completed branches and tails that resume with keep-going retain their ordinary verdicts. |
 
 Errors exit normally with status 2 and a stable `rmake safety error [S00x]`
 diagnostic. Ignore-errors, keep-going and parallel execution do not suppress a
@@ -27,15 +28,17 @@ origin checks occur before deletion guards, preserving ineffective undefines.
 
 ## Evidence and separate acceptance
 
-[`tests/safety/manifest.json`](../tests/safety/manifest.json) maps 32 original
+[`tests/safety/manifest.json`](../tests/safety/manifest.json) maps 34 original
 inputs to immutable raw GNU observations in `tests/research`, the exact input
 bytes, observer modes, invocation and independent candidate error expectations.
 The historical candidate observations are retained unchanged. The former pending
 empty-`let` fixture moves out of the ordinary corpus; two bounded GNU SIGSEGV
 observations are retained in its research record.
 
-`make test-safety` runs only rmake. It checks four modes per exception (normal,
-`-i`, `-k`, `-j4`), each twice: 128 cells / 256 observations. Status, raw streams,
+`make test-safety` runs only rmake. It checks normal, `-i`, `-k` and `-j4` for
+S001–S005 and normal, `-i` and `-j4` for S006. Each cell runs twice, for 134
+cells and 268 observations. The S006 `-k` variant completes in GNU and stays
+in the ordinary gate. Status, raw streams,
 resource limits, leftover processes and repeatable filesystem effects are
 checked. Inputs must remain unchanged and no extra files may appear; only the
 three original export probes may compile their owned observer before failure.
@@ -74,8 +77,8 @@ differences alone cannot qualify a normal-exit exception.
 The [boundary implementation and discovery](nested-short-options-proposal.md)
 retain both the initial proposal and the four additional normal regressions that
 narrowed its guard. Eighteen ordinary controls are required exact GNU matches.
-The approved gate now has 128 candidate-only cells; its discovery replay earns
-no additional acceptance credit.
+The extension originally brought the gate to 128 candidate-only cells. Its
+discovery replay earns no additional acceptance credit.
 
 The original boundary probe `BOOT:=$(eval undefine .DEFAULT_GOAL)` succeeds
 before metadata activation. [CLI assignment effects](cli-assignment-effects.md)
@@ -85,6 +88,18 @@ prototype evidence remains in
 This CLI control adds no safety exception. The recorded CLI restart file-effect mismatch is now a required control under
 [ordered startup replay](startup-replay.md). Complete startup/profile work remains
 ordinary [M3/M6 compatibility work](m3-m6-audit.md).
+
+## Stalled double-colon query
+
+The [bounded GNU observations](../tests/research/gnu-441-stalled-double-colon-query.json)
+record the grouped reproducer and a simpler ordinary double-colon form. GNU
+4.4.1 can repeatedly visit the later goal's already answered branch while
+its remaining declarations are unvisited. An earlier goal has already set the
+query verdict, so the later goal stays in the pass. With `-k` enabled, the
+branch traversal can advance past the query result. The same state occurs
+without `-p`, `.WAIT`, secondary expansion, or grouping. Six ordinary
+controls pin the single-goal case, keep-going, late keep-going, a precompleted
+grouped tail, a query at the final branch, and a later fatal error.
 
 ## Performance observations
 

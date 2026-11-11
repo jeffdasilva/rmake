@@ -167,9 +167,10 @@ invocation-wide fatal error ends the traversal.
 
 Nine fixtures cover normalized aliases, an earlier error, a tail that
 disables keep-going, forced exit status and configuration, and a fatal stop.
-If the remaining query tails are suspended and no child or eligible goal
-can advance the traversal, rmake returns the established status. GNU Make
-4.4.1 can keep rescanning in that state.
+If a later explicit double-colon goal still has an unfinished branch after
+the query pass and keep-going is off, GNU Make 4.4.1 can keep rescanning.
+rmake reports the documented [S006 safety error](safety-exceptions.md#stalled-double-colon-query)
+once other goals and running jobs have had a chance to advance the traversal.
 
 ## Parallel dry-run and touch execution
 

@@ -38,7 +38,7 @@ class SafetyTests(unittest.TestCase):
 
     def test_every_approved_exception_has_separate_immutable_evidence(self):
         cases = safety.inventory()
-        self.assertEqual(len(cases), 32)
+        self.assertEqual(len(cases), 34)
         self.assertEqual({case.requirement for case in cases},
                          {'safety.' + code for code in safety.CODES})
         # The owner explicitly extended S004 to this formerly ordinary gap.
@@ -69,7 +69,9 @@ class SafetyTests(unittest.TestCase):
         original = json.loads(safety.MANIFEST.read_text())
         for kind in ('untagged-normal', 'tagged-fault', 'missing-approval'):
             changed = copy.deepcopy(original)
-            if kind == 'untagged-normal': changed['exceptions'][-1].pop('approval')
+            if kind == 'untagged-normal':
+                row = next(row for row in changed['exceptions'] if row['id'] == 'flag-payload-ordered-14')
+                row.pop('approval')
             elif kind == 'tagged-fault': changed['exceptions'][0]['approval'] = safety.NORMAL_SHORT_APPROVAL
             else: changed.pop('normal_exit_approval')
             with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
@@ -112,6 +114,16 @@ class SafetyTests(unittest.TestCase):
         self.assertEqual([cell.args[len(case.args):] for _, cell in cells],
                          [(), ('-i',), ('-k',), ('-j4',)])
         self.assertTrue(all(cell.expected == case.expected for _, cell in cells))
+
+    def test_query_keep_going_remains_a_finite_ordinary_control(self):
+        query_cases = [case for case in safety.inventory() if case.requirement == 'safety.S006']
+        self.assertEqual(len(query_cases), 2)
+        for case in query_cases:
+            self.assertEqual([label for label, _ in safety.variants(case)], ['normal', 'ignore', 'parallel'])
+        keep = harness.load_case(safety.ROOT / 'tests/cases/query-safety-keep-going')
+        self.assertEqual(keep.candidate, 'required')
+        self.assertIn('-k', keep.args)
+        self.assertEqual(keep.expected['exit_code'], 1)
 
     def test_gate_invokes_only_candidate_and_checks_repeated_filesystem_effects(self):
         case = safety.inventory()[0]

@@ -1,0 +1,9 @@
+id = "query-safety-later-failure"
+requirement = "compatibility.double-colon-query-boundaries"
+candidate = "required"
+args = ["-rR", "-s", "--no-print-directory", "-q", "-f", "Makefile", "a", "b", "late"]
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276e6f6e6578697374656e74272c206e656564656420627920276c617465272e202053746f702e0a"

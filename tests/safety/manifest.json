@@ -640,6 +640,62 @@
         "stdout_hex": "",
         "stderr_hex": "4d616b6566696c653a313a202a2a2a20726d616b6520736166657479206572726f72205b533030345d3a20756e73616665207265656e7472616e74204d414b45464c41475320617267756d656e74206465636f64696e672e202053746f702e0a"
       }
+    },
+    {
+      "id": "query-stalled-grouped-tail",
+      "code": "S006",
+      "evidence": "tests/research/gnu-441-stalled-double-colon-query.json",
+      "evidence_sha256": "b6bc0882ccaf997091e4c337dac184ed30760b8626a0dce581675da489cf7c2d",
+      "args": [
+        "-rR",
+        "-s",
+        "--no-print-directory",
+        "-q",
+        "-f",
+        "Makefile",
+        "a",
+        "b"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "54dbdd47f8afcdba8f959cc725c192e8a36a806092969195afa8fc383b131cde",
+        "n": "7d3f9b6284c6f36e77b425cac882e8fbbcc97a4727ec20790853076d0f463453",
+        "gate": "7d3f9b6284c6f36e77b425cac882e8fbbcc97a4727ec20790853076d0f463453",
+        "z": "7d3f9b6284c6f36e77b425cac882e8fbbcc97a4727ec20790853076d0f463453"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a20726d616b6520736166657479206572726f72205b533030365d3a20646f75626c652d636f6c6f6e2071756572792063616e6e6f7420726561636820616e20756e66696e6973686564206272616e63682e202053746f702e0a"
+      }
+    },
+    {
+      "id": "query-stalled-ordinary-tail",
+      "code": "S006",
+      "evidence": "tests/research/gnu-441-stalled-double-colon-query.json",
+      "evidence_sha256": "b6bc0882ccaf997091e4c337dac184ed30760b8626a0dce581675da489cf7c2d",
+      "args": [
+        "-rR",
+        "-s",
+        "--no-print-directory",
+        "-q",
+        "-f",
+        "Makefile",
+        "a",
+        "b"
+      ],
+      "environment": {},
+      "inputs": {
+        "Makefile": "fe3dda2247fdd01f801570d1a95db4365b3b30a1aefb90c912a48c6abe121555",
+        "n": "7d3f9b6284c6f36e77b425cac882e8fbbcc97a4727ec20790853076d0f463453",
+        "gate": "7d3f9b6284c6f36e77b425cac882e8fbbcc97a4727ec20790853076d0f463453",
+        "z": "7d3f9b6284c6f36e77b425cac882e8fbbcc97a4727ec20790853076d0f463453"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a20726d616b6520736166657479206572726f72205b533030365d3a20646f75626c652d636f6c6f6e2071756572792063616e6e6f7420726561636820616e20756e66696e6973686564206272616e63682e202053746f702e0a"
+      }
     }
   ],
   "normal_exit_approval": {
