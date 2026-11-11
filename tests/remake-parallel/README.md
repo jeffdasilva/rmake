@@ -70,7 +70,7 @@ required failure replay and the considered state after an early optional pass.
 Both jobserver transports are covered.
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 2,046 profiles. Leading `./` spellings share one target record and
+run all 2,110 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -80,7 +80,7 @@ The overlap checks detected all twenty.
 
 ## Load limits
 
-The development and release gates include 82 held load profiles in addition
+The development and release gates include 146 held load profiles in addition
 to the debug variants.
 For a standalone run, add `--include-load` to compile the tracked shim
 with `cc` in the harness temporary directory. Use `--load-shim PATH` to
@@ -92,6 +92,11 @@ deferral, a low-load overlap control, and a controlled load drop during
 token wait. A stopped optional remake retains its queued sibling while
 a required failure cancels the queue. The optional-stop ordinary goal
 records its secondary expansion before the queued sibling releases.
+Named include goals use both high and low load in dry-run, question, and
+touch modes. The held workers distinguish deferred dispatch, the named
+recipe's carried mode, and restarts before the second include starts.
+The 64 cases cover both pipe and FIFO transports.
+
 Ordinary goal profiles check file effects, successful and failed exits,
 ignored failures, and the summary for work dispatched outside a goal
 visit. A low-load control starts both children during their visits.

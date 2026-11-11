@@ -4520,7 +4520,15 @@ impl Engine {
         if (primary && (file.optional || file.missing))
             || self.database.loaded_modules.contains_key(name)
             || self.assumptions.is_some()
-            || self.options.load_limit.is_some()
+        {
+            return false;
+        }
+        let limited_load = self.options.load_limit.is_some();
+        if limited_load
+            && (primary
+                || file.optional
+                || self.special(b".PHONY", name, false)
+                || !self.no_remake_recipe_fallback())
         {
             return false;
         }
@@ -4530,6 +4538,17 @@ impl Engine {
             .rules
             .get(name)
             .map_or(primary && no_default_recipe, |rule| {
+                if limited_load {
+                    // A direct named include may carry its mode across a
+                    // load-delayed sibling without expanding a dependency.
+                    return rule.dependencies.is_empty()
+                        && rule.secondary.is_none()
+                        && rule.group.is_none()
+                        && rule.double_colon.is_none()
+                        && rule.recipes.as_ref().is_some_and(|recipes| {
+                            matches!(recipes.as_slice(), [recipe] if !recipe_is_recursive(recipe))
+                        });
+                }
                 if rule.secondary.is_some() && !no_default_recipe {
                     return false;
                 }
