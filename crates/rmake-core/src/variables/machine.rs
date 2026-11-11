@@ -1045,11 +1045,23 @@ impl Expansion<'_, '_> {
                 binding.raw_value().to_vec()
             };
             m.values.push(value);
+        } else if name.iter().any(|&byte| matches!(byte, b'$' | b')')) {
+            if variable.raw_value().is_empty() {
+                m.values.push(Vec::new());
+            } else {
+                // A computed name can supply a nested reference or close
+                // the generated reference before the end of the token.
+                let mut expression = Vec::with_capacity(name.len() + 3);
+                expression.extend_from_slice(b"$(");
+                expression.extend_from_slice(name);
+                expression.push(b')');
+                let expression = m.owned(expression, depth)?;
+                m.read(expression, depth, nearest)?;
+            }
         } else if name
             .iter()
             .position(|&byte| byte == b':')
             .is_some_and(|colon| name[colon + 1..].contains(&b'='))
-            && !name.iter().any(|&byte| matches!(byte, b'$' | b')'))
         {
             // The generated reference can select a substitution in this frame.
             if variable.raw_value().is_empty() {

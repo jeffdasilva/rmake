@@ -1,0 +1,11 @@
+id = "call-computed-reference-close-suffix-effect"
+requirement = "functions.argument-delimiters"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "--warn-undefined-variables"]
+timeout_seconds = 8
+provenance = "Original computed call reference fixture, compared with two pinned GNU Make 4.4.1 runs."
+
+[expected]
+exit_code = 0
+stdout_hex = "726573756c743d5b7072656669787461696c646f6e65295d0a"
+stderr_hex = "6d616b653a207761726e696e673a20756e646566696e6564207661726961626c652027474e554d414b45464c414753270a"
