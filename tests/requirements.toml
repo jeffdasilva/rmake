@@ -2465,3 +2465,19 @@ cases = [
   "debug-double-colon-branch-missing-touch",
   "debug-double-colon-branch-missing-existing-file-control",
 ]
+
+[[requirements]]
+id = "includes.serial-double-colon-remakes"
+title = "Serial double-colon source remake timestamps and branch tracing"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 5
+fixture_count = 5
+cases = [
+  "debug-remake-double-colon-stale-existing-verbose",
+  "debug-remake-double-colon-missing-current-tail-verbose",
+  "debug-remake-double-colon-missing-current-tail-quiet",
+  "debug-remake-double-colon-missing-stub-basic",
+  "debug-remake-double-colon-missing-optional-stub-verbose",
+]

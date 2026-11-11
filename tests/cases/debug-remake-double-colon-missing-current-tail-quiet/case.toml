@@ -1,0 +1,11 @@
+id = "debug-remake-double-colon-missing-current-tail-quiet"
+requirement = "includes.serial-double-colon-remakes"
+candidate = "required"
+provenance = "Original serial double-colon source remake fixture for GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = "ordinary=left:\n"

@@ -171,3 +171,12 @@ when each declared double-colon branch is visited. Later branches retain
 that observation even when an earlier branch creates the file. Five
 fixtures exercise query, dry-run, touch, normal execution, and an
 initially present target.
+
+During a serial makefile remake, the failed source read marks the head
+declaration missing. A later declaration can then observe the file
+created by an earlier recipe and find its own prerequisite older. An
+initially present source retains its original comparison time across the
+declared branches. Five fixtures check exact output and included values
+across required and optional reads, with basic and verbose tracing and
+without debug output. Optional failed-branch replay remains a separate
+case.
