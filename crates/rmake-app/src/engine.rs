@@ -8826,13 +8826,15 @@ impl Engine {
                         },
                     );
                 }
-                if result.database_result != DatabaseResult::RecipeUnstarted {
-                    // Group completion can already have observed the owner's
-                    // timestamp after a failed child was reaped.
-                    self.database_branch_outcomes
+                // A failed owner can already have a physical observation
+                // because it is also a member of the completed group.
+                let group_observed = result.database_result != DatabaseResult::RecipeUnstarted
+                    && self
+                        .database_branch_outcomes
                         .entry((target.to_vec(), ordinal))
-                        .or_insert(result);
-                }
+                        .or_insert(result)
+                        .database_result
+                        == DatabaseResult::ObservedGroup;
                 let assumed_time = state
                     .synthetic_tail
                     .as_ref()
@@ -8853,9 +8855,10 @@ impl Engine {
                 ) {
                     state.combined.database_result = result.database_result;
                 }
-                if (result.database_result == DatabaseResult::Simulated
-                    || result.database_result == DatabaseResult::ObservedDoubleColon
-                    || result.completion >= CompletionTime::Refresh)
+                if !group_observed
+                    && (result.database_result == DatabaseResult::Simulated
+                        || result.database_result == DatabaseResult::ObservedDoubleColon
+                        || result.completion >= CompletionTime::Refresh)
                     && let Some(time) = self
                         .database_group_peer_times
                         .get_mut(target)
@@ -10491,7 +10494,8 @@ impl Engine {
             if !unstarted_query {
                 self.completed_group_branches.insert(id, cached);
             }
-            let observe_dry_group = self.output.database_requested()
+            let database_requested = self.output.database_requested();
+            let observe_dry_group = database_requested
                 && self.options.dry_run
                 && !self.options.question
                 && !self.options.touch
@@ -10540,10 +10544,13 @@ impl Engine {
                     } else {
                         self.observed_modified(&peer, false)
                     };
-                    let mut peer_times = (observe_dry_group
-                        && !owner
+                    let mut peer_times = (database_requested
                         && !phony
-                        && branches.iter().any(|rule| rule.group.is_none()))
+                        && if owner {
+                            outcome.failed && branches.len() > 1
+                        } else {
+                            branches.iter().any(|rule| rule.group.is_none())
+                        })
                     .then(|| {
                         let initial = self
                             .double_colon_before
