@@ -123,6 +123,25 @@ def pattern_wait_cases(reference, candidate, root):
                     f'all.out peer.out &:: {tail} ; @$(file >>seen,goal):\n'
                     'p1: ; @python3 worker.py left observe\nx y z: ; @$(file >>seen,$@):\n')
         scenarios.append(('targeted-grouped-double-' + name, 'none', makefile, held_effects, effects))
+    group_recipe = ' ; @$(file >>seen,goal):\n'
+    grouped_single = (
+        ('both-static', both, 'all.out peer.out &: p1 x y' + group_recipe, b'', b'left\nx\ny\n'),
+        ('trigger-only', 'all.out', 'all.out peer.out &: p1 x y' + group_recipe, b'x\ny\n', b'x\ny\nleft\n'),
+        ('peer-only', 'peer.out', 'all.out peer.out &: p1 x y' + group_recipe, b'x\ny\n', b'x\ny\nleft\n'),
+        ('both-deferred', both, 'all.out peer.out &: p1 $$(DYNAMIC)' + group_recipe,
+         b'x\ny\n', b'x\ny\nleft\n'),
+        ('peer-disjoint', 'peer.out', 'all.out peer.out &:' + group_recipe + 'all.out: p1\npeer.out: x y\n',
+         b'x\n', b'x\nleft\ny\n'),
+        ('trigger-disjoint', 'all.out', 'all.out peer.out &:' + group_recipe + 'all.out: p1 x\npeer.out: y\n',
+         b'y\n', b'y\nleft\nx\n'),
+        ('implicit-only', 'all.out', '%.out %.peer &: p1 x y' + group_recipe, b'x\ny\n', b'x\ny\nleft\n'),
+        ('three-peers', 'all.out last.out', 'all.out peer.out last.out &: p1 x y' + group_recipe,
+         b'x\ny\n', b'x\ny\nleft\n'),
+    )
+    for name, targets, declarations, held_effects, effects in grouped_single:
+        makefile = (f'.SECONDEXPANSION:\n.NOTPARALLEL: {targets}\nDYNAMIC := x y\n' + declarations
+                    + 'p1: ; @python3 worker.py left observe\nx y: ; @$(file >>seen,$@):\n')
+        scenarios.append(('targeted-grouped-single-' + name, 'none', makefile, held_effects, effects))
     records = []
     runtime = root / 'observation'
     for (name, seed, makefile, held_effects, effects), transport in itertools.product(

@@ -3758,7 +3758,7 @@ impl Database {
                     for branch in branches {
                         branch.insert_targeted_waits();
                     }
-                } else if rule.group.is_none() {
+                } else {
                     rule.insert_targeted_waits();
                 }
             }

@@ -26,10 +26,10 @@ ignored failures. Circular traversal separates the skipped edge from GNU's
 physical declaration-slot removal quirk using owned indices; no dangling pointers
 or deliberate memory corruption are reproduced.
 
-For an ungrouped target named by `.NOTPARALLEL`, source reading inserts
-barriers before the second and later declared prerequisite occurrences in each
-rule. A grouped double-colon declaration records them separately for each
-branch and each named peer. Implicit prerequisites inserted later join the first
+For a target named by `.NOTPARALLEL`, source reading inserts barriers before
+its second and later declared prerequisite occurrences. Each double-colon
+branch has its own barriers. A grouped rule can advance another peer while one
+peer waits at a barrier. Implicit prerequisites inserted later join the first
 group. Replacing a deferred occurrence in secondary expansion drops its
 targeted barrier. Barriers before retained prerequisite occurrences survive.
 

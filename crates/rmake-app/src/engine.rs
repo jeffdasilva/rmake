@@ -847,8 +847,6 @@ struct RuleState {
     phony: bool,
     next: usize,
     order: Vec<usize>,
-    serial_dependency: Option<usize>,
-    serial_phase: bool,
     inspections: HashMap<usize, (u64, Outcome)>,
     // Rebuild evidence is rare; keep ordinary suspended graph frames compact.
     #[allow(clippy::box_collection)]
@@ -880,26 +878,20 @@ impl RuleState {
     }
 
     fn visited_prerequisites(&self) -> bool {
-        self.group.is_none() && !self.serial_phase && self.next == self.rule.dependencies.len()
+        self.group.is_none() && self.next == self.rule.dependencies.len()
     }
 
     fn visited_group_prerequisites(&self) -> bool {
-        !self.serial_phase
-            && self.next == self.rule.dependencies.len()
+        self.next == self.rule.dependencies.len()
             && self
                 .group
                 .as_ref()
                 .is_some_and(|group| group.peer_targets.is_empty())
     }
 
-    fn waiting_at_serial_prerequisite(&self) -> bool {
-        self.branch.is_none() && self.group.is_none() && self.serial_dependency.is_some()
-    }
-
     fn waiting_at_barrier(&self) -> bool {
         let index = self.order.get(self.next).copied().unwrap_or(self.next);
         self.group.as_ref().is_none_or(|group| group.run.implicit)
-            && !self.serial_phase
             && self
                 .rule
                 .dependencies
@@ -964,7 +956,6 @@ struct GroupSegment {
     start: usize,
     target: Vec<u8>,
     ordinal: usize,
-    serial: bool,
 }
 
 struct GroupRun {
@@ -8876,10 +8867,6 @@ impl Engine {
             // Expansion is per file, not once for every peer traversal.
             self.store_expanded_rule(target, rule.clone());
         }
-        let serial_phase = grouped
-            && !rule.dependencies.is_empty()
-            && rule.grouped_double_id().is_none()
-            && self.special(b".NOTPARALLEL", target, false);
         let group = rule.grouped_targets().map(|_| {
             Box::new(GroupState {
                 recipe_rule: rule.clone(),
@@ -8887,7 +8874,6 @@ impl Engine {
                     start: 0,
                     target: target.to_vec(),
                     ordinal: rule.grouped_double_ordinal(),
-                    serial: serial_phase,
                 }],
                 peer_targets,
                 wait_frontiers: Vec::new(),
@@ -8939,8 +8925,6 @@ impl Engine {
             phony,
             next: 0,
             order,
-            serial_dependency: None,
-            serial_phase,
             inspections: HashMap::new(),
             intermediate_stale: None,
             debug_changed_edges: None,
@@ -9012,8 +8996,7 @@ impl Engine {
                     .group
                     .as_ref()
                     .is_some_and(|group| !group.wait_frontiers.is_empty())
-                || state.waiting_at_barrier()
-                || state.waiting_at_serial_prerequisite());
+                || state.waiting_at_barrier());
         let replay_debug = can_replay_debug
             && state.last_debug_pass != self.debug_pass
             && self.graph_abort.is_none()
@@ -9056,10 +9039,9 @@ impl Engine {
             .map(|group| std::mem::take(&mut group.wait_frontiers))
             .unwrap_or_default();
         let mut group_frontier = !previous_frontiers.is_empty();
-        let scan_group = group_frontier
+        let mut scan_group = group_frontier
             || (!self.remaking
                 && self.parallel_graph()
-                && state.serial_dependency.is_none()
                 && state
                     .group
                     .as_ref()
@@ -9111,19 +9093,24 @@ impl Engine {
                     state.stopped = true;
                     break;
                 }
-                state.serial_phase = state.rule.grouped_double_id().is_none()
-                    && self.special(b".NOTPARALLEL", &peer, false);
-                state
+                let group = state
                     .group
                     .as_mut()
-                    .expect("peer traversal has group state")
-                    .peer_segments
-                    .push(GroupSegment {
-                        start: state.rule.dependencies.len(),
-                        target: peer.clone(),
-                        ordinal,
-                        serial: state.serial_phase,
-                    });
+                    .expect("peer traversal has group state");
+                if !group.frontiers_enabled
+                    && peer_rule
+                        .dependencies
+                        .iter()
+                        .any(|dep| dep.name == b".WAIT")
+                {
+                    group.frontiers_enabled = true;
+                    scan_group |= !self.remaking && self.parallel_graph();
+                }
+                group.peer_segments.push(GroupSegment {
+                    start: state.rule.dependencies.len(),
+                    target: peer.clone(),
+                    ordinal,
+                });
                 let peer_order = self.shuffle.order(&peer, peer_rule.dependencies.len());
                 let offset = state.rule.dependencies.len();
                 if !peer_order.is_empty() && state.order.is_empty() {
@@ -9147,37 +9134,6 @@ impl Engine {
                 self.store_expanded_rule(&peer, peer_rule);
                 continue;
             }
-            if let Some(index) = state.serial_dependency {
-                let visit = std::mem::replace(&mut resume_visit, PrerequisiteVisit::Resume);
-                if visit == PrerequisiteVisit::DebugReplay {
-                    // The serial frontier is the last visited occurrence. The
-                    // earlier ones only need their cached diagnostic view.
-                    for position in 0..state.next - 1 {
-                        let prior = state.order.get(position).copied().unwrap_or(position);
-                        let dependency = &state.rule.dependencies[prior].name;
-                        if !state.dropped.contains(dependency)
-                            && let Some(outcome) = self.done.get(dependency).copied()
-                        {
-                            self.debug_cached_prerequisite_visit(
-                                dependency,
-                                debug_depth + 1,
-                                outcome,
-                            );
-                        }
-                    }
-                }
-                let (child, pending) = self.visit_prerequisite(target, &mut state, index, visit);
-                merge_child(&mut state.outcome, child);
-                if pending {
-                    waiting = true;
-                    break;
-                }
-                state.serial_dependency = None;
-                if state.outcome.fatal || (state.outcome.failed && !self.options.keep_going) {
-                    state.stopped = true;
-                    break;
-                }
-            }
             let index = state.order.get(state.next).copied().unwrap_or(state.next);
             if (self.database.has_vpaths() || !self.vpath_dirs.is_empty())
                 && state.rule.dependencies[index].name != b".WAIT"
@@ -9195,7 +9151,10 @@ impl Engine {
             }
             let occurrence = &state.rule.dependencies[index];
             let dependency = &occurrence.name;
-            if scan_group && let Some(group) = state.group.as_mut() {
+            if dependency == b".WAIT"
+                && scan_group
+                && let Some(group) = state.group.as_mut()
+            {
                 while group
                     .peer_segments
                     .get(segment_index + 1)
@@ -9203,26 +9162,20 @@ impl Engine {
                 {
                     segment_index += 1;
                 }
-                let segment = &group.peer_segments[segment_index];
-                let serial_boundary = segment.serial && state.next > segment.start;
-                if dependency == b".WAIT" || serial_boundary {
-                    if group_waiting {
-                        // Defer this segment's tail while other peers can still
-                        // reach their own prerequisite barrier.
-                        let end = group
-                            .peer_segments
-                            .get(segment_index + 1)
-                            .map_or(state.rule.dependencies.len(), |segment| segment.start);
-                        group.wait_frontiers.push(state.next..end);
-                        state.next = end;
-                        group_frontier = true;
-                        continue;
-                    }
-                    if dependency == b".WAIT" {
-                        state.next += 1;
-                        continue;
-                    }
+                if group_waiting {
+                    // Defer this segment's tail while other peers can still
+                    // reach their own prerequisite barrier.
+                    let end = group
+                        .peer_segments
+                        .get(segment_index + 1)
+                        .map_or(state.rule.dependencies.len(), |segment| segment.start);
+                    group.wait_frontiers.push(state.next..end);
+                    state.next = end;
+                    group_frontier = true;
+                } else {
+                    state.next += 1;
                 }
+                continue;
             }
             if dependency == b".WAIT" {
                 // Only the first prefix scan is a visit in this goal pass.
@@ -9289,9 +9242,6 @@ impl Engine {
             let (child, pending) = self.visit_prerequisite(target, &mut state, index, visit);
             group_waiting |= pending;
             merge_child(&mut state.outcome, child);
-            if state.serial_phase && !scan_group {
-                state.serial_dependency = Some(index);
-            }
             let deferred = child.deferred_spawn_failure && self.optional_remake();
             if child.fatal
                 || (((child.failed && !deferred) || child.question_outdated)
