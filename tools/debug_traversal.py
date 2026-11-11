@@ -39,6 +39,43 @@ class Model:
     newer_inputs: tuple[bytes, ...] = ()
 
 
+def eval_bom_models():
+    bom = b'\xef\xbb\xbf'
+    execute = b'$(eval $(file <body.txt))\n'
+    rule = b'all: ; @:\n'
+    first = b'$(info eval-first)\n'
+    second = b'$(info eval-second)\n'
+    file_bom = b"Skipping UTF-8 BOM in makefile 'Makefile'\n"
+    buffer_bom = b'Skipping UTF-8 BOM in makefile buffer\n'
+    absent = (b'Skipping UTF-8 BOM', b'On saute les BOM UTF-8')
+    debug = (b'--debug=b', b'all')
+    body = bom + first + bom + second
+    yield Model('eval-bom-named', execute + rule, args=debug, files={b'body.txt': body},
+                markers=(file_bom + b'eval-first\n' + file_bom + b'eval-second\n',))
+    yield Model('eval-bom-anonymous', rule, args=(b'--debug=b', b'--eval', body, b'all'),
+                markers=(buffer_bom + b'eval-first\n' + buffer_bom + b'eval-second\n',))
+    yield Model('eval-bom-ignored-define', execute + rule, args=debug,
+                files={b'body.txt': b'ifeq (a,b)\ndefine HIDDEN\n' + bom + first
+                       + bom + b'endef\nendif\n' + second},
+                markers=(file_bom * 2 + b'eval-second\n',), absent=(b'eval-first\n',))
+    yield Model('eval-bom-active-define-control', execute + rule, args=debug,
+                files={b'body.txt': b'define VALUE\n' + bom + b'value\nendef\n'
+                       b'$(info kept=[$(value VALUE)])\n'},
+                markers=(b'kept=[' + bom + b'value]\n',), absent=absent)
+    yield Model('eval-bom-later-caller-control', b'# padding\n' + execute + rule, args=debug,
+                files={b'body.txt': bom + b'VALUE = retained\n'
+                       b'$(info kept=[$(VALUE)/$(' + bom + b'VALUE)])\n'},
+                markers=(b'kept=[/retained]\n',), absent=absent)
+    yield Model('eval-bom-included-source', b'include source.mk\n' + rule, args=debug,
+                files={b'source.mk': execute, b'body.txt': body},
+                markers=(file_bom.replace(b'Makefile', b'source.mk') + b'eval-first\n',))
+    yield Model('eval-bom-final-empty-line', execute + rule, args=debug,
+                files={b'body.txt': first + bom},
+                markers=(b'eval-first\n' + file_bom,))
+    yield Model('eval-bom-quiet-control', execute + rule, args=(b'all',), files={b'body.txt': body},
+                markers=(b'eval-first\neval-second\n',), absent=absent)
+
+
 def models():
     yield Model('simple-implicit', SIMPLE, files={b'a.src': SOURCE}, created={b'a.out': SOURCE},
                 markers=(b"Trying implicit prerequisite 'a.src'.", b"Found 'a.src'."))
@@ -137,6 +174,7 @@ def models():
                          b"Reading makefile 'optional.mk' (search path) (don't care) (no ~ expansion)..."))
     yield Model('verbose-source-bom', b'\xef\xbb\xbfall: ; @:\n',
                 args=(b'--debug=v', b'all'), markers=(b"Skipping UTF-8 BOM in makefile 'Makefile'",))
+    yield from eval_bom_models()
     yield Model('verbose-no-update', b'all: source\n\t@cp $< $@\n',
                 args=(b'--debug=v', b'all'), files={b'source': SOURCE, b'all': SOURCE},
                 markers=(b"No need to remake target 'all'.",))
@@ -156,7 +194,17 @@ def models():
 
 def french_markers(model):
     """Positive independent assertions for mixed translation and fallback."""
+    file_bom = 'On saute les BOM UTF-8 du makefile «\u00a0Makefile\u00a0»\n'
+    buffer_bom = 'On saute les BOM UTF-8 du tampon makefile\n'
     selected = {
+        'eval-bom-named': (file_bom + 'eval-first\n' + file_bom + 'eval-second\n',),
+        'eval-bom-anonymous': (buffer_bom + 'eval-first\n' + buffer_bom + 'eval-second\n',),
+        'eval-bom-ignored-define': (file_bom * 2 + 'eval-second\n',),
+        'eval-bom-active-define-control': ('kept=[\ufeffvalue]\n',),
+        'eval-bom-later-caller-control': ('kept=[/retained]\n',),
+        'eval-bom-included-source': (file_bom.replace('Makefile', 'source.mk') + 'eval-first\n',),
+        'eval-bom-final-empty-line': ('eval-first\n' + file_bom,),
+        'eval-bom-quiet-control': ('eval-first\neval-second\n',),
         'chain': ("Recherche d'une règle contenant le fichier intermédaire «\u00a0a.mid\u00a0».",
                   'Suppression des fichiers intermédiaires...', "Found 'a.src'.", 'rm a.mid\n'),
         'archive-member-no-rule': ("Recherche d'une règle implicite de membre d'archive pour «\u00a0lib.a(a.o)\u00a0».",

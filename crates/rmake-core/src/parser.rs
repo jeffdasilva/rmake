@@ -4381,8 +4381,8 @@ impl Database {
             let evaluated_at = *evaluated_at;
             let prefix = self.recipe_prefix.unwrap_or(b'\t');
             reader.set_posix(self.posix);
-            if evaluated_at == Some(1) {
-                reader.skip_eval_bom();
+            if evaluated_at == Some(1) && reader.skip_eval_bom() {
+                context.reader_event(crate::diagnostic::ReaderEvent::Bom(source_name.as_option()));
             }
             let Some((mut line, leading_prefix)) = reader
                 .next_line(prefix, declaration.has_recipe_context())
@@ -4429,7 +4429,7 @@ impl Database {
             let stripped_bom =
                 evaluated_at.is_none() && line.line == 1 && line.bytes.starts_with(b"\xef\xbb\xbf");
             if stripped_bom {
-                context.reader_event(crate::diagnostic::ReaderEvent::Bom(source_name.as_ref()));
+                context.reader_event(crate::diagnostic::ReaderEvent::Bom(source_name.as_option()));
                 line.bytes.drain(..3);
             }
             *last_line = line.end_line;
@@ -4600,8 +4600,10 @@ impl Database {
                             message: "interrupted".into(),
                         });
                     }
-                    if ignored_eval_bom {
-                        reader.skip_eval_bom();
+                    if ignored_eval_bom && reader.skip_eval_bom() {
+                        context.reader_event(crate::diagnostic::ReaderEvent::Bom(
+                            source_name.as_option(),
+                        ));
                     }
                     let Some((part, _)) =
                         reader
@@ -7933,7 +7935,7 @@ mod reader_event_tests {
                     name,
                 ]
                 .concat(),
-                ReaderEvent::Bom(name) => [b"bom:".as_slice(), name].concat(),
+                ReaderEvent::Bom(name) => [b"bom:".as_slice(), name.unwrap_or_default()].concat(),
             });
         }
     }
