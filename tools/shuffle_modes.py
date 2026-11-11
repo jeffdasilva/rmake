@@ -194,7 +194,7 @@ def pattern_wait_cases(reference, candidate, root):
         observations, releases = zip(*(execute(case, runtime, binary) for binary in (
             reference, reference, candidate)))
         result = debug.assess(model, case, runtime, filesystem, list(observations))
-        errors = [release_errors(held, release) for release in releases]
+        errors = [release_errors(held, release, runtime) for release in releases]
         result.update(id=ident, releases=releases, release_errors=errors,
                       passed=result['passed'] and not any(errors))
         records.append(result)

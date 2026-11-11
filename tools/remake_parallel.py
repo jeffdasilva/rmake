@@ -2224,8 +2224,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         primary = held.before_primary is not None
         count = 1 + int(held.before_second is not None) + int(primary)
         if (len(prefixes) != count or prefixes != sorted(prefixes)
-                or not 0 < prefixes[0] <= prefixes[-1] <= len(stdout)
-                or b'@BIN@' in stdout[:prefixes[-1]]):
+                or not 0 < prefixes[0] <= prefixes[-1] <= len(stdout)):
             raise h.HarnessError('invalid remake debug release prefixes')
         if primary and any(not stdout[:end].endswith(barrier)
                            for end, barrier in zip(prefixes, PRIMARY_BARRIERS, strict=True)):
@@ -2409,7 +2408,7 @@ def bind_fifo_controller(observation: h.Observation, releases: list[dict], runti
     return replace(observation, stdout=stdout), prefixes, errors
 
 
-def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
+def release_errors(held: HeldModel, releases: list[dict], runtime: Path) -> list[str]:
     order = list(held.release_order[:1] if held.before_second is None else held.release_order)
     wanted = ['primary', *order] if held.before_primary is not None else order
     if [release['name'] for release in releases] != wanted:
@@ -2426,7 +2425,7 @@ def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
             errors.append('worker identities after primary release')
         if primary['seen_hex'] != held.before_primary.hex():
             errors.append('file effects at primary release')
-        if primary['stdout_hex'] != held.before_primary_stdout.hex():
+        if primary['stdout_hex'] != debug.render(held.before_primary_stdout, runtime).hex():
             errors.append('stdout at primary release')
     if held.load is not None and any(
         release.get('load_hex') != held.load.at_release.hex()
@@ -2443,7 +2442,7 @@ def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
         errors.append('active workers at first release')
     if first['seen_hex'] != held.before_first.hex():
         errors.append('file effects at first release')
-    if first['stdout_hex'] != held.before_first_stdout.hex():
+    if first['stdout_hex'] != debug.render(held.before_first_stdout, runtime).hex():
         errors.append('stdout at first release')
     if held.before_second is None:
         return errors
@@ -2461,7 +2460,7 @@ def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
     stdout_before_second = held.before_second_stdout
     if stdout_before_second is None:
         stdout_before_second = order[0].encode() + b'\n' if held.model.expected['stdout_template_hex'] else b''
-    if second['stdout_hex'] != stdout_before_second.hex():
+    if second['stdout_hex'] != debug.render(stdout_before_second, runtime).hex():
         errors.append('stdout at second release')
     return errors
 
@@ -2530,7 +2529,7 @@ def main() -> int:
                         for observed, release in zip(observations, releases, strict=True)
                     ))
                 record = debug.assess(model, case, runtime, filesystem, list(observations))
-                errors = [release_errors(held, release) + identity_errors
+                errors = [release_errors(held, release, runtime) + identity_errors
                           for release, identity_errors in zip(releases, fifo_errors, strict=True)]
                 if held.fifo_controller:
                     record.update(raw_stdout_hex=[observed.stdout.hex() for observed in raw_observations],

@@ -134,7 +134,7 @@ def main() -> int:
                 observed.append(replace(observation, stdout=controller.normalize(observation.stdout)))
                 releases.append(release)
             record = debug.assess(model, case, runtime, filesystem, observed)
-            errors = [release_errors(held, release) for release in releases]
+            errors = [release_errors(held, release, runtime) for release in releases]
             record.update(id=model.id, releases=releases, release_errors=errors,
                           raw_stdout_hex=raw_stdout, passed=record['passed'] and not any(errors))
             records.append(record)
