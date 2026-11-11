@@ -3648,9 +3648,21 @@ impl Engine {
                         .remove(&makefile.name);
                     // A completed recipe can invalidate the makefile's time.
                     // Expansion effects alone leave its cached observation intact.
-                    let physically_changed =
-                        visit_modes.check_update(result) && self.modified(&makefile.name) != before;
-                    changed |= physically_changed;
+                    let record_change = visit_modes.check_update(result);
+                    // Question mode suppresses the restart verdict, but a
+                    // physical optional touch can still end this visit pass.
+                    let check_optional_touch = optional
+                        && !remake_question
+                        && !failed
+                        && !optional_remake_failed
+                        && visit_modes.question
+                        && visit_modes.touch
+                        && !visit_modes.dry_run
+                        && result.ran
+                        && !result.question_outdated;
+                    let physically_changed = (record_change || check_optional_touch)
+                        && self.modified(&makefile.name) != before;
+                    changed |= record_change && physically_changed;
                     let simulated_change =
                         visit_modes.dry_run && result.completion == CompletionTime::AssumeNew;
                     if self.parallel_makefile_remakes
