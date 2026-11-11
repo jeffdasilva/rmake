@@ -4197,7 +4197,7 @@ impl Database {
         let suppress_default = std::mem::replace(&mut self.suppress_default_goal, false);
         let result = self
             .read_at_source(
-                ParserReader::memory(
+                ParserReader::eval(
                     &bytes[..bytes
                         .iter()
                         .position(|byte| *byte == 0)

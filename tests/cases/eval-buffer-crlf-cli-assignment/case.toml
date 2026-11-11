@@ -1,0 +1,12 @@
+id = "eval-buffer-crlf-cli-assignment"
+requirement = "cli.eval"
+candidate = "required"
+description = "Carriage return and continuation handling in eval buffers and files."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "--eval", "V := one\r\n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d5b6f6e650d5d0a"
+stderr_hex = ""

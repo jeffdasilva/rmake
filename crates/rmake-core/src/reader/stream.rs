@@ -61,6 +61,9 @@ impl<'a> ParserReader<'a> {
     pub(crate) fn memory(bytes: &'a [u8]) -> Self {
         Self::Memory(Reader::new(bytes))
     }
+    pub(crate) fn eval(bytes: &'a [u8]) -> Self {
+        Self::Memory(Reader::eval(bytes))
+    }
     pub(crate) fn stream(source: Box<dyn Source>) -> Self {
         Self::Stream(StreamReader::new(source))
     }
