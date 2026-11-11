@@ -4624,7 +4624,8 @@ impl Database {
                 };
                 let mut body = Vec::new();
                 let mut depth = 1;
-                let mut warning_line = location.line;
+                // A continued header advances the outer reader after the body.
+                let mut body_line = location.line;
                 let ignored_rule_context = !active && declaration.has_recipe_context();
                 let ignored_eval_bom = !active && evaluated_at == Some(1);
                 loop {
@@ -4667,12 +4668,14 @@ impl Database {
                             context,
                             Location {
                                 file: source_name.clone(),
-                                line: if active { warning_line } else { part.line },
+                                line: if active { body_line } else { part.line },
                             },
                             Diagnostic::system(Message::NulReaderWarning),
                         );
                     }
-                    warning_line += part.end_line - part.line + 1;
+                    if evaluated_at.is_none() {
+                        body_line += part.end_line - part.line + 1;
+                    }
                     *last_line = part.end_line;
                     if !active {
                         // Ignored definitions have no nesting counter: the
@@ -4697,7 +4700,7 @@ impl Database {
                                     context,
                                     Location {
                                         file: source_name.clone(),
-                                        line: evaluated_at.unwrap_or(part.end_line),
+                                        line: body_line,
                                     },
                                     Diagnostic::system(Message::EndefTail),
                                 );
@@ -4725,7 +4728,7 @@ impl Database {
                         &location,
                         &Location {
                             file: source_name.clone(),
-                            line: evaluated_at.unwrap_or(*last_line),
+                            line: body_line,
                         },
                         context,
                     )?;

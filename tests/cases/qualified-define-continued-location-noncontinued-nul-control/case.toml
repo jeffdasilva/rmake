@@ -1,0 +1,12 @@
+id = "qualified-define-continued-location-noncontinued-nul-control"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Diagnostic locations in and after a multiline define."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d5b0a6f6e655d0a"
+stderr_hex = "4d616b6566696c653a313a207761726e696e673a204e554c20636861726163746572207365656e3b2072657374206f66206c696e652069676e6f7265640a4d616b6566696c653a343a2065787472616e656f757320746578742061667465722027656e64656627206469726563746976650a4d616b6566696c653a343a20626f64792d6d61726b65720a4d616b6566696c653a353a2061667465722d626f64790a"

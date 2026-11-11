@@ -1,0 +1,4 @@
+define V \
+ :=
+$(warning body-marker)one
+endef trailing

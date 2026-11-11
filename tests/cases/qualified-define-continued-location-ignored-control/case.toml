@@ -1,0 +1,12 @@
+id = "qualified-define-continued-location-ignored-control"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Diagnostic locations in and after a multiline define."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d5b5d0a"
+stderr_hex = "4d616b6566696c653a383a2061667465722d626f64790a"
