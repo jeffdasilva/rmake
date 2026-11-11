@@ -3665,6 +3665,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-mode-explicit-current-n-pipe-3-slots"
 flag = "m,v"
+fifo = true
 release_prefixes = [1364, 1514]
 stdout = '''
 GNU Make 4.4.1
@@ -3752,6 +3753,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-mode-explicit-current-q-pipe-3-slots"
 flag = "m,v"
+fifo = true
 release_prefixes = [1364, 1514]
 stdout = '''
 GNU Make 4.4.1
@@ -3836,6 +3838,7 @@ Giving up on target file 'all'.
 [[profiles]]
 case = "primary-named-mode-explicit-current-t-pipe-3-slots"
 flag = "m,v"
+fifo = true
 release_prefixes = [1364, 1514]
 stdout = '''
 GNU Make 4.4.1
@@ -3923,6 +3926,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-mode-explicit-stale-n-pipe-3-slots"
 flag = "m,v"
+fifo = true
 release_prefixes = [1437, 1587]
 stdout = '''
 GNU Make 4.4.1
@@ -4014,6 +4018,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-mode-explicit-stale-q-pipe-3-slots"
 flag = "m,v"
+fifo = true
 release_prefixes = [1411, 1561]
 stdout = '''
 GNU Make 4.4.1
@@ -4073,6 +4078,7 @@ Giving up on target file 'all'.
 [[profiles]]
 case = "primary-named-mode-explicit-stale-t-pipe-3-slots"
 flag = "m,v"
+fifo = true
 release_prefixes = [1418, 1568]
 stdout = '''
 GNU Make 4.4.1
@@ -4162,6 +4168,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-mode-explicit-stale-n-pipe-2-slots"
 flag = "m,v"
+fifo = true
 release_prefixes = [1437, 1587]
 stdout = '''
 GNU Make 4.4.1
@@ -4253,6 +4260,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-mode-explicit-stale-q-pipe-2-slots"
 flag = "m,v"
+fifo = true
 release_prefixes = [1411, 1561]
 stdout = '''
 GNU Make 4.4.1
@@ -4312,6 +4320,7 @@ Giving up on target file 'all'.
 [[profiles]]
 case = "primary-named-mode-explicit-stale-t-pipe-2-slots"
 flag = "m,v"
+fifo = true
 release_prefixes = [1418, 1568]
 stdout = '''
 GNU Make 4.4.1
@@ -4401,6 +4410,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "later-primary-named-mode-forced-current-n-pipe-3-slots"
 flag = "m,v"
+fifo = true
 release_prefixes = [1529, 1679]
 stdout = '''
 GNU Make 4.4.1
@@ -4496,6 +4506,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "later-primary-named-mode-forced-current-q-pipe-3-slots"
 flag = "m,v"
+fifo = true
 release_prefixes = [1529, 1679]
 stdout = '''
 GNU Make 4.4.1
@@ -4588,6 +4599,7 @@ Giving up on target file 'all'.
 [[profiles]]
 case = "later-primary-named-mode-forced-current-t-pipe-3-slots"
 flag = "m,v"
+fifo = true
 release_prefixes = [1529, 1679]
 stdout = '''
 GNU Make 4.4.1
@@ -4684,6 +4696,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-leaf-older-or-absent-primer-n-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1364, 1514]
 stdout = '''
 GNU Make 4.4.1
@@ -4771,6 +4784,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-leaf-older-or-absent-primer-q-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1364, 1514]
 stdout = '''
 GNU Make 4.4.1
@@ -4855,6 +4869,7 @@ Giving up on target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-leaf-older-or-absent-primer-t-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1364, 1514]
 stdout = '''
 GNU Make 4.4.1
@@ -4942,6 +4957,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-leaf-newer-primer-n-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1437, 1587]
 stdout = '''
 GNU Make 4.4.1
@@ -5033,6 +5049,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-leaf-newer-primer-q-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1411, 1561]
 stdout = '''
 GNU Make 4.4.1
@@ -5095,6 +5112,7 @@ Giving up on target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-leaf-newer-primer-t-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1418, 1568]
 stdout = '''
 GNU Make 4.4.1
@@ -5184,6 +5202,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-builtin-prerequisite-older-or-absent-primer-n-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1693, 1843]
 stdout = '''
 GNU Make 4.4.1
@@ -5287,6 +5306,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-builtin-prerequisite-older-or-absent-primer-q-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1543, 1693]
 stdout = '''
 GNU Make 4.4.1
@@ -5352,6 +5372,7 @@ Giving up on target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-builtin-prerequisite-older-or-absent-primer-t-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1659, 1809]
 stdout = '''
 GNU Make 4.4.1
@@ -5451,6 +5472,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-builtin-prerequisite-newer-primer-n-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1693, 1843]
 stdout = '''
 GNU Make 4.4.1
@@ -5554,6 +5576,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-builtin-prerequisite-newer-primer-q-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1543, 1693]
 stdout = '''
 GNU Make 4.4.1
@@ -5619,6 +5642,7 @@ Giving up on target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-builtin-prerequisite-newer-primer-t-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1659, 1809]
 stdout = '''
 GNU Make 4.4.1
@@ -5718,6 +5742,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-pattern-prerequisite-older-or-absent-primer-n-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1713, 1863]
 stdout = '''
 GNU Make 4.4.1
@@ -5821,6 +5846,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-pattern-prerequisite-older-or-absent-primer-q-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1563, 1713]
 stdout = '''
 GNU Make 4.4.1
@@ -5886,6 +5912,7 @@ Giving up on target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-pattern-prerequisite-older-or-absent-primer-t-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1679, 1829]
 stdout = '''
 GNU Make 4.4.1
@@ -5985,6 +6012,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-pattern-prerequisite-newer-primer-n-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1713, 1863]
 stdout = '''
 GNU Make 4.4.1
@@ -6088,6 +6116,7 @@ Successfully remade target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-pattern-prerequisite-newer-primer-q-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1563, 1713]
 stdout = '''
 GNU Make 4.4.1
@@ -6153,6 +6182,7 @@ Giving up on target file 'all'.
 [[profiles]]
 case = "primary-named-implicit-pattern-prerequisite-newer-primer-t-pipe"
 flag = "m,v"
+fifo = true
 release_prefixes = [1679, 1829]
 stdout = '''
 GNU Make 4.4.1
