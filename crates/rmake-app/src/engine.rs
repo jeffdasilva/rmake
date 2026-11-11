@@ -4311,10 +4311,13 @@ impl Engine {
                 || (!name.starts_with(b"-l")
                     && archive_parts(name).is_none()
                     && (!self.is_makefile_goal(name, named_sources) || {
-                        let required_include = !file.optional && file.location.is_some();
-                        let compatible_read = named
-                            .insert(name, required_include)
-                            .is_none_or(|earlier_required| earlier_required && required_include);
+                        let include_policy = file.location.as_ref().map(|_| file.optional);
+                        let compatible_read =
+                            named
+                                .insert(name, include_policy)
+                                .is_none_or(|earlier_policy| {
+                                    include_policy.is_some() && include_policy == earlier_policy
+                                });
                         compatible_read
                             && self.simple_named_remake(file, name, &read_files[..index])
                     }))
@@ -4451,7 +4454,7 @@ impl Engine {
                 return false;
             }
         }
-        let mut names = HashSet::new();
+        let mut names = HashMap::new();
         read_files.iter().all(|(file, skip)| {
             let name = without_dot_prefix(&file.name);
             *skip
@@ -4459,7 +4462,24 @@ impl Engine {
                     && !name.starts_with(b"~")
                     && !name.starts_with(b"-l")
                     && archive_parts(name).is_none()
-                    && names.insert(name)
+                    && {
+                        let include_policy = file.location.as_ref().map(|_| file.optional);
+                        names
+                            .insert(name, include_policy)
+                            .is_none_or(|earlier_policy| {
+                                include_policy.is_some()
+                                    && include_policy == earlier_policy
+                                    && self.options.load_limit.is_none()
+                                    && !self.database.loaded_modules.contains_key(name)
+                                    && self.database.rules.get(name).is_some_and(|rule| {
+                                        rule.dependencies.is_empty()
+                                            && rule.secondary.is_none()
+                                            && rule.group.is_none()
+                                            && rule.double_colon.is_none()
+                                            && rule.recipes.is_some()
+                                    })
+                            })
+                    }
                     && (!file.optional
                         || self
                             .database
@@ -5385,6 +5405,16 @@ impl Engine {
             let pass_epoch = self.graph_epoch;
             for request in requests.iter_mut().filter(|request| request.active) {
                 let name = request.file.name.as_slice();
+                if request.duplicate
+                    && request.file.optional
+                    && request.modes.active()
+                    && !self.pending(name)
+                {
+                    // A settled optional duplicate cannot select the mode
+                    // used by an earlier source's pending continuation.
+                    request.active = false;
+                    continue;
+                }
                 request.modes.apply(&mut self.options);
                 self.remake_error_cursor = request.context.open_error.clone();
                 let needs_visit = if request.duplicate {
