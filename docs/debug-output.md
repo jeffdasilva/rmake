@@ -204,6 +204,10 @@ Each duplicate read emits one verbose prune per declaration. If a restart
 removes the declarations, each duplicate of the rule-free source emits one
 prune during the new makefile pass.
 
+A successful optional source with the same observed timestamp also emits a
+prune for each cached declaration on a duplicate read. Grouped double-colon
+declarations contribute individually to that trace.
+
 An optional double-colon source under `-k` can revisit every completed
 declaration after its head fails. A retained prerequisite error is reported
 after the cached head trace and before the later declaration traces. A

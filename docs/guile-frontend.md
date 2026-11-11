@@ -24,6 +24,12 @@ The list converter reads a pair's tail after converting its head. Four original
 cases cover live tail changes in returned values, `gmk-expand`, and `gmk-eval`,
 plus reuse of an acyclic shared pair. Traversal remains iterative.
 
+Fourteen conversion controls check live `reverse!` and `string-join` bindings
+for ordinary Scheme results, including scalar and empty values. Conversion
+selects the join procedure before calling the reverse procedure. A local shadow
+introduced after the first lookup leaves the resolved import in use. An
+assignment to that binding becomes visible on the next conversion.
+
 Five public bridge controls cover shell status in the reader, a `foreach` scope,
 and a target recipe. They also cover missing-file diagnostics during target
 output synchronization in the reader and a serialized recipe.

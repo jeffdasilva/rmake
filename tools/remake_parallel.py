@@ -1077,6 +1077,12 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                             prerequisite = replace(model, id=ident + '-prerequisite', files=with_primer,
                                                    mtimes_ns={**times, 'primer': INPUT_TIME})
                             results.append(replace(held, model=prerequisite))
+                        if directive == 'include' and position == 'last':
+                            duplicate_source = source.replace(b'include left.gen right.gen named.gen\n',
+                                                              b'include left.gen right.gen named.gen ./named.gen\n', 1)
+                            duplicate = replace(model, id=ident + '-duplicate',
+                                                files={**files, 'Makefile': duplicate_source})
+                            results.append(replace(held, model=duplicate))
 
             failed_source = (header + 'include left.gen right.gen named.gen\n' + rules).encode()
             failed_source = failed_source.replace(b'+@printf "NAMED := loaded\\n" > "$@"', b'+@false')
@@ -1224,6 +1230,20 @@ def named_include_file_prerequisite_models(worker: bytes, markers: dict[str, byt
                                         updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                     results.append(HeldModel(model, not split_pass, second, first,
                                              before_second_stdout=second_out, before_first_stdout=first_out))
+                    if not optional:
+                        duplicate_source = source.replace(f'include {order}\n'.encode(),
+                                                          f'include {order} ./named.gen\n'.encode(), 1)
+                        duplicate_source = duplicate_source.replace(b'named.gen: primer ;', b'named.gen: ;')
+                        duplicate_files = {'Makefile': duplicate_source, 'worker.py': worker, 'seen': ANCHOR}
+                        for slots in (2, 3):
+                            duplicate_args = (*args[:2], f'-j{slots}', *args[3:])
+                            duplicate = replace(model, args=duplicate_args, files=duplicate_files,
+                                                id=f'duplicate-named-include-{position}-{mode}-{transport}-{slots}-slots',
+                                                mtimes_ns=dict.fromkeys(duplicate_files, INPUT_TIME))
+                            waits_for_slot = mode == 'n' and position == 'last' and slots == 2
+                            results.append(HeldModel(duplicate, True, second, first,
+                                                     before_second_stdout=second_out,
+                                                     before_first_stdout=b'' if waits_for_slot else first_out))
     return results
 
 
@@ -1539,7 +1559,8 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         name, flag = row['case'], row['flag']
         held = by_id.get(name)
         if (held is None or held.before_second is None or (name, flag) in seen
-                or flag not in ('m', 'm,v') or (flag == 'm,v' and not name.endswith('-pipe'))):
+                or flag not in ('m', 'm,v')
+                or (flag == 'm,v' and '--jobserver-style=pipe' not in held.model.args)):
             raise h.HarnessError('invalid remake debug model')
         seen.add((name, flag))
         stdout = row['stdout'].encode()

@@ -55,7 +55,7 @@ pinned development profile does not establish those surfaces.
 | Debug output | [Implicit traversal](../tests/debug-traversal/README.md) and [verbose remake decisions](../tests/debug-verbose/README.md) add 40 and 23 models, each checked in C and French with both builds. Parallel reconsideration, asynchronous timestamps and broader dynamic debug output remain open. |
 | Child environment vectors | [Owned raw vectors](environment-vectors.md) now preserve the selected byte/order representation across recipe and shell launches, with 278 required cases. Broader extension/profile changes must retain the same selection and ownership gates. |
 | Existing GNU native loading | [Native loading and callbacks](native-modules.md) implement shared-library setup, GNU ABI registration/allocation/expansion/eval, raw `.LOADED`, nullable source provenance, qualified remaking and process-finalizer behavior. [Startup exit ownership](native-startup-exits.md) retains selected decoder/constructor/restart state and directory/banner ordering. 226 original compiled C integration cases, including signed setup results and loader diagnostics, run in development, optimized and self-host gates. Broader startup/stdio, stdin restarts and callback/native/profile/resource acceptance remain open. [Reader preparation](load-reader.md) retains its 324 ordinary cases. GNU may not be an implementation fallback. |
-| Guile profiles | The [optional application frontend](guile-frontend.md) adds 121 enabled comparisons and a 14-case default signal check, including valid module conversion, live converter rebinding and pair mutation, and callback diagnostics. [Detached serial waits](../tests/guile-detached/README.md) add six enabled cases in both build profiles. [Late serial descriptor pressure](../tests/guile-eventfd-pressure/README.md) adds three enabled cases that keep callback admission open when the wake descriptor cannot be allocated. [Detached parallel waits](../tests/guile-parallel-detached/README.md) add ten enabled cases and [parallel descriptor pressure](../tests/guile-parallel-pressure/README.md) adds six. The independent component gate remains required. Broader asynchronous entry points, conversions, backtraces and the reference-variable fatal wait remain open. |
+| Guile profiles | The [optional application frontend](guile-frontend.md) covers 135 enabled comparisons and 14 default signal controls, including valid module conversion, live reverse and join bindings, pair mutation, and callback diagnostics. [Detached serial waits](../tests/guile-detached/README.md) add six enabled cases in both build profiles. [Late serial descriptor pressure](../tests/guile-eventfd-pressure/README.md) adds three enabled cases that keep callback admission open when the wake descriptor cannot be allocated. [Detached parallel waits](../tests/guile-parallel-detached/README.md) add ten enabled cases and [parallel descriptor pressure](../tests/guile-parallel-pressure/README.md) adds six. The independent component gate remains required. Broader asynchronous entry points, conversions, backtraces and the reference-variable fatal wait remain open. |
 | Descriptor pressure | The original 29 startup, recipe and signal-mask cases are joined by [output spools](../tests/resource-fd-spool/README.md), [compact pipe](../tests/resource-fd-pipe/README.md), [FIFO](../tests/resource-fd-fifo/README.md) and [ordinary token release](../tests/jobserver-release/README.md) gates. Six [parallel descriptor cases](../tests/resource-fd-parallel/README.md) cover up to ten overlapping recipes while the Linux process has only eight descriptors. [Stdin](../tests/resource-file-size/README.md) and [stdout](../tests/stdout-file-size/README.md) file-size limits have separate exact profiles. The [owned FD4 FIFO case](../tests/resource-fd-fifo/README.md) now checks the exact failure and empty retained path in a protected directory. The [wake-slot](../tests/jobserver-wake-slots/README.md) and [read flag](../tests/jobserver-read-flags/README.md) gates cover private slot isolation and exact owned/borrowed pipe flags. Other directory profiles and parent fatal token loss remain open. |
 | Locales and Linux profiles | [Startup locale selection](startup-locale.md) passes 183 separately required glibc C/C.UTF8 profiles across wildcard matching, environment precedence, startup expansion, later assignments/exports and recursion. Broader locales, NLS catalog diagnostics, native/Guile interactions and profile-specific path/build metadata remain open; glibc/x86-64 observations do not establish broader Linux acceptance. |
 | Localized diagnostics | [Typed diagnostics and directory output](nls-diagnostics.md) run 161 cases, including include replay and real restarts. [Catalog coverage](../tests/catalog-coverage/README.md) exercises all 30 attributed release languages and three fallback controls. [Startup usage](startup-usage.md) checks the libc option domain with portable and separately authenticated cases. Broader producer and profile interactions remain open. |
@@ -94,7 +94,7 @@ The [locale collation slice](locale-collation.md) closes 33 observed preceding m
 
 ## Parallel modes, makefile remakes, and jobserver paths
 
-The held remake gate covers 893 profiles using both Linux jobserver
+The held remake gate covers 1,001 profiles using both Linux jobserver
 transports. It includes direct grouped optional recipes, stopped optional
 workers retained across load limits, named include and primary makefile goals,
 and exact remake-debug prefixes under dry-run, question, and touch. The
@@ -106,15 +106,17 @@ positions, including an early question exit. Primary prerequisite profiles
 cover stock C rules, user pattern rules, and an existing source with no
 applicable rule or a prerequisite already running as an earlier include.
 Named includes with file prerequisites exercise optional immediate pass boundaries.
-Plain subdirectory goals overlap leaf-named required and optional makefile remakes.
-Directory-qualified sources, expanded identities, and combined load,
-grouped-remake, and debug paths need broader coverage.
+Repeated required named includes share one remake record. Plain subdirectory
+goals overlap leaf-named required and optional makefile remakes. Named primary
+controls cover basic and scoped verbose traces. Directory-qualified sources,
+expanded identities, and combined load, grouped-remake, and debug paths need
+broader coverage.
 [Held remake gate](../tests/remake-parallel/README.md)
 
-The ordinary inventory contains 30,169 case manifests and 224 requirements.
+The ordinary inventory contains 30,191 case manifests and 225 requirements.
 Serial double-colon failure recovery, returned-failure diagnostics, and cached
-visits for repeated required makefiles and failed optional declarations have
-independent expectations for exit status, streams, and file effects.
+visits for repeated required makefiles and failed or unchanged optional
+declarations have independent expectations for exit status, streams, and file effects.
 [Serial remake diagnostics](debug-output.md)
 
 The development and optimized builds from #374 each matched all 505
