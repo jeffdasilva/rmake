@@ -137,6 +137,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += parallel_named_mode_models(worker, markers)
     results += primary_named_mode_models(worker, markers)
     results += later_primary_named_mode_models(worker, markers)
+    results += forced_named_include_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
     if include_load:
         results += load_models(worker, markers)
@@ -958,6 +959,84 @@ def later_primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) ->
                         results.append(HeldModel(model, True, second, first,
                                                  before_second_stdout=second_stdout,
                                                  before_first_stdout=first_stdout))
+    return results
+
+
+def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = '.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    rules = (
+        'named.gen: ; +@printf "NAMED := loaded\\n" > "$@"\n'
+        'left.gen: ; @python3 worker.py left include\n'
+        'right.gen:\n'
+        '\t@python3 worker.py right include\n'
+        '\t@$(file >>seen,tail-expanded)printf "tail\\n" >> seen\n'
+        'all: result\n'
+        'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT)-$(NAMED))printf "ordinary\\n" > "$@"\n'
+    )
+    first = BEFORE_FIRST + b'tail-expanded\n'
+    second = first + b'left\n'
+    completed = second + b'right\n'
+    command = b'printf "NAMED := loaded\\n" > "named.gen"\n'
+    summary = b"make: 'named.gen' is up to date.\n"
+    deletion = b"make: *** Deleting file 'right.gen'\n"
+    left_touch = b'touch left.gen\n'
+    both = {**markers, 'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for slots in (2, 3):
+            base = ('-rR', '--no-print-directory', f'-j{slots}', f'--jobserver-style={transport}')
+            for directive in ('include', '-include'):
+                policy = 'required' if directive == 'include' else 'optional'
+                for position, order in (
+                    ('first', 'named.gen left.gen right.gen'),
+                    ('middle', 'left.gen named.gen right.gen'),
+                    ('last', 'left.gen right.gen named.gen'),
+                ):
+                    source = (header + f'{directive} {order}\n' + rules).encode()
+                    files = {'Makefile': source, 'worker.py': worker, 'seen': ANCHOR}
+                    times = dict.fromkeys(files, INPUT_TIME)
+                    saturated = position == 'last' and slots == 2
+                    seen = completed + (b'' if saturated else b'tail\n') + b'read-1\n'
+                    loaded = seen + b'ordinary-loaded-loaded-loaded\n'
+                    written = {**both, 'named.gen': b'NAMED := loaded\n'}
+                    dry = command
+                    if saturated:
+                        dry += b'printf "tail\\n" >> seen\n'
+                    dry += summary + b'printf "ordinary\\n" > "result"\n'
+                    touch_prefix = left_touch if position == 'last' or policy == 'optional' else b''
+                    touch = touch_prefix
+                    if saturated:
+                        touch += b'touch right.gen\ntouch right.gen\n'
+                    touch += summary + b'touch result\n'
+                    query_updates = written.copy()
+                    if saturated:
+                        del query_updates['right.gen']
+                    cases = (
+                        ('n', 0, dry, b'', loaded, written, b'' if saturated else command, command),
+                        ('q', 1, b'', deletion if saturated else b'',
+                         completed + b'ordinary---\n' if saturated else loaded, query_updates, b'', b''),
+                        ('t', 0, touch, b'', seen, {**written, 'result': b''}, b'', touch_prefix),
+                    )
+                    for mode, status, stdout, stderr, effects, updates, first_out, second_out in cases:
+                        ident = f'forced-named-include-{policy}-{position}-{mode}-{transport}-{slots}-slots'
+                        args = (*base, '-' + mode, './named.gen', 'all')
+                        expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                                    'stderr_template_hex': stderr.hex()}
+                        model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, effects,
+                                            updates=updates, mtimes_ns=times)
+                        results.append(HeldModel(model, True, second, first,
+                                                 before_second_stdout=second_out, before_first_stdout=first_out))
+
+            failed_source = (header + 'include left.gen right.gen named.gen\n' + rules).encode()
+            failed_source = failed_source.replace(b'+@printf "NAMED := loaded\\n" > "$@"', b'+@false')
+            files = {'Makefile': failed_source, 'worker.py': worker, 'seen': ANCHOR}
+            expected = {'exit_code': 1, 'stdout_template_hex': '',
+                        'stderr_template_hex': (WAITING + deletion).hex()}
+            model = debug.Model(f'forced-named-include-question-stop-{transport}-{slots}-slots', files,
+                                (*base, '-q', './named.gen', 'all'), {'GNUMAKEFLAGS': ''}, expected,
+                                completed, updates={**markers, 'left.gen': b'LEFT := loaded\n'},
+                                mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+            results.append(HeldModel(model, True, second, first, before_second_stdout=b''))
     return results
 
 
