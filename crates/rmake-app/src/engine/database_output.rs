@@ -23,7 +23,7 @@ struct FileSnapshot<'a> {
 }
 
 struct ExpandedPrerequisiteRecord {
-    dependencies: Vec<Dependency>,
+    dependencies: Option<Vec<Dependency>>,
     explicit_stem_prepared: bool,
 }
 
@@ -56,14 +56,17 @@ impl Engine {
         &mut self,
         target: &[u8],
         branch: Option<usize>,
-        dependencies: &[Dependency],
+        dependencies: Option<&[Dependency]>,
         explicit_stem_prepared: bool,
     ) {
+        if dependencies.is_none() && !explicit_stem_prepared {
+            return;
+        }
         let captured = self
             .database_expanded_prerequisites
             .get_or_insert_with(Box::default);
         let record = ExpandedPrerequisiteRecord {
-            dependencies: dependencies.to_vec(),
+            dependencies: dependencies.map(<[Dependency]>::to_vec),
             explicit_stem_prepared,
         };
         if let Some(ordinal) = branch {
@@ -88,7 +91,7 @@ impl Engine {
         } else {
             captured.targets.get_mut(target)
         }?;
-        Some(&mut record.dependencies)
+        record.dependencies.as_mut()
     }
 
     pub(super) fn database_stem_prepared(&self, target: &[u8], branch: Option<usize>) -> bool {
@@ -270,7 +273,7 @@ impl Engine {
         {
             view.expanded_prerequisites = captured
                 .get(name, branch)
-                .map(|record| record.dependencies.as_slice());
+                .and_then(|record| record.dependencies.as_deref());
         }
         view.double_colon |= branch.is_some();
         view.phony = self.special(b".PHONY", name, false);

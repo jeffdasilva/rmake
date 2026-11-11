@@ -7875,7 +7875,7 @@ impl Engine {
                 rule.dependencies.len()
             };
             let stem = clause.stem.as_deref().or(rule.stem.as_deref());
-            if stem.is_none() && rule.group.is_none() && !explicit_stem_prepared {
+            if stem.is_none() && !grouped_double && !explicit_stem_prepared {
                 self.record_explicit_stem_lookup();
                 explicit_stem_prepared = true;
             }
@@ -7968,12 +7968,12 @@ impl Engine {
             // The recipe can read the prepared table, and a later branch can
             // read the head's table. Prerequisites use the target context.
             self.retain_database_context(target, branch, &variables);
-        }
-        if rule.group.is_none() {
+            // Grouped rules publish their expanded dependency lists directly.
+            // Their recipe still needs to know if expansion prepared the stem.
             self.retain_expanded_prerequisites(
                 target,
                 branch,
-                &rule.dependencies,
+                rule.group.is_none().then_some(rule.dependencies.as_slice()),
                 explicit_stem_prepared,
             );
         }

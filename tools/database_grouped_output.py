@@ -68,6 +68,30 @@ def models():
                 (('b', EXISTING),), removed=('b',))
 
 
+    secondary_wait = '.SECONDEXPANSION:\nN := older .WAIT input\na b &: $$(N) ; @:\n'
+    wait_rows = ('a: older .WAIT input', 'b: older .WAIT input')
+    for owner in ('a', 'b'):
+        yield Model(f'group-secondary-wait-owner-{owner}', secondary_wait, (owner,),
+                    tuple((row, MISSING) for row in wait_rows))
+    yield Model('group-secondary-wait-both-goals', secondary_wait, ('a', 'b'),
+                tuple((row, MISSING) for row in wait_rows))
+    secondary_order = '.SECONDEXPANSION:\nN := older | .WAIT input other\na b &: $$(N) ; @:\n'
+    order_rows = ('a: older | .WAIT input other', 'b: older | .WAIT input other')
+    yield Model('group-secondary-order-only-wait', secondary_order, ('a',),
+                tuple((row, MISSING) for row in order_rows))
+    yield Model('group-secondary-up-to-date', secondary_order, ('b',),
+                tuple((row, ORIGINAL) for row in order_rows),
+                original=(('a', EXISTING), ('b', EXISTING)), flags=())
+    secondary_per_peer = '.SECONDEXPANSION:\nN_a := older\nN_b := other\na b &: $$(N_$$@) ; @:\n'
+    yield Model('group-secondary-peer-automatic', secondary_per_peer, ('b',),
+                (('a: older', MISSING), ('b: other', MISSING)))
+    secondary_only_peer = '.SECONDEXPANSION:\nN := input .WAIT other\na b &: older ; @:\nb: $$(N)\n'
+    yield Model('group-secondary-peer-extra-clause', secondary_only_peer, ('a',),
+                (('a: older', MISSING), ('b: older input .WAIT other', MISSING)))
+    yield Model('group-secondary-unvisited', secondary_wait + 'all: ; @:\n', ('all',),
+                (('a: $(N)', UNCHECKED), ('b: $(N)', UNCHECKED)), flags=())
+
+
 def fixture(model, path):
     path.mkdir()
     (path / 'Makefile').write_text(model.makefile)
