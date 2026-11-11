@@ -1,0 +1,15 @@
+id = "metadata-append-preload-reset"
+requirement = "variables.metadata"
+candidate = "required"
+description = "MAKEFILE_LIST append flavor and byte-preserving source metadata."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[environment]
+MAKEFILES = "first.mk second.mk"
+
+[expected]
+exit_code = 0
+stdout_hex = "6c6973743d66696c657c7265637572736976657c5b7365636f6e642e6d6b5d7c5b7365636f6e642e6d6b5d0a6c6973743d66696c657c7265637572736976657c5b7365636f6e642e6d6b204d616b6566696c655d7c5b7365636f6e642e6d6b204d616b6566696c655d0a"
+stderr_hex = ""

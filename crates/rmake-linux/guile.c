@@ -207,6 +207,7 @@ extern void rm_native_interrupt_request(int);
 static int module_ready;
 static SCM scalar_binding;
 static SCM default_scalar_converter;
+static SCM render_number_or_symbol;
 static SCM finish_conversion;
 static atomic_int guile_entered;
 static atomic_uint leading_evaluations;
@@ -219,7 +220,7 @@ static SCM scalar_text(SCM value) {
     if (scm_is_eq(value, SCM_BOOL_T))
         return scm_from_utf8_string("#t");
     if (scm_is_symbol(value) || scm_is_number(value))
-        return scm_object_to_string(value, SCM_UNDEFINED);
+        return scm_call_1(render_number_or_symbol, value);
     if (scm_is_true(scm_char_p(value)))
         return scm_make_string(scm_from_int(1), value);
     if (scm_is_string(value)) {
@@ -313,6 +314,9 @@ static SCM make_evaluate(SCM value) {
 }
 static void define_module(void *unused) {
     (void)unused;
+    /* Preserve first-use resolution and later assignment to the renderer. */
+    render_number_or_symbol = scm_c_eval_string(
+        "(lambda (value) (object->string value))");
     // Guile resolves the lexical references when the closure first uses
     // them. Keep that resolution and select join before reverse can run.
     finish_conversion = scm_c_eval_string(

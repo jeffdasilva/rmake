@@ -101,6 +101,8 @@ def models() -> list[Model]:
     add('max-one-comma-tail', b'$(probe_expand one,two,three)', b'one,two,three')
     add('loaded-command-origin', b'$(probe_args x)', b'argc=1[x]', args=('.LOADED=prior',), loaded=b'prior')
     add('loaded-file-append', b'$(probe_args x)', b'argc=1[x]', preamble=b'.LOADED = prior\n', loaded=b'prior probe_api.so')
+    add('loaded-append-after-undefine', b'$(origin .LOADED)|$(flavor .LOADED)|$(value .LOADED)',
+        b'file|recursive|probe_api.so', preamble=b'undefine .LOADED\n')
     add('loaded-repeated-setup-location', b'$(probe_where )', b'Makefile:1', loads=b'load ./probe_api.so\nload ./probe_api.so\n')
     add('failed-required-setup', b'', b'', environment={'PROBE_SETUP_ZERO': '1'}, error=b'probe_api.so: failed to load', error_line=1, seen=b'anchor\n')
     for suffix, loads in (('registration', b'-load ./probe_api.so\n'), ('then-required', b'-load ./probe_api.so\nload ./probe_api.so\n')):

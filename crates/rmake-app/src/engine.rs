@@ -3273,7 +3273,11 @@ impl Engine {
                         || verbose_mode_remakes)
                         && self
                             .qualified_debug_remake_sources(&read_files, named_sources.as_ref())))
-                    && self.ordinary_mode_remakes_settle(&read_files, named_sources.as_ref()));
+                    && self.ordinary_mode_remakes_settle(
+                        &read_files,
+                        named_sources.as_ref(),
+                        modes,
+                    ));
             self.parallel_makefile_remakes =
                 self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
             self.remaking = true;
@@ -4265,6 +4269,7 @@ impl Engine {
         &self,
         read_files: &[(Makefile, bool)],
         named_sources: Option<&HashSet<&[u8]>>,
+        modes: MakefileModes,
     ) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
@@ -4318,7 +4323,12 @@ impl Engine {
                                     include_policy.is_some() && include_policy == earlier_policy
                                 });
                         compatible_read
-                            && self.simple_named_remake(file, name, &read_files[..index])
+                            && self.simple_named_remake(
+                                file,
+                                name,
+                                &read_files[..index],
+                                !modes.touch && (modes.dry_run ^ modes.question),
+                            )
                     }))
         })
     }
@@ -4339,7 +4349,7 @@ impl Engine {
                         && rule.double_colon.is_none()
                         && (rule.dependencies.is_empty()
                             || (self.is_makefile_goal(name, named_sources)
-                                && self.simple_named_remake(file, name, &[])))
+                                && self.simple_named_remake(file, name, &[], false)))
                 })
         })
     }
@@ -4349,6 +4359,7 @@ impl Engine {
         file: &Makefile,
         name: &[u8],
         earlier_sources: &[(Makefile, bool)],
+        grouped_simulation: bool,
     ) -> bool {
         let primary = file.location.is_none();
         if (primary && (file.optional || file.missing))
@@ -4364,7 +4375,9 @@ impl Engine {
             .rules
             .get(name)
             .map_or(primary && no_default_recipe, |rule| {
-                if rule.secondary.is_some() && (!primary || !no_default_recipe) {
+                if rule.secondary.is_some()
+                    && (!primary || !no_default_recipe || rule.group.is_some())
+                {
                     return false;
                 }
                 let mut deferred = rule
@@ -4372,20 +4385,42 @@ impl Engine {
                     .iter()
                     .flat_map(|clauses| clauses.iter())
                     .peekable();
-                rule.group.is_none()
+                // Dry-run and question can simulate the grouped remake without
+                // touching a primary or running a recursive recipe.
+                let group_can_simulate = rule.group.as_ref().is_none_or(|group| {
+                    primary
+                        && grouped_simulation
+                        && group.double_id.is_none()
+                        && group.targets.len() == 2
+                        && group.targets.iter().any(|target| target == name)
+                        && group.targets.iter().any(|peer| {
+                            peer != name
+                                && !peer.contains(&b'/')
+                                && !peer.starts_with(b".")
+                                && !peer.starts_with(b"~")
+                                && !peer.starts_with(b"-l")
+                                && rmake_core::filenames::archive_parts(peer).is_none()
+                                && !self.makefile_names.contains(peer)
+                                && !self.special(b".PHONY", peer, false)
+                        })
+                        && rule.recipes.as_ref().is_some_and(|recipes| {
+                            recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
+                        })
+                });
+                group_can_simulate
                     && rule.double_colon.is_none()
                     && (rule.dependencies.is_empty()
                         || (no_default_recipe
                             && rule.dependencies.iter().enumerate().all(|(index, dep)| {
                                 // The remake visit owns expansion of this slot.
                                 deferred.next_if(|clause| clause.index == index).is_some()
-                                    || self.simple_named_remake_prerequisite(dep, earlier_sources)
+                                    || self.simple_remake_prerequisite(dep, earlier_sources)
                             })))
                     && rule.recipes.is_some()
             })
     }
 
-    fn simple_named_remake_prerequisite(
+    fn simple_remake_prerequisite(
         &self,
         dependency: &Dependency,
         earlier_sources: &[(Makefile, bool)],
@@ -4434,7 +4469,8 @@ impl Engine {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
         // Use simple file identities and single-colon optional roots. A
-        // grouped root qualifies when its own recipe starts directly.
+        // grouped root qualifies when its recipe has no prerequisites
+        // that could start another recipe before it.
         if self.options.check_symlink_times
             || self.assumptions.is_some()
             || !self.options.include_directories.is_empty()
@@ -4495,15 +4531,17 @@ impl Engine {
                             .get(name)
                             .map_or(no_recipe_fallback, |rule| {
                                 rule.secondary.is_none()
-                                    && (rule.group.is_none()
-                                        || (rule.dependencies.is_empty()
-                                            && self.options.load_limit.is_none()))
                                     && rule.double_colon.is_none()
-                                    && if rule.dependencies.is_empty() {
+                                    && (if rule.dependencies.is_empty() {
                                         rule.recipes.is_some() || no_recipe_fallback
                                     } else {
                                         no_recipe_fallback
-                                    }
+                                    })
+                                    && (rule.group.is_none()
+                                        || (self.options.load_limit.is_none()
+                                            && rule.dependencies.iter().all(|dependency| {
+                                                self.simple_remake_prerequisite(dependency, &[])
+                                            })))
                             })))
         })
     }
@@ -13203,6 +13241,7 @@ mod tests {
         .unwrap();
         let mut engine =
             Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+        let modes = MakefileModes::from_options(&engine.options);
         let mut reads = [(
             Makefile {
                 name: b"left.gen".to_vec(),
@@ -13215,19 +13254,19 @@ mod tests {
         )];
 
         assert_eq!(engine.options.goals, [b"left.gen".to_vec()]);
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
         reads[0].1 = true;
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
 
         reads[0].1 = false;
         engine.options.goals = vec![b"named".to_vec(), b"all".to_vec()];
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
         engine.vpath_dirs.push(b"search".to_vec());
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
         engine.vpath_dirs.clear();
         for goal in ["~/all", "-lwidget", "archive.a(member)"] {
             engine.options.goals = vec![goal.as_bytes().to_vec()];
-            assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+            assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
         }
     }
 
@@ -13241,6 +13280,7 @@ mod tests {
         let launch = Engine::invocation(args, b"rmake", OsStr::new("rmake"), None, None).unwrap();
         let engine =
             Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+        let modes = MakefileModes::from_options(&engine.options);
         let mut reads: Vec<_> = (0..16)
             .map(|index| {
                 (
@@ -13266,8 +13306,8 @@ mod tests {
         assert!(engine.is_makefile_goal(b"left-\xff.gen", Some(&indexed)));
         assert!(!engine.is_makefile_goal(b"other-3.gen", Some(&indexed)));
         assert_eq!(
-            engine.ordinary_mode_remakes_settle(&reads, Some(&indexed)),
-            engine.ordinary_mode_remakes_settle(&reads, None),
+            engine.ordinary_mode_remakes_settle(&reads, Some(&indexed), modes),
+            engine.ordinary_mode_remakes_settle(&reads, None, modes),
         );
     }
 
@@ -13285,6 +13325,7 @@ mod tests {
         .unwrap();
         let mut engine =
             Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+        let modes = MakefileModes::from_options(&engine.options);
         let leaf = |name: &[u8]| Makefile {
             name: name.to_vec(),
             optional: false,
@@ -13294,7 +13335,7 @@ mod tests {
         };
         let mut reads = [(leaf(b"././Makefile"), false), (leaf(b"left.gen"), false)];
         assert_eq!(engine.options.goals[0], b"build/result");
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
 
         for name in [
             b"build/result".as_slice(),
@@ -13302,9 +13343,9 @@ mod tests {
             b"sub/../left.gen",
         ] {
             reads[1] = (leaf(name), false);
-            assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+            assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
             reads[1].1 = true;
-            assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+            assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
         }
         reads[1] = (leaf(b"left.gen"), false);
         for goal in [
@@ -13316,17 +13357,17 @@ mod tests {
             b"archive.a(build/result)",
         ] {
             engine.options.goals[0] = goal.to_vec();
-            assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+            assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
         }
         engine.options.goals[0] = b"build/result".to_vec();
         engine.gpath_dirs.insert(b"build".to_vec());
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
         engine.gpath_dirs.clear();
         engine
             .database
             .read(b"vpath %.gen build\n", b"Makefile")
             .unwrap();
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
     }
 
     #[test]
@@ -13341,6 +13382,7 @@ mod tests {
         .unwrap();
         let mut engine =
             Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+        let modes = MakefileModes::from_options(&engine.options);
         let source = Makefile {
             name: b"optional.gen".to_vec(),
             optional: true,
@@ -13349,36 +13391,36 @@ mod tests {
             read_error: None,
         };
         let mut reads = vec![(source.clone(), false)];
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
         engine.options.no_rules = false;
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
         engine.options.no_rules = true;
 
         let mut alias = source.clone();
         alias.name = b"./optional.gen".to_vec();
         alias.optional = false;
         reads.push((alias, false));
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
         reads.pop();
 
         engine.vpath_dirs.push(b"search".to_vec());
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
         engine.vpath_dirs.clear();
         engine
             .database
             .read(b"optional.gen: ; @:\n", b"Makefile")
             .unwrap();
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
         engine.options.no_rules = false;
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
         engine.options.no_rules = true;
         engine
             .database
             .read(b"optional.gen: prerequisite\n", b"Makefile")
             .unwrap();
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
         engine.options.load_limit = Some(1.0);
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
         let mut required = source;
         required.name = b"required.gen".to_vec();
         required.optional = false;
@@ -13387,9 +13429,9 @@ mod tests {
             .read(b"required.gen: ; @:\n", b"Makefile")
             .unwrap();
         reads.push((required, false));
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
         engine.options.load_limit = None;
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
     }
 
     #[test]

@@ -140,10 +140,13 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += subdirectory_goal_models(worker, markers)
     results += inert_optional_mode_models(worker, markers)
     results += direct_optional_mode_models(worker, markers)
-    results += grouped_optional_mode_models(worker, markers)
+    for suffix, prerequisite in (('', ''), ('-normal-prerequisite', 'primer'),
+                                 ('-order-only-prerequisite', '| primer')):
+        results += grouped_optional_mode_models(worker, markers, suffix, prerequisite)
     results += named_source_mode_models(worker, markers)
     results += parallel_named_mode_models(worker, markers)
     results += primary_named_mode_models(worker, markers)
+    results += primary_named_group_models(worker, markers)
     results += later_primary_named_mode_models(worker, markers)
     results += forced_named_include_models(worker, markers)
     results += primary_named_implicit_models(worker, markers)
@@ -670,7 +673,8 @@ def direct_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> lis
     return results
 
 
-def grouped_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+def grouped_optional_mode_models(worker: bytes, markers: dict[str, bytes],
+                                 suffix: str, prerequisite: str) -> list[HeldModel]:
     header = '.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
     ordinary = ('all: result\n'
                 'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT)-$(PEER))'
@@ -702,12 +706,12 @@ def grouped_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> li
         for name, reads, failed, present, keep, stderr in cases:
             if failed:
                 reads = 'ifeq ($(MAKE_RESTARTS),)\n' + reads + 'else\ninclude right.gen\nendif\n'
-                recipe = 'left.gen peer.gen &: ; @python3 worker.py left fail\n'
+                recipe = f'left.gen peer.gen &: {prerequisite} ; @python3 worker.py left fail\n'
                 prefix = b'left\n'
                 value = b'--loaded-'
                 updates = {'right.gen': loaded['right.gen']}
             else:
-                recipe = ('left.gen peer.gen &: ; @python3 worker.py left include\n'
+                recipe = (f'left.gen peer.gen &: {prerequisite} ; @python3 worker.py left include\n'
                           '\t@printf "PEER := loaded\\n" > peer.gen\n')
                 prefix = b''
                 value = b'-loaded-loaded-loaded'
@@ -716,6 +720,11 @@ def grouped_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> li
             files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR}
             if present:
                 files['peer.gen'] = b'PEER := initial\n'
+            if prerequisite:
+                files['primer'] = b'primer\n'
+            times = dict.fromkeys(files, INPUT_TIME)
+            if prerequisite:
+                times['primer'] += 500_000_000
             for mode, status, stdout, ordinary_updates in modes:
                 flags = ('-k',) if keep else ()
                 args = ('-rR', '--no-print-directory', '-j2', f'--jobserver-style={transport}',
@@ -723,10 +732,10 @@ def grouped_optional_mode_models(worker: bytes, markers: dict[str, bytes]) -> li
                 expected = {'exit_code': status, 'stdout_template_hex': (prefix + stdout).hex(),
                             'stderr_template_hex': stderr.hex()}
                 seen = restarted if mode == 't' else restarted + b'ordinary' + value + b'\n'
-                ident = f'grouped-optional-mode-{name}-{mode}-{transport}'
+                ident = f'grouped-optional-mode-{name}-{mode}-{transport}{suffix}'
                 model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
                                     updates={**markers, **updates, **ordinary_updates},
-                                    mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                                    mtimes_ns=times)
                 results.append(HeldModel(model, True, BEFORE_SECOND, before_second_stdout=prefix))
     return results
 
@@ -950,6 +959,67 @@ def primary_named_secondary_variant(held: HeldModel, expansion_point: bytes) -> 
                    before_second=record_expansion(held.before_second))
 
 
+def primary_named_group_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    header = (
+        b'.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+        b'include left.gen right.gen\n'
+    )
+    command = b'printf "# remade\\n" >> Makefile; printf "peer\\n" > peer.out\n'
+    rules = (
+        b'left.gen: ; @python3 worker.py left include\n'
+        b'right.gen:\n'
+        b'\t@python3 worker.py right include\n'
+        b'\t@$(file >>seen,tail-expanded)printf "tail\\n" >> seen\n'
+        b'all: result\n'
+        b'result: ; @$(file >>seen,ordinary-$(LEFT)-$(RIGHT))printf "ordinary\\n" > "$@"\n'
+    )
+    first = BEFORE_FIRST + b'tail-expanded\n'
+    second = first + b'left\n'
+    completed = second + b'right\ntail\n'
+    loaded = completed + b'read-1\nordinary-loaded-loaded\n'
+    generated = {**markers, 'left.gen': b'LEFT := loaded\n', 'right.gen': b'RIGHT := loaded\n'}
+    ordinary = b'printf "ordinary\\n" > "result"\n'
+    results = []
+    for order, targets in (('primary-first', b'Makefile peer.out'),
+                           ('peer-first', b'peer.out Makefile')):
+        source = header + targets + b' &: primer ; @' + command + rules
+        for age, peer_exists, stale in (('current', True, False), ('stale', True, True),
+                                        ('missing-peer', False, False)):
+            files = {'Makefile': source, 'worker.py': worker, 'seen': ANCHOR,
+                     'primer': b'primer\n'}
+            if peer_exists:
+                files['peer.out'] = b'peer\n'
+            times = dict.fromkeys(files, INPUT_TIME)
+            times['primer'] += 2_000_000_000 if stale else -2_000_000_000
+            outdated = stale or not peer_exists
+            for named_peer in (False, True):
+                goals = ('./Makefile', 'peer.out', 'all') if named_peer else ('./Makefile', 'all')
+                summary = b"make: 'Makefile' is up to date.\n"
+                if named_peer:
+                    summary += b"make: 'peer.out' is up to date.\n"
+                dry_prefix = command if outdated else b''
+                cases = (
+                    ('n', 0, dry_prefix, dry_prefix * 2 + summary + ordinary, loaded),
+                    ('q', 1, b'', b'', completed + b'ordinary--\n' if outdated else loaded),
+                )
+                for mode, status, prefix, stdout, seen in cases:
+                    for transport in ('pipe', 'fifo'):
+                        args = ('-rR', '--no-print-directory', '-j3',
+                                f'--jobserver-style={transport}', '-' + mode, '-f', './Makefile',
+                                *goals)
+                        ident = f'primary-named-group-{order}-{age}-{mode}-{transport}'
+                        if named_peer:
+                            ident += '-peer-goal'
+                        expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                                    'stderr_template_hex': ''}
+                        model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected,
+                                            seen, updates=generated, mtimes_ns=times)
+                        results.append(HeldModel(model, True, second, first,
+                                                 before_second_stdout=prefix,
+                                                 before_first_stdout=prefix))
+    return results
+
+
 def later_primary_named_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
     header = b'.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
     rules = (
@@ -1117,7 +1187,10 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                                                               f'{directive} {order} ./named.gen\n'.encode(), 1)
                             duplicate = replace(model, id=ident + '-duplicate',
                                                 files={**files, 'Makefile': duplicate_source})
-                            results.append(replace(held, model=duplicate))
+                            repeated = replace(held, model=duplicate)
+                            if policy == 'optional' and mode == 'q' and saturated:
+                                repeated = order_named_before_right(repeated)
+                            results.append(repeated)
 
             failed_source = (header + 'include left.gen right.gen named.gen\n' + rules).encode()
             failed_source = failed_source.replace(b'+@printf "NAMED := loaded\\n" > "$@"', b'+@false')
@@ -1130,6 +1203,25 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                                 mtimes_ns=dict.fromkeys(files, INPUT_TIME))
             results.append(HeldModel(model, True, second, first, before_second_stdout=b''))
     return results
+
+
+def order_named_before_right(held: HeldModel) -> HeldModel:
+    model = held.model
+    named_recipe = b'+@printf "NAMED := loaded\\n" > "$@"'
+    worker_effects = b"with Path('seen').open('ab') as stream:"
+    right_wait = (b"if name == 'right':\n"
+                  b"    from named_reap import wait_for_named_reap\n"
+                  b"    wait_for_named_reap()\n\n")
+    makefile = model.files['Makefile']
+    worker = model.files['worker.py']
+    assert makefile.count(named_recipe) == worker.count(worker_effects) == 1
+    files = {**model.files,
+             'Makefile': makefile.replace(named_recipe, b'+@python3 named_reap.py'),
+             'worker.py': worker.replace(worker_effects, right_wait + worker_effects),
+             'named_reap.py': (SOURCES / 'named_reap.py').read_bytes()}
+    model = replace(model, files=files, mtimes_ns={**model.mtimes_ns, 'named_reap.py': INPUT_TIME},
+                    environment={**model.environment, 'PYTHONDONTWRITEBYTECODE': '1'})
+    return replace(held, model=model)
 
 
 def primary_named_implicit_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
