@@ -3288,11 +3288,13 @@ impl Engine {
             let mut pending = Vec::new();
             let initial_reaps = self.recipe_reaps;
             let mut pass_reaps = initial_reaps;
+            let mut pass_progress = self.debug_progress();
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
             let mut visited = MakefileVisits::new();
             let mut optional_remake_failed = false;
+            let mut touched_optional_remakes = HashSet::new();
             let mut remake_question = false;
             let required_names: HashSet<_> = read_files
                 .iter()
@@ -3428,6 +3430,14 @@ impl Engine {
                                     );
                                 }
                             }
+                        }
+                        if makefile.optional
+                            && visit_modes.touch
+                            && touched_optional_remakes.contains(name)
+                        {
+                            // A settled repeat can end the next pass too.
+                            (pass_reaps, pass_progress) =
+                                self.settle_optional_remake_pass(pass_progress);
                         }
                         continue;
                     }
@@ -3635,19 +3645,11 @@ impl Engine {
                         // An immediate optional update ends this visit pass.
                         // A previous worker can complete under the named mode
                         // before the next unvisited source starts.
-                        self.poll_jobs();
-                        if self.recipe_reaps == pass_reaps && !self.parallel_jobs.is_empty() {
-                            let previous_jobs = self.parallel_jobs.len();
-                            while self.parallel_jobs.len() >= previous_jobs
-                                && self.shutdown.get() == Shutdown::Running
-                                && self.graph_abort.is_none()
-                            {
-                                self.reap_job();
-                            }
-                            self.poll_jobs();
+                        if visit_modes.touch && physically_changed {
+                            touched_optional_remakes.insert(name);
                         }
-                        pass_reaps = self.recipe_reaps;
-                        self.advance_debug_pass();
+                        (pass_reaps, pass_progress) =
+                            self.settle_optional_remake_pass(pass_progress);
                     }
                 }
                 if self.forced_query_stop
@@ -4298,7 +4300,7 @@ impl Engine {
             return false;
         }
         if read_files.iter().any(|(file, skip)| file.optional && !skip)
-            && !self.optional_mode_sources_settle(read_files)
+            && !self.optional_mode_sources_settle(read_files, named_sources)
         {
             return false;
         }
@@ -4375,9 +4377,7 @@ impl Engine {
             .rules
             .get(name)
             .map_or(primary && no_default_recipe, |rule| {
-                if rule.secondary.is_some()
-                    && (file.optional || !no_default_recipe || rule.group.is_some())
-                {
+                if rule.secondary.is_some() && (!no_default_recipe || rule.group.is_some()) {
                     return false;
                 }
                 let mut deferred = rule
@@ -4470,7 +4470,11 @@ impl Engine {
             && !self.database.rules.contains_key(b".DEFAULT".as_slice())
     }
 
-    fn optional_mode_sources_settle(&self, read_files: &[(Makefile, bool)]) -> bool {
+    fn optional_mode_sources_settle(
+        &self,
+        read_files: &[(Makefile, bool)],
+        named_sources: Option<&HashSet<&[u8]>>,
+    ) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
         // Use simple file identities and single-colon optional roots. A
@@ -4521,11 +4525,15 @@ impl Engine {
                                     && self.options.load_limit.is_none()
                                     && !self.database.loaded_modules.contains_key(name)
                                     && self.database.rules.get(name).is_some_and(|rule| {
-                                        rule.dependencies.is_empty()
-                                            && rule.secondary.is_none()
-                                            && rule.group.is_none()
+                                        rule.group.is_none()
                                             && rule.double_colon.is_none()
                                             && rule.recipes.is_some()
+                                            && ((rule.dependencies.is_empty()
+                                                && rule.secondary.is_none())
+                                                || (file.optional
+                                                    && rule.secondary.is_some()
+                                                    && self.is_makefile_goal(name, named_sources)
+                                                    && self.simple_named_remake(file, name, &[], false)))
                                     })
                             })
                     }
@@ -4535,7 +4543,11 @@ impl Engine {
                             .rules
                             .get(name)
                             .map_or(no_recipe_fallback, |rule| {
-                                rule.secondary.is_none()
+                                (rule.secondary.is_none()
+                                    || (rule.group.is_none()
+                                        && self.options.load_limit.is_none()
+                                        && rule.recipes.is_some()
+                                        && self.is_makefile_goal(name, named_sources)))
                                     && rule.double_colon.is_none()
                                     && (if rule.dependencies.is_empty() {
                                         rule.recipes.is_some() || no_recipe_fallback
@@ -5410,6 +5422,24 @@ impl Engine {
             && (!self.remaking
                 || self.parallel_makefile_remakes
                 || !(self.options.dry_run || self.options.question || self.options.touch))
+    }
+
+    fn settle_optional_remake_pass(&mut self, previous_progress: u64) -> (u64, u64) {
+        self.poll_jobs();
+        // A make-function file write advances the pass even while every
+        // recipe child is still running.
+        if self.debug_progress() == previous_progress && !self.parallel_jobs.is_empty() {
+            let previous_jobs = self.parallel_jobs.len();
+            while self.parallel_jobs.len() >= previous_jobs
+                && self.shutdown.get() == Shutdown::Running
+                && self.graph_abort.is_none()
+            {
+                self.reap_job();
+            }
+            self.poll_jobs();
+        }
+        self.advance_debug_pass();
+        (self.recipe_reaps, self.debug_progress())
     }
 
     fn wait_makefile_remakes(

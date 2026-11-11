@@ -152,6 +152,8 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += forced_named_include_models(worker, markers)
     results += primary_named_implicit_models(worker, markers)
     results += named_include_file_prerequisite_models(worker, markers)
+    results += named_include_file_prerequisite_models(worker, markers, optional_effect='secondary')
+    results += named_include_file_prerequisite_models(worker, markers, optional_effect='left-file')
     results += primary_shared_include_models(worker, markers)
     results += primary_named_wait_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
@@ -1187,7 +1189,7 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                                          before_second_stdout=second_out, before_first_stdout=first_out)
                         results.append(held)
                         expansion_point = first if position == 'last' else BEFORE_FIRST
-                        if policy == 'required' and slots == 2:
+                        if slots == 2:
                             results.append(named_secondary_variant(held, expansion_point, b'named.gen'))
                         if slots == 3:
                             source_with_primer = source.replace(b'named.gen: ;', b'named.gen: primer ;')
@@ -1196,9 +1198,8 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                                                    mtimes_ns={**times, 'primer': INPUT_TIME})
                             with_prerequisite = replace(held, model=prerequisite)
                             results.append(with_prerequisite)
-                            if policy == 'required':
-                                results.append(named_secondary_variant(
-                                    with_prerequisite, expansion_point, b'named.gen'))
+                            results.append(named_secondary_variant(
+                                with_prerequisite, expansion_point, b'named.gen'))
                         if position == 'last':
                             duplicate_source = source.replace(f'{directive} {order}\n'.encode(),
                                                               f'{directive} {order} ./named.gen\n'.encode(), 1)
@@ -1208,7 +1209,7 @@ def forced_named_include_models(worker: bytes, markers: dict[str, bytes]) -> lis
                             if policy == 'optional' and mode == 'q' and saturated:
                                 repeated = order_named_before_right(repeated)
                             results.append(repeated)
-                            if policy == 'required':
+                            if policy == 'required' or slots != 2 or mode != 'q':
                                 results.append(named_secondary_variant(
                                     repeated, expansion_point, b'named.gen'))
 
@@ -1316,7 +1317,8 @@ def primary_named_implicit_models(worker: bytes, markers: dict[str, bytes]) -> l
     return results
 
 
-def named_include_file_prerequisite_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+def named_include_file_prerequisite_models(worker: bytes, markers: dict[str, bytes], *,
+                                           optional_effect: str | None = None) -> list[HeldModel]:
     header = '.DEFAULT_GOAL := all\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
     rules = (
         'named.gen: primer ; @printf "NAMED := loaded\\n" > "$@"\n'
@@ -1337,17 +1339,27 @@ def named_include_file_prerequisite_models(worker: bytes, markers: dict[str, byt
     for transport in ('pipe', 'fifo'):
         for directive in ('include', '-include'):
             optional = directive == '-include'
+            if optional_effect is not None and not optional:
+                continue
             policy = 'optional' if optional else 'required'
             for position, order in (
                 ('first', 'named.gen left.gen right.gen'),
                 ('middle', 'left.gen named.gen right.gen'),
                 ('last', 'left.gen right.gen named.gen'),
             ):
+                if optional_effect == 'left-file' and position != 'middle':
+                    continue
                 source = (header + f'{directive} {order}\n' + rules).encode()
+                before_tail = BEFORE_FIRST
+                if optional_effect == 'left-file':
+                    source = source.replace(b'left.gen: ; @python3',
+                                            b'left.gen: ; @$(file >>seen,left-file)python3', 1)
+                    before_tail += b'left-file\n'
                 files = {'Makefile': source, 'worker.py': worker, 'seen': ANCHOR, 'primer': b'base input\n'}
                 for mode in 'nqt':
-                    split_pass = optional and position == 'middle' and mode != 'q'
-                    first = BEFORE_FIRST if split_pass else BEFORE_FIRST + b'tail-expanded\n'
+                    split_pass = (optional and position == 'middle' and mode != 'q'
+                                  and optional_effect is None)
+                    first = before_tail if split_pass else before_tail + b'tail-expanded\n'
                     second = first + (b'left\ntail-expanded\n' if split_pass else b'left\n')
                     completed = second + b'right\ntail\n'
                     stderr = first_out = second_out = b''
@@ -1371,16 +1383,21 @@ def named_include_file_prerequisite_models(worker: bytes, markers: dict[str, byt
                     args = ('-rR', '--no-print-directory', '-j3', f'--jobserver-style={transport}',
                             '-' + mode, './named.gen', 'all')
                     ident = f'named-include-file-prerequisite-{policy}-{position}-{mode}-{transport}'
+                    if optional_effect == 'left-file':
+                        ident += '-earlier-file-write'
                     expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
                                 'stderr_template_hex': stderr.hex()}
                     model = debug.Model(ident, files, args, {'GNUMAKEFLAGS': ''}, expected, seen,
                                         updates=updates, mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                     held = HeldModel(model, not split_pass, second, first,
                                      before_second_stdout=second_out, before_first_stdout=first_out)
-                    results.append(held)
-                    if not optional:
-                        expansion_point = first if position == 'last' else BEFORE_FIRST
+                    expansion_point = first if position == 'last' else BEFORE_FIRST
+                    if optional_effect != 'secondary':
+                        results.append(held)
+                    if not optional or optional_effect == 'secondary':
                         results.append(named_secondary_variant(held, expansion_point, b'named.gen'))
+                    if optional_effect == 'left-file':
+                        continue
                     duplicate_source = source.replace(f'{directive} {order}\n'.encode(),
                                                       f'{directive} {order} ./named.gen\n'.encode(), 1)
                     duplicate_source = duplicate_source.replace(b'named.gen: primer ;', b'named.gen: ;')
@@ -1400,9 +1417,12 @@ def named_include_file_prerequisite_models(worker: bytes, markers: dict[str, byt
                                             id=duplicate_ident, expected=duplicate_expected,
                                             mtimes_ns=dict.fromkeys(duplicate_files, INPUT_TIME))
                         waits_for_slot = mode == 'n' and position == 'last' and slots == 2
-                        results.append(HeldModel(duplicate, not split_pass, second, first,
-                                                 before_second_stdout=duplicate_second,
-                                                 before_first_stdout=b'' if waits_for_slot else first_out))
+                        repeated = HeldModel(duplicate, not split_pass, second, first,
+                                             before_second_stdout=duplicate_second,
+                                             before_first_stdout=b'' if waits_for_slot else first_out)
+                        if optional_effect == 'secondary':
+                            repeated = named_secondary_variant(repeated, expansion_point, b'named.gen')
+                        results.append(repeated)
     return results
 
 
