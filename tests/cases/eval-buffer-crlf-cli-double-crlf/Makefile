@@ -1,0 +1,2 @@
+$(info value=[$(V)])
+all: ; @:

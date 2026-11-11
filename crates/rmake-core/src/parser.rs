@@ -2000,7 +2000,9 @@ impl Database {
         let home = if name.len() == 1 || name[1] == b'/' {
             let session = self.begin_filename_session(true);
             self.write_filename(name, 0);
+            let warnings = context.replace_undefined_warnings(false);
             let result = self.expand_variable_with(b"HOME", context.reborrow());
+            context.replace_undefined_warnings(warnings);
             observed = Some(self.filename_suffix(name));
             self.end_filename_session(session);
             result.map_err(|error| {
@@ -4195,7 +4197,7 @@ impl Database {
         let suppress_default = std::mem::replace(&mut self.suppress_default_goal, false);
         let result = self
             .read_at_source(
-                ParserReader::memory(
+                ParserReader::eval(
                     &bytes[..bytes
                         .iter()
                         .position(|byte| *byte == 0)
