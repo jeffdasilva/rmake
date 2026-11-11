@@ -4150,14 +4150,15 @@ impl Engine {
             return false;
         }
         let mut named = HashSet::new();
-        read_files.iter().all(|(file, skip)| {
+        read_files.iter().enumerate().all(|(index, (file, skip))| {
             let name = without_dot_prefix(&file.name);
             *skip
                 || goals.is_empty()
                 || (!name.starts_with(b"-l")
                     && archive_parts(name).is_none()
                     && (!self.is_makefile_goal(name, named_sources)
-                        || (named.insert(name) && self.simple_named_remake(file, name))))
+                        || (named.insert(name)
+                            && self.simple_named_remake(file, name, index == 0))))
         })
     }
 
@@ -4173,7 +4174,7 @@ impl Engine {
         })
     }
 
-    fn simple_named_remake(&self, file: &Makefile, name: &[u8]) -> bool {
+    fn simple_named_remake(&self, file: &Makefile, name: &[u8], first: bool) -> bool {
         use rmake_core::filenames::archive_parts;
 
         let primary = file.location.is_none();
@@ -4197,7 +4198,6 @@ impl Engine {
                             && no_recipe_fallback
                             && rule.dependencies.iter().all(|dep| {
                                 !dep.hidden
-                                    && !dep.order_only
                                     && dep.name != b".WAIT"
                                     && !dep.name.contains(&b'/')
                                     && !dep.name.starts_with(b"~")
@@ -4209,7 +4209,10 @@ impl Engine {
                                         .is_ok_and(|metadata| metadata.is_file())
                             })))
                     && rule.recipes.as_ref().is_some_and(|recipes| {
-                        recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
+                        // Forced lines can run synchronously under a named
+                        // mode. Admit them before any other source can queue work.
+                        (primary && first)
+                            || recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
                     })
             })
     }
