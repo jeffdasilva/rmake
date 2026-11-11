@@ -3309,19 +3309,31 @@ impl Engine {
                 && debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits());
             let verbose_load_debug = verbose_load_trace
                 && (!ordinary_mode || direct_mode_remakes)
-                && self.qualified_load_debug_sources(&read_files, false);
+                && self.qualified_load_debug_sources(&read_files, false, 1);
             let optional_dependency_load_debug = ordinary_mode
                 && (basic_load_debug || verbose_load_trace)
                 && direct_mode_remakes
-                && self.qualified_load_debug_sources(&read_files, true);
+                && self.qualified_load_debug_sources(&read_files, true, 1);
             let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
                 || (qualified_remake_debug
                     && (self.options.load_limit.is_none()
                         || basic_load_debug
                         || verbose_load_debug
                         || optional_dependency_load_debug));
+            let named_load_debug = ordinary_mode
+                && basic_load_debug
+                && read_files.iter().any(|(file, skip)| {
+                    !*skip
+                        && self.is_makefile_goal(
+                            rmake_core::filenames::without_dot_prefix(&file.name),
+                            named_sources.as_ref(),
+                        )
+                })
+                && self.qualified_load_debug_sources(&read_files, false, 2)
+                && self.qualified_debug_remake_sources(&read_files, named_sources.as_ref());
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
+                    || named_load_debug
                     || (((debug_before_remake.bits() == remake_debug_bits && !basic_load_debug)
                         || verbose_mode_remakes
                         || direct_mode_remakes)
@@ -4449,6 +4461,7 @@ impl Engine {
         &self,
         read_files: &[(Makefile, bool)],
         optional_dependencies_only: bool,
+        max_recipe_lines: usize,
     ) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
@@ -4484,10 +4497,9 @@ impl Engine {
                 continue;
             };
             if !plain_rule(rule)
-                || rule
-                    .recipes
-                    .as_ref()
-                    .is_some_and(|recipes| recipes.len() > 1 || !nonrecursive(recipes))
+                || rule.recipes.as_ref().is_some_and(|recipes| {
+                    recipes.len() > max_recipe_lines || !nonrecursive(recipes)
+                })
             {
                 return false;
             }
