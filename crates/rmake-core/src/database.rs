@@ -2019,6 +2019,30 @@ mod tests {
     }
 
     #[test]
+    fn inline_recipe_printing_retains_raw_bytes_after_execution_preparation() {
+        let mut database = Database::default();
+        database
+            .read(
+                b".RECIPEPREFIX := >\nall: ; @printf '$(info left \\\n>right)' \\\n>>data\n>@:\n",
+                b"Makefile",
+            )
+            .unwrap();
+        let rule = &database.rules[b"all".as_slice()];
+        let recipes = rule.recipes.as_ref().unwrap();
+        assert_eq!(
+            recipes[0].execution_bytes().as_ref(),
+            b" @printf '$(info left >right)' \\\n>data"
+        );
+        assert_eq!(recipes[1].execution_bytes().as_ref(), b"@:");
+        let mut output = Vec::new();
+        write_recipes(&mut output, recipes, rule.recipe_location.as_ref()).unwrap();
+        assert_eq!(
+            output,
+            b"#  recipe to execute (from 'Makefile', line 2):\n> @printf '$(info left \\\n>right)' \\\n>>data\n>@:\n"
+        );
+    }
+
+    #[test]
     fn file_records_retain_target_declarations_and_recipe_prefix_transitions() {
         let mut database = Database::default();
         database.read(
