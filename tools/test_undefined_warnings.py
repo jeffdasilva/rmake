@@ -22,12 +22,16 @@ class UndefinedWarningTests(unittest.TestCase):
     def test_required_cases_reach_intended_phases_and_keep_silent_controls(self):
         ledger = tomllib.loads((ROOT / 'tests/requirements.toml').read_text())
         family = next(row for row in ledger['requirements'] if row['id'] == 'cli.undefined-warnings')
-        self.assertEqual(family['fixture_count'], 358)
-        self.assertEqual(family['candidate_required'], 358)
-        for name in family['cases']:
+        cases = family['cases']
+        self.assertEqual(len(set(cases)), len(cases))
+        self.assertEqual(family['fixture_count'], len(cases))
+        self.assertEqual(family['candidate_required'], len(cases))
+        self.assertEqual(sum(name.startswith('warn-') for name in cases), 358)
+        for name in cases:
             case = self.case(name)
             self.assertEqual(case.candidate, 'required')
-            self.assertEqual(case.expected['exit_code'], 2 if name == 'warn-internal-shell' else 0)
+            if name.startswith('warn-'):
+                self.assertEqual(case.expected['exit_code'], 2 if name == 'warn-internal-shell' else 0)
             if name.startswith('warn-disabled-'):
                 self.assertEqual(case.expected['stderr_hex'], '')
         for profile in range(3):
