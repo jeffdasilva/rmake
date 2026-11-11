@@ -305,11 +305,48 @@ pub struct Dependency {
 #[derive(Clone, Debug)]
 pub struct SecondaryPrerequisite {
     pub index: usize,
+    /// Replacing a deferred occurrence drops the targeted wait attached to it.
+    pub discard_targeted_wait: bool,
     /// A static declaration's stem can differ from the target's final stem.
     pub stem: Option<Vec<u8>>,
 }
 
 impl Rule {
+    fn insert_targeted_waits(&mut self) {
+        if self.dependencies.len() < 2 {
+            return;
+        }
+        let original = std::mem::take(&mut self.dependencies);
+        self.dependencies.reserve(original.len() * 2);
+        let mut deferred = self
+            .secondary
+            .iter_mut()
+            .flat_map(|clauses| clauses.iter_mut())
+            .peekable();
+        let mut explicit_wait = false;
+        let mut has_predecessor = false;
+        for (index, dependency) in original.into_iter().enumerate() {
+            if dependency.name == b".WAIT" {
+                explicit_wait = true;
+                continue;
+            }
+            if has_predecessor || explicit_wait {
+                self.dependencies.push(Dependency {
+                    name: b".WAIT".to_vec(),
+                    order_only: dependency.order_only,
+                    hidden: false,
+                });
+            }
+            if let Some(clause) = deferred.next_if(|clause| clause.index == index) {
+                clause.index = self.dependencies.len();
+                clause.discard_targeted_wait = has_predecessor && !explicit_wait;
+            }
+            self.dependencies.push(dependency);
+            explicit_wait = false;
+            has_predecessor = true;
+        }
+    }
+
     pub fn append_prerequisites(&mut self, other: &Self) {
         let offset = self.dependencies.len();
         self.dependencies.extend(other.dependencies.iter().cloned());
@@ -3705,6 +3742,22 @@ impl Database {
                     .any(|dependency| dependency.name == b".EXPORT_ALL_VARIABLES")
             });
             self.export_all |= named || phony;
+            let serial_targets: HashSet<_> = self
+                .rules
+                .get(b".NOTPARALLEL".as_slice())
+                .into_iter()
+                .flat_map(|rule| &rule.dependencies)
+                .filter(|dependency| !dependency.hidden && dependency.name != b".WAIT")
+                .map(|dependency| dependency.name.clone())
+                .collect();
+            for target in serial_targets {
+                if let Some(rule) = self.rules.get_mut(&target)
+                    && rule.group.is_none()
+                    && rule.double_colon.is_none()
+                {
+                    rule.insert_targeted_waits();
+                }
+            }
         }
         self.rules_frozen = true;
     }
@@ -5227,6 +5280,7 @@ impl Database {
                     rule.secondary.get_or_insert_with(Default::default).push(
                         SecondaryPrerequisite {
                             index: rule.dependencies.len(),
+                            discard_targeted_wait: false,
                             stem: stem.clone(),
                         },
                     );

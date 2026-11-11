@@ -2473,3 +2473,32 @@ cases = [
   "missing-separator-hint-included-conditional-text",
   "missing-separator-hint-valid-rule-and-custom-prefix",
 ]
+
+[[requirements]]
+id = "parallel.targeted-notparallel-waits"
+title = "Targeted NOTPARALLEL barriers attach to declared prerequisites"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/shuffle.md"
+candidate_required = 18
+fixture_count = 18
+cases = [
+  "targeted-notparallel-waits-explicit-one-deferred-line",
+  "targeted-notparallel-waits-explicit-static-pattern-deferred-line",
+  "targeted-notparallel-waits-explicit-two-deferred-lines",
+  "targeted-notparallel-waits-explicit-wait-and-targeted-wait",
+  "targeted-notparallel-waits-implicit-deferred-after-immediate",
+  "targeted-notparallel-waits-implicit-deferred-before-immediate",
+  "targeted-notparallel-waits-implicit-empty-after-immediate",
+  "targeted-notparallel-waits-implicit-empty-before-immediate",
+  "targeted-notparallel-waits-implicit-extra-prerequisites",
+  "targeted-notparallel-waits-implicit-ineffective-pattern-wait-from-late-word",
+  "targeted-notparallel-waits-implicit-no-original-dependencies",
+  "targeted-notparallel-waits-implicit-one-deferred-line",
+  "targeted-notparallel-waits-implicit-one-deferred-line-seeded",
+  "targeted-notparallel-waits-implicit-order-only-barriers",
+  "targeted-notparallel-waits-implicit-single-original-dependency",
+  "targeted-notparallel-waits-implicit-trailing-pattern-wait-before-order-only",
+  "targeted-notparallel-waits-implicit-two-original-dependencies",
+  "targeted-notparallel-waits-implicit-with-original-true-pattern-wait",
+]

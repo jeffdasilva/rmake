@@ -75,15 +75,32 @@ def pattern_wait_cases(reference, candidate, root):
         ('retain-reverse', 'reverse', leaves, 'p1 .WAIT p2', '', b'',
          b'left\np2\nd11\nd10\nd09\nd08\nd07\nd06\nd05\nd04\nd03\nd02\nd01\n'),
     )
-    records = []
-    runtime = root / 'observation'
-    for (name, seed, explicit, pattern, late, held_effects, effects), transport in itertools.product(
-            models, ('pipe', 'fifo')):
-        ident = 'pattern-wait-' + name + '-' + transport
+    scenarios = []
+    for name, seed, explicit, pattern, late, held_effects, effects in models:
         prefix = f'.SECONDEXPANSION:\nLATE = {late}\n' if late else ''
         declared_leaves = ' '.join(name for name in explicit.split() if name.startswith('d'))
         makefile = (prefix + f'all.out: {explicit}\n%.out: {pattern} ; @$(file >>seen,goal):\n'
                     f'p1: ; @python3 worker.py left observe\np2 {declared_leaves}: ; @$(file >>seen,$@):\n')
+        scenarios.append((name, seed, makefile, held_effects, effects))
+    targeted = (
+        ('single-original', 'all.out: a\n', b'p2\na\n', b'p2\na\nleft\n'),
+        ('two-original', 'all.out: a b\n', b'p2\na\n', b'p2\na\nleft\nb\n'),
+        ('one-deferred', 'all.out: a $$(DYNAMIC)\n', b'p2\na\nx\ny\n', b'p2\na\nx\ny\nleft\n'),
+        ('deferred-after-immediate', 'all.out: a\nall.out: $$(DYNAMIC)\n',
+         b'p2\na\nx\ny\n', b'p2\na\nx\ny\nleft\n'),
+        ('deferred-before-immediate', 'all.out: $$(DYNAMIC)\nall.out: a\n',
+         b'p2\nx\ny\n', b'p2\nx\ny\nleft\na\n'),
+    )
+    for name, explicit, held_effects, effects in targeted:
+        makefile = ('.SECONDEXPANSION:\n.NOTPARALLEL: all.out\nDYNAMIC := x y\n' + explicit
+                    + '%.out: p1 p2 ; @$(file >>seen,goal):\n'
+                    'p1: ; @python3 worker.py left observe\np2 a b x y: ; @$(file >>seen,$@):\n')
+        scenarios.append(('targeted-' + name, 'none', makefile, held_effects, effects))
+    records = []
+    runtime = root / 'observation'
+    for (name, seed, makefile, held_effects, effects), transport in itertools.product(
+            scenarios, ('pipe', 'fifo')):
+        ident = 'pattern-wait-' + name + '-' + transport
         model = debug.Model(
             ident, {'Makefile': makefile.encode(), 'worker.py': worker, 'seen': anchor},
             ('-rR', '--no-print-directory', f'--shuffle={seed}', '-j2',
@@ -149,7 +166,7 @@ def run(reference, candidate, report):
         source_hex=SOURCE.hex(), records=records, pattern_wait=barriers), indent=2) + '\n')
     print(f'shuffle modes: {len(records)} engine cells, repeated bounded observations and nonzero-seed replay pass')
     passed = sum(result['passed'] for result in barriers)
-    print(f'implicit pattern barriers: {passed}/{len(barriers)} held profiles passed')
+    print(f'prerequisite barriers: {passed}/{len(barriers)} held profiles passed')
     return int(passed != len(barriers))
 
 

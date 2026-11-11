@@ -7573,11 +7573,13 @@ impl Engine {
             for dependency in expanded.iter().filter(|dep| dep.name != b".WAIT") {
                 self.database.file_records.insert(&dependency.name);
             }
+            let removed_wait = usize::from(clause.discard_targeted_wait);
+            let replaced = index - removed_wait..=index;
             original_next = clause.index + 1;
-            expanded_next = index + expanded.len();
-            ready_count += expanded.len();
-            ready.splice(index..=index, std::iter::repeat_n(true, expanded.len()));
-            rule.dependencies.splice(index..=index, expanded);
+            expanded_next = index - removed_wait + expanded.len();
+            ready_count = ready_count - removed_wait + expanded.len();
+            ready.splice(replaced.clone(), std::iter::repeat_n(true, expanded.len()));
+            rule.dependencies.splice(replaced, expanded);
         }
         if let Some(context) = self.target_contexts.get_mut(target) {
             let retain_shell_status = !grouped_double && branch.is_none_or(|ordinal| ordinal == 0);
@@ -8874,7 +8876,8 @@ impl Engine {
             // Expansion is per file, not once for every peer traversal.
             self.store_expanded_rule(target, rule.clone());
         }
-        let serial_phase = !rule.dependencies.is_empty()
+        let serial_phase = (double_colon || grouped)
+            && !rule.dependencies.is_empty()
             && rule.grouped_double_id().is_none()
             && self.special(b".NOTPARALLEL", target, false);
         let group = rule.grouped_targets().map(|_| {

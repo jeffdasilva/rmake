@@ -26,6 +26,12 @@ ignored failures. Circular traversal separates the skipped edge from GNU's
 physical declaration-slot removal quirk using owned indices; no dangling pointers
 or deliberate memory corruption are reproduced.
 
+For an ordinary single-colon target named by `.NOTPARALLEL`, source reading
+inserts barriers before the second and later declared prerequisite occurrences.
+Implicit prerequisites inserted later join the first group. Replacing a deferred
+occurrence in secondary expansion drops its targeted barrier. Barriers before
+retained prerequisite occurrences survive.
+
 Secondary expansion retains normalized per-file `MAKEFLAGS`/`MFLAGS` in the
 reusable target context without inheriting its temporary automatic variables.
 A scoped MAKEFLAGS append reads the visible append base and flavor while checking

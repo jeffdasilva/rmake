@@ -222,7 +222,14 @@ impl Enabled {
             && db
                 .rules
                 .get(b".NOTPARALLEL".as_slice())
-                .is_some_and(|r| r.dependencies.iter().any(|d| d.name == name));
+                .is_some_and(|special| {
+                    special.dependencies.iter().any(|dep| dep.name == name)
+                        && (rule.group.is_some()
+                            || db
+                                .rules
+                                .get(name)
+                                .is_some_and(|root| root.double_colon.is_some()))
+                });
         let wait = rule
             .dependencies
             .iter()

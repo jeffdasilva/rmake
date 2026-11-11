@@ -1,0 +1,9 @@
+.SECONDEXPANSION:
+.NOTPARALLEL: all.out
+DYNAMIC := b c d e
+LAST := g h i
+WAIT := .WAIT
+all.out: .EXTRA_PREREQS = x y
+all.out: a
+%.out: p1 p2 ; @$(info goal $+ | $|):
+a b c d e f g h i p1 p2 x y: ; @$(info leaf $@):
