@@ -100,15 +100,14 @@ fn evaluate<T>(
         runtime_context(None, &mut receiver)
             .with_filesystem(&mut |effect| runtime.filesystem.borrow_mut().execute(effect))
             .with_shell(&mut |request| {
-                let result = crate::shell::run(
+                crate::shell::run(
                     request,
                     runtime.program,
                     runtime.level,
                     runtime.output,
                     None,
-                );
-                runtime.filesystem.borrow_mut().child_completed();
-                result
+                    || runtime.filesystem.borrow_mut().child_completed(),
+                )
             })
             .with_includes(&mut |name| IncludeSearch::default().read(name)),
     )

@@ -12,7 +12,10 @@ use rmake_core::diagnostic::{FilesystemEffect, FilesystemError};
 use rmake_core::variables::MAX_OUTPUT;
 
 use crate::stdio::Stream;
-use crate::{posix, wildcard::Wildcard};
+use crate::{
+    posix,
+    wildcard::{InvalidationObserver, Wildcard},
+};
 
 /// Path buffer size on the Linux process ABI, including the terminating NUL.
 pub const PATH_MAX: usize = 4096;
@@ -20,7 +23,7 @@ pub const PATH_MAX: usize = 4096;
 type MissingReadObserver<O> = fn(&O, &[u8], &io::Error);
 
 pub struct Runtime<O = ()> {
-    wildcard: Wildcard,
+    wildcard: Wildcard<O>,
     file_writes: u64,
     missing_read: Option<(O, MissingReadObserver<O>)>,
 }
@@ -35,16 +38,22 @@ impl Default for Runtime {
     }
 }
 
-impl<O> Runtime<O> {
-    /// Observe the original open failure without probing the path again.
-    pub fn with_missing_read_observer(context: O, observer: MissingReadObserver<O>) -> Self {
+impl<O: Clone> Runtime<O> {
+    /// Observe read failures and stale directory lookups during the operation.
+    pub fn with_observers(
+        context: O,
+        missing_read: MissingReadObserver<O>,
+        directory_invalidation: InvalidationObserver<O>,
+    ) -> Self {
         Self {
-            wildcard: Wildcard::default(),
+            wildcard: Wildcard::new(Some((context.clone(), directory_invalidation))),
             file_writes: 0,
-            missing_read: Some((context, observer)),
+            missing_read: Some((context, missing_read)),
         }
     }
+}
 
+impl<O> Runtime<O> {
     pub fn set_database_history(&mut self, history: rmake_core::database::History) {
         self.wildcard.set_database_history(history);
     }
@@ -102,9 +111,9 @@ pub fn execute(effect: FilesystemEffect<'_>) -> Result<Vec<u8>, Vec<u8>> {
         .map_err(FilesystemError::into_message)
 }
 
-fn execute_with(
+fn execute_with<O>(
     effect: FilesystemEffect<'_>,
-    wildcard: &mut Wildcard,
+    wildcard: &mut Wildcard<O>,
     file_writes: &mut u64,
     missing_read: impl FnOnce(&[u8], &io::Error),
 ) -> Result<Vec<u8>, FilesystemError> {
