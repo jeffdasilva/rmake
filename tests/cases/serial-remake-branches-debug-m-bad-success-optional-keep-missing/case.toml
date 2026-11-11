@@ -1,0 +1,11 @@
+id = "serial-remake-branches-debug-m-bad-success-optional-keep-missing"
+requirement = "includes.serial-double-colon-failures"
+candidate = "required"
+provenance = "Original serial double-colon source failure fixture for GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "--debug=m", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nREAD:\nUpdating makefiles....\n  File 'inc.mk' does not exist.\n   File 'bad' does not exist.\n  Must remake target 'bad'.\nBAD\n  Failed to remake target file 'bad'.\n  File 'inc.mk' does not exist.\n   File 'force2' does not exist.\n  Must remake target 'force2'.\n  Successfully remade target file 'force2'.\n Must remake target 'inc.mk'.\nCREATE2\n Successfully remade target file 'inc.mk'.\nUpdating goal targets....\n File 'all' does not exist.\nMust remake target 'all'.\nALL:\nSuccessfully remade target file 'all'.\n"
+stderr = "make: *** No rule to make target 'bad', needed by 'inc.mk'.\n"
