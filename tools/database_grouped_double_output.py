@@ -85,6 +85,47 @@ def models():
                 (('a:: other', SYNTHETIC), ('a:: older', SYNTHETIC), ('b:: older', ORIGINAL)),
                 (SECOND.replace('$@', 'a'),), original=(('a', EXISTING), ('b', EXISTING)),
                 not_updated=('b:: older',))
+    peer_only = (SKIP.replace('$@', 'b'),)
+    yield Model('group-double-mixed-peer-unchecked-group', early, ('b',),
+                (('a:: other', MISSING), ('a:: input', UNCHECKED), ('b:: input', MISSING)),
+                peer_only, not_updated=('a:: other',))
+    yield Model('group-double-mixed-peer-unchecked-group-existing', early, ('b',),
+                (('a:: other', ORIGINAL), ('a:: input', UNCHECKED), ('b:: input', MISSING)),
+                peer_only, original=(('a', EXISTING),), not_updated=('a:: other',))
+    yield Model('group-double-mixed-peer-unchecked-standalone', first + ordinary, ('b',),
+                (('a:: other', UNCHECKED), *missing), peer_only, not_updated=('a:: other',))
+    yield Model('group-double-mixed-peer-checked-before-group', early, ('b',),
+                (('a:: other', ORIGINAL), ('a:: input', ORIGINAL), ('b:: input', ORIGINAL)),
+                peer_only, original=(('a', EXISTING), ('b', EXISTING)), not_updated=('a:: other',))
+    yield Model('group-double-mixed-peer-later-goal', early, ('b', 'a'),
+                (('a:: other', MISSING), *missing), (*peer_only, SECOND.replace('$@', 'a')))
+    yield Model('group-double-mixed-peer-later-goal-existing', early, ('b', 'a'),
+                (('a:: other', ORIGINAL), ('a:: input', ORIGINAL), ('b:: input', MISSING)),
+                (*peer_only, SECOND.replace('$@', 'a')), original=(('a', EXISTING),))
+    yield Model('group-double-mixed-peer-later-standalone-simulates', first + ordinary, ('b', 'a'),
+                (('a:: other', SYNTHETIC), ('a:: input', SYNTHETIC), ('b:: input', MISSING)),
+                (*peer_only, SECOND.replace('$@', 'a')))
+    third_group = 'a b &:: older ; @' + SKIP + '\n'
+    yield Model('group-double-mixed-peer-next-group-has-observation', early + third_group, ('b',),
+                (('a:: other', ORIGINAL), ('a:: input', UNCHECKED), ('a:: older', ORIGINAL),
+                 ('b:: input', MISSING), ('b:: older', MISSING)),
+                (*peer_only, *peer_only), original=(('a', EXISTING),), group_records=4,
+                not_updated=('a:: other',))
+    change_peer = "$(shell printf '%s\\n' actual > a; touch -d @1600000005.123456789 a)"
+    changing_group = 'a b &:: input ; @' + change_peer + SKIP + '\n'
+    yield Model('group-double-mixed-peer-keeps-observation', ordinary + changing_group, ('b',),
+                (('a:: other', FORCED), ('a:: input', ORIGINAL), ('b:: input', ORIGINAL)),
+                peer_only, original=(('a', EXISTING), ('b', EXISTING)), actual=('a',),
+                not_updated=('a:: other',))
+    earlier_change = change_peer.replace('1600000005.123456789', '1600000004.123456789')
+    changing_head = 'a b &:: input ; @' + earlier_change + SKIP + '\n'
+    changing_tail = 'a b &:: other ; @' + change_peer + SKIP + '\n'
+    yield Model('group-double-mixed-peer-refreshes-completed-branch',
+                changing_head + current_tail + changing_tail, ('b',),
+                (('a:: input', FORCED), ('a:: older', ORIGINAL), ('a:: other', FORCED),
+                 ('b:: input', ORIGINAL), ('b:: other', ORIGINAL)),
+                (*peer_only, *peer_only), original=(('a', EXISTING), ('b', EXISTING)),
+                actual=('a',), group_records=4, not_updated=('a:: older',))
     yield Model('group-double-forced-physical', 'a b &:: input ; +@' + FORCE_GROUP + '\n',
                 ('a',), (('a:: input', FORCED), ('b:: input', FORCED)), (FORCE_GROUP,), actual=('a', 'b'))
     yield Model('group-double-question-without-start', first, ('a',),
