@@ -5092,6 +5092,12 @@ impl Pattern {
         &self.bytes
     }
 
+    pub(crate) fn trailing_literal_byte(&self) -> Option<u8> {
+        self.wildcard
+            .filter(|&position| position + 1 < self.bytes.len())
+            .and_then(|_| self.bytes.last().copied())
+    }
+
     pub(crate) fn matches<'a>(&self, word: &'a [u8]) -> Option<&'a [u8]> {
         match self.wildcard {
             None => (word == self.bytes).then_some(&word[word.len()..]),

@@ -518,6 +518,7 @@ pub struct Database {
     pub loaded_modules: HashMap<Vec<u8>, Location>,
     pub(crate) implicit_rules: Vec<(Pattern, Rule)>,
     implicit_rule_shadow: OnceCell<Option<Vec<bool>>>,
+    implicit_rule_suffixes: OnceCell<Option<ImplicitRuleSuffixes>>,
     vpaths: Vec<Vpath>,
     include_depth: usize,
     next_group_id: usize,
@@ -541,6 +542,32 @@ pub struct Database {
     /// Global bindings being expanded for an environment vector. Target-local
     /// bindings do not refer to the global object removed by undefine.
     pub(crate) exporting: Vec<Vec<u8>>,
+}
+
+#[derive(Clone, Default)]
+struct ImplicitRuleSuffixes {
+    unfiltered: Vec<usize>,
+    by_last_byte: HashMap<u8, Vec<usize>>,
+}
+
+struct ImplicitRuleIndices<'a> {
+    unfiltered: &'a [usize],
+    matching: &'a [usize],
+}
+
+impl Iterator for ImplicitRuleIndices<'_> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<usize> {
+        let source = match (self.unfiltered.first(), self.matching.first()) {
+            (Some(left), Some(right)) if left < right => &mut self.unfiltered,
+            (_, Some(_)) => &mut self.matching,
+            (_, None) => &mut self.unfiltered,
+        };
+        let (&index, remaining) = source.split_first()?;
+        *source = remaining;
+        Some(index)
+    }
 }
 
 // Replacement compares ordered prerequisite names independently of edge flags.
@@ -867,8 +894,46 @@ impl Database {
         self.implicit_candidates_in(&name, active, true)
     }
 
-    pub(crate) fn invalidate_implicit_rule_shadow(&mut self) {
+    pub(crate) fn invalidate_implicit_rule_indexes(&mut self) {
         self.implicit_rule_shadow.take();
+        self.implicit_rule_suffixes.take();
+    }
+
+    fn compile_implicit_rule_suffixes(&self) -> Option<ImplicitRuleSuffixes> {
+        let mut suffixes = ImplicitRuleSuffixes::default();
+        suffixes.by_last_byte.try_reserve(256).ok()?;
+        for (index, (pattern, _)) in self.implicit_rules.iter().enumerate() {
+            let indices = match pattern.trailing_literal_byte() {
+                Some(byte) => suffixes.by_last_byte.entry(byte).or_default(),
+                None => &mut suffixes.unfiltered,
+            };
+            indices.try_reserve(1).ok()?;
+            indices.push(index);
+        }
+        Some(suffixes)
+    }
+
+    fn implicit_rule_indices(&self, target: &[u8]) -> Option<ImplicitRuleIndices<'_>> {
+        let count = self.implicit_rules.len();
+        if count < 128 {
+            return None;
+        }
+        let suffixes = self
+            .implicit_rule_suffixes
+            .get_or_init(|| self.compile_implicit_rule_suffixes())
+            .as_ref()?;
+        // Removing a directory prefix leaves any literal suffix byte unchanged.
+        // Patterns without a literal suffix always keep their declaration position.
+        let matching = target
+            .last()
+            .and_then(|byte| suffixes.by_last_byte.get(byte))
+            .map_or(&[][..], Vec::as_slice);
+        let unfiltered = suffixes.unfiltered.as_slice();
+        // Dense selections are cheaper to visit directly.
+        (unfiltered.len() + matching.len() <= count / 2).then_some(ImplicitRuleIndices {
+            unfiltered,
+            matching,
+        })
     }
 
     fn compile_implicit_rule_shadow(&self) -> Option<Vec<bool>> {
@@ -909,14 +974,14 @@ impl Database {
         // Large tables benefit when many candidate matches would otherwise
         // rescan the remaining declarations for replacements.
         let shadow_cache = (self.implicit_rules.len() >= 128).then_some(&self.implicit_rule_shadow);
-        for (index, (pattern, rule)) in self.implicit_rules.iter().enumerate() {
+        let mut visit = |(index, (pattern, rule)): (usize, &(Pattern, Rule))| {
             let identity = rule
                 .group
                 .as_ref()
                 .and_then(|group| group.implicit_identity)
                 .unwrap_or(index);
             if active.contains(&identity) {
-                continue;
+                return;
             }
             let name = pattern.literal_bytes();
             let stripped = !name.contains(&b'/');
@@ -926,7 +991,7 @@ impl Database {
                 target
             };
             let Some(stem) = pattern.matches(word).filter(|stem| !stem.is_empty()) else {
-                continue;
+                return;
             };
             let shadowed = shadow_cache.and_then(|cache| {
                 cache
@@ -953,11 +1018,11 @@ impl Database {
                 |shadowed| shadowed[index],
             );
             if replaced {
-                continue;
+                return;
             }
             specific |= name != b"%" && (rule.recipes.is_some() || rule.dependencies.is_empty());
             if rule.recipes.is_none() {
-                continue;
+                return;
             }
             let mut candidate = rule.clone();
             candidate.implicit_pattern = Some(name.to_vec());
@@ -1035,6 +1100,13 @@ impl Database {
                     stem_dependencies,
                 });
             }
+        };
+        if let Some(indices) = self.implicit_rule_indices(target) {
+            for index in indices {
+                visit((index, &self.implicit_rules[index]));
+            }
+        } else {
+            self.implicit_rules.iter().enumerate().for_each(visit);
         }
         result
             .retain(|candidate| !specific || !candidate.match_anything || candidate.rule.terminal);
@@ -3722,7 +3794,7 @@ impl Database {
             .database_lookup(b".EXTRA_PREREQS")
             .map(|variable| variable.raw_value().to_vec());
         let global = self.extra_prerequisites(raw.as_deref(), context)?;
-        self.invalidate_implicit_rule_shadow();
+        self.invalidate_implicit_rule_indexes();
         for (_, rule) in &mut self.implicit_rules {
             rule.dependencies.extend(global.iter().cloned());
         }
@@ -5256,7 +5328,7 @@ impl Database {
             };
             let mut group_ordinal = 0;
             let rule = if let Some(pattern) = declaration.patterns.get(target) {
-                self.invalidate_implicit_rule_shadow();
+                self.invalidate_implicit_rule_indexes();
                 let index = *declaration
                     .implicit
                     .entry(target.clone())
@@ -6726,6 +6798,59 @@ mod tests {
         assert_eq!(
             recipes(&indexed),
             [b" @group".to_vec(), b" @fallback".to_vec()]
+        );
+    }
+
+    #[test]
+    fn implicit_suffix_filter_preserves_order_raw_names_and_edits() {
+        use std::fmt::Write;
+
+        let mut small = Database::default();
+        let source = b"ab%: ; @prefix\n%xy: ; @suffix\n%:: ; @terminal\n\
+            %.out: ; @basename\nobj/%.out: ; @directory\n(%.o): ; @archive\n%.\xff: ; @raw\n";
+        small.read(source, b"rules").unwrap();
+        let mut indexed = small.clone();
+        let mut padding = String::new();
+        for index in 0..128 {
+            writeln!(padding, "ignored{index}%.unused: ;").unwrap();
+        }
+        indexed.read(padding.as_bytes(), b"padding").unwrap();
+
+        let recipes = |candidates: Vec<ImplicitCandidate>| {
+            candidates
+                .into_iter()
+                .map(|candidate| candidate.rule.recipes.unwrap()[0].bytes.to_vec())
+                .collect::<Vec<_>>()
+        };
+        for target in [b"abxy".as_slice(), b"obj/file.out", b"item.\xff", b"x"] {
+            assert_eq!(
+                recipes(indexed.implicit_candidates(target)),
+                recipes(small.implicit_candidates(target)),
+            );
+        }
+        assert_eq!(
+            recipes(indexed.implicit_candidates(b"abxy")),
+            [
+                b" @prefix".to_vec(),
+                b" @suffix".to_vec(),
+                b" @terminal".to_vec()
+            ],
+        );
+        assert_eq!(
+            recipes(indexed.implicit_candidates_excluding(b"abxy", &[0])),
+            [b" @suffix".to_vec(), b" @terminal".to_vec()],
+        );
+        let member = b"lib.a(dir/unit.o)";
+        assert_eq!(
+            recipes(indexed.implicit_archive_candidates_excluding(member, &[])),
+            recipes(small.implicit_archive_candidates_excluding(member, &[])),
+        );
+        assert!(indexed.implicit_rule_suffixes.get().is_some());
+        indexed.read(b"%.new: ; @added\n", b"edit").unwrap();
+        assert!(indexed.implicit_rule_suffixes.get().is_none());
+        assert_eq!(
+            recipes(indexed.implicit_candidates(b"item.new")),
+            [b" @added".to_vec(), b" @terminal".to_vec()],
         );
     }
 
