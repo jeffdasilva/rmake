@@ -1,0 +1,12 @@
+id = "short-reference-comment-inline-shell-hash"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Comment quoting near short variable references."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6974656d48706172740a696e73696465237265636970650a"
+stderr_hex = ""
