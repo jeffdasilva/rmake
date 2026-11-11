@@ -132,6 +132,8 @@ and held workers. The normal verbose cases use unique read sources and
 explicit leaf recipes. FIFO cases verify the live controller path.
 The required keep-going FIFO case waits for the cached right prerequisite
 trace before releasing the second worker.
+The dynamic-load FIFO case releases the tail after its pending trace and
+releases the right worker after the tail's cached visit.
 The named primary traces cover existing prerequisites, built-in prerequisite
 recipes, and a forced primary recipe while an earlier include is running.
 Pipe profiles also check verbose reconsideration after a recipe with several
