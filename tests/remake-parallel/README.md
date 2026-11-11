@@ -70,7 +70,7 @@ required failure replay and the considered state after an early optional pass.
 Both jobserver transports are covered.
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 1,852 profiles. Leading `./` spellings share one target record and
+run all 1,884 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -170,6 +170,11 @@ distinguish successful and nonzero shell completions from empty shell and
 eval-only expansions under the same optional remake conditions. Saturated
 forced optional question and touch profiles control the named child's reap
 before the right worker can finish.
+
+Thirty-two comparisons combine question and touch in both option orders.
+A named optional touch can end its remake pass while question mode still
+controls the restart verdict and suppresses the ordinary up-to-date summary.
+Earlier optional and required failures exercise the aggregate status boundary.
 
 Sixteen shuffle controls verify that reverse order and seed 1 reorder the
 ordinary goal reports while preserving the held remake order. They cover

@@ -155,6 +155,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += named_include_file_prerequisite_models(worker, markers)
     results += named_include_file_prerequisite_models(worker, markers, optional_effect='secondary')
     results += named_include_file_prerequisite_models(worker, markers, optional_effect='left-file')
+    results += combined_touch_question_models(results)
     results += primary_shared_include_models(worker, markers)
     results += primary_named_wait_models(worker, markers)
     results += carried_optional_mode_models(worker, markers)
@@ -1587,6 +1588,59 @@ def named_include_file_prerequisite_models(worker: bytes, markers: dict[str, byt
                         if optional_effect == 'secondary':
                             repeated = named_secondary_variant(repeated, expansion_point, b'named.gen')
                         results.append(repeated)
+    return results
+
+
+def combined_touch_question_models(held_models: list[HeldModel]) -> list[HeldModel]:
+    by_id = {held.model.id: held for held in held_models}
+    summary = b"make: 'named.gen' is up to date.\n"
+    touch_named = b'touch named.gen\n'
+    prior_error = (
+        b"Makefile:3: prior.gen: No such file or directory\n"
+        b"make: *** No rule to make target 'missing-prerequisite', needed by 'prior.gen'.\n"
+        b"Makefile:3: Failed to remake makefile 'prior.gen'.\n"
+    )
+    first = BEFORE_FIRST + b'tail-expanded\n'
+    second = first + b'left\n'
+    restarted = second + b'right\ntail\nread-1\n'
+    results = []
+    for policy in ('required', 'optional'):
+        for position in ('first', 'middle', 'last'):
+            for transport in ('pipe', 'fifo'):
+                name = f'named-include-file-prerequisite-{policy}-{position}-t-{transport}'
+                held = by_id[name]
+                model = held.model
+                base = tuple(arg for arg in model.args if arg != '-t')
+                stdout = bytes.fromhex(model.expected['stdout_template_hex']).replace(summary, b'')
+                for order, modes in (('qt', ('-q', '-t')), ('tq', ('-t', '-q'))):
+                    ident = f'{name}-combined-{order}'
+                    args = (*base[:-1], *modes, base[-1])
+                    variant = replace(model, id=ident, args=args,
+                                      expected={**model.expected, 'stdout_template_hex': stdout.hex()})
+                    results.append(replace(held, model=variant))
+                    if policy != 'optional' or position != 'middle':
+                        continue
+                    for earlier, directive in (('optional', b'-include'), ('required', b'include')):
+                        required = earlier == 'required'
+                        line = b'-include left.gen named.gen right.gen\n'
+                        makefile = model.files['Makefile'].replace(
+                            line, directive + b' prior.gen\n' + line, 1)
+                        makefile += b'prior.gen: missing-prerequisite\n'
+                        before = (*args[:-1], '-k', args[-1]) if required else args
+                        updates = model.updates.copy()
+                        if required:
+                            del updates['result']
+                        expected = {
+                            'exit_code': 2 if required else 0,
+                            'stdout_template_hex': (touch_named + (b'' if required else b'touch result\n')).hex(),
+                            'stderr_template_hex': (prior_error * 2 if required else b'').hex(),
+                        }
+                        prior = replace(variant, id=f'{ident}-prior-{earlier}', args=before,
+                                        files={**model.files, 'Makefile': makefile},
+                                        expected=expected, seen=restarted, updates=updates)
+                        results.append(HeldModel(prior, True, second, first,
+                                                 before_first_stdout=touch_named,
+                                                 before_second_stdout=touch_named))
     return results
 
 
