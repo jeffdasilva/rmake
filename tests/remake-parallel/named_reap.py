@@ -42,8 +42,16 @@ def record_process(name):
 
 
 if __name__ == '__main__':
-    if sys.argv[1:] == ['after-right']:
-        wait_for_reap('right.pid')
+    args = sys.argv[1:]
+    if args == ['write-right-tail']:
+        record_process('right-tail.pid')
+        with Path('seen').open('ab') as stream:
+            stream.write(b'tail\n')
     else:
-        record_process('named.pid')
-    Path('named.gen').write_bytes(b'NAMED := loaded\n')
+        if args == ['after-right']:
+            wait_for_reap('right.pid')
+        elif args == ['after-right-tail']:
+            wait_for_reap('right-tail.pid')
+        else:
+            record_process('named.pid')
+        Path('named.gen').write_bytes(b'NAMED := loaded\n')

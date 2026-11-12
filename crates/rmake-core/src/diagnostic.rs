@@ -93,7 +93,7 @@ pub enum ReaderEvent<'a> {
         no_default_goal: bool,
         no_tilde: bool,
     },
-    Bom(&'a [u8]),
+    Bom(Option<&'a [u8]>),
 }
 
 /// Output receivers can expose live diagnostic policy without growing every

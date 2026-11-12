@@ -427,7 +427,7 @@ impl Expansion<'_, '_> {
                         let start = end + source.bytes()[end..].len()
                             - trim_function_start(&source.bytes()[end..]).len();
                         let argument = source.slice(start..source.bytes().len());
-                        let ranges = split_arg_ranges(argument.bytes(), delimiter, maximum)?;
+                        let ranges = split_arg_ranges(argument.bytes(), delimiter, maximum);
                         if ranges.len() < minimum && lazy(&name) {
                             return Err(too_few_arguments(&name, ranges.len()));
                         }
@@ -461,7 +461,9 @@ impl Expansion<'_, '_> {
             }
             Kind::Substitution(mut from, mut to) => {
                 let value = m.value();
-                if Pattern::new(&from).wildcard.is_none() {
+                let pattern = Pattern::new(&from);
+                if pattern.wildcard.is_none() {
+                    from = pattern.bytes;
                     from.insert(0, b'%');
                     to.insert(0, b'%');
                 }
@@ -1033,7 +1035,17 @@ impl Expansion<'_, '_> {
             depth,
             location.clone(),
         )?;
-        if variable.flavor == Flavor::Simple {
+        // GNU checks the original callee, then resolves it inside the call frame.
+        if name.first().is_some_and(u8::is_ascii_digit)
+            && let Some(binding) = self.bindings[start].get(name)
+        {
+            let value = if variable.raw_value().is_empty() {
+                Vec::new()
+            } else {
+                binding.raw_value().to_vec()
+            };
+            m.values.push(value);
+        } else if variable.flavor == Flavor::Simple {
             m.values.push(variable.value);
         } else {
             m.job(

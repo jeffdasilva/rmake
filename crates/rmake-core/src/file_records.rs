@@ -247,27 +247,25 @@ pub fn traversal_order(names: &[&[u8]], initial: usize) -> Option<Vec<usize>> {
 
 pub(crate) fn fingerprint(name: &[u8]) -> u32 {
     let mut lanes = [0xdead_beef_u32; 3];
-    let mut offset = 0;
-    loop {
-        let lane = offset / 4 % 3;
-        let available = (name.len() - offset).min(4);
-        let mut word = [0_u8; 4];
-        word[..available].copy_from_slice(&name[offset..offset + available]);
-        lanes[lane] = lanes[lane].wrapping_add(u32::from_le_bytes(word));
-        if available < 4 {
-            break;
+    let mut blocks = name.chunks_exact(12);
+    for block in &mut blocks {
+        for (lane, word) in lanes.iter_mut().zip(block.chunks_exact(4)) {
+            let word = u32::from_le_bytes(word.try_into().expect("four-byte word"));
+            *lane = lane.wrapping_add(word);
         }
-        if lane == 2 {
-            for (step, angle) in [4, 6, 8, 16, 19, 4].into_iter().enumerate() {
-                let target = step % 3;
-                let previous = (target + 2) % 3;
-                let next = (target + 1) % 3;
-                lanes[target] = lanes[target].wrapping_sub(lanes[previous])
-                    ^ lanes[previous].rotate_left(angle);
-                lanes[previous] = lanes[previous].wrapping_add(lanes[next]);
-            }
+        for (step, angle) in [4, 6, 8, 16, 19, 4].into_iter().enumerate() {
+            let target = step % 3;
+            let previous = (target + 2) % 3;
+            let next = (target + 1) % 3;
+            lanes[target] =
+                lanes[target].wrapping_sub(lanes[previous]) ^ lanes[previous].rotate_left(angle);
+            lanes[previous] = lanes[previous].wrapping_add(lanes[next]);
         }
-        offset += 4;
+    }
+    for (lane, tail) in lanes.iter_mut().zip(blocks.remainder().chunks(4)) {
+        let mut word = [0; 4];
+        word[..tail.len()].copy_from_slice(tail);
+        *lane = lane.wrapping_add(u32::from_le_bytes(word));
     }
     for (step, angle) in [14, 11, 25, 16, 4, 14, 24].into_iter().enumerate() {
         let target = (step + 2) % 3;
@@ -275,7 +273,7 @@ pub(crate) fn fingerprint(name: &[u8]) -> u32 {
         lanes[target] =
             (lanes[target] ^ lanes[previous]).wrapping_sub(lanes[previous].rotate_left(angle));
     }
-    lanes[2].wrapping_add(offset as u32)
+    lanes[2].wrapping_add((name.len() & !3) as u32)
 }
 
 #[cfg(test)]

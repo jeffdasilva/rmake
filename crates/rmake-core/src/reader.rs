@@ -22,6 +22,34 @@ pub struct LogicalLine {
     pub recipe: bool,
 }
 
+/// Prefix observations made before ordinary continuation folding.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct LeadingPrefix {
+    raw: bool,
+    after_bom: bool,
+}
+
+impl LeadingPrefix {
+    fn new(bytes: &[u8], prefix: u8) -> Self {
+        let first = bytes.first().copied();
+        Self {
+            raw: first == Some(prefix),
+            after_bom: first == Some(0xef)
+                && bytes
+                    .strip_prefix(b"\xef\xbb\xbf")
+                    .is_some_and(|rest| rest.first() == Some(&prefix)),
+        }
+    }
+
+    pub(crate) fn matches(self, bom_removed: bool) -> bool {
+        if bom_removed {
+            self.after_bom
+        } else {
+            self.raw
+        }
+    }
+}
+
 /// A reader whose contextual state is supplied by the interpreter.
 #[derive(Debug)]
 pub struct Reader<'a> {
@@ -73,14 +101,16 @@ impl<'a> Reader<'a> {
 
     /// Anonymous/caller-line-one eval buffers remove BOMs before classifying
     /// the next logical line. File streams retain their ordinary read path.
-    pub(crate) fn skip_eval_bom(&mut self) {
+    pub(crate) fn skip_eval_bom(&mut self) -> bool {
         if self
             .source
             .get(self.offset..)
             .is_some_and(|rest| rest.starts_with(b"\xef\xbb\xbf"))
         {
             self.offset += 3;
+            return true;
         }
+        false
     }
 
     /// Read a logical line using the state that applies at its first byte.
@@ -91,12 +121,22 @@ impl<'a> Reader<'a> {
     /// Ordinary continuations collapse surrounding spaces/tabs, except that
     /// POSIX mode preserves whitespace before a continuation and separate joins.
     pub fn next_line(&mut self, recipe_prefix: u8, in_rule_context: bool) -> Option<LogicalLine> {
+        self.next_line_with_prefix(recipe_prefix, in_rule_context)
+            .map(|(line, _)| line)
+    }
+
+    fn next_line_with_prefix(
+        &mut self,
+        recipe_prefix: u8,
+        in_rule_context: bool,
+    ) -> Option<(LogicalLine, LeadingPrefix)> {
         self.nul_warnings = 0;
         if self.nul_input {
             return self.nul_line(recipe_prefix, in_rule_context);
         }
         let first = self.physical_line()?;
-        let recipe = in_rule_context && first.bytes.first() == Some(&recipe_prefix);
+        let leading_prefix = LeadingPrefix::new(first.bytes, recipe_prefix);
+        let recipe = in_rule_context && leading_prefix.raw;
         let mut result = LogicalLine {
             bytes: Vec::with_capacity(first.bytes.len()),
             line: first.line,
@@ -159,7 +199,7 @@ impl<'a> Reader<'a> {
             current = next;
             continued = true;
         }
-        Some(result)
+        Some((result, leading_prefix))
     }
 
     /// Warnings belong to the read operation, before interpreting its contents.
@@ -169,7 +209,11 @@ impl<'a> Reader<'a> {
     }
 
     #[cold]
-    fn nul_line(&mut self, recipe_prefix: u8, in_rule_context: bool) -> Option<LogicalLine> {
+    fn nul_line(
+        &mut self,
+        recipe_prefix: u8,
+        in_rule_context: bool,
+    ) -> Option<(LogicalLine, LeadingPrefix)> {
         let line = self.next_physical_line;
         let mut raw = Vec::new();
         let mut lines = 0;
@@ -237,17 +281,20 @@ impl<'a> Reader<'a> {
         // handling while retaining the file reader's observed line count.
         let mut reader = Reader::new(&raw);
         reader.set_posix(self.posix);
-        let mut folded = reader
-            .next_line(recipe_prefix, in_rule_context)
-            .unwrap_or(LogicalLine {
-                bytes: Vec::new(),
-                line,
-                end_line: line,
-                recipe: false,
-            });
+        let (mut folded, leading_prefix) = reader
+            .next_line_with_prefix(recipe_prefix, in_rule_context)
+            .unwrap_or((
+                LogicalLine {
+                    bytes: Vec::new(),
+                    line,
+                    end_line: line,
+                    recipe: false,
+                },
+                LeadingPrefix::default(),
+            ));
         folded.line = line;
         folded.end_line = self.next_physical_line - 1;
-        Some(folded)
+        Some((folded, leading_prefix))
     }
 
     fn physical_line(&mut self) -> Option<PhysicalLine<'a>> {
@@ -296,61 +343,53 @@ fn trim_start_blanks(bytes: &[u8]) -> &[u8] {
 /// Recipes and `define` bodies must bypass this function.
 pub fn strip_comment(line: &[u8]) -> Vec<u8> {
     let mut result = Vec::with_capacity(line.len());
+    let mut copied = 0;
+    let end = comment_end(line, |index, slashes| {
+        result.extend_from_slice(&line[copied..index - slashes]);
+        result.extend(std::iter::repeat_n(b'\\', slashes / 2));
+        copied = index;
+    });
+    result.extend_from_slice(&line[copied..end]);
+    result
+}
+
+pub(crate) fn has_comment(line: &[u8]) -> bool {
+    comment_end(line, |_, _| {}) < line.len()
+}
+
+fn comment_end(line: &[u8], mut compact: impl FnMut(usize, usize)) -> usize {
     let mut index = 0;
-    while index < line.len() {
-        match line[index] {
-            b'#' => break,
-            b'\\' => {
-                let start = index;
-                while index < line.len() && line[index] == b'\\' {
-                    index += 1;
+    while let Some(&byte) = line.get(index) {
+        match byte {
+            b'#' => {
+                // The source run can include the byte of a short dollar reference.
+                let slashes = line[..index]
+                    .iter()
+                    .rev()
+                    .take_while(|&&b| b == b'\\')
+                    .count();
+                if slashes != 0 {
+                    compact(index, slashes);
                 }
-                let count = index - start;
-                if line.get(index) == Some(&b'#') {
-                    result.extend(std::iter::repeat_n(b'\\', count / 2));
-                    if count % 2 == 0 {
+                if slashes % 2 == 0 {
+                    return index;
+                }
+                index += 1;
+            }
+            b'$' => match line.get(index + 1) {
+                Some(b'(' | b'{') => {
+                    let Ok(close) = crate::variables::reference_end(line, index + 1) else {
                         break;
-                    }
-                    result.push(b'#');
-                    index += 1;
-                } else {
-                    result.extend_from_slice(&line[start..index]);
+                    };
+                    index = close + 1;
                 }
-            }
-            b'$' => {
-                result.push(b'$');
-                index += 1;
-                let Some(&next) = line.get(index) else {
-                    break;
-                };
-                result.push(next);
-                index += 1;
-                let close = match next {
-                    b'(' => b')',
-                    b'{' => b'}',
-                    _ => continue,
-                };
-                let mut depth = 1usize;
-                while let Some(&byte) = line.get(index) {
-                    result.push(byte);
-                    index += 1;
-                    if byte == next {
-                        depth += 1;
-                    } else if byte == close {
-                        depth -= 1;
-                        if depth == 0 {
-                            break;
-                        }
-                    }
-                }
-            }
-            byte => {
-                result.push(byte);
-                index += 1;
-            }
+                Some(_) => index += 2,
+                None => break,
+            },
+            _ => index += 1,
         }
     }
-    result
+    line.len()
 }
 
 #[cfg(test)]
@@ -359,7 +398,8 @@ mod tests {
     #[test]
     fn memory_bom_is_removed_before_recipe_continuation_classification() {
         let mut reader = Reader::new(b"\xef\xbb\xbf\tfirst \\\n\tsecond\n");
-        reader.skip_eval_bom();
+        assert!(reader.skip_eval_bom());
+        assert!(!reader.skip_eval_bom());
         let line = reader.next_line(b'\t', true).unwrap();
         assert!(line.recipe);
         assert_eq!(line.bytes, b"\tfirst \\\nsecond");

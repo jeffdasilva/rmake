@@ -200,7 +200,7 @@ impl Expansion<'_, '_> {
             return Some(Err(ExpandError::Unsupported(name.to_vec())));
         }
         let argument = trim_function_start(&body[end..]);
-        let ranges = split_arg_ranges(argument, input[1], maximum).ok()?;
+        let ranges = split_arg_ranges(argument, input[1], maximum);
         // Capture the dispatch decision before any argument effects. Once native
         // preparation starts this invocation must not fall back and replay them.
         let native = self.depth < DIRECT_DEPTH && self.machine_nesting < DIRECT_MACHINES;

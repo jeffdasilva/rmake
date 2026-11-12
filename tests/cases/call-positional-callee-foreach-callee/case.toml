@@ -1,0 +1,12 @@
+id = "call-positional-callee-foreach-callee"
+requirement = "functions.control"
+candidate = "required"
+description = "Numeric callee lookup across a newly bound call frame."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d5b696e6e65727c7820696e6e65727c795d0a"
+stderr_hex = ""

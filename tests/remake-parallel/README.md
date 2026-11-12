@@ -65,8 +65,12 @@ python3 tools/remake_parallel.py --duplicate-reads --self-test
 python3 tools/remake_parallel.py --duplicate-reads --candidate target/debug/rmake
 ~~~
 
+Twenty-six verbose profiles check the repeated read's cached visits, including
+required failure replay and the considered state after an early optional pass.
+Both jobserver transports are covered.
+
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 1,648 profiles. Leading `./` spellings share one target record and
+run all 1,992 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -76,7 +80,8 @@ The overlap checks detected all twenty.
 
 ## Load limits
 
-The development and release gates include twenty-eight held load profiles.
+The development and release gates include 82 held load profiles in addition
+to the debug variants.
 For a standalone run, add `--include-load` to compile the tracked shim
 with `cc` in the harness temporary directory. Use `--load-shim PATH` to
 reuse a compatible shim, such as the one built by `make test-load`.
@@ -93,12 +98,13 @@ visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 
-The 164 debug profiles check the entire debug trace and the exact trace prefix
+The 386 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging with the pipe
-transport. Thirty named primary verbose profiles also run with FIFO. The
-suite checks the controller path against the observed make PID and retains
-the raw trace before comparing the remaining bytes.
+transport. The 104 authenticated FIFO traces check the controller path against the
+observed make PID and retain the raw trace before comparing the remaining
+bytes. The FIFO coverage includes named primary, direct, normal remake and
+duplicate-read profiles.
 
 ~~~sh
 python3 tools/remake_parallel.py --remake-debug --self-test
@@ -110,8 +116,20 @@ The forced stale primary profiles hold a third worker under `-n`, `-q`, and
 the earlier includes after the trace records primary and left completion.
 Each release checks that the other workers are still held.
 
+Sixty further verbose profiles cover dry-run, question and touch with no
+makefile named as a goal and no multi-line remake recipe. Twenty-four
+underlying cases compare the file effects of a single-line recipe that
+writes a file or completes a shell command before the first child wait.
+
+Eighteen verbose profiles cover required include files also named as goals,
+with a local prerequisite and a single ordinary recipe. Each read position
+is checked under dry-run, question and touch with both transports.
+
 The standard developer gates include these profiles. The selector runs
-only the debug profiles and does not build the load shim.
+the debug profiles that do not require the load shim. Add `--include-load`
+to include 82 basic and 28 verbose makefile traces with controlled load
+and held workers. The normal verbose cases use unique read sources and
+explicit leaf recipes. FIFO cases verify the live controller path.
 The named primary traces cover existing prerequisites, built-in prerequisite
 recipes, and a forced primary recipe while an earlier include is running.
 Pipe profiles also check verbose reconsideration after a recipe with several
@@ -126,6 +144,9 @@ transports. They compare the second dry-run recipe emission after restart and
 the early question outcome, including a peer also named as an ordinary goal.
 A further forty-eight profiles verify the secondary expansion of both group
 members, with target and restart identities visible to each expansion.
+Twenty-four question-mode profiles cover a grouped peer read as an optional
+or required include. A stale or missing peer still executes its own recipe
+under normal remake rules, and the earlier query verdict prevents restart.
 
 Ninety-six grouped optional profiles add an existing normal or order-only
 prerequisite to success and failure cases under dry-run, question and touch.
@@ -152,6 +173,15 @@ distinguish successful and nonzero shell completions from empty shell and
 eval-only expansions under the same optional remake conditions. Saturated
 forced optional question and touch profiles control the named child's reap
 before the right worker can finish.
+
+Thirty-two comparisons combine question and touch in both option orders.
+A named optional touch can end its remake pass while question mode still
+controls the restart verdict and suppresses the ordinary up-to-date summary.
+Earlier optional and required failures exercise the aggregate status boundary.
+
+Sixteen shuffle controls verify that reverse order and seed 1 reorder the
+ordinary goal reports while preserving the held remake order. They cover
+named includes, grouped primary makefiles and explicit wait barriers.
 
 The named primary makefile profiles hold both include workers under `-n`,
 `-q`, and `-t`. They cover default discovery and `-f ./Makefile`, two or
@@ -188,7 +218,10 @@ incomplete right include. Earlier question results suppress the pass
 transition in both ordinary and keep-going controls. Saturated dry-run
 profiles also check both orders, with and without secondary expansion
 and repeated reads. A right-first completion runs the right recipe tail
-and a named-first completion prints it.
+and a named-first completion prints it. Eight touch profiles hold the forced
+named recipe until the final right recipe process is reaped. They check that
+the right tail runs without an additional touch, including repeated reads
+and secondary expansion on both jobserver transports.
 Named primary secondary expansion records the automatic target and restart
 counter exactly once per visit, including while earlier workers are held.
 
@@ -253,7 +286,14 @@ At high load, a stopped optional remake leaves its prepared sibling queued
 until dry-run, question, or touch takes effect. Keep-going launches that
 worker during the remake. Low-load controls compare an already running
 sibling. A goal with only secondary-expansion effects checks its own
-question result after the queued optional worker is considered.
+question result after the queued optional worker is considered. The same 36
+cases compare basic remake traces, including a blocking reap that follows
+the remaining commands of a load-delayed sibling recipe.
+
+Eighteen direct-include profiles also check each build mode at high and low
+load and through a controlled load drop while waiting for a job token. The
+same eighteen makefiles run with basic remake debugging to compare the
+complete trace and its worker release prefixes.
 
 The 48 grouped optional profiles verify direct grouped recipes with
 dry-run, question, and touch. They cover missing and present peers,

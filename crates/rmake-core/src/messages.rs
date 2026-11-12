@@ -27,6 +27,8 @@ pub enum MessageId {
     MultipleDefaultGoals,
     OrphanRecipe,
     InvalidConditional,
+    ExtraneousConditional,
+    DuplicateElse,
     MissingEndif,
     EmptyVariableName,
     MissingEndef,
@@ -57,6 +59,7 @@ pub enum MessageId {
     DirectiveTail,
     DefineTail,
     EndefTail,
+    NulReaderWarning,
     MissingFileName,
     ExtraFileArgument,
     InvalidFileOperation,
@@ -72,7 +75,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 62] = [
+    pub const ALL: [Self; 65] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -93,6 +96,8 @@ impl MessageId {
         Self::MultipleDefaultGoals,
         Self::OrphanRecipe,
         Self::InvalidConditional,
+        Self::ExtraneousConditional,
+        Self::DuplicateElse,
         Self::MissingEndif,
         Self::EmptyVariableName,
         Self::MissingEndef,
@@ -123,6 +128,7 @@ impl MessageId {
         Self::DirectiveTail,
         Self::DefineTail,
         Self::EndefTail,
+        Self::NulReaderWarning,
         Self::MissingFileName,
         Self::ExtraFileArgument,
         Self::InvalidFileOperation,
@@ -178,6 +184,8 @@ impl MessageId {
             Self::MultipleDefaultGoals => Message::MultipleDefaultGoals,
             Self::OrphanRecipe => Message::OrphanRecipe,
             Self::InvalidConditional => Message::InvalidConditional,
+            Self::ExtraneousConditional => Message::ExtraneousConditional(b"endif"),
+            Self::DuplicateElse => Message::DuplicateElse,
             Self::MissingEndif => Message::MissingEndif,
             Self::EmptyVariableName => Message::EmptyVariableName,
             Self::MissingEndef => Message::MissingEndef,
@@ -251,6 +259,7 @@ impl MessageId {
             Self::DirectiveTail => Message::DirectiveTail(b"ifeq"),
             Self::DefineTail => Message::DefineTail,
             Self::EndefTail => Message::EndefTail,
+            Self::NulReaderWarning => Message::NulReaderWarning,
             Self::MissingFileName => Message::MissingFileName,
             Self::ExtraFileArgument => Message::ExtraFileArgument,
             Self::InvalidFileOperation => Message::InvalidFileOperation(b"invalid"),
@@ -307,6 +316,8 @@ impl MessageId {
             Self::MultipleDefaultGoals => c".DEFAULT_GOAL contains more than one target",
             Self::OrphanRecipe => c"recipe commences before first target",
             Self::InvalidConditional => c"invalid syntax in conditional",
+            Self::ExtraneousConditional => c"extraneous '%s'",
+            Self::DuplicateElse => c"only one 'else' per conditional",
             Self::MissingEndif => c"missing 'endif'",
             Self::EmptyVariableName => c"empty variable name",
             Self::MissingEndef => c"missing 'endef', unterminated 'define'",
@@ -339,6 +350,7 @@ impl MessageId {
             Self::DirectiveTail => c"extraneous text after '%s' directive",
             Self::DefineTail => c"extraneous text after 'define' directive",
             Self::EndefTail => c"extraneous text after 'endef' directive",
+            Self::NulReaderWarning => c"warning: NUL character seen; rest of line ignored",
             Self::MissingFileName => c"file: missing filename",
             Self::ExtraFileArgument => c"file: too many arguments",
             Self::InvalidFileOperation => c"file: invalid file operation: %s",
@@ -445,6 +457,8 @@ pub enum Message<'a> {
     MultipleDefaultGoals,
     OrphanRecipe,
     InvalidConditional,
+    ExtraneousConditional(&'a [u8]),
+    DuplicateElse,
     MissingEndif,
     EmptyVariableName,
     MissingEndef,
@@ -488,6 +502,7 @@ pub enum Message<'a> {
     DirectiveTail(&'a [u8]),
     DefineTail,
     EndefTail,
+    NulReaderWarning,
     MissingFileName,
     ExtraFileArgument,
     InvalidFileOperation(&'a [u8]),
@@ -553,6 +568,8 @@ impl<'a> Message<'a> {
             Self::MultipleDefaultGoals => MessageId::MultipleDefaultGoals,
             Self::OrphanRecipe => MessageId::OrphanRecipe,
             Self::InvalidConditional => MessageId::InvalidConditional,
+            Self::ExtraneousConditional(_) => MessageId::ExtraneousConditional,
+            Self::DuplicateElse => MessageId::DuplicateElse,
             Self::MissingEndif => MessageId::MissingEndif,
             Self::EmptyVariableName => MessageId::EmptyVariableName,
             Self::MissingEndef => MessageId::MissingEndef,
@@ -596,6 +613,7 @@ impl<'a> Message<'a> {
             Self::DirectiveTail(_) => MessageId::DirectiveTail,
             Self::DefineTail => MessageId::DefineTail,
             Self::EndefTail => MessageId::EndefTail,
+            Self::NulReaderWarning => MessageId::NulReaderWarning,
             Self::MissingFileName => MessageId::MissingFileName,
             Self::ExtraFileArgument => MessageId::ExtraFileArgument,
             Self::InvalidFileOperation(_) => MessageId::InvalidFileOperation,
@@ -626,6 +644,7 @@ impl<'a> Message<'a> {
             | Self::MultipleDefaultGoals
             | Self::OrphanRecipe
             | Self::InvalidConditional
+            | Self::DuplicateElse
             | Self::MissingEndif
             | Self::EmptyVariableName
             | Self::MissingEndef
@@ -636,6 +655,7 @@ impl<'a> Message<'a> {
             | Self::TargetPatternWithoutPercent
             | Self::DefineTail
             | Self::EndefTail
+            | Self::NulReaderWarning
             | Self::MissingFileName
             | Self::ExtraFileArgument
             | Self::EmptyNativeFunction => {}
@@ -645,6 +665,7 @@ impl<'a> Message<'a> {
             | Self::UpToDate(name)
             | Self::LowResolutionTime(name)
             | Self::DirectiveTail(name)
+            | Self::ExtraneousConditional(name)
             | Self::InvalidFileOperation(name)
             | Self::FailedMakefileRemake(name)
             | Self::LoadFailed(name)

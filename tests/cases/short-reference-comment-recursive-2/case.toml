@@ -1,0 +1,12 @@
+id = "short-reference-comment-recursive-2"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Comment quoting near short variable references."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7261773d5b245c5d20657870616e6465643d5b535d0a"
+stderr_hex = ""

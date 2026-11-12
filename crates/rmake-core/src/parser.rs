@@ -13,7 +13,7 @@ use crate::diagnostic::{
     Output,
 };
 use crate::messages::Message;
-use crate::reader::{Input, ParserReader, strip_comment};
+use crate::reader::{Input, ParserReader, has_comment, strip_comment};
 use crate::variables::{
     Assignment, ConditionalFlagBinding, ExpandError, Flavor, MAX_OUTPUT, Origin, Pattern,
     PatternVariable, TargetScope, VariableStore, reference_end,
@@ -411,26 +411,25 @@ impl Rule {
     }
 
     fn canonical(&self, visible_only: bool) -> Vec<Dependency> {
-        let normal: HashSet<_> = self
-            .dependencies
-            .iter()
-            .filter(|dep| !dep.order_only && (!visible_only || !dep.hidden))
-            .map(|dep| dep.name.as_slice())
-            .collect();
-        let mut seen = HashSet::new();
-        self.dependencies
-            .iter()
-            .filter(|dependency| {
-                dependency.name != b".WAIT"
-                    && (!visible_only || !dependency.hidden)
-                    && seen.insert(dependency.name.as_slice())
-            })
-            .map(|dependency| Dependency {
-                name: dependency.name.clone(),
-                order_only: !normal.contains(dependency.name.as_slice()),
-                hidden: dependency.hidden,
-            })
-            .collect()
+        use std::collections::hash_map::Entry;
+
+        let mut positions: HashMap<&[u8], usize> = HashMap::new();
+        let mut dependencies: Vec<Dependency> = Vec::new();
+        for dependency in &self.dependencies {
+            if dependency.name == b".WAIT" || (visible_only && dependency.hidden) {
+                continue;
+            }
+            match positions.entry(dependency.name.as_slice()) {
+                Entry::Occupied(position) => {
+                    dependencies[*position.get()].order_only &= dependency.order_only;
+                }
+                Entry::Vacant(position) => {
+                    position.insert(dependencies.len());
+                    dependencies.push(dependency.clone());
+                }
+            }
+        }
+        dependencies
     }
 }
 
@@ -1004,6 +1003,11 @@ impl Database {
                 return;
             }
             let name = pattern.literal_bytes();
+            // A specific match has already excluded nonterminal match-anything
+            // rules. Skip matching and preparing candidates that cannot survive.
+            if specific && name == b"%" && !rule.terminal {
+                return;
+            }
             let stripped = !name.contains(&b'/');
             let word = if stripped {
                 &target[directory.len()..]
@@ -1044,13 +1048,72 @@ impl Database {
             if rule.recipes.is_none() {
                 return;
             }
-            let mut candidate = rule.clone();
-            candidate.implicit_pattern = Some(name.to_vec());
-            candidate.stem = Some(if stripped {
-                [directory, stem].concat()
-            } else {
-                stem.to_vec()
-            });
+            let mut dependencies = Vec::with_capacity(rule.dependencies.len());
+            let mut stem_dependencies = Vec::new();
+            for (index, dependency) in rule.dependencies.iter().enumerate() {
+                if rule
+                    .secondary
+                    .as_ref()
+                    .is_some_and(|clauses| clauses.iter().any(|clause| clause.index == index))
+                {
+                    dependencies.push(dependency.clone());
+                    continue;
+                }
+                let original = &dependency.name;
+                // Implicit prerequisites substitute their first literal %;
+                // target-pattern backslash quoting does not apply here.
+                let substituted =
+                    if let Some(percent) = original.iter().position(|byte| *byte == b'%') {
+                        stem_dependencies.push(index);
+                        let directory = if stripped { directory } else { b"" };
+                        let Some(capacity) = original
+                            .len()
+                            .checked_sub(1)
+                            .and_then(|n| n.checked_add(stem.len()))
+                            .and_then(|n| n.checked_add(directory.len()))
+                            .filter(|n| *n <= MAX_OUTPUT)
+                        else {
+                            return;
+                        };
+                        let mut value = Vec::with_capacity(capacity);
+                        value.extend_from_slice(directory);
+                        value.extend_from_slice(&original[..percent]);
+                        value.extend_from_slice(stem);
+                        value.extend_from_slice(&original[percent + 1..]);
+                        Cow::Owned(value)
+                    } else {
+                        Cow::Borrowed(original.as_slice())
+                    };
+                let normalized = crate::filenames::without_dot_prefix(&substituted);
+                let name = if normalized.len() == substituted.len() {
+                    substituted.into_owned()
+                } else {
+                    normalized.to_vec()
+                };
+                dependencies.push(Dependency {
+                    name,
+                    order_only: dependency.order_only,
+                    hidden: dependency.hidden,
+                });
+            }
+            let mut candidate = Rule {
+                dependencies,
+                recipes: rule.recipes.clone(),
+                recipe_location: rule.recipe_location.clone(),
+                stem: Some(if stripped {
+                    [directory, stem].concat()
+                } else {
+                    stem.to_vec()
+                }),
+                prerequisite_location: rule.prerequisite_location.clone(),
+                secondary: rule.secondary.clone(),
+                double_colon: rule.double_colon.clone(),
+                terminal: rule.terminal,
+                default_recipe: rule.default_recipe,
+                record_only: rule.record_only,
+                implicit_pattern: Some(name.to_vec()),
+                group: rule.group.clone(),
+            };
             if let Some(group) = &mut candidate.group {
                 for peer in &mut group.targets {
                     let pattern = peer.clone();
@@ -1060,66 +1123,16 @@ impl Database {
                     group.implicit_peer_patterns.push((peer.clone(), pattern));
                 }
             }
-            let mut valid = true;
-            let mut stem_dependencies = Vec::new();
-            for index in 0..candidate.dependencies.len() {
-                if candidate
-                    .secondary
-                    .as_ref()
-                    .is_some_and(|clauses| clauses.iter().any(|clause| clause.index == index))
-                {
-                    continue;
-                }
-                let original = &candidate.dependencies[index].name;
-                let percent = original.iter().position(|byte| *byte == b'%');
-                if percent.is_some() {
-                    stem_dependencies.push(index);
-                }
-                // Implicit prerequisites substitute their first literal %;
-                // target-pattern backslash quoting does not apply here. Keep
-                // unchanged literals borrowed until a real rewrite is needed.
-                let substituted = if let Some(percent) = percent {
-                    let directory = if stripped { directory } else { b"" };
-                    let Some(capacity) = original
-                        .len()
-                        .checked_sub(1)
-                        .and_then(|n| n.checked_add(stem.len()))
-                        .and_then(|n| n.checked_add(directory.len()))
-                        .filter(|n| *n <= MAX_OUTPUT)
-                    else {
-                        valid = false;
-                        break;
-                    };
-                    let mut value = Vec::with_capacity(capacity);
-                    value.extend_from_slice(directory);
-                    value.extend_from_slice(&original[..percent]);
-                    value.extend_from_slice(stem);
-                    value.extend_from_slice(&original[percent + 1..]);
-                    Cow::Owned(value)
-                } else {
-                    Cow::Borrowed(original.as_slice())
-                };
-                let normalized = crate::filenames::without_dot_prefix(&substituted);
-                if normalized != original.as_slice() {
-                    candidate.dependencies[index].name = if normalized.len() == substituted.len() {
-                        substituted.into_owned()
-                    } else {
-                        normalized.to_vec()
-                    };
-                }
-            }
-            if valid {
-                result.push(ImplicitCandidate {
-                    identity,
-                    match_anything: name == b"%",
-                    rule: candidate,
-                    secondary_directory: (rule.secondary.is_some()
-                        && stripped
-                        && !directory.is_empty())
-                    .then(|| directory.to_vec()),
-                    stem_dependencies,
-                });
-            }
+            result.push(ImplicitCandidate {
+                identity,
+                match_anything: name == b"%",
+                rule: candidate,
+                secondary_directory: (rule.secondary.is_some()
+                    && stripped
+                    && !directory.is_empty())
+                .then(|| directory.to_vec()),
+                stem_dependencies,
+            });
         };
         if use_indexes && let Some(indices) = self.implicit_rule_indices(target) {
             for index in indices {
@@ -1128,8 +1141,9 @@ impl Database {
         } else {
             self.implicit_rules.iter().enumerate().for_each(visit);
         }
-        result
-            .retain(|candidate| !specific || !candidate.match_anything || candidate.rule.terminal);
+        if specific {
+            result.retain(|candidate| !candidate.match_anything || candidate.rule.terminal);
+        }
         result.sort_by_key(|candidate| candidate.rule.stem.as_ref().map_or(0, Vec::len));
         result
     }
@@ -2243,12 +2257,22 @@ impl Database {
 
 /// Find a separator outside nested make references. It is deliberately not a
 /// shell parser: quotes have no special meaning in make rule/assignment syntax.
-fn separator(bytes: &[u8], needle: u8) -> Option<usize> {
+fn separator<const SOURCE: bool>(bytes: &[u8], needle: u8) -> Option<usize> {
     let mut closes = Vec::new();
     let mut i = 0;
     while i < bytes.len() {
         match bytes[i] {
+            // A source backslash does not hide the next dollar reference.
+            b'\\' if SOURCE && closes.is_empty() && bytes.get(i + 1) == Some(&b'$') => i += 1,
             b'\\' if i + 1 < bytes.len() => i += 2,
+            // A short reference's backslash counts in the run before the separator.
+            b'$' if SOURCE
+                && closes.is_empty()
+                && bytes.get(i + 1) == Some(&b'\\')
+                && bytes[i + 1..].iter().find(|&&byte| byte != b'\\') == Some(&needle) =>
+            {
+                i += 1;
+            }
             b'$' if i + 1 < bytes.len() => {
                 match bytes[i + 1] {
                     b'(' => closes.push(b')'),
@@ -2292,9 +2316,8 @@ fn expanded_separator(bytes: &[u8], separator: u8) -> Option<usize> {
     None
 }
 
-/// Remove one level of semicolon quoting before the known boundary. Raw rule
-/// references remain intact until expansion, and recipe bytes are outside the
-/// scan in both phases.
+/// Remove one level of semicolon quoting before the known boundary. Long
+/// source references and recipe bytes are outside this scan.
 fn unquote_semicolons<const SOURCE: bool>(bytes: &[u8], end: usize) -> (Cow<'_, [u8]>, usize) {
     if !bytes[..end].contains(&b'\\') {
         return (Cow::Borrowed(bytes), end);
@@ -2304,7 +2327,9 @@ fn unquote_semicolons<const SOURCE: bool>(bytes: &[u8], end: usize) -> (Cow<'_, 
     let mut offset = 0;
     while offset < end {
         match bytes[offset] {
-            b'$' if SOURCE => offset = rule_reference_end(&bytes[..end], offset),
+            b'$' if SOURCE && bytes.get(offset + 1) != Some(&b'\\') => {
+                offset = rule_reference_end(&bytes[..end], offset);
+            }
             b'\\' => {
                 let start = offset;
                 while offset < end && bytes[offset] == b'\\' {
@@ -2676,7 +2701,7 @@ impl Database {
             if has_colon || has_semicolon {
                 let colon = expanded_separator(&expanded, b':');
                 if scan_expanded_inline
-                    && separator(&expanded, b';')
+                    && separator::<false>(&expanded, b';')
                         .is_some_and(|semicolon| colon.is_none_or(|colon| semicolon < colon))
                 {
                     return Ok(RulePrefix {
@@ -4398,10 +4423,10 @@ impl Database {
             let evaluated_at = *evaluated_at;
             let prefix = self.recipe_prefix.unwrap_or(b'\t');
             reader.set_posix(self.posix);
-            if evaluated_at == Some(1) {
-                reader.skip_eval_bom();
+            if evaluated_at == Some(1) && reader.skip_eval_bom() {
+                context.reader_event(crate::diagnostic::ReaderEvent::Bom(source_name.as_option()));
             }
-            let Some(mut line) = reader
+            let Some((mut line, leading_prefix)) = reader
                 .next_line(prefix, declaration.has_recipe_context())
                 .map_err(|message| source_read_error_at(source_name.clone(), message, context))?
             else {
@@ -4443,8 +4468,10 @@ impl Database {
             }
             // GNU strips one UTF-8 BOM from the first observed logical line,
             // after file-stream reads have already counted its bytes.
-            if evaluated_at.is_none() && line.line == 1 && line.bytes.starts_with(b"\xef\xbb\xbf") {
-                context.reader_event(crate::diagnostic::ReaderEvent::Bom(source_name.as_ref()));
+            let stripped_bom =
+                evaluated_at.is_none() && line.line == 1 && line.bytes.starts_with(b"\xef\xbb\xbf");
+            if stripped_bom {
+                context.reader_event(crate::diagnostic::ReaderEvent::Bom(source_name.as_option()));
                 line.bytes.drain(..3);
             }
             *last_line = line.end_line;
@@ -4457,7 +4484,7 @@ impl Database {
                     &mut self.warnings,
                     context,
                     location.clone(),
-                    "warning: NUL character seen; rest of line ignored".into(),
+                    Diagnostic::system(Message::NulReaderWarning),
                 );
             }
             let active = conditions.last().is_none_or(|c| c.active);
@@ -4508,18 +4535,18 @@ impl Database {
             }
             if let Some(rest) = directive(text, b"else") {
                 let Some(top) = conditions.last_mut() else {
-                    return Err(ParseError {
-                        unlocated: false,
+                    return Err(ParseError::system(
                         location,
-                        message: "extraneous 'else'".into(),
-                    });
+                        Message::ExtraneousConditional(b"else"),
+                        context,
+                    ));
                 };
                 if top.otherwise {
-                    return Err(ParseError {
-                        unlocated: false,
+                    return Err(ParseError::system(
                         location,
-                        message: "only one 'else' per conditional".into(),
-                    });
+                        Message::DuplicateElse,
+                        context,
+                    ));
                 }
                 let eligible = top.parent && !top.taken;
                 top.active = if rest.is_empty() {
@@ -4536,20 +4563,12 @@ impl Database {
                         location.clone(),
                         Diagnostic::system(Message::DirectiveTail(b"else")),
                     );
-                    top.otherwise = true;
                     eligible
                 };
                 top.taken |= top.active;
                 continue;
             }
             if let Some(rest) = directive(text, b"endif") {
-                if conditions.pop().is_none() {
-                    return Err(ParseError {
-                        unlocated: false,
-                        location,
-                        message: "extraneous 'endif'".into(),
-                    });
-                }
                 if !rest.is_empty() {
                     record_warning(
                         &mut self.warnings,
@@ -4557,6 +4576,13 @@ impl Database {
                         location.clone(),
                         Diagnostic::system(Message::DirectiveTail(b"endif")),
                     );
+                }
+                if conditions.pop().is_none() {
+                    return Err(ParseError::system(
+                        location,
+                        Message::ExtraneousConditional(b"endif"),
+                        context,
+                    ));
                 }
                 continue;
             }
@@ -4608,7 +4634,10 @@ impl Database {
                 };
                 let mut body = Vec::new();
                 let mut depth = 1;
-                let mut warning_line = location.line;
+                // A continued header advances the outer reader after the body.
+                let mut body_line = location.line;
+                let ignored_rule_context = !active && declaration.has_recipe_context();
+                let ignored_eval_bom = !active && evaluated_at == Some(1);
                 loop {
                     if context.is_cancelled() {
                         return Err(ParseError {
@@ -4617,9 +4646,17 @@ impl Database {
                             message: "interrupted".into(),
                         });
                     }
-                    let Some(part) = reader.next_line(prefix, false).map_err(|message| {
-                        source_read_error_at(source_name.clone(), message, context)
-                    })?
+                    if ignored_eval_bom && reader.skip_eval_bom() {
+                        context.reader_event(crate::diagnostic::ReaderEvent::Bom(
+                            source_name.as_option(),
+                        ));
+                    }
+                    let Some((part, _)) =
+                        reader
+                            .next_line(prefix, ignored_rule_context)
+                            .map_err(|message| {
+                                source_read_error_at(source_name.clone(), message, context)
+                            })?
                     else {
                         if !active {
                             // Ignored definitions are skipped by the outer
@@ -4641,19 +4678,20 @@ impl Database {
                             context,
                             Location {
                                 file: source_name.clone(),
-                                line: if active { warning_line } else { part.line },
+                                line: if active { body_line } else { part.line },
                             },
-                            "warning: NUL character seen; rest of line ignored".into(),
+                            Diagnostic::system(Message::NulReaderWarning),
                         );
                     }
-                    warning_line += part.end_line - part.line + 1;
+                    if evaluated_at.is_none() {
+                        body_line += part.end_line - part.line + 1;
+                    }
                     *last_line = part.end_line;
                     if !active {
                         // Ignored definitions have no nesting counter: the
                         // first standalone endef resumes conditional reading.
                         let normal = strip_comment(&part.bytes);
-                        if (part.bytes.first() != Some(&prefix)
-                            || !declaration.has_recipe_context())
+                        if !part.recipe
                             && directive(assignment_start(&normal), b"endef")
                                 .is_some_and(|rest| rest.is_empty())
                         {
@@ -4672,7 +4710,7 @@ impl Database {
                                     context,
                                     Location {
                                         file: source_name.clone(),
-                                        line: part.end_line,
+                                        line: body_line,
                                     },
                                     Diagnostic::system(Message::EndefTail),
                                 );
@@ -4700,7 +4738,7 @@ impl Database {
                         &location,
                         &Location {
                             file: source_name.clone(),
-                            line: *last_line,
+                            line: body_line,
                         },
                         context,
                     )?;
@@ -4939,11 +4977,13 @@ impl Database {
                 }
                 continue;
             }
-            self.finish_declaration(declaration, &location, context)?;
-            if line.bytes.first() == Some(&prefix) && prefix == b'\t' {
+            // Assignments and directives have already been handled. A raw
+            // prefix here is an orphan, even if folding changed the first byte.
+            if leading_prefix.matches(stripped_bom) {
                 return Err(ParseError::system(location, Message::OrphanRecipe, context));
             }
-            let raw_rule_end = separator(text, b';').unwrap_or(text.len());
+            self.finish_declaration(declaration, &location, context)?;
+            let raw_rule_end = separator::<true>(text, b';').unwrap_or(text.len());
             let (text, rule_end) = unquote_semicolons::<true>(text, raw_rule_end);
             // Keep the raw assignment tail until a source word has produced
             // an inline recipe boundary during expansion.
@@ -5042,8 +5082,8 @@ impl Database {
                 declaration.ignore_recipes = true;
                 continue;
             }
-            let source_inline = separator(&line.bytes, b';')
-                .filter(|i| separator(&line.bytes[..*i], b'#').is_none());
+            let source_inline =
+                separator::<true>(&line.bytes, b';').filter(|i| !has_comment(&line.bytes[..*i]));
             let tail = match expanded_recipe_tail {
                 Some(tail) => tail,
                 None => self.expand(
@@ -5076,7 +5116,7 @@ impl Database {
                 }
                 semicolon.map(|_| delimiter.tail_start + end)
             } else {
-                separator(&expanded_line, b';')
+                separator::<false>(&expanded_line, b';')
             };
             let expanded =
                 expanded_inline.map_or(expanded_line.as_slice(), |i| &expanded_line[..i]);
@@ -6840,6 +6880,42 @@ mod tests {
     }
 
     #[test]
+    fn specific_implicit_matches_exclude_only_nonterminal_match_anything_rules() {
+        let mut database = Database::default();
+        database
+            .read(
+                b"%: first ; @before\n%.o: source ; @specific\n%: second ; @after\n%:: terminal ; @terminal\n",
+                b"rules",
+            )
+            .unwrap();
+        let specific = database
+            .implicit_rules
+            .iter()
+            .position(|(pattern, _)| pattern.literal_bytes() == b"%.o")
+            .unwrap();
+        let recipes = |active: &[usize]| {
+            database
+                .implicit_candidates_excluding(b"item.o", active)
+                .into_iter()
+                .map(|candidate| candidate.rule.recipes.unwrap()[0].bytes.clone())
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(
+            recipes(&[]),
+            [b" @specific".to_vec(), b" @terminal".to_vec()]
+        );
+        assert_eq!(
+            recipes(&[specific]),
+            [
+                b" @before".to_vec(),
+                b" @after".to_vec(),
+                b" @terminal".to_vec()
+            ],
+        );
+    }
+
+    #[test]
     fn medium_implicit_rule_indexes_warm_up_and_reset_after_edits() {
         use std::fmt::Write;
 
@@ -7709,6 +7785,20 @@ mod tests {
         assert_eq!(orders(rule), [b"x", b"x", b"z", b"y"].map(Vec::from));
         assert_eq!(rule.dependencies, raw);
         assert_eq!(rule.canonical_dependencies(), canonical);
+
+        let mut hidden_normal = rule.clone();
+        hidden_normal.dependencies.push(Dependency {
+            name: b"y".to_vec(),
+            order_only: false,
+            hidden: true,
+        });
+        assert_eq!(hidden_normal.automatic_dependencies(), canonical);
+        let displayed = hidden_normal.canonical_dependencies();
+        assert_eq!(
+            dependency_pairs(&displayed).last(),
+            Some(&(b"y".as_slice(), false))
+        );
+        assert!(!displayed.last().unwrap().hidden);
     }
 
     #[test]
@@ -7980,7 +8070,7 @@ mod reader_event_tests {
                     name,
                 ]
                 .concat(),
-                ReaderEvent::Bom(name) => [b"bom:".as_slice(), name].concat(),
+                ReaderEvent::Bom(name) => [b"bom:".as_slice(), name.unwrap_or_default()].concat(),
             });
         }
     }

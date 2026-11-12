@@ -1,0 +1,12 @@
+id = "recipe-prefix-orphan-slash-continuation-orphan"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Raw recipe prefix recognition before rule expansion."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a323a202a2a2a2072656369706520636f6d6d656e636573206265666f7265206669727374207461726765742e202053746f702e0a"

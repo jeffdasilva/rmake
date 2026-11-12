@@ -1,0 +1,12 @@
+id = "backslash-reference-semicolon-brace-3"
+requirement = "rules.quoted-semicolon-phases"
+candidate = "required"
+description = "Source semicolons near backslashes before dollar references."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6974656d5c5c5c736166650a"
+stderr_hex = ""

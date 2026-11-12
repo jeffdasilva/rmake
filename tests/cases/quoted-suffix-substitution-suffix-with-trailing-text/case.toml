@@ -1,0 +1,12 @@
+id = "quoted-suffix-substitution-suffix-with-trailing-text"
+requirement = "variables.expansion"
+candidate = "required"
+description = "Escaped percent bytes in variable suffix substitutions."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d5b782e6f757420785c2e6f7574202e6f757420782e6f2078255d0a"
+stderr_hex = ""

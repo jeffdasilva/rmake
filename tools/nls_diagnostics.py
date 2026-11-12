@@ -91,7 +91,7 @@ def cases(selection):
     replay = json.loads((DATA / "optional-replay.json").read_bytes())
     low_resolution = json.loads((DATA / "low-resolution.json").read_bytes())
     suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 16, 18, 15, 20, 14, 13, 18, 16):
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 18, 15, 20, 14, 13, 18, 16):
         raise h.HarnessError("unexpected NLS model inventory")
     rows = [row for suite in suites for row in suite["rows"]]
     if len({row["id"] for row in rows}) != len(rows):

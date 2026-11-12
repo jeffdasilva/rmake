@@ -1,0 +1,2 @@
+include trailer.mk
+all: ; @:

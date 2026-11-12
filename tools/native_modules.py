@@ -92,6 +92,10 @@ def models() -> list[Model]:
         ('call-native', b'$(call probe_args,one,two)', b'argc=2[one][two]'),
     ):
         add(ident, expression, expected)
+    add('mixed-brace-raw-arguments', b'$(probe_raw ${subst x,y,x},tail)', b'argc=2[${subst x][y,x},tail]')
+    add('mixed-paren-raw-arguments', b'${probe_raw $(subst x,y,x),tail}', b'argc=2[$(subst x][y,x),tail]')
+    add('same-delimiter-raw-arguments', b'$(probe_raw $(subst x,y,x),tail)', b'argc=2[$(subst x,y,x)][tail]')
+    add('mixed-final-eager-arguments', b'$(probe_pair first,${subst x,y,x})', b'argc=2[first][y]')
     add('call-lazy', b'$(call probe_raw,$(file >>seen,argument)one,two)', b'argc=2[one][two]', seen=b'anchor\nbefore\nargument\n')
     add('registered-during-expansion', b'$(probe_install )$(created hello)', b'installedargc=1[hello]')
     add('function-over-variable', b'$(probe_args)|$(probe_args x)', b'variable|argc=1[x]', preamble=b'probe_args := variable\n')
@@ -105,6 +109,9 @@ def models() -> list[Model]:
         b'file|recursive|probe_api.so', preamble=b'undefine .LOADED\n')
     add('eval-crlf-buffer', b'$(probe_eval $(file <eval.txt))', b'one\r',
         extra={'eval.txt': b'VALUE := one\r\n# sentinel\n'})
+    add('eval-define-body-location', b'$(probe_eval $(file <eval.txt))', b'one',
+        stderr=b'Makefile:4: native-define-body\n',
+        extra={'eval.txt': b'define VALUE :=\n$(warning native-define-body)one\nendef\n'})
     add('loaded-repeated-setup-location', b'$(probe_where )', b'Makefile:1', loads=b'load ./probe_api.so\nload ./probe_api.so\n')
     add('failed-required-setup', b'', b'', environment={'PROBE_SETUP_ZERO': '1'}, error=b'probe_api.so: failed to load', error_line=1, seen=b'anchor\n')
     for suffix, loads in (('registration', b'-load ./probe_api.so\n'), ('then-required', b'-load ./probe_api.so\nload ./probe_api.so\n')):

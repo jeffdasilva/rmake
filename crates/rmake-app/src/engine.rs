@@ -3249,13 +3249,20 @@ impl Engine {
             }
             use crate::debug::Mask;
             let remake_debug_bits = Mask::BASIC.bits() | Mask::MAKEFILES.bits();
+            let verbose_load_debug = self.options.load_limit.is_some()
+                && !modes.active()
+                && debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits())
+                && self.qualified_load_debug_sources(&read_files, false);
             let qualified_remake_debug = debug_before_remake.bits() == remake_debug_bits
                 || (debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits())
-                    && self.jobserver.as_ref().is_some_and(|server| {
-                        modes.active() || !server.auth().starts_with(b"fifo:")
-                    }));
+                    && self.jobserver.is_some());
+            let basic_load_debug = self.options.load_limit.is_some()
+                && debug_before_remake.bits() == remake_debug_bits;
             let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
-                || (self.options.load_limit.is_none() && qualified_remake_debug);
+                || (qualified_remake_debug
+                    && (self.options.load_limit.is_none()
+                        || basic_load_debug
+                        || verbose_load_debug));
             // Required makefiles settle before the ordinary mode resumes.
             // An explicit goal can also name a makefile and use that mode.
             let ordinary_mode = modes.active();
@@ -3273,20 +3280,48 @@ impl Engine {
                 && read_files.iter().any(|(file, skip)| {
                     let name = rmake_core::filenames::without_dot_prefix(&file.name);
                     !*skip
-                        && file.location.is_none()
                         && self.is_makefile_goal(name, named_sources.as_ref())
-                        && self
-                            .database
-                            .rules
-                            .get(name)
-                            .is_some_and(|rule| !rule.dependencies.is_empty())
+                        && self.database.rules.get(name).is_some_and(|rule| {
+                            !rule.dependencies.is_empty()
+                                && (file.location.is_none()
+                                    || rule.recipes.as_ref().is_some_and(|recipes| {
+                                        matches!(recipes.as_slice(), [recipe] if !recipe_is_recursive(recipe))
+                                    }))
+                        })
                 });
+            let direct_mode_remakes = ordinary_mode
+                && qualified_remake_debug
+                && (debug_before_remake.has(Mask::VERBOSE) || basic_load_debug)
+                && {
+                    let mut seen = HashSet::new();
+                    let no_recipe_fallback = self.no_remake_recipe_fallback();
+                    read_files.iter().all(|(file, skip)| {
+                        let name = rmake_core::filenames::without_dot_prefix(&file.name);
+                        *skip
+                            || (seen.insert(name)
+                                && !self.is_makefile_goal(name, named_sources.as_ref())
+                                && self
+                                    .database
+                                    .rules
+                                    .get(name)
+                                    .and_then(|rule| rule.recipes.as_ref())
+                                    .map_or(no_recipe_fallback, |recipes| recipes.len() <= 1))
+                    })
+                };
+            let optional_dependency_load_debug = ordinary_mode
+                && basic_load_debug
+                && direct_mode_remakes
+                && self.qualified_load_debug_sources(&read_files, true);
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
-                    || ((debug_before_remake.bits() == remake_debug_bits
-                        || verbose_mode_remakes)
-                        && self
-                            .qualified_debug_remake_sources(&read_files, named_sources.as_ref())))
+                    || (((debug_before_remake.bits() == remake_debug_bits && !basic_load_debug)
+                        || verbose_mode_remakes
+                        || direct_mode_remakes)
+                        && (optional_dependency_load_debug
+                            || self.qualified_debug_remake_sources(
+                                &read_files,
+                                named_sources.as_ref(),
+                            ))))
                     && self.ordinary_mode_remakes_settle(
                         &read_files,
                         named_sources.as_ref(),
@@ -3304,6 +3339,9 @@ impl Engine {
             let initial_reaps = self.recipe_reaps;
             let mut pass_reaps = initial_reaps;
             let mut pass_progress = self.filesystem.borrow().generation();
+            let track_remake_effects =
+                direct_mode_remakes || basic_load_debug || verbose_load_debug;
+            let first_effect_generation = track_remake_effects.then_some(pass_progress);
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
@@ -3360,6 +3398,7 @@ impl Engine {
                         if let Some(context) = &context {
                             self.remake_error_cursor = context.open_error.clone();
                             if self.pending(name) {
+                                self.debug_cached_prerequisite_visit(name, 1, Outcome::default());
                                 pending.push(PendingMakefileRemake {
                                     modes: visit_modes,
                                     file: makefile,
@@ -3445,6 +3484,13 @@ impl Engine {
                                     );
                                 }
                             }
+                        } else if context.is_some() {
+                            let cached = self
+                                .done
+                                .get(self.aliases.resolve(name))
+                                .copied()
+                                .unwrap_or_default();
+                            self.debug_cached_prerequisite_visit(name, 1, cached);
                         }
                         if makefile.optional
                             && visit_modes.touch
@@ -3642,9 +3688,21 @@ impl Engine {
                         .remove(&makefile.name);
                     // A completed recipe can invalidate the makefile's time.
                     // Expansion effects alone leave its cached observation intact.
-                    let physically_changed =
-                        visit_modes.check_update(result) && self.modified(&makefile.name) != before;
-                    changed |= physically_changed;
+                    let record_change = visit_modes.check_update(result);
+                    // Question mode suppresses the restart verdict, but a
+                    // physical optional touch can still end this visit pass.
+                    let check_optional_touch = optional
+                        && !remake_question
+                        && !failed
+                        && !optional_remake_failed
+                        && visit_modes.question
+                        && visit_modes.touch
+                        && !visit_modes.dry_run
+                        && result.ran
+                        && !result.question_outdated;
+                    let physically_changed = (record_change || check_optional_touch)
+                        && self.modified(&makefile.name) != before;
+                    changed |= record_change && physically_changed;
                     let simulated_change =
                         visit_modes.dry_run && result.completion == CompletionTime::AssumeNew;
                     if self.parallel_makefile_remakes
@@ -3692,16 +3750,18 @@ impl Engine {
                         .and_then(|remake| remake.context.open_error.clone());
                     MakefileModes::default().apply(&mut self.options);
                 }
-                let last_reaps = if verbose_mode_remakes {
+                let previous_progress = if verbose_mode_remakes {
                     None
                 } else {
-                    Some(pass_reaps)
+                    first_effect_generation.or(Some(pass_reaps))
                 };
                 let question_or_failure = remake_question || failed || optional_remake_failed;
                 stopped = !self.wait_makefile_remakes(
                     &mut pending,
                     &visited,
-                    last_reaps,
+                    previous_progress,
+                    track_remake_effects,
+                    optional_dependency_load_debug,
                     question_or_failure,
                 );
                 if !stopped {
@@ -4345,12 +4405,7 @@ impl Engine {
                                     include_policy.is_some() && include_policy == earlier_policy
                                 });
                         compatible_read
-                            && self.simple_named_remake(
-                                file,
-                                name,
-                                &read_files[..index],
-                                !modes.touch && (modes.dry_run ^ modes.question),
-                            )
+                            && self.simple_named_remake(file, name, &read_files[..index], modes)
                     }))
         })
     }
@@ -4372,9 +4427,84 @@ impl Engine {
                         && (rule.dependencies.is_empty()
                             || (self.is_makefile_goal(name, named_sources)
                                 && rule.dependencies.iter().all(|dep| dep.name != b".WAIT")
-                                && self.simple_named_remake(file, name, &[], false)))
+                                && self.simple_named_remake(
+                                    file,
+                                    name,
+                                    &[],
+                                    MakefileModes::default(),
+                                )))
                 })
         })
+    }
+
+    fn qualified_load_debug_sources(
+        &self,
+        read_files: &[(Makefile, bool)],
+        optional_dependencies_only: bool,
+    ) -> bool {
+        use rmake_core::filenames::{archive_parts, without_dot_prefix};
+
+        if !self.no_remake_recipe_fallback() {
+            return false;
+        }
+        let plain_name = |name: &[u8]| {
+            !name.contains(&b'/')
+                && !name.starts_with(b".")
+                && !name.starts_with(b"~")
+                && !name.starts_with(b"-l")
+                && archive_parts(name).is_none()
+        };
+        let plain_rule = |rule: &Rule| {
+            rule.secondary.is_none() && rule.group.is_none() && rule.double_colon.is_none()
+        };
+        let nonrecursive =
+            |recipes: &[Recipe]| recipes.iter().all(|recipe| !recipe_is_recursive(recipe));
+        let mut seen = HashSet::new();
+        let mut has_dependencies = false;
+        for (file, skip) in read_files {
+            if *skip {
+                continue;
+            }
+            let name = without_dot_prefix(&file.name);
+            if !plain_name(name)
+                || !seen.insert(name)
+                || self.database.loaded_modules.contains_key(name)
+            {
+                return false;
+            }
+            let Some(rule) = self.database.rules.get(name) else {
+                continue;
+            };
+            if !plain_rule(rule)
+                || rule
+                    .recipes
+                    .as_ref()
+                    .is_some_and(|recipes| recipes.len() > 1 || !nonrecursive(recipes))
+            {
+                return false;
+            }
+            if rule.dependencies.is_empty() {
+                continue;
+            }
+            if (optional_dependencies_only && !file.optional)
+                || !rule.dependencies.iter().all(|dep| {
+                    !dep.hidden
+                        && plain_name(&dep.name)
+                        && self.database.rules.get(&dep.name).is_some_and(|child| {
+                            child.dependencies.is_empty()
+                                && plain_rule(child)
+                                && child.recipes.as_ref().is_some_and(|recipes| {
+                                    (optional_dependencies_only || recipes.len() <= 1)
+                                        && nonrecursive(recipes)
+                                })
+                        })
+                })
+            {
+                return false;
+            }
+            has_dependencies = true;
+        }
+        !optional_dependencies_only || has_dependencies
     }
 
     fn simple_named_remake(
@@ -4382,7 +4512,7 @@ impl Engine {
         file: &Makefile,
         name: &[u8],
         earlier_sources: &[(Makefile, bool)],
-        grouped_simulation: bool,
+        modes: MakefileModes,
     ) -> bool {
         let primary = file.location.is_none();
         if (primary && (file.optional || file.missing))
@@ -4410,7 +4540,8 @@ impl Engine {
                 // touching a primary or running a recursive recipe.
                 let group_can_simulate = rule.group.as_ref().is_none_or(|group| {
                     primary
-                        && grouped_simulation
+                        && !modes.touch
+                        && (modes.dry_run ^ modes.question)
                         && group.double_id.is_none()
                         && group.targets.len() == 2
                         && group.targets.iter().any(|target| target == name)
@@ -4421,7 +4552,8 @@ impl Engine {
                                 && !peer.starts_with(b"~")
                                 && !peer.starts_with(b"-l")
                                 && rmake_core::filenames::archive_parts(peer).is_none()
-                                && !self.makefile_names.contains(peer)
+                                && (!self.makefile_names.contains(peer)
+                                    || (modes.question && rule.secondary.is_none()))
                                 && !self.special(b".PHONY", peer, false)
                         })
                         && rule.recipes.as_ref().is_some_and(|recipes| {
@@ -4557,7 +4689,7 @@ impl Engine {
                                                         file,
                                                         name,
                                                         &[],
-                                                        false,
+                                                        MakefileModes::default(),
                                                     )))
                                     })
                             })
@@ -5473,10 +5605,20 @@ impl Engine {
         &mut self,
         requests: &mut [PendingMakefileRemake<'_>],
         visited: &MakefileVisits<'_>,
-        mut last_reaps: Option<u64>,
+        mut previous_progress: Option<u64>,
+        track_effects: bool,
+        block_for_recipe: bool,
         mut question_or_failure: bool,
     ) -> bool {
-        let wait_for_completed_job = last_reaps.is_none();
+        let wait_for_completed_job = previous_progress.is_none();
+        let progress = |engine: &Self| {
+            if track_effects {
+                engine.filesystem.borrow().generation()
+            } else {
+                engine.recipe_reaps
+            }
+        };
+        let mut incomplete_debug_pass = false;
         'passes: while requests.iter().any(|request| request.active) {
             if self.shutdown.get() != Shutdown::Running {
                 return false;
@@ -5484,19 +5626,36 @@ impl Engine {
             // Reap against the previous pass's cursor. A pass with no newly
             // completed commands waits before changing which root is current.
             let previous_jobs = self.parallel_jobs.len();
-            let wait = Some(self.recipe_reaps) == last_reaps;
+            let wait = Some(progress(self)) == previous_progress;
             self.poll_jobs();
             if wait
                 && (if wait_for_completed_job {
                     self.parallel_jobs.len() >= previous_jobs
                 } else {
-                    Some(self.recipe_reaps) == last_reaps
+                    Some(progress(self)) == previous_progress
                 })
                 && self.parallel_jobs.values().any(|job| !job.waiting_load)
             {
+                // Revisit an optional named touch only after a blocking reap
+                // completes a recipe. Revisiting between commands can apply
+                // touch mode to the final command of an ordinary sibling.
+                let finish_recipe = wait_for_completed_job
+                    || block_for_recipe
+                    || (self.options.load_limit.is_none()
+                        && requests.iter().any(|request| {
+                            request.active
+                                && request.file.optional
+                                && request.modes.touch
+                                && !request.modes.dry_run
+                                && !request.modes.question
+                                && self
+                                    .parallel_jobs
+                                    .contains_key(self.aliases.resolve(&request.file.name))
+                        }));
                 self.reap_job();
-                while wait_for_completed_job
+                while finish_recipe
                     && self.parallel_jobs.len() >= previous_jobs
+                    && self.parallel_jobs.values().any(|job| !job.waiting_load)
                     && self.shutdown.get() == Shutdown::Running
                     && self.graph_abort.is_none()
                     && !self.forced_query_stop
@@ -5508,8 +5667,14 @@ impl Engine {
             if self.forced_query_stop || self.shutdown.get() != Shutdown::Running {
                 return false;
             }
-            last_reaps = Some(self.recipe_reaps);
-            self.advance_debug_pass();
+            previous_progress = Some(progress(self));
+            if std::mem::take(&mut incomplete_debug_pass) {
+                // An optional root can end a pass before the considered set
+                // advances, even if a child finishes before the next visit.
+                self.debug_pass = self.debug_progress();
+            } else {
+                self.advance_debug_pass();
+            }
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let pass_epoch = self.graph_epoch;
             for request in requests.iter_mut().filter(|request| request.active) {
@@ -5584,6 +5749,7 @@ impl Engine {
                 {
                     // An updated optional root ends this pass. Remaining roots
                     // are revisited after the next child event.
+                    incomplete_debug_pass = true;
                     continue 'passes;
                 }
             }
@@ -7395,15 +7561,18 @@ impl Engine {
         debug_depth: usize,
         graph_visit: bool,
     ) -> bool {
-        let existing = match self.database.rules.get(target) {
+        // Keep prerequisites for default-recipe fallback before search can
+        // run effects. Declared rules do not use that fallback.
+        let (had_rule, default_dependencies) = match self.database.rules.get(target) {
             Some(rule) if rule.recipes.is_some() || rule.double_colon.is_some() => return true,
-            rule => rule.cloned(),
+            Some(rule) => (true, rule.record_only.then(|| rule.dependencies.clone())),
+            None => (false, Some(Vec::new())),
         };
         let Ok(plan) = self.plan_implicit_update(target, debug_depth, true) else {
             return false;
         };
         if plan.is_none()
-            && existing.is_none()
+            && !had_rule
             && self
                 .database_times
                 .borrow()
@@ -7414,10 +7583,10 @@ impl Engine {
         }
         if let Some(plan) = plan {
             let _ = self.install_implicit_plan(target, plan, false);
-        } else if existing.as_ref().is_none_or(|rule| rule.record_only)
+        } else if let Some(dependencies) = default_dependencies
             && let Some(mut rule) = self.default_update_rule(target, debug_depth, graph_visit)
         {
-            rule.dependencies = existing.map_or_else(Vec::new, |rule| rule.dependencies);
+            rule.dependencies = dependencies;
             self.invalidate_phony_names(target);
             self.database.rules.insert(target.to_vec(), rule);
         }
@@ -7435,6 +7604,13 @@ impl Engine {
         }
         if record_attempt {
             self.database_implicit.insert(target.to_vec());
+        }
+        // Retain the attempted lookup for the database. With no rules, only
+        // implicit tracing needs to visit the empty search phases.
+        if self.database.database_implicit_rules().is_empty()
+            && !self.output.debug_mask().has(crate::debug::Mask::IMPLICIT)
+        {
+            return Ok(None);
         }
         crate::debug::emit(
             &self.output,
@@ -7699,7 +7875,7 @@ impl Engine {
                 );
             }
         }
-        let candidates = if archive_search {
+        let mut candidates = if archive_search {
             self.database
                 .implicit_archive_candidates_excluding(target, active)
         } else {
@@ -7716,7 +7892,7 @@ impl Engine {
                     crate::debug::Event::TryingHarder(debug_depth + active.len() + 2),
                 );
             }
-            for (ordinal, candidate) in candidates.iter().enumerate() {
+            for (ordinal, candidate) in candidates.iter_mut().enumerate() {
                 if *budget == 0 {
                     return Ok(None);
                 }
@@ -8102,7 +8278,7 @@ impl Engine {
                             ),
                         );
                     }
-                    let mut selected = candidate.rule.clone();
+                    let mut selected = std::mem::take(&mut candidate.rule);
                     // A pattern barrier cannot cross into the target's explicit prerequisites.
                     Self::trim_implicit_waits(&mut dependencies);
                     selected.dependencies = dependencies;
@@ -8979,9 +9155,10 @@ impl Engine {
             }
             if !traced_optional_failure
                 && self.remaking
-                && !self.parallel_makefile_remakes
-                && self.options.keep_going
-                && parent.is_some()
+                && ((self.parallel_makefile_remakes && parent.is_none())
+                    || (!self.parallel_makefile_remakes
+                        && self.options.keep_going
+                        && parent.is_some()))
                 && self
                     .done
                     .get(target)
@@ -11169,12 +11346,11 @@ impl Engine {
         let cached = self.cached_recipe_outcome(outcome);
         // A query can inspect an expanded recipe without starting it. Only
         // its owner has a verdict in that case, so peers can still be goals.
-        let unstarted_query = group.ordinary
-            && outcome.question_outdated
-            && outcome.completion == CompletionTime::Preserve;
+        let unstarted_query =
+            outcome.question_outdated && outcome.completion == CompletionTime::Preserve;
         if let Some((id, owner_branch)) = group.double_colon {
             self.active_group_branches.remove(&id);
-            if !unstarted_query {
+            if !(group.ordinary && unstarted_query) {
                 self.completed_group_branches.insert(id, cached);
             }
             let database_requested = self.output.database_requested();
@@ -11301,7 +11477,12 @@ impl Engine {
                 continue;
             }
             self.active_peers.remove(&peer);
-            if unstarted_query {
+            if unstarted_query
+                && (group.ordinary
+                    || (self.remaking && !group.implicit && self.makefile_names.contains(&peer)))
+            {
+                // A read peer has its own remake visit, which may run without
+                // the named owner's question mode.
                 continue;
             }
             if group.implicit && (!outcome.failed || outcome.ran) {

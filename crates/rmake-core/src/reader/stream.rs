@@ -85,18 +85,19 @@ impl<'a> ParserReader<'a> {
             Self::Stream(r) => r.posix = enabled,
         }
     }
-    pub(crate) fn skip_eval_bom(&mut self) {
-        if let Self::Memory(r) = self {
-            r.skip_eval_bom();
+    pub(crate) fn skip_eval_bom(&mut self) -> bool {
+        match self {
+            Self::Memory(r) => r.skip_eval_bom(),
+            Self::Stream(_) => false,
         }
     }
     pub(crate) fn next_line(
         &mut self,
         prefix: u8,
         rule: bool,
-    ) -> Result<Option<LogicalLine>, Vec<u8>> {
+    ) -> Result<Option<(LogicalLine, super::LeadingPrefix)>, Vec<u8>> {
         match self {
-            Self::Memory(r) => Ok(r.next_line(prefix, rule)),
+            Self::Memory(r) => Ok(r.next_line_with_prefix(prefix, rule)),
             Self::Stream(r) => r.next_line(prefix, rule),
         }
     }
@@ -130,7 +131,11 @@ impl StreamReader {
             nul_warnings: 0,
         }
     }
-    fn next_line(&mut self, prefix: u8, rule: bool) -> Result<Option<LogicalLine>, Vec<u8>> {
+    fn next_line(
+        &mut self,
+        prefix: u8,
+        rule: bool,
+    ) -> Result<Option<(LogicalLine, super::LeadingPrefix)>, Vec<u8>> {
         self.nul_warnings = 0;
         let line = self.next_line;
         let mut raw = Vec::new();
@@ -189,25 +194,32 @@ impl StreamReader {
         }
         self.next_line += lines;
         if !raw.windows(2).any(|p| p == b"\\\n") {
-            let recipe = rule && raw.first() == Some(&prefix);
-            return Ok(Some(LogicalLine {
-                bytes: raw,
-                line,
-                end_line: self.next_line - 1,
-                recipe,
-            }));
+            let leading_prefix = super::LeadingPrefix::new(&raw, prefix);
+            let recipe = rule && leading_prefix.raw;
+            return Ok(Some((
+                LogicalLine {
+                    bytes: raw,
+                    line,
+                    end_line: self.next_line - 1,
+                    recipe,
+                },
+                leading_prefix,
+            )));
         }
         let mut reader = Reader::new(&raw);
         reader.set_posix(self.posix);
-        let mut folded = reader.next_line(prefix, rule).unwrap_or(LogicalLine {
-            bytes: Vec::new(),
-            line,
-            end_line: line,
-            recipe: false,
-        });
+        let (mut folded, leading_prefix) = reader.next_line_with_prefix(prefix, rule).unwrap_or((
+            LogicalLine {
+                bytes: Vec::new(),
+                line,
+                end_line: line,
+                recipe: false,
+            },
+            super::LeadingPrefix::default(),
+        ));
         folded.line = line;
         folded.end_line = self.next_line - 1;
-        Ok(Some(folded))
+        Ok(Some((folded, leading_prefix)))
     }
 }
 
@@ -236,7 +248,7 @@ mod tests {
                     let mut stream = ParserReader::owned(Input::Bytes(source.to_vec()));
                     stream.set_posix(posix);
                     loop {
-                        let expected = memory.next_line(b'\t', rule);
+                        let expected = memory.next_line_with_prefix(b'\t', rule);
                         let actual = stream.next_line(b'\t', rule).unwrap();
                         assert_eq!(actual, expected);
                         assert_eq!(stream.take_nul_warnings(), memory.take_nul_warnings());

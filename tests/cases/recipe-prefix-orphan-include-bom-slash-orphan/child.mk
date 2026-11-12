@@ -1,0 +1,3 @@
+﻿\
+$(file >>seen,blocked)
+all: ; @:

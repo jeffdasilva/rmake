@@ -1,0 +1,6 @@
+define V :=
+$(warning body-marker)one
+endef
+define V
+one
+endef extra

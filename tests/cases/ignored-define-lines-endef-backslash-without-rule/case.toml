@@ -1,0 +1,12 @@
+id = "ignored-define-lines-endef-backslash-without-rule"
+requirement = "syntax.conditionals"
+candidate = "required"
+description = "Ignored define body handling with ordinary reader boundaries."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "61667465720a"
+stderr_hex = ""
