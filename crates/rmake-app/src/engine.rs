@@ -7921,7 +7921,7 @@ impl Engine {
             self.database.implicit_candidates_excluding(target, active)
         };
         let mut compatibility_needed = false;
-        let mut cancelled = HashSet::new();
+        let mut cancelled = Vec::new();
         let intermediate = !active.is_empty();
         let mut variables = None;
         for chain in [false, true] {
@@ -7936,7 +7936,7 @@ impl Engine {
                     return Ok(None);
                 }
                 *budget -= 1;
-                if cancelled.contains(&ordinal)
+                if cancelled.get(ordinal).copied().unwrap_or(false)
                     || active.contains(&candidate.identity)
                     || (chain && candidate.rule.terminal)
                     || (intermediate && candidate.match_anything && !candidate.rule.terminal)
@@ -8133,7 +8133,10 @@ impl Engine {
                                         ),
                                     );
                                 }
-                                cancelled.insert(ordinal);
+                                if ordinal >= cancelled.len() {
+                                    cancelled.resize(ordinal + 1, false);
+                                }
+                                cancelled[ordinal] = true;
                                 valid = false;
                                 break 'prerequisites;
                             }
