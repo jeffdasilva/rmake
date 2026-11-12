@@ -176,6 +176,9 @@ impl Child {
         server: &crate::jobserver::Jobserver,
         recursive: bool,
     ) -> Option<io::Result<Self>> {
+        if !server.uses_compact_pipe() && !Self::wake_pipe_unavailable() {
+            return None;
+        }
         let wire = if recursive {
             match server.compact_wire() {
                 Ok(wire) => wire,
@@ -184,14 +187,27 @@ impl Child {
         } else {
             None
         };
-        Self::try_spawn_ordered_fds(
-            command,
-            image,
-            arg0,
-            [stdin.map(AsFd::as_fd), None, None],
-            wire,
-            false,
-        )
+        // The compact owner can also be selected after an active wake
+        // pipe leaves too few setup slots. Its wake endpoints stay private.
+        image
+            .spawn_inherited(command, arg0, [stdin.map(AsFd::as_fd), None, None], wire)
+            .map(|result| result.and_then(|pid| Self::from_spawned_pid(pid, false)))
+    }
+
+    /// Retry an inherited-stdio launch under descriptor pressure. An owned
+    /// normal pipe already uses the advertised wire numbers, so the C spawn
+    /// action can expose them without remapping another process's handles.
+    pub fn try_spawn_ordered_owned_pipe(
+        command: &Command,
+        image: &crate::environment::Image,
+        arg0: &std::ffi::OsStr,
+        server: &crate::jobserver::Jobserver,
+        recursive: bool,
+    ) -> Option<io::Result<Self>> {
+        let wire = server.owned_normal_pipe_wire()?;
+        image
+            .spawn_inherited(command, arg0, [None; 3], recursive.then_some(wire))
+            .map(|result| result.and_then(|pid| Self::from_spawned_pid(pid, true)))
     }
 
     pub fn wake_pipe_unavailable() -> bool {
