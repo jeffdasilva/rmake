@@ -373,18 +373,7 @@ impl Jobserver {
             }
             let reader = unsafe { File::from_raw_fd(descriptors[0]) };
             let writer = unsafe { File::from_raw_fd(descriptors[1]) };
-            if crate::signals::compact_pipe_budget() {
-                let read = reader.as_raw_fd();
-                let write = writer.as_raw_fd();
-                descriptor_control(read, 4, descriptor_control(read, 3, 0)? | NONBLOCK)?;
-                Self::compact(
-                    Endpoint::Owned(reader),
-                    Endpoint::Owned(writer),
-                    format!("{read},{write}").into_bytes(),
-                )
-            } else {
-                Self::from_pipe(reader, writer)?
-            }
+            Self::create_owned_pipe(reader, writer)?
         } else {
             Self::create_fifo()?
         };
@@ -395,6 +384,15 @@ impl Jobserver {
             return Err(io::Error::from(io::ErrorKind::InvalidInput).into());
         }
         let writer = server.0.writer.checked_number()?;
+        if pipe && !server.0.compact_pipe {
+            match reopen(writer, false, true) {
+                Ok(mut seed_writer) => seed_writer.write_all(&tokens)?,
+                Err(error) if matches!(error.raw_os_error(), Some(23 | 24)) => {
+                    server.compact_unpublished_pipe()?;
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
         if server.0.compact_pipe {
             // This newly owned writer has not been published to any child.
             // Seed with nonblocking writes and restore the wire status before
@@ -405,9 +403,7 @@ impl Jobserver {
             let restored = descriptor_control(writer, 4, flags);
             seeded?;
             restored?;
-        } else if pipe {
-            reopen(writer, false, true)?.write_all(&tokens)?;
-        } else {
+        } else if !pipe {
             // FIFO endpoints already share a nonblocking description. Seed
             // the unpublished FIFO without spending a third descriptor.
             (&server.0.writer).write_all(&tokens)?;
@@ -423,6 +419,43 @@ impl Jobserver {
             .expect("unshared new jobserver")
             .owned_slots = Some(jobs);
         Ok(server)
+    }
+
+    fn create_owned_pipe(reader: File, writer: File) -> io::Result<Self> {
+        if !crate::signals::compact_pipe_budget() {
+            match Self::private_pipe_reader(&reader, &writer) {
+                Ok(private) => return Ok(Self::with_pipe_reader(private, reader, writer)),
+                // Keep the unpublished wire pair if private setup exhausts
+                // descriptors. Compact scheduling uses the wire reader.
+                Err(error) if matches!(error.raw_os_error(), Some(23 | 24)) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        let read = reader.as_raw_fd();
+        let write = writer.as_raw_fd();
+        descriptor_control(read, 4, descriptor_control(read, 3, 0)? | NONBLOCK)?;
+        Ok(Self::compact(
+            Endpoint::Owned(reader),
+            Endpoint::Owned(writer),
+            format!("{read},{write}").into_bytes(),
+        ))
+    }
+
+    fn compact_unpublished_pipe(&mut self) -> io::Result<()> {
+        let inner = Arc::get_mut(&mut self.0).expect("unshared new jobserver");
+        let reader = inner
+            .protocol_reader
+            .take()
+            .expect("new pipe owns its wire");
+        let descriptor = reader.as_raw_fd();
+        descriptor_control(
+            descriptor,
+            4,
+            descriptor_control(descriptor, 3, 0)? | NONBLOCK,
+        )?;
+        inner.reader = Endpoint::Owned(reader);
+        inner.compact_pipe = true;
+        Ok(())
     }
 
     fn compact(reader: Endpoint, writer: Endpoint, auth: Vec<u8>) -> Self {
@@ -552,6 +585,11 @@ impl Jobserver {
     }
 
     fn from_pipe(protocol_reader: File, writer: File) -> io::Result<Self> {
+        let reader = Self::private_pipe_reader(&protocol_reader, &writer)?;
+        Ok(Self::with_pipe_reader(reader, protocol_reader, writer))
+    }
+
+    fn private_pipe_reader(protocol_reader: &File, writer: &File) -> io::Result<File> {
         let read_metadata = protocol_reader.metadata()?;
         let write_metadata = writer.metadata()?;
         if !read_metadata.file_type().is_fifo()
@@ -564,9 +602,12 @@ impl Jobserver {
                 "jobserver descriptors refer to different pipes",
             ));
         }
-        let reader = reopen(protocol_reader.as_raw_fd(), true, true)?;
+        reopen(protocol_reader.as_raw_fd(), true, true)
+    }
+
+    fn with_pipe_reader(reader: File, protocol_reader: File, writer: File) -> Self {
         let auth = format!("{},{}", protocol_reader.as_raw_fd(), writer.as_raw_fd()).into_bytes();
-        Ok(Self(Arc::new(Inner {
+        Self(Arc::new(Inner {
             reader: Endpoint::Owned(reader),
             writer: Endpoint::Owned(writer),
             protocol_reader: Some(protocol_reader),
@@ -577,7 +618,7 @@ impl Jobserver {
             owned_slots: None,
             created: None,
             error: Mutex::new(None),
-        })))
+        }))
     }
 
     /// The pool size is present only for the process that created this server.

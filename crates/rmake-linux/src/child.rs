@@ -176,6 +176,9 @@ impl Child {
         server: &crate::jobserver::Jobserver,
         recursive: bool,
     ) -> Option<io::Result<Self>> {
+        if !server.uses_compact_pipe() && !Self::wake_pipe_unavailable() {
+            return None;
+        }
         let wire = if recursive {
             match server.compact_wire() {
                 Ok(wire) => wire,
@@ -184,14 +187,11 @@ impl Child {
         } else {
             None
         };
-        Self::try_spawn_ordered_fds(
-            command,
-            image,
-            arg0,
-            [stdin.map(AsFd::as_fd), None, None],
-            wire,
-            false,
-        )
+        // The compact owner can also be selected after an active wake
+        // pipe leaves too few setup slots. Its wake endpoints stay private.
+        image
+            .spawn_inherited(command, arg0, [stdin.map(AsFd::as_fd), None, None], wire)
+            .map(|result| result.and_then(|pid| Self::from_spawned_pid(pid, false)))
     }
 
     pub fn wake_pipe_unavailable() -> bool {
