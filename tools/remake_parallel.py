@@ -2192,6 +2192,17 @@ def shuffled_remake_models(held_models: list[HeldModel]) -> list[HeldModel]:
     return results
 
 
+def hold_debug_tail(model: debug.Model) -> debug.Model:
+    source = model.files['Makefile']
+    command = b'printf "TAIL := loaded\\n" > "$@"'
+    if source.count(command) != 1:
+        raise h.HarnessError('tail release requires one tail recipe')
+    files = {**model.files, 'Makefile': source.replace(command, b'python3 tail-witness.py'),
+             'tail-witness.py': (SOURCES / 'tail-witness.py').read_bytes()}
+    return replace(model, files=files, updates={**model.updates, 'tail.release': b'yes\n'},
+                   mtimes_ns={**model.mtimes_ns, 'tail-witness.py': model.mtimes_ns['Makefile']})
+
+
 def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     data = tomllib.loads((SOURCES / 'debug-models.toml').read_text())
     if data.get('schema_version') != 1:
@@ -2207,8 +2218,8 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     for row in data['profiles']:
         name, flag = row['case'], row['flag']
         fifo = row.get('fifo', False)
-        fifo_second_barrier = row.get('fifo_second_stdout_barrier')
-        fifo_tail_barrier = row.get('fifo_tail_stdout_barrier')
+        trace_transports = row.get('second_trace_transports', [])
+        tail_barrier = row.get('tail_stdout_barrier')
         requires_load = row.get('requires_load', False)
         if requires_load is True and not has_load_profiles:
             continue
@@ -2217,8 +2228,13 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                 or (held.load is not None) != requires_load
                 or flag not in ('m', 'm,v') or not isinstance(fifo, bool)
                 or (fifo and flag != 'm,v')
-                or (fifo_second_barrier is not None and not fifo)
-                or (fifo_tail_barrier is not None and (not fifo or not requires_load))
+                or not isinstance(trace_transports, list)
+                or any(transport not in ('pipe', 'fifo') for transport in trace_transports)
+                or len(trace_transports) != len(set(trace_transports))
+                or ('fifo' in trace_transports and not fifo)
+                or (trace_transports and flag != 'm,v')
+                or (tail_barrier is not None and
+                    (not requires_load or set(trace_transports) != {'pipe', 'fifo'}))
                 or (flag == 'm,v' and '--jobserver-style=pipe' not in held.model.args)):
             raise h.HarnessError('invalid remake debug model')
         seen.add((name, flag))
@@ -2234,49 +2250,40 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
             raise h.HarnessError('invalid named primary debug release barrier')
         first = prefixes[int(primary)]
         second = prefixes[-1] if held.before_second is not None else None
+        second_trace = stdout[first:second] if second is not None else b''
+        if trace_transports and (not second_trace or b'@BIN@' in second_trace
+                                 or b'Using jobserver controller ' in second_trace):
+            raise h.HarnessError('invalid second release trace barrier')
+        if tail_barrier is not None:
+            if (not isinstance(tail_barrier, str) or not tail_barrier
+                    or tail_barrier.encode() not in second_trace):
+                raise h.HarnessError('invalid tail release trace barrier')
+            tail_barrier = tail_barrier.encode()
         args = (*held.model.args[:-1], f'--debug={flag}', held.model.args[-1])
         model = replace(held.model, id=f'remake-debug-{name}-{flag.replace(",", "")}', args=args,
                         expected={**held.model.expected, 'stdout_template_hex': stdout.hex()})
+        if tail_barrier is not None:
+            model = hold_debug_tail(model)
         selected.append(replace(held, model=model, before_first_stdout=stdout[:first],
                                 before_second_stdout=stdout[:second] if second is not None else None,
-                                before_primary_stdout=stdout[:prefixes[0]] if primary else b''))
+                                before_primary_stdout=stdout[:prefixes[0]] if primary else b'',
+                                second_stdout_barrier=second_trace if 'pipe' in trace_transports else None,
+                                tail_stdout_barrier=tail_barrier))
         if fifo:
             # Keep the same expected trace around the separately verified live path.
             if '-pipe' not in name or b'Using jobserver controller 3,4\n' not in stdout[:first]:
                 raise h.HarnessError('FIFO debug model requires a pipe controller trace')
             fifo_stdout = stdout.replace(b'--jobserver-style=pipe', b'--jobserver-style=fifo')
-            if fifo_second_barrier is not None:
-                if (not isinstance(fifo_second_barrier, str) or not fifo_second_barrier
-                        or second is None or not fifo_stdout[:second].endswith(fifo_second_barrier.encode())):
-                    raise h.HarnessError('invalid FIFO second release trace barrier')
-                fifo_second_barrier = fifo_second_barrier.encode()
             fifo_args = tuple('--jobserver-style=fifo' if arg == '--jobserver-style=pipe' else arg
                               for arg in args)
             fifo_model = replace(model, id=model.id.replace('-pipe', '-fifo'), args=fifo_args,
                                  expected={**model.expected, 'stdout_template_hex': fifo_stdout.hex()})
-            if fifo_tail_barrier is not None:
-                if (not isinstance(fifo_tail_barrier, str) or not fifo_tail_barrier
-                        or fifo_second_barrier is None
-                        or fifo_tail_barrier.encode() not in fifo_stdout[first:second]):
-                    raise h.HarnessError('invalid FIFO tail release trace barrier')
-                fifo_tail_barrier = fifo_tail_barrier.encode()
-                source = fifo_model.files['Makefile']
-                tail_command = b'printf "TAIL := loaded\\n" > "$@"'
-                if source.count(tail_command) != 1:
-                    raise h.HarnessError('FIFO tail release requires one tail recipe')
-                files = {**fifo_model.files,
-                         'Makefile': source.replace(tail_command, b'python3 tail-witness.py'),
-                         'tail-witness.py': (SOURCES / 'tail-witness.py').read_bytes()}
-                fifo_model = replace(fifo_model, files=files,
-                                     updates={**fifo_model.updates, 'tail.release': b'yes\n'},
-                                     mtimes_ns={**fifo_model.mtimes_ns,
-                                                'tail-witness.py': fifo_model.mtimes_ns['Makefile']})
             selected.append(replace(held, model=fifo_model, fifo_controller=True,
                                     before_first_stdout=fifo_stdout[:first],
                                     before_second_stdout=fifo_stdout[:second] if second is not None else None,
                                     before_primary_stdout=fifo_stdout[:prefixes[0]] if primary else b'',
-                                    second_stdout_barrier=fifo_second_barrier,
-                                    tail_stdout_barrier=fifo_tail_barrier))
+                                    second_stdout_barrier=second_trace if 'fifo' in trace_transports else None,
+                                    tail_stdout_barrier=tail_barrier))
     return selected
 
 

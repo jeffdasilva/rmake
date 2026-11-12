@@ -141,10 +141,10 @@ transports. These cases use unique read sources and explicit leaf
 recipes. Another 36 traces check stopped and keep-going optional include
 remakes with a carried recipe or a later command under controlled load.
 FIFO cases verify the live controller path.
-The required keep-going FIFO case waits for the cached right prerequisite
-trace before releasing the second worker.
-The normal and touch dynamic-load FIFO cases release the tail after its
-pending trace and the right worker after the tail's cached visit.
+The required keep-going traces and selected named dry-run traces wait for
+the authored reconsideration trace before releasing the right worker.
+The dynamic-load verbose cases release the tail after its pending trace and
+the right worker after the tail's cached visit on both transports.
 The named primary traces cover existing prerequisites, built-in prerequisite
 recipes, and a forced primary recipe while an earlier include is running.
 Pipe profiles also check verbose reconsideration after a recipe with several
