@@ -74,7 +74,7 @@ class HeldModel:
     before_primary_stdout: bytes = b''
     fifo_controller: bool = False
     second_stdout_barrier: bytes | None = None
-    hold_named: bool = False
+    named_recipe: bytes | None = None
 
 
 def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list[HeldModel]:
@@ -2047,8 +2047,9 @@ def named_load_models(available: list[HeldModel]) -> list[HeldModel]:
             required = replace(held, model=model, load=load, overlap=not high,
                                before_first_stdout=first_stdout, before_second=before_second,
                                before_second_stdout=second_stdout)
-            results.append(required)
-            results.append(optional_named_load_model(required, position, mode, high))
+            optional = optional_named_load_model(required, position, mode, high)
+            results.extend((required, optional, directory_named_load_model(required),
+                            directory_named_load_model(optional)))
             results.append(skipped_required_named_load_model(held, required, high))
     return results
 
@@ -2276,6 +2277,29 @@ def named_load_debug_witness(model: debug.Model) -> debug.Model:
     return replace(model, files=files, updates=updates)
 
 
+def directory_named_load_model(held: HeldModel) -> HeldModel:
+    model = held.model
+    leaf, path = b'named.gen', b'cfg/named.gen'
+    files = {**model.files, 'cfg/.keep': b''}
+    files['Makefile'] = files['Makefile'].replace(leaf, path)
+    if held.named_recipe is not None:
+        files['worker.py'] = files['worker.py'].replace(leaf, path)
+    updates = {name.replace(leaf.decode(), path.decode()): content for name, content in model.updates.items()}
+    expected = {**model.expected}
+    for stream in ('stdout_template_hex', 'stderr_template_hex'):
+        expected[stream] = bytes.fromhex(expected[stream]).replace(leaf, path).hex()
+    args = tuple(arg.replace(leaf.decode(), path.decode()) for arg in model.args)
+    model = replace(model, id='directory-' + model.id, files=files, args=args, updates=updates,
+                    expected=expected, mtimes_ns={**model.mtimes_ns, 'cfg/.keep': INPUT_TIME})
+    return replace(held, model=model,
+                   before_first_stdout=held.before_first_stdout.replace(leaf, path),
+                   before_second_stdout=(held.before_second_stdout.replace(leaf, path)
+                                         if held.before_second_stdout is not None else None),
+                   second_stdout_barrier=(held.second_stdout_barrier.replace(leaf, path)
+                                          if held.second_stdout_barrier is not None else None),
+                   named_recipe=path if held.named_recipe is not None else None)
+
+
 def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     data = tomllib.loads((SOURCES / 'debug-models.toml').read_text())
     if data.get('schema_version') != 1:
@@ -2329,7 +2353,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
             if second is not None and second_barrier is None:
                 second_barrier = NAMED_LOAD_RIGHT_BARRIER.decode()
             model = named_load_debug_witness(model)
-            held = replace(held, hold_named=True)
+            held = replace(held, named_recipe=b'named.gen')
         if second_barrier is not None:
             if (not isinstance(second_barrier, str) or not second_barrier or second is None
                     or not stdout[:second].endswith(second_barrier.encode())):
@@ -2357,6 +2381,9 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                                     before_second_stdout=fifo_stdout[:second] if second is not None else None,
                                     before_primary_stdout=fifo_stdout[:prefixes[0]] if primary else b'',
                                     second_stdout_barrier=fifo_second_barrier or held.second_stdout_barrier))
+    selected.extend(directory_named_load_model(held) for held in selected.copy()
+                    if held.model.id.startswith(('remake-debug-load-parallel-named-mode-',
+                                                 'remake-debug-load-optional-parallel-named-mode-')))
     return selected
 
 
@@ -2409,10 +2436,12 @@ def execute(case: h.Case, runtime: Path, binary: Path,
             load: LoadProfile | None = None, load_shim: Path | None = None,
             wait_stdout: Callable[[Path, bytes], bytes] | None = None,
             release_order: tuple[str, str] = WORKERS, hold_primary: bool = False,
-            second_stdout_barrier: bytes | None = None, hold_named: bool = False):
+            second_stdout_barrier: bytes | None = None, named_recipe: bytes | None = None):
     if sorted(release_order) != list(WORKERS):
         raise h.HarnessError('held release order must name both workers')
     order = ('primary', *release_order) if hold_primary else release_order
+    named_barrier = NAMED_LOAD_BARRIER.replace(b'named.gen', named_recipe) if named_recipe is not None else None
+    allowed = (*order, 'named') if named_barrier is not None else order
     work = runtime / 'work'
     trace = runtime / 'load.trace'
     if load is not None:
@@ -2435,10 +2464,10 @@ def execute(case: h.Case, runtime: Path, binary: Path,
             return
         proc = Path('/proc', str(parent))
         try:
-            if hold_named and phase == 1 and not (work / 'named.release').exists():
+            if named_barrier is not None and phase == 1 and not (work / 'named.release').exists():
                 # Let both active roots report their pending state before the
                 # short named recipe can finish and advance the remake pass.
-                if NAMED_LOAD_BARRIER in stdout and 'named' in active_workers(parent, proc, (*order, 'named')):
+                if named_barrier in stdout and 'named' in active_workers(parent, proc, allowed):
                     if (work / 'named.started').read_bytes() != b'started\n':
                         raise h.HarnessError('unexpected held named recipe marker')
                     temporary = work / 'named.release.tmp'
@@ -2455,7 +2484,7 @@ def execute(case: h.Case, runtime: Path, binary: Path,
                 wait_samples.add((channel, number))
             if not blocked:
                 return
-            workers = active_workers(parent, proc, (*order, 'named') if hold_named else order)
+            workers = active_workers(parent, proc, allowed)
             if 'named' in workers:
                 return
             if not workers or released.intersection(workers):
@@ -2632,7 +2661,7 @@ def main() -> int:
                 observations, releases = zip(*(
                     execute(case, runtime, binary, waits, load=held.load, load_shim=load_shim,
                             release_order=held.release_order, hold_primary=held.before_primary is not None,
-                            second_stdout_barrier=held.second_stdout_barrier, hold_named=held.hold_named)
+                            second_stdout_barrier=held.second_stdout_barrier, named_recipe=held.named_recipe)
                     for binary, waits in zip(executables, samples, strict=True)
                 ))
                 raw_observations, raw_releases = observations, releases

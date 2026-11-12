@@ -77,6 +77,11 @@ before visiting a later root. An additional 72 held profiles cover these
 optional sources with and without verbose tracing across both transports and
 all three build modes. More complex named sources remain part of the M3/M6 audit.
 
+The load-limited remake path also accepts a directly named include in a simple
+relative directory. The 180 directory profiles cover required and optional
+sources, quiet execution, and basic and verbose debug output. Each trace uses
+the directory-qualified target and the actual child that writes it.
+
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
 otherwise successful remake. A separate remake failure still lets physically
