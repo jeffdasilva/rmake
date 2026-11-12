@@ -154,7 +154,10 @@ with the capture pipe already in place, avoiding an additional fork-status
 socket. With a startup limit of 12 or 13 descriptors on supported glibc
 versions, rmake leaves two descriptors available for shell capture and uses
 the existing bounded interruptible wait. The recursive jobserver budget is
-independent of this choice. Higher limits still reserve a signal wake pipe.
+independent of this choice. At higher limits, rmake reserves a signal wake
+pipe when three private descriptor slots remain available for an open
+makefile and its initial capture. This capacity check includes inherited
+descriptors and finishes before the signal handlers can use the pipe.
 
 After the first failed capture with two private endpoints, the existing wake
 pipe accounts for one retained pair. Its descriptors remain live for signal
