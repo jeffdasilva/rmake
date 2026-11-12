@@ -1361,11 +1361,11 @@ def order_named_completion(held: HeldModel, *, after: str | None = None) -> Held
                                 b"    from named_reap import record_process\n"
                                 b"    record_process('right.pid')")
     else:
-        anchor = b"with Path('seen').open('ab') as stream:"
+        anchor = b"if release.read_bytes() != b'yes\\n':\n    raise SystemExit(96)\n"
         assert worker.count(anchor) == 1
-        worker = worker.replace(anchor, b"if name == 'right':\n"
+        worker = worker.replace(anchor, anchor + b"\nif name == 'right':\n"
                                 b"    from named_reap import wait_for_reap\n"
-                                b"    wait_for_reap('named.pid')\n\n" + anchor)
+                                b"    wait_for_reap('named.pid')\n")
     assert makefile.count(named_recipe) == 1
     files = {**model.files, 'Makefile': makefile.replace(named_recipe, named_command),
              'worker.py': worker, 'named_reap.py': (SOURCES / 'named_reap.py').read_bytes()}
