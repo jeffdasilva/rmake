@@ -1,0 +1,12 @@
+id = "include-skipped-read-phony-present"
+requirement = "includes.remake"
+candidate = "required"
+description = "Skipped include read and restart status (phony-present)"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "-k", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6f7264696e61727920636f7272656374206578697374696e670a"
+stderr_hex = ""

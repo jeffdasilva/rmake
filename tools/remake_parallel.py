@@ -2049,7 +2049,23 @@ def named_load_models(available: list[HeldModel]) -> list[HeldModel]:
                                before_second_stdout=second_stdout)
             results.append(required)
             results.append(optional_named_load_model(required, position, mode, high))
+            results.append(skipped_required_named_load_model(held, required, high))
     return results
+
+
+def skipped_required_named_load_model(base: HeldModel, required: HeldModel, high: bool) -> HeldModel:
+    model = required.model
+    files = {**model.files, 'Makefile': model.files['Makefile'] + b'.PHONY: named.gen\n'}
+    updates = {name: value for name, value in base.model.updates.items()
+               if name.startswith(('left.', 'right.'))}
+    missing = b'Makefile:3: named.gen: No such file or directory\n'
+    expected = {'exit_code': 2, 'stdout_template_hex': '', 'stderr_template_hex': missing.hex()}
+    model = replace(model, id=model.id.replace('load-parallel-', 'load-phony-parallel-', 1),
+                    files=files, expected=expected, seen=base.before_second + b'right\ntail\n',
+                    updates=updates)
+    load = LoadProfile('normal', LOAD_HIGH if high else LOAD_LOW, b'proc\n')
+    return HeldModel(model, not high, base.before_second, base.before_first,
+                     before_second_stdout=b'', load=load)
 
 
 def optional_named_load_model(held: HeldModel, position: str, mode: str, high: bool) -> HeldModel:

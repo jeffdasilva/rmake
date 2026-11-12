@@ -1,0 +1,12 @@
+id = "include-skipped-read-double-required"
+requirement = "includes.remake"
+candidate = "required"
+description = "Skipped include read and restart status (double-required)"
+provenance = "Original rmake fixture; independently authored without upstream implementation or test material."
+args = ["-rR", "-k", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a333a20736b69702e6d6b3a204e6f20737563682066696c65206f72206469726563746f72790a"

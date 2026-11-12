@@ -3916,7 +3916,9 @@ impl Engine {
                 self.parallel_failed = false;
                 failed = false;
             }
-            failed |= !skipped_errors.is_empty();
+            let skipped_required_read = !skipped_errors.is_empty();
+            let unsuccessful_remake = failed || optional_remake_failed;
+            failed |= skipped_required_read;
             // These are reported after the remake chain, using the locale
             // and gettext domain that its recipes left in effect.
             for error in skipped_errors.iter().rev() {
@@ -3980,7 +3982,9 @@ impl Engine {
                     }
                 }
             }
-            if changed && !remake_question {
+            // A skipped required read suppresses an otherwise successful
+            // restart. A failed remake still checks for physically updated peers.
+            if changed && !remake_question && (!skipped_required_read || unsuccessful_remake) {
                 self.wait_all_jobs();
                 self.remove_intermediates();
                 break 'makefiles true;
