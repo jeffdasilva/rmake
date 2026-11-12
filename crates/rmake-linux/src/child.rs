@@ -195,18 +195,26 @@ impl Child {
     }
 
     /// Retry an inherited-stdio launch under descriptor pressure. An owned
-    /// normal pipe already uses the advertised wire numbers, so the C spawn
-    /// action can expose them without remapping another process's handles.
-    pub fn try_spawn_ordered_owned_pipe(
+    /// normal pipe uses its advertised wire numbers, while a FIFO is opened
+    /// by name by recursive children.
+    pub fn try_spawn_ordered_owned_pool(
         command: &Command,
         image: &crate::environment::Image,
         arg0: &std::ffi::OsStr,
         server: &crate::jobserver::Jobserver,
         recursive: bool,
     ) -> Option<io::Result<Self>> {
-        let wire = server.owned_normal_pipe_wire()?;
+        let wire = if server.auth().starts_with(b"fifo:") {
+            server.owned_slots()?;
+            if Self::wake_pipe_unavailable() {
+                return None;
+            }
+            None
+        } else {
+            recursive.then_some(server.owned_normal_pipe_wire()?)
+        };
         image
-            .spawn_inherited(command, arg0, [None; 3], recursive.then_some(wire))
+            .spawn_inherited(command, arg0, [None; 3], wire)
             .map(|result| result.and_then(|pid| Self::from_spawned_pid(pid, true)))
     }
 

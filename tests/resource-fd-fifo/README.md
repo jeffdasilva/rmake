@@ -33,3 +33,9 @@ unrelated replacement. The reader stays owned through error formatting.
 At that point no descriptor is available to open a cold catalog, so both
 engines emit the English fallback. The reader closes before reporting
 completes. No authentication or token was published.
+
+The `jobserver-owned-fifo-launch-pressure-*` conformance fixtures cover
+an owned FIFO with a live private wake pipe. When the standard recipe
+spawn runs out of descriptors, an inherited-stdio child can use the
+ordered backend and open the same jobserver by name. The fixtures check
+recursive token return and confirm the parent endpoints stay private.

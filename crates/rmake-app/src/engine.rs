@@ -12300,7 +12300,7 @@ impl Engine {
                             let Some(server) = &self.jobserver else {
                                 return Err(error);
                             };
-                            rmake_linux::child::Child::try_spawn_ordered_owned_pipe(
+                            rmake_linux::child::Child::try_spawn_ordered_owned_pool(
                                 &command,
                                 image,
                                 os(arg0),

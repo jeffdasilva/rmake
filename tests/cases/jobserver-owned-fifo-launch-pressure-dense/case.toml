@@ -1,0 +1,12 @@
+id = "jobserver-owned-fifo-launch-pressure-dense"
+requirement = "parallel.jobserver"
+candidate = "required"
+description = "Owned FIFO recipe launch and named token return with inherited descriptor pressure."
+provenance = "Original Makefiles with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "636170747572653d5b4f50454e5d207374617475733d5b305d0a"
+stderr_hex = "506f6f6c2e6d6b3a313a202a2a2a206d697373696e6720736570617261746f722e202053746f702e0a6d616b653a202a2a2a205b4d616b6566696c653a323a20616c6c5d204572726f7220320a"
