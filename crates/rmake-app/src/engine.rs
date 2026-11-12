@@ -3321,11 +3321,11 @@ impl Engine {
                 && debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits());
             let verbose_load_debug = verbose_load_trace
                 && (!ordinary_mode || direct_mode_remakes)
-                && self.qualified_load_debug_sources(&read_files, false, 1);
+                && self.qualified_load_debug_sources(&read_files, false, 1, false);
             let optional_dependency_load_debug = ordinary_mode
                 && (basic_load_debug || verbose_load_trace)
                 && direct_mode_remakes
-                && self.qualified_load_debug_sources(&read_files, true, 1);
+                && self.qualified_load_debug_sources(&read_files, true, 1, false);
             let optional_named_load = ordinary_mode
                 && self.options.load_limit.is_some()
                 && (!debug_before_remake.has(Mask::MAKEFILES)
@@ -3338,7 +3338,7 @@ impl Engine {
                             named_sources.as_ref(),
                         )
                 })
-                && self.qualified_load_debug_sources(&read_files, false, 2)
+                && self.qualified_load_debug_sources(&read_files, false, 2, true)
                 && self.qualified_debug_remake_sources(&read_files, named_sources.as_ref());
             let named_load_debug = ordinary_mode
                 && qualified_remake_debug
@@ -3354,7 +3354,7 @@ impl Engine {
                             named_sources.as_ref(),
                         )
                 })
-                && self.qualified_load_debug_sources(&read_files, false, 2)
+                && self.qualified_load_debug_sources(&read_files, false, 2, true)
                 && self.qualified_debug_remake_sources(&read_files, named_sources.as_ref());
             let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
                 || (qualified_remake_debug
@@ -3927,7 +3927,9 @@ impl Engine {
                 self.parallel_failed = false;
                 failed = false;
             }
-            failed |= !skipped_errors.is_empty();
+            let skipped_required_read = !skipped_errors.is_empty();
+            let unsuccessful_remake = failed || optional_remake_failed;
+            failed |= skipped_required_read;
             // These are reported after the remake chain, using the locale
             // and gettext domain that its recipes left in effect.
             for error in skipped_errors.iter().rev() {
@@ -3991,7 +3993,9 @@ impl Engine {
                     }
                 }
             }
-            if changed && !remake_question {
+            // A skipped required read suppresses an otherwise successful
+            // restart. A failed remake still checks for physically updated peers.
+            if changed && !remake_question && (!skipped_required_read || unsuccessful_remake) {
                 self.wait_all_jobs();
                 self.remove_intermediates();
                 break 'makefiles true;
@@ -4475,8 +4479,12 @@ impl Engine {
         let mut named = HashMap::new();
         read_files.iter().enumerate().all(|(index, (file, skip))| {
             let name = without_dot_prefix(&file.name);
-            // A plain subdirectory goal cannot name a leaf makefile.
-            if has_subdirectory_goal && name.contains(&b'/') {
+            // Directory-qualified includes need a directly matched goal
+            // before they can use the parallel named remake path.
+            if has_subdirectory_goal
+                && name.contains(&b'/')
+                && !self.qualified_directory_named_include(file, name, named_sources)
+            {
                 return false;
             }
             *skip
@@ -4527,11 +4535,33 @@ impl Engine {
         })
     }
 
+    fn qualified_directory_named_include(
+        &self,
+        file: &Makefile,
+        name: &[u8],
+        named_sources: Option<&HashSet<&[u8]>>,
+    ) -> bool {
+        self.options.load_limit.is_some()
+            && file.location.is_some()
+            && !self.options.check_symlink_times
+            && self.options.include_directories.is_empty()
+            && !name.starts_with(b"~")
+            && !name.starts_with(b"-l")
+            && rmake_core::filenames::archive_parts(name).is_none()
+            && name.contains(&b'/')
+            && name
+                .split(|&byte| byte == b'/')
+                .all(|component| !matches!(component, b"" | b"." | b".."))
+            && self.is_makefile_goal(name, named_sources)
+            && self.simple_named_remake(file, name, &[], MakefileModes::default())
+    }
+
     fn qualified_load_debug_sources(
         &self,
         read_files: &[(Makefile, bool)],
         optional_dependencies_only: bool,
         max_recipe_lines: usize,
+        directory_named_include: bool,
     ) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
@@ -4557,7 +4587,10 @@ impl Engine {
                 continue;
             }
             let name = without_dot_prefix(&file.name);
-            if !plain_name(name)
+            let supported_name = plain_name(name)
+                || (directory_named_include
+                    && self.qualified_directory_named_include(file, name, None));
+            if !supported_name
                 || !seen.insert(name)
                 || self.database.loaded_modules.contains_key(name)
             {
@@ -4771,7 +4804,8 @@ impl Engine {
         read_files.iter().all(|(file, skip)| {
             let name = without_dot_prefix(&file.name);
             *skip
-                || (!name.contains(&b'/')
+                || ((!name.contains(&b'/')
+                    || self.qualified_directory_named_include(file, name, named_sources))
                     && !name.starts_with(b"~")
                     && !name.starts_with(b"-l")
                     && archive_parts(name).is_none()

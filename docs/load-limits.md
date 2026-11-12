@@ -77,12 +77,26 @@ before visiting a later root. An additional 72 held profiles cover these
 optional sources with and without verbose tracing across both transports and
 all three build modes. More complex named sources remain part of the M3/M6 audit.
 
+The load-limited remake path also accepts a directly named include in a simple
+relative directory. The 180 directory profiles cover required and optional
+sources, quiet execution, and basic and verbose debug output. Each trace uses
+the directory-qualified target and the actual child that writes it.
+
+If a missing required include is skipped because it is phony or has an
+unconditional double-colon recipe, the failed read prevents a restart after an
+otherwise successful remake. A separate remake failure still lets physically
+updated peers trigger a reread. The eight serial Makefiles cover both rule
+forms, an existing or optional skipped file, and a failing optional peer.
+Thirty-six held profiles cover the missing phony source among two successfully
+remade peers under `-n`, `-q` and `-t` with both jobserver transports.
+
 ## Reference study
 
 Consulted the verified GNU Make 4.4.1 source archive, SHA-256
 `dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3`:
 `src/job.c` (`new_job`, `start_waiting_job`, `start_waiting_jobs`, `reap_children`,
-`load_too_high`), `src/main.c` (floating option parsing and flag rendering),
+`load_too_high`), `src/main.c` (floating option parsing, flag rendering and the
+skipped-source restart decision),
 `src/misc.c` (`make_toui`) and `src/posixos.c` (`get_bad_stdin`). The Rust state
 transitions, owned descriptor adapter, fault helper and fixtures are original;
 no GNU implementation or test material was copied or translated.
