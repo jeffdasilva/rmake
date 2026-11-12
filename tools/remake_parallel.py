@@ -2049,7 +2049,8 @@ def named_load_models(available: list[HeldModel]) -> list[HeldModel]:
                                before_second_stdout=second_stdout)
             optional = optional_named_load_model(required, position, mode, high)
             results.extend((required, optional, directory_named_load_model(required),
-                            directory_named_load_model(optional)))
+                            directory_named_load_model(optional), explicit_builtin_load_model(required),
+                            explicit_builtin_load_model(optional)))
             results.append(skipped_required_named_load_model(held, required, high))
     return results
 
@@ -2300,6 +2301,20 @@ def directory_named_load_model(held: HeldModel) -> HeldModel:
                    named_recipe=path if held.named_recipe is not None else None)
 
 
+def explicit_builtin_load_model(held: HeldModel) -> HeldModel:
+    model = held.model
+    files = {**model.files, 'Makefile': model.files['Makefile'] + b'Makefile: ;\n'}
+    expected = {**model.expected}
+    stdout = bytes.fromhex(expected['stdout_template_hex'])
+    expected['stdout_template_hex'] = stdout.replace(b' -rR ', b' ').hex()
+    model = replace(model, id='explicit-builtin-' + model.id, files=files, expected=expected,
+                    args=tuple(arg for arg in model.args if arg != '-rR'))
+    second = held.before_second_stdout
+    return replace(held, model=model,
+                   before_first_stdout=held.before_first_stdout.replace(b' -rR ', b' '),
+                   before_second_stdout=second.replace(b' -rR ', b' ') if second is not None else None)
+
+
 def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     data = tomllib.loads((SOURCES / 'debug-models.toml').read_text())
     if data.get('schema_version') != 1:
@@ -2381,10 +2396,12 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                                     before_second_stdout=fifo_stdout[:second] if second is not None else None,
                                     before_primary_stdout=fifo_stdout[:prefixes[0]] if primary else b'',
                                     second_stdout_barrier=fifo_second_barrier or held.second_stdout_barrier))
-    selected.extend(directory_named_load_model(held) for held in selected.copy()
-                    if held.model.id.startswith(('remake-debug-load-parallel-named-mode-',
-                                                 'remake-debug-load-optional-parallel-named-mode-')))
-    return selected
+    variants = []
+    for held in selected:
+        if held.model.id.startswith(('remake-debug-load-parallel-named-mode-',
+                                     'remake-debug-load-optional-parallel-named-mode-')):
+            variants.extend((directory_named_load_model(held), explicit_builtin_load_model(held)))
+    return selected + variants
 
 
 def active_workers(parent: int, proc: Path,

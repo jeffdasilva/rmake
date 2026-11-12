@@ -82,6 +82,12 @@ relative directory. The 180 directory profiles cover required and optional
 sources, quiet execution, and basic and verbose debug output. Each trace uses
 the directory-qualified target and the actual child that writes it.
 
+Named load remakes can run with the stock built-in rules enabled when every
+source has an explicit direct recipe. An empty explicit recipe on the primary
+makefile also qualifies. The 180 stock-rule profiles exercise the same quiet,
+basic and verbose schedules through both jobserver transports. Sources that
+need an implicit recipe still require separate remake scheduling coverage.
+
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
 otherwise successful remake. A separate remake failure still lets physically
