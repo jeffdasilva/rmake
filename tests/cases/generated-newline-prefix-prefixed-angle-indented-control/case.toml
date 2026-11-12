@@ -1,0 +1,12 @@
+id = "generated-newline-prefix-prefixed-angle-indented-control"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Recipe prefixes in expansion-generated newlines and adjacent ordinary or one-shell controls."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "2f62696e2f73683a20313a2053796e746178206572726f723a20556e7465726d696e617465642071756f74656420737472696e670a6d616b653a202a2a2a205b4d616b6566696c653a373a20616c6c5d204572726f7220320a"

@@ -1,0 +1,3 @@
+.RECIPEPREFIX := >
+%.o: %.in ;
+all: ; @:

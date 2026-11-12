@@ -1,0 +1,12 @@
+id = "generated-newline-prefix-inline-angle-two-commands-question"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Recipe prefixes in expansion-generated newlines and adjacent ordinary or one-shell controls."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-q", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

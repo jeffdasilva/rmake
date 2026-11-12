@@ -1,0 +1,12 @@
+id = "oneshell-physical-continuation-prefixed-make-reference-whitespace"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "One-shell continuation prefix removal and Bourne modifier handling."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6c6566742072696768740a7072696e746620273c25733e5c6e272027656e64270a7072696e746620273c25733e5c6e27207461696c0a"
+stderr_hex = ""

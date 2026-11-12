@@ -1,0 +1,12 @@
+id = "oneshell-physical-continuation-continuation-only-slow-config-query-boundary"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "One-shell continuation prefix removal and Bourne modifier handling."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-q", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

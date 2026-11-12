@@ -1,0 +1,12 @@
+id = "oneshell-cross-slot-only-outside-continued-control"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "Make references spanning one-shell recipe lines preserve GNU continuation folding."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273740a7365636f6e642074686972640a7072696e746620273c25733e5c6e2720276c656674205c0a3e7269676874270a"
+stderr_hex = ""

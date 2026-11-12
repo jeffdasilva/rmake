@@ -1,0 +1,12 @@
+id = "oneshell-physical-continuation-inline-angle-next-modifier-control"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "One-shell continuation prefix removal and Bourne modifier handling."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "3c6c656674205c0a72696768743e0a"
+stderr_hex = "2f62696e2f73683a20333a203c25733e5c6e3a206e6f7420666f756e640a6d616b653a202a2a2a205b4d616b6566696c653a363a20616c6c5d204572726f72203132370a"

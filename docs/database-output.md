@@ -1,5 +1,12 @@
 # Database output and logical execution history
 
+The database starts explicit file printing with the recipe prefix active when
+the database is emitted. Each file can then publish a transition to its own
+stored prefix. Implicit rule commands use the active prefix throughout their
+section. Fifteen original cases cover assignments, includes, eval, empty
+recipes, and grouped and terminal implicit rules.
+
+
 GNU Make 4.4.1's `-p` output exposes execution history as well as final values.
 The selected implementation records that history before startup, then renders
 borrowed variables, rules, file records, directory observations, scope identity,

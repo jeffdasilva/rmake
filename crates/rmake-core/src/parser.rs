@@ -14,7 +14,8 @@ use crate::diagnostic::{
 };
 use crate::messages::Message;
 use crate::reader::{
-    Input, ParserLine, ParserReader, has_comment, inline_recipe_continuations, strip_comment,
+    Input, ParserLine, ParserReader, fold_recipe_reference_continuations, has_comment,
+    strip_comment, strip_recipe_continuation_prefix,
 };
 use crate::variables::{
     Assignment, ConditionalFlagBinding, ExpandError, Flavor, MAX_OUTPUT, Origin, Pattern,
@@ -153,6 +154,7 @@ pub const DEFAULT_SUFFIXES: &[u8] = b".out .a .ln .o .c .cc .C .cpp .p .f .F .m 
 
 #[derive(Clone, Debug)]
 pub struct Recipe {
+    /// Stored command text used by the database printer.
     pub bytes: Vec<u8>,
     pub location: Location,
     /// Remember the prefix used to read this recipe; .ONESHELL needs it after
@@ -160,6 +162,49 @@ pub struct Recipe {
     pub prefix: u8,
     /// Installed declarative defaults, independent of source-name spelling.
     pub builtin: bool,
+    pub source: RecipeSource,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RecipeSource {
+    Ordinary,
+    InlineContinuation,
+    PrefixedContinuation,
+}
+
+impl Recipe {
+    pub fn has_physical_continuation(&self) -> bool {
+        self.source != RecipeSource::Ordinary
+    }
+
+    /// Prepare a logical command for runtime source-slot accounting.
+    pub fn execution_bytes(&self) -> Cow<'_, [u8]> {
+        match self.source {
+            RecipeSource::Ordinary => Cow::Borrowed(&self.bytes),
+            RecipeSource::InlineContinuation => {
+                let mut bytes = fold_recipe_reference_continuations(&self.bytes);
+                // Preserve a dollar for make expansion when it starts the line.
+                if self.prefix != b'$' {
+                    strip_recipe_continuation_prefix(&mut bytes, self.prefix);
+                }
+                Cow::Owned(bytes)
+            }
+            RecipeSource::PrefixedContinuation => {
+                let mut bytes = self.bytes.clone();
+                strip_recipe_continuation_prefix(&mut bytes, self.prefix);
+                Cow::Owned(bytes)
+            }
+        }
+    }
+
+    /// Keep physical prefixes through expansion so generated prefixes count too.
+    pub fn expansion_source(&self) -> Cow<'_, [u8]> {
+        if self.has_physical_continuation() {
+            Cow::Owned(fold_recipe_reference_continuations(&self.bytes))
+        } else {
+            Cow::Borrowed(&self.bytes)
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -626,6 +671,10 @@ struct Vpath {
 }
 
 impl Database {
+    pub(crate) fn recipe_prefix(&self) -> u8 {
+        self.recipe_prefix.unwrap_or(b'\t')
+    }
+
     /// Start before imports/defaults; enabling after observation would lose
     /// history and cannot produce a compatible database dump.
     pub fn enable_database_history(&mut self) -> Result<(), &'static str> {
@@ -4423,7 +4472,7 @@ impl Database {
                 ..
             } = frame;
             let evaluated_at = *evaluated_at;
-            let prefix = self.recipe_prefix.unwrap_or(b'\t');
+            let prefix = self.recipe_prefix();
             reader.set_posix(self.posix);
             if evaluated_at == Some(1) && reader.skip_eval_bom() {
                 context.reader_event(crate::diagnostic::ReaderEvent::Bom(source_name.as_option()));
@@ -4432,6 +4481,7 @@ impl Database {
             let Some(ParserLine {
                 logical: mut line,
                 leading_prefix,
+                prefixed_continuation,
                 continued_source,
             }) = reader
                 .next_line(prefix, declaration.has_recipe_context(), active)
@@ -4503,6 +4553,11 @@ impl Database {
                             location,
                             prefix,
                             builtin: false,
+                            source: if prefixed_continuation {
+                                RecipeSource::PrefixedContinuation
+                            } else {
+                                RecipeSource::Ordinary
+                            },
                         },
                     );
                 }
@@ -5170,7 +5225,7 @@ impl Database {
                 )?);
             for target in targets {
                 let target = target.as_ref();
-                let pattern = Pattern::new(target);
+                let pattern = Pattern::for_rule_target(target);
                 declaration.target_patterns.push(pattern.has_wildcard());
                 if pattern.has_wildcard() {
                     declaration
@@ -5267,14 +5322,18 @@ impl Database {
             let recipe = source_inline
                 .map(|i| {
                     let command = &source[i + 1..];
-                    if continued_source.is_some() {
-                        inline_recipe_continuations(command, prefix)
+                    let source = if continued_source.is_some() && command.contains(&b'\n') {
+                        RecipeSource::InlineContinuation
                     } else {
-                        command.to_vec()
-                    }
+                        RecipeSource::Ordinary
+                    };
+                    (command.to_vec(), source)
                 })
-                .or_else(|| expanded_inline.map(|i| expanded_line[i + 1..].to_vec()));
-            if let Some(bytes) = recipe {
+                .or_else(|| {
+                    expanded_inline
+                        .map(|i| (expanded_line[i + 1..].to_vec(), RecipeSource::Ordinary))
+                });
+            if let Some((bytes, source)) = recipe {
                 self.add_recipe(
                     declaration,
                     Recipe {
@@ -5282,6 +5341,7 @@ impl Database {
                         location,
                         prefix,
                         builtin: false,
+                        source,
                     },
                 );
             }

@@ -1,0 +1,12 @@
+id = "prefixed-physical-continuation-dollar-quiet-dry-run"
+requirement = "syntax.reader"
+candidate = "required"
+description = "Physical prefixed recipe continuations, raw source display, or a neighboring control."
+provenance = "Original Makefiles with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7072696e746620273c25733e5c6e2720226c656674205c0a7269676874220a"
+stderr_hex = ""

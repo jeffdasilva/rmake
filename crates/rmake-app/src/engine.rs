@@ -20,7 +20,9 @@ use rmake_core::diagnostic::{
     Diagnostic, ExpansionContext, IncludeError, IncludeFailure, Output, OutputReceiver, ScopeParent,
 };
 use rmake_core::messages::Message;
-use rmake_core::parser::{Database, Dependency, Location, Makefile, Recipe, Rule, trim, words};
+use rmake_core::parser::{
+    Database, Dependency, Location, Makefile, Recipe, RecipeSource, Rule, trim, words,
+};
 use rmake_core::variables::{
     Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, Variable, VariableStore,
 };
@@ -3249,20 +3251,11 @@ impl Engine {
             }
             use crate::debug::Mask;
             let remake_debug_bits = Mask::BASIC.bits() | Mask::MAKEFILES.bits();
-            let verbose_load_debug = self.options.load_limit.is_some()
-                && !modes.active()
-                && debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits())
-                && self.qualified_load_debug_sources(&read_files, false);
             let qualified_remake_debug = debug_before_remake.bits() == remake_debug_bits
                 || (debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits())
                     && self.jobserver.is_some());
             let basic_load_debug = self.options.load_limit.is_some()
                 && debug_before_remake.bits() == remake_debug_bits;
-            let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
-                || (qualified_remake_debug
-                    && (self.options.load_limit.is_none()
-                        || basic_load_debug
-                        || verbose_load_debug));
             // Required makefiles settle before the ordinary mode resumes.
             // An explicit goal can also name a makefile and use that mode.
             let ordinary_mode = modes.active();
@@ -3308,10 +3301,21 @@ impl Engine {
                                     .map_or(no_recipe_fallback, |recipes| recipes.len() <= 1))
                     })
                 };
+            let verbose_load_trace = self.options.load_limit.is_some()
+                && debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits());
+            let verbose_load_debug = verbose_load_trace
+                && (!ordinary_mode || direct_mode_remakes)
+                && self.qualified_load_debug_sources(&read_files, false);
             let optional_dependency_load_debug = ordinary_mode
-                && basic_load_debug
+                && (basic_load_debug || verbose_load_trace)
                 && direct_mode_remakes
                 && self.qualified_load_debug_sources(&read_files, true);
+            let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
+                || (qualified_remake_debug
+                    && (self.options.load_limit.is_none()
+                        || basic_load_debug
+                        || verbose_load_debug
+                        || optional_dependency_load_debug));
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
                     || (((debug_before_remake.bits() == remake_debug_bits && !basic_load_debug)
@@ -11680,11 +11684,20 @@ impl Engine {
             };
             let script =
                 crate::oneshell::collect(recipes.iter().map(|recipe| recipe.bytes.as_slice()));
+            // A make reference can cross recipe slots in the collected script.
+            let bytes = if recipes.iter().any(Recipe::has_physical_continuation)
+                && script.bytes.contains(&b'$')
+            {
+                rmake_core::reader::fold_recipe_reference_continuations(&script.bytes)
+            } else {
+                script.bytes
+            };
             combined = [Recipe {
-                bytes: script.bytes,
+                bytes,
                 location: first.location.clone(),
                 prefix: first.prefix,
                 builtin: first.builtin,
+                source: RecipeSource::Ordinary,
             }];
             (combined.as_slice(), script.has_commands, script.recursive)
         } else {
@@ -11769,20 +11782,38 @@ impl Engine {
         // An expanded inline declaration can still contain several raw commands
         // in one stored recipe. Keep its locations until those slots are split.
         let mut logical_locations = None;
-        for (index, recipe) in recipes.iter().enumerate() {
-            let mut recipe = recipe.clone();
+        for (index, source) in recipes.iter().enumerate() {
+            let mut recipe = Recipe {
+                bytes: source.expansion_source().into_owned(),
+                location: source.location.clone(),
+                prefix: source.prefix,
+                builtin: source.builtin,
+                source: RecipeSource::Ordinary,
+            };
             let line = first.location.line.saturating_add(index);
             if recipe.location.line != line
                 && *logical_locations.get_or_insert_with(|| {
                     !first.location.file.is_null()
-                        && one_logical_recipe_slot(&first.bytes)
+                        && one_logical_recipe_slot(&first.execution_bytes())
                         && recipes.iter().all(|recipe| recipe.prefix != b'\\')
                 })
             {
                 recipe.location.line = line;
             }
             match self.expand(&mut variables, &recipe.bytes, Some(&recipe.location)) {
-                Ok(bytes) => expanded.push_back((index, bytes, recipe)),
+                Ok(mut bytes) => {
+                    // A single source line can also gain recipe prefixes
+                    // during expansion.
+                    if source.has_physical_continuation()
+                        || (bytes.contains(&b'\n') && (one_shell || !source.bytes.contains(&b'\n')))
+                    {
+                        rmake_core::reader::strip_recipe_continuation_prefix(
+                            &mut bytes,
+                            source.prefix,
+                        );
+                    }
+                    expanded.push_back((index, bytes, recipe));
+                }
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
                     return Execution::fatal(false);
@@ -12163,7 +12194,7 @@ impl Engine {
                 ) {
                     continue;
                 }
-                transformed = crate::oneshell::transform(command, shell, recipe.prefix);
+                transformed = crate::oneshell::transform(command, shell);
                 command = &transformed;
                 ordinary_invocation = None;
             } else {

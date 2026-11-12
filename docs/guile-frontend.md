@@ -38,6 +38,11 @@ The public `gmk-var` binding is a one-argument Scheme procedure in `(gnu make)`.
 It selects that module's expansion and formatting procedures before converting
 the variable name. A rebind during conversion affects the next call.
 
+An unsupported scalar resolves the `(gnu make)` module's `error` procedure on
+its first use. Twenty-one comparisons cover local definitions before lookup,
+later shadowing, changes to an already resolved binding, and the resulting
+effects in scalar returns, `gmk-expand`, `gmk-eval` and `gmk-var`.
+
 Run `make test-guile-frontend` to verify the private SDK and enabled reference,
 build separate Cargo profiles, run workspace tests and Clippy, compare both
 build modes and drive core checks through each enabled executable. Reports are

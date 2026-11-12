@@ -1,0 +1,12 @@
+id = "oneshell-physical-continuation-mixed-prefixed-angle-two-generated-other-shell"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "One-shell continuation prefix removal and Bourne modifier handling."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "2d63207072696e746620273c25733e5c6e2720276669727374205c0a3e7269676874270a7072696e746620273c25733e5c6e2720277365636f6e64205c0a3e7269676874270a7072696e746620273c25733e5c6e27207461696c0a"
+stderr_hex = ""

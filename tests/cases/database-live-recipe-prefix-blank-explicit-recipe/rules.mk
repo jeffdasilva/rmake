@@ -1,0 +1,2 @@
+.RECIPEPREFIX := >
+all: ;

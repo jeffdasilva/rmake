@@ -14,6 +14,8 @@ tests/cases/rule-warning-*/Makefile -text
 tests/cases/eval-buffer-crlf-*/Makefile -text whitespace=cr-at-eol
 tests/cases/eval-buffer-crlf-*/eval.txt -text whitespace=cr-at-eol
 tests/cases/inline-physical-continuations-crlf/Makefile -text whitespace=cr-at-eol
+tests/cases/prefixed-physical-continuation-crlf/Makefile -text whitespace=cr-at-eol
+tests/cases/prefixed-physical-continuation-nul-file/Makefile -text
 
 # Directive fixtures intentionally retain control bytes next to line endings.
 tests/cases/directive-space-*/Makefile -text whitespace=-blank-at-eol,-blank-at-eof

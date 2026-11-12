@@ -1,0 +1,11 @@
+id = "database-live-recipe-prefix-explicit-first-tab"
+requirement = "diagnostics.database-recipe-prefix"
+candidate = "required"
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 8
+provenance = "Original database prefix fixture, compared with two pinned GNU Make 4.4.1 runs."
+
+[expected]
+exit_code = 0
+stdout_hex = "696d706c696369740a66696c65730a2e524543495045505245464958203d200a0920407072696e7466206578706c696369742d6d61726b65720a"
+stderr_hex = ""
