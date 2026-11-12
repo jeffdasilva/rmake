@@ -66,10 +66,30 @@ impl CapturePipe {
     }
 
     pub fn retain_failed(self) {
-        static PRIVATE_ENDS: Mutex<Vec<File>> = Mutex::new(Vec::new());
-        PRIVATE_ENDS
-            .lock()
-            .expect("failed capture ownership")
+        struct Retained {
+            private_ends: Vec<File>,
+            wake_accounted: bool,
+        }
+
+        static RETAINED: Mutex<Retained> = Mutex::new(Retained {
+            private_ends: Vec::new(),
+            wake_accounted: false,
+        });
+        let mut retained = RETAINED.lock().expect("failed capture ownership");
+        // GNU leaves two private close-on-exec descriptors open after a
+        // failed launch. Our interpreter-wide wake pipe already reserves
+        // those two slots for the same lifetime. Count it once and leave
+        // its live endpoints and the handler's access to them untouched.
+        if !retained.wake_accounted
+            && self.reader.as_raw_fd() > 2
+            && self.writer.as_raw_fd() > 2
+            && crate::signals::wake_descriptor() >= 0
+        {
+            retained.wake_accounted = true;
+            return;
+        }
+        retained
+            .private_ends
             .extend([self.reader, self.writer].into_iter().filter_map(|end| {
                 if end.as_raw_fd() > 2 {
                     return Some(end);
