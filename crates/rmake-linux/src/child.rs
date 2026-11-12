@@ -194,6 +194,22 @@ impl Child {
             .map(|result| result.and_then(|pid| Self::from_spawned_pid(pid, false)))
     }
 
+    /// Retry an inherited-stdio launch under descriptor pressure. An owned
+    /// normal pipe already uses the advertised wire numbers, so the C spawn
+    /// action can expose them without remapping another process's handles.
+    pub fn try_spawn_ordered_owned_pipe(
+        command: &Command,
+        image: &crate::environment::Image,
+        arg0: &std::ffi::OsStr,
+        server: &crate::jobserver::Jobserver,
+        recursive: bool,
+    ) -> Option<io::Result<Self>> {
+        let wire = server.owned_normal_pipe_wire()?;
+        image
+            .spawn_inherited(command, arg0, [None; 3], recursive.then_some(wire))
+            .map(|result| result.and_then(|pid| Self::from_spawned_pid(pid, true)))
+    }
+
     pub fn wake_pipe_unavailable() -> bool {
         crate::signals::wake_descriptor() < 0
     }

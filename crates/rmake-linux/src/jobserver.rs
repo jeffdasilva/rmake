@@ -739,6 +739,16 @@ impl Jobserver {
         }
     }
 
+    pub(crate) fn owned_normal_pipe_wire(&self) -> Option<[c_int; 2]> {
+        let reader = self.0.protocol_reader.as_ref()?;
+        let Endpoint::Owned(writer) = &self.0.writer else {
+            return None;
+        };
+        self.0
+            .owned_slots
+            .map(|_| [reader.as_raw_fd(), writer.as_raw_fd()])
+    }
+
     /// Release the owned pathname during fatal shutdown; open descriptors and
     /// permits remain valid so outstanding borrowed token bytes can be returned.
     pub fn unlink_owned(&self) {

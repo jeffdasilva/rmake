@@ -20,6 +20,11 @@ launch keeps a live parent wake pipe private. The
 `jobserver-owned-inherited-compact-*` conformance fixtures exercise the
 fallback with ordinary and recursive recipes.
 
+An owned normal pipe can launch an inherited-stdio recipe through the
+same ordered backend when the standard spawn reports descriptor exhaustion.
+The retry uses the published wire numbers for recursive recipes. The
+`jobserver-owned-normal-launch-pressure-*` fixtures check this boundary.
+
 Run `tools/resource_fd_pipe.py --candidate PATH --report PATH`, or use
 `--oracle-only`. The focused case is `borrowed-wire-fd6`. Exact streams,
 status, fixture filesystem and containment are checked against two verified

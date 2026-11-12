@@ -12290,7 +12290,27 @@ impl Engine {
                     {
                         return process;
                     }
-                    rmake_linux::child::Child::spawn_ordered(&mut command, image, os(arg0))
+                    match rmake_linux::child::Child::spawn_ordered(&mut command, image, os(arg0)) {
+                        Err(error)
+                            if matches!(error.raw_os_error(), Some(23 | 24))
+                                && stdin_owner
+                                && output.as_ref().is_none_or(|buffer| !buffer.enabled())
+                                && rmake_linux::signals::pending().is_none() =>
+                        {
+                            let Some(server) = &self.jobserver else {
+                                return Err(error);
+                            };
+                            rmake_linux::child::Child::try_spawn_ordered_owned_pipe(
+                                &command,
+                                image,
+                                os(arg0),
+                                server,
+                                force,
+                            )
+                            .unwrap_or(Err(error))
+                        }
+                        result => result,
+                    }
                 },
             );
             self.retain_database_context(target, branch, variables);
