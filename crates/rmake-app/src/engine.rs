@@ -461,6 +461,13 @@ impl MakefileModes {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RemakeWait {
+    Command,
+    Recipe,
+    LoadPass,
+}
+
 struct PendingMakefileRemake<'a> {
     modes: MakefileModes,
     file: &'a Makefile,
@@ -3308,14 +3315,13 @@ impl Engine {
                 && (basic_load_debug || verbose_load_trace)
                 && direct_mode_remakes
                 && self.qualified_load_debug_sources(&read_files, true, 1);
-            let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
-                || (qualified_remake_debug
-                    && (self.options.load_limit.is_none()
-                        || basic_load_debug
-                        || verbose_load_debug
-                        || optional_dependency_load_debug));
             let named_load_debug = ordinary_mode
-                && basic_load_debug
+                && qualified_remake_debug
+                && (basic_load_debug
+                    || (verbose_load_trace
+                        && read_files
+                            .iter()
+                            .all(|(file, skip)| *skip || !file.optional)))
                 && read_files.iter().any(|(file, skip)| {
                     !*skip
                         && self.is_makefile_goal(
@@ -3325,6 +3331,13 @@ impl Engine {
                 })
                 && self.qualified_load_debug_sources(&read_files, false, 2)
                 && self.qualified_debug_remake_sources(&read_files, named_sources.as_ref());
+            let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
+                || (qualified_remake_debug
+                    && (self.options.load_limit.is_none()
+                        || basic_load_debug
+                        || verbose_load_debug
+                        || optional_dependency_load_debug
+                        || named_load_debug));
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
                     || named_load_debug
@@ -3354,7 +3367,7 @@ impl Engine {
             let mut pass_reaps = initial_reaps;
             let mut pass_progress = self.filesystem.borrow().generation();
             let track_remake_effects =
-                direct_mode_remakes || basic_load_debug || verbose_load_debug;
+                direct_mode_remakes || basic_load_debug || verbose_load_debug || named_load_debug;
             let first_effect_generation = track_remake_effects.then_some(pass_progress);
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
@@ -3770,12 +3783,19 @@ impl Engine {
                     first_effect_generation.or(Some(pass_reaps))
                 };
                 let question_or_failure = remake_question || failed || optional_remake_failed;
+                let wait = if named_load_debug && verbose_load_trace {
+                    RemakeWait::LoadPass
+                } else if optional_dependency_load_debug {
+                    RemakeWait::Recipe
+                } else {
+                    RemakeWait::Command
+                };
                 stopped = !self.wait_makefile_remakes(
                     &mut pending,
                     &visited,
                     previous_progress,
                     track_remake_effects,
-                    optional_dependency_load_debug,
+                    wait,
                     question_or_failure,
                 );
                 if !stopped {
@@ -5640,10 +5660,11 @@ impl Engine {
         visited: &MakefileVisits<'_>,
         mut previous_progress: Option<u64>,
         track_effects: bool,
-        block_for_recipe: bool,
+        wait_mode: RemakeWait,
         mut question_or_failure: bool,
     ) -> bool {
         let wait_for_completed_job = previous_progress.is_none();
+        let start_load_at_pass = wait_mode == RemakeWait::LoadPass;
         let progress = |engine: &Self| {
             if track_effects {
                 engine.filesystem.borrow().generation()
@@ -5659,8 +5680,17 @@ impl Engine {
             // Reap against the previous pass's cursor. A pass with no newly
             // completed commands waits before changing which root is current.
             let previous_jobs = self.parallel_jobs.len();
+            let previous_load_waiters = self.load_waiting.len();
             let wait = Some(progress(self)) == previous_progress;
-            self.poll_jobs();
+            if start_load_at_pass {
+                // These verbose named remakes refill the load queue at the
+                // pass boundary, before collecting exited children.
+                self.observe_interrupt();
+                self.start_load_waiting();
+                self.poll_child_events(false);
+            } else {
+                self.poll_jobs();
+            }
             if wait
                 && (if wait_for_completed_job {
                     self.parallel_jobs.len() >= previous_jobs
@@ -5673,7 +5703,7 @@ impl Engine {
                 // completes a recipe. Revisiting between commands can apply
                 // touch mode to the final command of an ordinary sibling.
                 let finish_recipe = wait_for_completed_job
-                    || block_for_recipe
+                    || wait_mode != RemakeWait::Command
                     || (self.options.load_limit.is_none()
                         && requests.iter().any(|request| {
                             request.active
@@ -5695,7 +5725,12 @@ impl Engine {
                 {
                     self.reap_job();
                 }
-                self.poll_jobs();
+                if start_load_at_pass {
+                    self.observe_interrupt();
+                    self.poll_child_events(false);
+                } else {
+                    self.poll_jobs();
+                }
             }
             if self.forced_query_stop || self.shutdown.get() != Shutdown::Running {
                 return false;
@@ -5707,6 +5742,13 @@ impl Engine {
                 self.debug_pass = self.debug_progress();
             } else {
                 self.advance_debug_pass();
+                if start_load_at_pass && self.load_waiting.len() < previous_load_waiters {
+                    // A simulated load-delayed command can complete without a
+                    // child reap. Its launch still starts a new considered pass.
+                    if let Some(considered) = &mut self.debug_considered {
+                        considered.clear();
+                    }
+                }
             }
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let pass_epoch = self.graph_epoch;
@@ -5754,7 +5796,10 @@ impl Engine {
                     .copied()
                     .unwrap_or(request.initial);
                 if !needs_visit {
-                    if wait_for_completed_job && outcome.question_outdated && !request.active {
+                    if (wait_for_completed_job || start_load_at_pass)
+                        && outcome.question_outdated
+                        && !request.active
+                    {
                         self.debug_consider(name, name, 1);
                         crate::debug::emit(
                             &self.output,
@@ -5789,7 +5834,8 @@ impl Engine {
             if self.graph_epoch == pass_epoch
                 && (self.parallel_jobs.is_empty()
                     || (self.defer_stopped_remake_load
-                        && self.parallel_jobs.values().all(|job| job.waiting_load)))
+                        && self.parallel_jobs.values().all(|job| job.waiting_load)
+                        && (!start_load_at_pass || self.next_load_waiter().is_none())))
                 && requests.iter().any(|request| request.active)
             {
                 self.fatal(None, b"cannot advance pending makefile remakes");
@@ -5830,9 +5876,14 @@ impl Engine {
     fn poll_jobs(&mut self) {
         self.observe_interrupt();
         self.start_load_waiting();
+        self.poll_child_events(true);
+    }
+
+    fn poll_child_events(&mut self, refill_load: bool) {
         loop {
             match self.child_events(false, None) {
-                Ok(true) => self.start_load_waiting(),
+                Ok(true) if refill_load => self.start_load_waiting(),
+                Ok(true) => {}
                 Ok(false) => break,
                 Err(error) => {
                     self.fatal(None, os_error(&error).as_bytes());
@@ -6133,31 +6184,36 @@ impl Engine {
             }
             return;
         }
-        while let Some(last) = self.load_waiting.len().checked_sub(1) {
+        while !self.load_waiting.is_empty() {
             if self.parallel_jobs.values().any(|job| !job.waiting_load) && self.load_high() {
                 break;
             }
-            let next = if self.defer_stopped_remake_load
-                && self
-                    .active_makefile_remake
-                    .as_ref()
-                    .is_none_or(MakefileRemake::stopped)
-            {
-                // A queued sibling of a stopped optional remake keeps its
-                // reservation and sees the ordinary build mode on dispatch.
-                self.load_waiting.iter().rposition(|(name, identity)| {
-                    !self
-                        .parallel_jobs
-                        .get(name, *identity)
-                        .and_then(|job| job.continuation.remake.as_ref())
-                        .is_some_and(MakefileRemake::stopped)
-                })
-            } else {
-                Some(last)
+            let Some(index) = self.next_load_waiter() else {
+                break;
             };
-            let Some(index) = next else { break };
             let (target, identity) = self.load_waiting.remove(index);
             self.complete_job((target, identity, None), false);
+        }
+    }
+
+    fn next_load_waiter(&self) -> Option<usize> {
+        if self.defer_stopped_remake_load
+            && self
+                .active_makefile_remake
+                .as_ref()
+                .is_none_or(MakefileRemake::stopped)
+        {
+            // A queued sibling of a stopped optional remake keeps its
+            // reservation and sees the ordinary build mode on dispatch.
+            self.load_waiting.iter().rposition(|(name, identity)| {
+                !self
+                    .parallel_jobs
+                    .get(name, *identity)
+                    .and_then(|job| job.continuation.remake.as_ref())
+                    .is_some_and(MakefileRemake::stopped)
+            })
+        } else {
+            self.load_waiting.len().checked_sub(1)
         }
     }
 

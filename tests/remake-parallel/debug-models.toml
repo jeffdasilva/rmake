@@ -16745,3 +16745,1467 @@ Must remake target 'all'.
 touch all
 Successfully remade target file 'all'.
 '''
+
+# Required named includes under a controlled load limit, with verbose remake traces.
+
+[[profiles]]
+case = "load-parallel-named-mode-first-n-pipe-2-slots-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1491, 1641]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -n ./named.gen --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+Updating goal targets....
+Considering target file 'named.gen'.
+File 'named.gen' was considered already.
+make: 'named.gen' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-n-pipe-2-slots-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1491, 1641]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -n ./named.gen --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+Updating goal targets....
+Considering target file 'named.gen'.
+File 'named.gen' was considered already.
+make: 'named.gen' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-q-pipe-2-slots-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1459, 1609]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Updating goal targets....
+Considering target file 'named.gen'.
+Recently tried and failed to update file 'named.gen'.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-q-pipe-2-slots-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1459, 1609]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Updating goal targets....
+Considering target file 'named.gen'.
+Recently tried and failed to update file 'named.gen'.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-t-pipe-2-slots-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1467, 1617]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -t ./named.gen --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'named.gen'.
+ Finished prerequisites of target file 'named.gen'.
+ No need to remake target 'named.gen'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+Updating goal targets....
+Considering target file 'named.gen'.
+File 'named.gen' was considered already.
+make: 'named.gen' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-t-pipe-2-slots-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1467, 1617]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -t ./named.gen --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'named.gen'.
+ Finished prerequisites of target file 'named.gen'.
+ No need to remake target 'named.gen'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+Updating goal targets....
+Considering target file 'named.gen'.
+File 'named.gen' was considered already.
+make: 'named.gen' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-n-pipe-2-slots-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+hold_named = true
+release_prefixes = [1263, 1674]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+ Recipe of 'named.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'named.gen'.
+ Still updating file 'named.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'named.gen'.
+ File 'named.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -n ./named.gen --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'named.gen'.
+ Finished prerequisites of target file 'named.gen'.
+ No need to remake target 'named.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+Updating goal targets....
+Considering target file 'named.gen'.
+File 'named.gen' was considered already.
+make: 'named.gen' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-n-pipe-2-slots-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1491, 1641]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -n ./named.gen --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+Updating goal targets....
+Considering target file 'named.gen'.
+File 'named.gen' was considered already.
+make: 'named.gen' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-q-pipe-2-slots-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+hold_named = true
+release_prefixes = [1263, 1674]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+ Recipe of 'named.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'named.gen'.
+ Still updating file 'named.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'named.gen'.
+ File 'named.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -q ./named.gen --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'named.gen'.
+ Finished prerequisites of target file 'named.gen'.
+ No need to remake target 'named.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+Updating goal targets....
+Considering target file 'named.gen'.
+File 'named.gen' was considered already.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-q-pipe-2-slots-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1459, 1609]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Updating goal targets....
+Considering target file 'named.gen'.
+Recently tried and failed to update file 'named.gen'.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-t-pipe-2-slots-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1467, 1617]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -t ./named.gen --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'named.gen'.
+ Finished prerequisites of target file 'named.gen'.
+ No need to remake target 'named.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+Updating goal targets....
+Considering target file 'named.gen'.
+File 'named.gen' was considered already.
+make: 'named.gen' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-t-pipe-2-slots-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1467, 1617]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -t ./named.gen --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'named.gen'.
+ Finished prerequisites of target file 'named.gen'.
+ No need to remake target 'named.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+Updating goal targets....
+Considering target file 'named.gen'.
+File 'named.gen' was considered already.
+make: 'named.gen' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-n-pipe-2-slots-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1263, 3053]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+python3 worker.py right include
+printf "tail\n" >> seen
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -n ./named.gen --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+ Recipe of 'named.gen' is being run.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'named.gen'.
+ Still updating file 'named.gen'.
+printf "tail\n" >> seen
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+ Considering target file 'named.gen'.
+ Still updating file 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Considering target file 'named.gen'.
+ File 'named.gen' was considered already.
+Re-executing[2]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -n ./named.gen --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Updating goal targets....
+Considering target file 'named.gen'.
+File 'named.gen' was considered already.
+make: 'named.gen' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-n-pipe-2-slots-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1263, 1499]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -n ./named.gen --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Updating goal targets....
+Considering target file 'named.gen'.
+File 'named.gen' was considered already.
+make: 'named.gen' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-q-pipe-2-slots-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1263]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Recently tried and failed to update file 'right.gen'.
+Updating goal targets....
+Considering target file 'named.gen'.
+Recently tried and failed to update file 'named.gen'.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-q-pipe-2-slots-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1263, 1467]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Updating goal targets....
+Considering target file 'named.gen'.
+Recently tried and failed to update file 'named.gen'.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-t-pipe-2-slots-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1467, 1617]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -t ./named.gen --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+ Considering target file 'named.gen'.
+ Finished prerequisites of target file 'named.gen'.
+ No need to remake target 'named.gen'.
+Updating goal targets....
+Considering target file 'named.gen'.
+File 'named.gen' was considered already.
+make: 'named.gen' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-t-pipe-2-slots-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1467, 1617]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+  File 'left.gen' does not exist.
+ Finished prerequisites of target file 'left.gen'.
+ Must remake target 'left.gen'.
+ Recipe of 'left.gen' is being run.
+ Considering target file 'right.gen'.
+  File 'right.gen' does not exist.
+ Finished prerequisites of target file 'right.gen'.
+ Must remake target 'right.gen'.
+ Recipe of 'right.gen' is being run.
+ Considering target file 'named.gen'.
+  File 'named.gen' does not exist.
+ Finished prerequisites of target file 'named.gen'.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+ Considering target file 'left.gen'.
+ Still updating file 'left.gen'.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'left.gen'.
+ File 'left.gen' was considered already.
+ Considering target file 'right.gen'.
+ Still updating file 'right.gen'.
+ Considering target file 'right.gen'.
+ File 'right.gen' was considered already.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -t ./named.gen --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'left.gen' (search path) (no ~ expansion)...
+Reading makefile 'right.gen' (search path) (no ~ expansion)...
+Reading makefile 'named.gen' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'left.gen'.
+ Finished prerequisites of target file 'left.gen'.
+ No need to remake target 'left.gen'.
+ Considering target file 'right.gen'.
+ Finished prerequisites of target file 'right.gen'.
+ No need to remake target 'right.gen'.
+ Considering target file 'named.gen'.
+ Finished prerequisites of target file 'named.gen'.
+ No need to remake target 'named.gen'.
+Updating goal targets....
+Considering target file 'named.gen'.
+File 'named.gen' was considered already.
+make: 'named.gen' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''

@@ -54,6 +54,22 @@ The campaign is in development CI and the optimized regression flow. The
 [M5 exit audit](m5-exit-audit.md) combines it with signal/cancellation, output
 synchronization, synthetic completion and mixed-tree runtime acceptance.
 
+## Verbose named includes
+
+During a verbose remake pass for required named includes, eligible load-delayed
+recipes start before exited children are collected. A simulated recipe can finish
+without reaping a child. Its completion still starts a new pass for the debug
+visit set. The `-q` path reports a completed cached question result when another
+pending source causes the graph to revisit it.
+
+The 36 held profiles cover `-n`, `-q` and `-t`, each named-source position,
+high and low load, and both pipe and FIFO jobservers. Two high-load shapes hold
+the short named recipe until both pending sources appear in the captured trace.
+The observer checks the actual child identity and retains exact release streams,
+final streams and filesystem effects. These profiles cover required, direct
+sources with bounded nonrecursive recipes. Optional and more complex named
+sources remain part of the M3/M6 audit.
+
 ## Reference study
 
 Consulted the verified GNU Make 4.4.1 source archive, SHA-256
