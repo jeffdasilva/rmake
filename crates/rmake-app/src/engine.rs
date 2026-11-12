@@ -1096,6 +1096,11 @@ struct ImplicitSelection {
     intermediate_names: Vec<Vec<u8>>,
 }
 
+enum ImplicitFilenames {
+    Single(Dependency),
+    Expanded(Vec<Dependency>),
+}
+
 struct ImplicitScope {
     pattern: Option<TargetScope>,
     shell_status: Option<Variable>,
@@ -8116,7 +8121,7 @@ impl Engine {
                                 }
                             }
                             let value = value?;
-                            self.implicit_filenames(
+                            ImplicitFilenames::Expanded(self.implicit_filenames(
                                 &value,
                                 &mut order_only,
                                 if percent {
@@ -8124,7 +8129,7 @@ impl Engine {
                                 } else {
                                     None
                                 },
-                            )?
+                            )?)
                         } else {
                             // ONEWORD parsing preserves blanks and pipes from a
                             // stem, but still expands newly introduced globs.
@@ -8133,12 +8138,16 @@ impl Engine {
                                 .position(|byte| !matches!(byte, b' ' | b'\t'..=b'\r'))
                                 .unwrap_or(part.len());
                             if start == part.len() {
-                                Vec::new()
+                                ImplicitFilenames::Expanded(Vec::new())
                             } else {
                                 self.implicit_filename(&part[start..], occurrence.order_only, None)?
                             }
                         };
-                        for mut dependency in names {
+                        let (single, expanded) = match names {
+                            ImplicitFilenames::Single(name) => (Some(name), Vec::new()),
+                            ImplicitFilenames::Expanded(names) => (None, names),
+                        };
+                        for mut dependency in single.into_iter().chain(expanded) {
                             dependency.hidden = occurrence.hidden;
                             let identity = self.aliases.resolve(&dependency.name);
                             if identity != dependency.name {
@@ -8481,7 +8490,7 @@ impl Engine {
         name: &[u8],
         order_only: bool,
         directory: Option<&[u8]>,
-    ) -> Result<Vec<Dependency>, ExpandError> {
+    ) -> Result<ImplicitFilenames, ExpandError> {
         let name = rmake_core::filenames::without_dot_prefix(name);
         let name = if name.starts_with(b"~") {
             self.database.rule_tilde(
@@ -8517,11 +8526,11 @@ impl Engine {
             if let Some(history) = self.database.database_history() {
                 history.intern(&name);
             }
-            return Ok(vec![Dependency {
+            return Ok(ImplicitFilenames::Single(Dependency {
                 name,
                 order_only,
                 hidden: false,
-            }]);
+            }));
         }
         let bytes = self
             .filesystem
@@ -8535,20 +8544,22 @@ impl Engine {
                     ExpandError::UnlocatedError(message)
                 }
             })?;
-        Ok(bytes
-            .split(|&byte| byte == 0)
-            .filter(|name| !name.is_empty())
-            .map(|name| {
-                if let Some(history) = self.database.database_history() {
-                    history.intern(name);
-                }
-                Dependency {
-                    name: name.to_vec(),
-                    order_only,
-                    hidden: false,
-                }
-            })
-            .collect())
+        Ok(ImplicitFilenames::Expanded(
+            bytes
+                .split(|&byte| byte == 0)
+                .filter(|name| !name.is_empty())
+                .map(|name| {
+                    if let Some(history) = self.database.database_history() {
+                        history.intern(name);
+                    }
+                    Dependency {
+                        name: name.to_vec(),
+                        order_only,
+                        hidden: false,
+                    }
+                })
+                .collect(),
+        ))
     }
 
     fn implicit_filenames(
@@ -8568,7 +8579,10 @@ impl Engine {
             (order.unwrap_or_default(), true),
         ] {
             for name in rmake_core::filenames::sequence(text) {
-                result.extend(self.implicit_filename(&name, role, directory)?);
+                match self.implicit_filename(&name, role, directory)? {
+                    ImplicitFilenames::Single(name) => result.push(name),
+                    ImplicitFilenames::Expanded(names) => result.extend(names),
+                }
             }
             // Each secondary-expanded word and its order-only partition
             // are parsed separately. A marker cannot escape either.
