@@ -742,13 +742,18 @@ impl TableTelemetry {
     pub fn stats(&self) -> HashStats {
         self.stats
     }
+    fn fingerprint(kind: HashKind, name: &[u8]) -> u32 {
+        match kind {
+            HashKind::Variable => crate::variable_order::fingerprint(name),
+            HashKind::Filename => crate::file_records::fingerprint(name),
+        }
+    }
     fn probe(kind: HashKind, layout: &TableLayout, name: &[u8]) -> (usize, bool, u64) {
-        let hash = match kind {
-            HashKind::Variable => crate::variable_order::fingerprint(name) as usize,
-            HashKind::Filename => crate::file_records::fingerprint(name) as usize,
-        };
+        Self::probe_hashed(layout, name, Self::fingerprint(kind, name))
+    }
+    fn probe_hashed(layout: &TableLayout, name: &[u8], fingerprint: u32) -> (usize, bool, u64) {
         let slots = &layout.slots;
-        let home = hash & (slots.len() - 1);
+        let home = fingerprint as usize & (slots.len() - 1);
         let mut vacant = None;
         let mut collisions = 0_u64;
         for distance in 0..slots.len() {
@@ -769,7 +774,10 @@ impl TableTelemetry {
         )
     }
     fn locate(&mut self, name: &[u8], counted: bool) -> (usize, bool) {
-        let (index, found, collisions) = Self::probe(self.kind, &self.slots, name);
+        self.locate_hashed(name, counted, Self::fingerprint(self.kind, name))
+    }
+    fn locate_hashed(&mut self, name: &[u8], counted: bool, fingerprint: u32) -> (usize, bool) {
+        let (index, found, collisions) = Self::probe_hashed(&self.slots, name, fingerprint);
         if counted {
             self.stats.lookups = self.stats.lookups.wrapping_add(1);
             self.stats.collisions = self.stats.collisions.wrapping_add(collisions);
@@ -802,7 +810,10 @@ impl TableTelemetry {
         self.put(name, false)
     }
     fn put(&mut self, name: &[u8], counted: bool) -> bool {
-        let (index, found) = self.locate(name, counted);
+        self.put_hashed(name, counted, Self::fingerprint(self.kind, name))
+    }
+    fn put_hashed(&mut self, name: &[u8], counted: bool, fingerprint: u32) -> bool {
+        let (index, found) = self.locate_hashed(name, counted, fingerprint);
         if found {
             return false;
         }
@@ -824,7 +835,7 @@ impl TableTelemetry {
                 self.stats.collisions = self.stats.collisions.wrapping_add(collisions);
                 layout.slots[next] = slot;
             }
-            self.locate(name, true);
+            self.locate_hashed(name, true, fingerprint);
         }
         true
     }
@@ -1059,12 +1070,20 @@ impl History {
     pub fn record_file_lookup(&self, name: &[u8]) -> bool {
         self.files.lookup(name)
     }
+    pub(crate) fn record_file_lookup_hashed(&self, name: &[u8], fingerprint: u32) -> bool {
+        self.files
+            .with(|table| table.locate_hashed(name, true, fingerprint).1)
+    }
     pub fn record_file_enter(&self, name: &[u8]) -> bool {
+        self.record_file_enter_hashed(name, crate::file_records::fingerprint(name))
+    }
+    pub(crate) fn record_file_enter_hashed(&self, name: &[u8], fingerprint: u32) -> bool {
         self.builtin_files
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .remove(name);
-        self.files.enter(name)
+        self.files
+            .with(|table| table.put_hashed(name, true, fingerprint))
     }
     pub fn mark_file_builtin(&self, name: &[u8]) {
         self.builtin_files
