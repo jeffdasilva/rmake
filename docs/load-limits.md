@@ -67,8 +67,15 @@ high and low load, and both pipe and FIFO jobservers. Two high-load shapes hold
 the short named recipe until both pending sources appear in the captured trace.
 The observer checks the actual child identity and retains exact release streams,
 final streams and filesystem effects. These profiles cover required, direct
-sources with bounded nonrecursive recipes. Optional and more complex named
-sources remain part of the M3/M6 audit.
+sources with bounded nonrecursive recipes.
+
+Direct optional named sources use the same load-pass boundary. An optional
+update can finish the pass while a required sibling is queued. Dry run can
+simulate the sibling before re-reading the sources, and question mode can
+finish without starting it. Verbose output prunes completed earlier sources
+before visiting a later root. An additional 72 held profiles cover these
+optional sources with and without verbose tracing across both transports and
+all three build modes. More complex named sources remain part of the M3/M6 audit.
 
 ## Reference study
 

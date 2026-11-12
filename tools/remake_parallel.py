@@ -1360,11 +1360,11 @@ def order_named_completion(held: HeldModel, *, after: str | None = None) -> Held
                                 b"    from named_reap import record_process\n"
                                 b"    record_process('right.pid')")
     else:
-        anchor = b"with Path('seen').open('ab') as stream:"
+        anchor = b"if release.read_bytes() != b'yes\\n':\n    raise SystemExit(96)\n"
         assert worker.count(anchor) == 1
-        worker = worker.replace(anchor, b"if name == 'right':\n"
+        worker = worker.replace(anchor, anchor + b"\nif name == 'right':\n"
                                 b"    from named_reap import wait_for_reap\n"
-                                b"    wait_for_reap('named.pid')\n\n" + anchor)
+                                b"    wait_for_reap('named.pid')\n")
     assert makefile.count(named_recipe) == 1
     files = {**model.files, 'Makefile': makefile.replace(named_recipe, named_command),
              'worker.py': worker, 'named_reap.py': (SOURCES / 'named_reap.py').read_bytes()}
@@ -2044,10 +2044,60 @@ def named_load_models(available: list[HeldModel]) -> list[HeldModel]:
                     before_second = second_stdout = None
             expected = {**model.expected, 'stdout_template_hex': stdout.hex()}
             model = replace(model, expected=expected, seen=seen, updates=updates)
-            results.append(replace(held, model=model, load=load, overlap=not high,
-                                   before_first_stdout=first_stdout, before_second=before_second,
-                                   before_second_stdout=second_stdout))
+            required = replace(held, model=model, load=load, overlap=not high,
+                               before_first_stdout=first_stdout, before_second=before_second,
+                               before_second_stdout=second_stdout)
+            results.append(required)
+            results.append(optional_named_load_model(required, position, mode, high))
     return results
+
+
+def optional_named_load_model(held: HeldModel, position: str, mode: str, high: bool) -> HeldModel:
+    model = held.model
+    lines = model.files['Makefile'].splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        if line.startswith(b'include '):
+            names = line.removeprefix(b'include ').split()
+            lines[index] = b''.join((b'-include ' if name == b'named.gen' else b'include ')
+                                    + name + b'\n' for name in names)
+            break
+    files = {**model.files, 'Makefile': b''.join(lines)}
+    stdout = bytes.fromhex(model.expected['stdout_template_hex'])
+    seen, updates, expected = model.seen, model.updates, model.expected
+    if mode == 'q' and (position != 'middle' or not high):
+        seen = seen.removesuffix(b'ordinary---\n')
+        missing = b"make: *** No rule to make target 'named.gen'.  Stop.\n"
+        expected = {**expected, 'exit_code': 2, 'stderr_template_hex': missing.hex()}
+    if position == 'middle':
+        if mode == 'n' and high:
+            # The optional write ends the first pass before the simulated
+            # right recipe can be run in ordinary mode on the next read.
+            prefix = b'python3 worker.py right include\nprintf "tail\\n" >> seen\n'
+            before_second = held.before_second + b'read-1\ntail-expanded\n'
+            seen = before_second + b'right\ntail\nread-2\nordinary-loaded-loaded-rebuilt\n'
+            stdout = prefix + stdout
+            held = replace(held, before_second=before_second, before_second_stdout=prefix)
+        elif mode == 'q' and high:
+            # The queued right recipe returns a question verdict without
+            # spawning, so only the already written optional source remains.
+            seen = held.before_second + b'ordinary---\n'
+            updates = {name: value for name, value in updates.items()
+                       if not name.startswith('right.')}
+            held = replace(held, before_second=None, before_second_stdout=None)
+        elif mode in ('n', 't'):
+            # An immediately simulated named recipe ends the pass before
+            # the right recipe expands. It starts after the left has exited.
+            second = BEFORE_FIRST + b'left\ntail-expanded\n'
+            seen = seen.replace(held.before_second, second, 1)
+            held = replace(held, overlap=False, before_first=BEFORE_FIRST, before_second=second)
+            if mode == 't':
+                prefix = held.before_first_stdout + b'touch left.gen\n'
+                stdout = prefix + stdout.removeprefix(held.before_first_stdout)
+                held = replace(held, before_second_stdout=prefix, load=replace(held.load, trace=b''))
+    expected = {**expected, 'stdout_template_hex': stdout.hex()}
+    model = replace(model, id=model.id.replace('load-parallel-', 'load-optional-parallel-', 1),
+                    files=files, expected=expected, seen=seen, updates=updates)
+    return replace(held, model=model)
 
 
 def load_build_mode_models(available: list[HeldModel], markers: dict[str, bytes]) -> list[HeldModel]:
@@ -2225,6 +2275,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     for row in data['profiles']:
         name, flag = row['case'], row['flag']
         fifo = row.get('fifo', False)
+        second_barrier = row.get('second_stdout_barrier')
         fifo_second_barrier = row.get('fifo_second_stdout_barrier')
         hold_named = row.get('hold_named', False)
         requires_load = row.get('requires_load', False)
@@ -2257,11 +2308,17 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         model = replace(held.model, id=f'remake-debug-{name}-{flag.replace(",", "")}', args=args,
                         expected={**held.model.expected, 'stdout_template_hex': stdout.hex()})
         if hold_named:
-            if (primary or held.release_order != WORKERS or second is None
-                    or not stdout[:second].endswith(NAMED_LOAD_RIGHT_BARRIER)):
+            if primary or held.release_order != WORKERS:
                 raise h.HarnessError('invalid named load recipe witness')
+            if second is not None and second_barrier is None:
+                second_barrier = NAMED_LOAD_RIGHT_BARRIER.decode()
             model = named_load_debug_witness(model)
-            held = replace(held, hold_named=True, second_stdout_barrier=NAMED_LOAD_RIGHT_BARRIER)
+            held = replace(held, hold_named=True)
+        if second_barrier is not None:
+            if (not isinstance(second_barrier, str) or not second_barrier or second is None
+                    or not stdout[:second].endswith(second_barrier.encode())):
+                raise h.HarnessError('invalid second release trace barrier')
+            held = replace(held, second_stdout_barrier=second_barrier.encode())
         selected.append(replace(held, model=model, before_first_stdout=stdout[:first],
                                 before_second_stdout=stdout[:second] if second is not None else None,
                                 before_primary_stdout=stdout[:prefixes[0]] if primary else b''))
