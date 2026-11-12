@@ -917,14 +917,9 @@ impl Options {
         let inherited = inherited_options.jobs;
         let inherited_warning = inherited_options.warn_undefined;
         let inherited_output_sync = inherited_options.output_sync.clone();
-        inherited_options.silent_origin =
-            inherited_options.silent_origin.map(|_| Origin::Environment);
-        inherited_options.keep_going_origin = inherited_options
-            .keep_going_origin
-            .map(|_| Origin::Environment);
-        inherited_options.directory_origin = inherited_options
-            .directory_origin
-            .map(|_| Origin::Environment);
+        // Startup MAKEFLAGS and GNUMAKEFLAGS carry command-line switch
+        // priority into a submake. Keep the decoder's origin for the
+        // directory, silent and keep-going selectors.
         inherited_options.command_jobs = None;
         let (mut result, _) = Self::parse_with_inspection::<true, false, E>(
             args,
@@ -2153,8 +2148,13 @@ mod tests {
         assert_eq!(unchanged.directory_choice, DirectoryChoice::On);
         assert_eq!(unchanged.directory_origin, Some(Origin::CommandLine));
         let inherited = Options::with_environment([], Some("w".into()), None).unwrap();
-        assert_eq!(inherited.directory_origin, Some(Origin::Environment));
-        let selected = inherited
+        assert_eq!(inherited.directory_origin, Some(Origin::CommandLine));
+        let inherited = inherited
+            .assigned_flags(&[b"--no-print-directory".to_vec()], Origin::File)
+            .unwrap()
+            .0;
+        assert_eq!(inherited.directory_choice, DirectoryChoice::On);
+        let selected = Options::default()
             .assigned_flags(&[b"--no-print-directory".to_vec()], Origin::File)
             .unwrap()
             .0;

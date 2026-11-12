@@ -152,6 +152,8 @@ def verify_archive(path: Path, expected: str) -> None:
 
 
 DOWNLOAD_ERRORS = (OSError, http.client.IncompleteRead)
+GNU_MAKE_ARCHIVE = "https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz"
+GNU_MAKE_MIRROR = "https://mirror.csclub.uwaterloo.ca/gnu/make/make-4.4.1.tar.gz"
 UBUNTU_ARCHIVE = "https://archive.ubuntu.com/ubuntu/"
 UBUNTU_ARCHIVE_ALTERNATE = "https://mirrors.kernel.org/ubuntu/"
 
@@ -201,9 +203,9 @@ def download_archive(config: dict, directory: Path) -> Path:
         verify_archive(destination, archive["sha256"])
         return destination
     opener = urllib.request.build_opener(HTTPSRedirectsOnly())
-    request = urllib.request.Request(archive["url"], headers={"User-Agent": "rmake-oracle-bootstrap/1"})
 
-    def attempt() -> None:
+    def attempt(url: str) -> None:
+        request = urllib.request.Request(url, headers={"User-Agent": "rmake-oracle-bootstrap/1"})
         temporary = None
         try:
             with tempfile.NamedTemporaryFile(dir=directory, prefix=".download-", delete=False) as output:
@@ -226,8 +228,14 @@ def download_archive(config: dict, directory: Path) -> Path:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
 
+    primary = archive["url"]
     try:
-        retry_download(attempt)
+        try:
+            retry_download(lambda: attempt(primary))
+        except DOWNLOAD_ERRORS as error:
+            if primary != GNU_MAKE_ARCHIVE or not transient_download_error(error):
+                raise
+            retry_download(lambda: attempt(GNU_MAKE_MIRROR))
     except DOWNLOAD_ERRORS as error:
         raise OracleError(f"archive download failed: {error}") from error
     return destination

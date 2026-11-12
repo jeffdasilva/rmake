@@ -1,0 +1,12 @@
+id = "call-generated-substitution-target-local-source"
+requirement = "functions.control"
+candidate = "required"
+description = "Literal substitution spelling in a computed call callee."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d5b746172676574625d0a"
+stderr_hex = ""

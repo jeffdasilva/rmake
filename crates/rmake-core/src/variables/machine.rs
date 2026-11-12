@@ -1029,7 +1029,7 @@ impl Expansion<'_, '_> {
         }
         let start = self.bindings.len();
         self.bindings.push(frame);
-        let location = variable.definition.clone().or(nearest);
+        let location = variable.definition.clone().or_else(|| nearest.clone());
         m.job(
             Kind::ScopeEnd(start, scope_storage(&self.bindings[start..])),
             depth,
@@ -1045,6 +1045,19 @@ impl Expansion<'_, '_> {
                 binding.raw_value().to_vec()
             };
             m.values.push(value);
+        } else if name
+            .iter()
+            .position(|&byte| byte == b':')
+            .is_some_and(|colon| name[colon + 1..].contains(&b'='))
+            && !name.iter().any(|&byte| matches!(byte, b'$' | b')'))
+        {
+            // The generated reference can select a substitution in this frame.
+            if variable.raw_value().is_empty() {
+                m.values.push(Vec::new());
+            } else {
+                m.values.push(name.to_vec());
+                m.job(Kind::Resolve, depth, nearest)?;
+            }
         } else if variable.flavor == Flavor::Simple {
             m.values.push(variable.value);
         } else {

@@ -947,6 +947,11 @@ right
 case = "required-keep-pipe"
 flag = "m,v"
 fifo = true
+fifo_second_stdout_barrier = '''
+   Still updating file 'right'.
+  The prerequisites of 'joined' are being made.
+ The prerequisites of 'generated.gen' are being made.
+'''
 release_prefixes = [1216, 1628]
 stdout = '''
 GNU Make 4.4.1
@@ -12980,6 +12985,8 @@ case = "load-dynamic-token-wait-pipe"
 flag = "m,v"
 fifo = true
 requires_load = true
+fifo_tail_stdout_barrier = "\n Still updating file 'tail.gen'.\n"
+fifo_second_stdout_barrier = " File 'tail.gen' was considered already.\n"
 release_prefixes = [1258, 1664]
 stdout = '''
 GNU Make 4.4.1

@@ -1,0 +1,11 @@
+id = "empty-continued-command-one-shell-other-shell-q"
+requirement = "process.empty-continued-command"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-q", "artifact"]
+description = "An escaped continuation and its shell configuration under empty-continued-command-one-shell-other-shell-q."
+provenance = "Original rmake fixture authored from independent GNU Make 4.4.1 observations; no upstream source or fixture copied."
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

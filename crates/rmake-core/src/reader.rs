@@ -50,6 +50,13 @@ impl LeadingPrefix {
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) struct ParserLine {
+    pub logical: LogicalLine,
+    pub leading_prefix: LeadingPrefix,
+    pub continued_source: Option<Vec<u8>>,
+}
+
 /// A reader whose contextual state is supplied by the interpreter.
 #[derive(Debug)]
 pub struct Reader<'a> {
@@ -121,19 +128,21 @@ impl<'a> Reader<'a> {
     /// Ordinary continuations collapse surrounding spaces/tabs, except that
     /// POSIX mode preserves whitespace before a continuation and separate joins.
     pub fn next_line(&mut self, recipe_prefix: u8, in_rule_context: bool) -> Option<LogicalLine> {
-        self.next_line_with_prefix(recipe_prefix, in_rule_context)
-            .map(|(line, _)| line)
+        self.next_source_line(recipe_prefix, in_rule_context, false)
+            .map(|line| line.logical)
     }
 
-    fn next_line_with_prefix(
+    fn next_source_line(
         &mut self,
         recipe_prefix: u8,
         in_rule_context: bool,
-    ) -> Option<(LogicalLine, LeadingPrefix)> {
+        retain_inline: bool,
+    ) -> Option<ParserLine> {
         self.nul_warnings = 0;
         if self.nul_input {
-            return self.nul_line(recipe_prefix, in_rule_context);
+            return self.nul_line(recipe_prefix, in_rule_context, retain_inline);
         }
+        let start = self.offset;
         let first = self.physical_line()?;
         let leading_prefix = LeadingPrefix::new(first.bytes, recipe_prefix);
         let recipe = in_rule_context && leading_prefix.raw;
@@ -146,7 +155,7 @@ impl<'a> Reader<'a> {
         let mut current = first;
         let mut continued = false;
 
-        loop {
+        let trailing_join = loop {
             result.end_line = current.line;
             // Decide physical continuation before removing any recipe prefix:
             // the prefix itself may be a backslash.
@@ -191,15 +200,50 @@ impl<'a> Reader<'a> {
             }
 
             if !joins_next {
-                break;
+                break false;
             }
             let Some(next) = self.physical_line() else {
-                break;
+                break true;
             };
             current = next;
             continued = true;
+        };
+        let continued_source = if retain_inline && !recipe && (continued || trailing_join) {
+            self.inline_source(start, current.terminated && !trailing_join)
+        } else {
+            None
+        };
+        Some(ParserLine {
+            logical: result,
+            leading_prefix,
+            continued_source,
+        })
+    }
+
+    fn inline_source(&self, start: usize, remove_terminator: bool) -> Option<Vec<u8>> {
+        let mut source = &self.source[start..self.offset];
+        if !source.contains(&b';') {
+            return None;
         }
-        Some((result, leading_prefix))
+        if remove_terminator {
+            source = &source[..source.len() - 1];
+            if self.strip_crlf {
+                source = source.strip_suffix(b"\r").unwrap_or(source);
+            }
+        }
+        if !self.strip_crlf || !source.contains(&b'\r') {
+            return Some(source.to_vec());
+        }
+        let mut normalized = Vec::with_capacity(source.len());
+        for physical in source.split_inclusive(|&byte| byte == b'\n') {
+            if let Some(body) = physical.strip_suffix(b"\r\n") {
+                normalized.extend_from_slice(body);
+                normalized.push(b'\n');
+            } else {
+                normalized.extend_from_slice(physical);
+            }
+        }
+        Some(normalized)
     }
 
     /// Warnings belong to the read operation, before interpreting its contents.
@@ -213,7 +257,8 @@ impl<'a> Reader<'a> {
         &mut self,
         recipe_prefix: u8,
         in_rule_context: bool,
-    ) -> Option<(LogicalLine, LeadingPrefix)> {
+        retain_inline: bool,
+    ) -> Option<ParserLine> {
         let line = self.next_physical_line;
         let mut raw = Vec::new();
         let mut lines = 0;
@@ -281,20 +326,28 @@ impl<'a> Reader<'a> {
         // handling while retaining the file reader's observed line count.
         let mut reader = Reader::new(&raw);
         reader.set_posix(self.posix);
-        let (mut folded, leading_prefix) = reader
-            .next_line_with_prefix(recipe_prefix, in_rule_context)
-            .unwrap_or((
-                LogicalLine {
+        let mut folded = reader
+            .next_source_line(recipe_prefix, in_rule_context, false)
+            .unwrap_or(ParserLine {
+                logical: LogicalLine {
                     bytes: Vec::new(),
                     line,
                     end_line: line,
                     recipe: false,
                 },
-                LeadingPrefix::default(),
-            ));
-        folded.line = line;
-        folded.end_line = self.next_physical_line - 1;
-        Some((folded, leading_prefix))
+                leading_prefix: LeadingPrefix::default(),
+                continued_source: None,
+            });
+        folded.logical.line = line;
+        folded.logical.end_line = self.next_physical_line - 1;
+        if retain_inline
+            && !folded.logical.recipe
+            && raw.contains(&b';')
+            && raw.windows(2).any(|pair| pair == b"\\\n")
+        {
+            folded.continued_source = Some(raw);
+        }
+        Some(folded)
     }
 
     fn physical_line(&mut self) -> Option<PhysicalLine<'a>> {
@@ -390,6 +443,68 @@ fn comment_end(line: &[u8], mut compact: impl FnMut(usize, usize)) -> usize {
         }
     }
     line.len()
+}
+
+pub(crate) fn inline_recipe_continuations(source: &[u8], prefix: u8) -> Vec<u8> {
+    if !source.contains(&b'\n') {
+        return source.to_vec();
+    }
+    let mut output = Vec::with_capacity(source.len());
+    let mut copied = 0;
+    let mut cursor = 0;
+    // Fold only the continuations inside a make reference before expansion.
+    while let Some(dollar) = source[cursor..].iter().position(|&byte| byte == b'$') {
+        let opening = cursor + dollar + 1;
+        cursor = opening;
+        if !matches!(source.get(opening), Some(b'(' | b'{')) {
+            continue;
+        }
+        let end = crate::variables::reference_end(source, opening).unwrap_or(source.len());
+        output.extend_from_slice(&source[copied..opening + 1]);
+        fold_recipe_reference(&source[opening + 1..end], &mut output);
+        copied = end;
+        cursor = end;
+    }
+    output.extend_from_slice(&source[copied..]);
+
+    // A dollar still has its make expansion meaning at the start of a line.
+    if prefix != b'$' {
+        let mut after_newline = false;
+        output.retain(|&byte| {
+            let keep = !(after_newline && byte == prefix);
+            after_newline = keep && byte == b'\n';
+            keep
+        });
+    }
+    output
+}
+
+fn fold_recipe_reference(mut source: &[u8], output: &mut Vec<u8>) {
+    let start = output.len();
+    while let Some(join) = source.windows(2).position(|pair| pair == b"\\\n") {
+        let quoted = source[..join]
+            .iter()
+            .rev()
+            .take_while(|&&byte| byte == b'\\')
+            .count()
+            % 2
+            != 0;
+        output.extend_from_slice(&source[..join]);
+        source = &source[join + 2..];
+        if quoted {
+            output.extend_from_slice(b"\\\n");
+        } else {
+            while output.len() > start && output.last().is_some_and(|&byte| is_blank(byte)) {
+                output.pop();
+            }
+            output.push(b' ');
+            let first = source
+                .iter()
+                .position(|byte| !byte.is_ascii_whitespace() && *byte != 0x0b);
+            source = &source[first.unwrap_or(source.len())..];
+        }
+    }
+    output.extend_from_slice(source);
 }
 
 #[cfg(test)]
@@ -531,6 +646,21 @@ mod tests {
         let line = normal(b"a\\\n");
         assert_eq!(line.bytes, b"a ");
         assert_eq!((line.line, line.end_line), (1, 1));
+    }
+
+    #[test]
+    fn inline_recipe_folds_only_references_and_removes_one_physical_prefix() {
+        assert_eq!(
+            super::inline_recipe_continuations(
+                b"$(info left \\\n\t\x0b right) raw\\\n\t\t tail",
+                b'\t'
+            ),
+            b"$(info left right) raw\\\n\t tail"
+        );
+        assert_eq!(
+            super::inline_recipe_continuations(b"$(info left \\\n>right) raw\\\n>>tail", b'>'),
+            b"$(info left >right) raw\\\n>tail"
+        );
     }
 
     #[test]

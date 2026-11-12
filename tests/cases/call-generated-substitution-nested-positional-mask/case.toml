@@ -1,0 +1,12 @@
+id = "call-generated-substitution-nested-positional-mask"
+requirement = "functions.control"
+candidate = "required"
+description = "Literal substitution spelling in a computed call callee."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "76616c75653d5b7c72696768745d0a"
+stderr_hex = ""

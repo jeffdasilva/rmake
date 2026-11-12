@@ -1,0 +1,12 @@
+id = "inline-physical-continuations-dollar-prefix-expand"
+requirement = "syntax.reader"
+candidate = "required"
+description = "A dollar recipe prefix retains its meaning during recipe expansion."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "3c6c6566742072696768743e0a"
+stderr_hex = ""

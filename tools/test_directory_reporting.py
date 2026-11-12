@@ -127,7 +127,7 @@ class DirectoryReportingTests(unittest.TestCase):
                 self.assertEqual(d.main([*arguments,'--case','unknown']), 2)
 
     def test_original_inventory_and_retained_history_hashes(self):
-        models=d.models();self.assertEqual(len(models),40);self.assertEqual(len({m.id for m in models}),40)
+        models=d.models();self.assertEqual(len(models),67);self.assertEqual(len({m.id for m in models}),67)
         self.assertEqual(sum(bool(model.modules) for model in models),2)
         self.assertEqual(sum(b'@VERSION@' in bytes.fromhex(model.expected['stdout_template_hex']) for model in models),1)
         for path in d.SOURCES.glob('*.json'):
