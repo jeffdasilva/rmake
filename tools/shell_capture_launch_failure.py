@@ -65,6 +65,10 @@ def flags(entry):
     return int(entry["info"]["flags"], 8)
 
 
+def public_descriptors(entries):
+    return {entry["fd"]: (entry["target"], flags(entry)) for entry in entries if entry["fd"] <= 2}
+
+
 def pipe_pair(inode, entries):
     modes = sorted(flags(entry) & os.O_ACCMODE for entry in entries)
     return modes == [os.O_RDONLY, os.O_WRONLY] and all(
@@ -150,6 +154,7 @@ def observe_run(case, runtime, image, is_oracle, roomy_slots):
 def check_phases(phases, owner, image, is_oracle, roomy_slots):
     errors = []
     first = phases["before"]["parent"]
+    original_public = public_descriptors(phases["before"]["parent_fds"])
     seen_captures = set()
     prior_pipes = {}
     baseline = {}
@@ -164,10 +169,19 @@ def check_phases(phases, owner, image, is_oracle, roomy_slots):
         if phase["entry_journal"] != journal.hex():
             errors.append(f"{name}: actual executable entry count")
 
+        public = public_descriptors(phase["parent_fds"])
+        child_public = public_descriptors(phase["child_fds"])
+        if (set(public) != {0, 1, 2} or public != original_public
+                or any(mode & os.O_CLOEXEC for _, mode in public.values())):
+            errors.append(f"{name}: unchanged parent standard descriptors")
+        if set(child_public) != {0, 1, 2} or any(
+            child_public.get(fd) != public.get(fd) for fd in (0, 2)
+        ):
+            errors.append(f"{name}: observer inherited standard input and error")
         current = phase["capture_id"]
         stdout = next((entry for entry in phase["child_fds"] if entry["fd"] == 1), None)
         if (stdout is None or current is None or current in seen_captures
-                or flags(stdout) & os.O_ACCMODE != os.O_WRONLY):
+                or flags(stdout) & os.O_ACCMODE != os.O_WRONLY or flags(stdout) & os.O_CLOEXEC):
             errors.append(f"{name}: independent current capture writer")
         seen_captures.add(current)
         if any(entry["fd"] > 2 and pipe_id(entry) is not None for entry in phase["child_fds"]):
@@ -182,7 +196,12 @@ def check_phases(phases, owner, image, is_oracle, roomy_slots):
         if (len(live) != 1 or flags(live[0]) & os.O_ACCMODE != os.O_RDONLY
                 or not flags(live[0]) & os.O_CLOEXEC or int(live[0]["info"]["ino"]) != current):
             errors.append(f"{name}: live parent capture reader")
-        if roomy_slots and [entry["fd"] for entry in live] != [ROOMY_CAPTURE_READERS[name]]:
+        # The candidate accounts for the first failed private capture with
+        # its existing wake pair. A process without that pair retains both
+        # failures, as does the reference.
+        accounted_wake = not is_oracle and bool(baseline) and name in ROOMY_FAILED_PAIRS
+        roomy_reader = ROOMY_CAPTURE_READERS[name] - 2 * accounted_wake
+        if roomy_slots and [entry["fd"] for entry in live] != [roomy_reader]:
             errors.append(f"{name}: exact roomy capture reader descriptor")
         if seen_captures.intersection(pipes):
             errors.append(f"{name}: earlier successful capture is still held")
@@ -202,7 +221,7 @@ def check_phases(phases, owner, image, is_oracle, roomy_slots):
                 errors.append("restarted: old pairs absent and private baseline restored")
         else:
             failed = {inode: ends for inode, ends in pipes.items() if inode not in baseline}
-            expected = 1 if name == "after-one" else 2
+            expected = len(ROOMY_FAILED_PAIRS[name]) - accounted_wake
             if len(failed) != expected or not all(
                 pipe_pair(inode, ends) and all(not flags(end) & os.O_NONBLOCK for end in ends)
                 for inode, ends in failed.items()
@@ -210,7 +229,7 @@ def check_phases(phases, owner, image, is_oracle, roomy_slots):
                 errors.append(f"{name}: exactly {expected} complete CLOEXEC failed-capture pairs")
             if roomy_slots:
                 slots = sorted([entry["fd"] for entry in ends] for ends in failed.values())
-                if slots != ROOMY_FAILED_PAIRS[name]:
+                if slots != ROOMY_FAILED_PAIRS[name][:expected]:
                     errors.append(f"{name}: exact roomy failed-capture descriptors")
             if any(pipes.get(inode) != ends for inode, ends in prior_pipes.items()):
                 errors.append(f"{name}: unchanged ownership of earlier pipes")
