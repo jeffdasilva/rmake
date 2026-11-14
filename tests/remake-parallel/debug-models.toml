@@ -1,5 +1,6 @@
 # Pinned GNU Make 4.4.1 traces for controlled worker releases.
 # Prefix lengths count the bytes visible before each release.
+# @SPACE@ represents a literal trailing space in the command GNU printed.
 schema_version = 1
 
 [[profiles]]
@@ -19640,6 +19641,764 @@ Updating goal targets....
 Considering target file 'named.gen'.
 File 'named.gen' was considered already.
 make: 'named.gen' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-recipe-n-pipe-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1041]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+ Recipe of 'Makefile' is being run.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+ Recipe of 'child.mk' is being run.
+chmod a+x Makefile
+ Considering target file 'Makefile'.
+ File 'Makefile' was considered already.
+ Considering target file 'child.mk'.
+ Still updating file 'child.mk'.
+printf '%s\n' 'CHILD := loaded' > child.mk
+ Considering target file 'child.mk'.
+ File 'child.mk' was considered already.
+Re-executing[1]: @BIN@ --no-print-directory -j2 -l2 --jobserver-style=pipe -n child.mk --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is older than target 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+printf '%s\n' 'CHILD := loaded' > child.mk
+ Successfully remade target file 'child.mk'.
+Updating goal targets....
+Considering target file 'child.mk'.
+File 'child.mk' was considered already.
+make: 'child.mk' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+printf '%s\n' "suffix "
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-optional-recipe-n-pipe-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1054]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (don't care) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+ Recipe of 'Makefile' is being run.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+ Recipe of 'child.mk' is being run.
+chmod a+x Makefile
+ Considering target file 'Makefile'.
+ File 'Makefile' was considered already.
+ Considering target file 'child.mk'.
+ Still updating file 'child.mk'.
+printf '%s\n' 'CHILD := loaded' > child.mk
+ Considering target file 'child.mk'.
+ File 'child.mk' was considered already.
+Re-executing[1]: @BIN@ --no-print-directory -j2 -l2 --jobserver-style=pipe -n child.mk --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (don't care) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is older than target 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+printf '%s\n' 'CHILD := loaded' > child.mk
+ Successfully remade target file 'child.mk'.
+Updating goal targets....
+Considering target file 'child.mk'.
+File 'child.mk' was considered already.
+make: 'child.mk' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+printf '%s\n' "suffix "
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-recipe-n-pipe-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1093]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+ Recipe of 'Makefile' is being run.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+printf '%s\n' 'CHILD := loaded' > child.mk
+ Successfully remade target file 'child.mk'.
+chmod a+x Makefile
+ Considering target file 'Makefile'.
+ File 'Makefile' was considered already.
+Re-executing[1]: @BIN@ --no-print-directory -j2 -l2 --jobserver-style=pipe -n child.mk --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is older than target 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+printf '%s\n' 'CHILD := loaded' > child.mk
+ Successfully remade target file 'child.mk'.
+Updating goal targets....
+Considering target file 'child.mk'.
+File 'child.mk' was considered already.
+make: 'child.mk' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+printf '%s\n' "suffix "
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-optional-recipe-n-pipe-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1106]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (don't care) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+ Recipe of 'Makefile' is being run.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+printf '%s\n' 'CHILD := loaded' > child.mk
+ Successfully remade target file 'child.mk'.
+chmod a+x Makefile
+ Considering target file 'Makefile'.
+ File 'Makefile' was considered already.
+Re-executing[1]: @BIN@ --no-print-directory -j2 -l2 --jobserver-style=pipe -n child.mk --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (don't care) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is older than target 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+printf '%s\n' 'CHILD := loaded' > child.mk
+ Successfully remade target file 'child.mk'.
+Updating goal targets....
+Considering target file 'child.mk'.
+File 'child.mk' was considered already.
+make: 'child.mk' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+printf '%s\n' "suffix "
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-recipe-q-pipe-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1041]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+ Recipe of 'Makefile' is being run.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+ Recipe of 'child.mk' is being run.
+ Considering target file 'Makefile'.
+ Recently tried and failed to update file 'Makefile'.
+ Considering target file 'child.mk'.
+ Still updating file 'child.mk'.
+ Considering target file 'child.mk'.
+ Recently tried and failed to update file 'child.mk'.
+Updating goal targets....
+Considering target file 'child.mk'.
+Recently tried and failed to update file 'child.mk'.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-stock-primary-optional-recipe-q-pipe-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1054]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (don't care) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+ Recipe of 'Makefile' is being run.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+ Recipe of 'child.mk' is being run.
+ Considering target file 'Makefile'.
+ Recently tried and failed to update file 'Makefile'.
+ Considering target file 'child.mk'.
+ Still updating file 'child.mk'.
+ Considering target file 'child.mk'.
+ Recently tried and failed to update file 'child.mk'.
+Updating goal targets....
+Considering target file 'child.mk'.
+Recently tried and failed to update file 'child.mk'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-recipe-q-pipe-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1058]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+ Recipe of 'Makefile' is being run.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+ Target file 'child.mk' needs to be remade under -q.
+ Considering target file 'Makefile'.
+ Recently tried and failed to update file 'Makefile'.
+Updating goal targets....
+Considering target file 'child.mk'.
+Recently tried and failed to update file 'child.mk'.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-stock-primary-optional-recipe-q-pipe-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1071]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (don't care) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+ Recipe of 'Makefile' is being run.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+ Target file 'child.mk' needs to be remade under -q.
+ Considering target file 'Makefile'.
+ Recently tried and failed to update file 'Makefile'.
+Updating goal targets....
+Considering target file 'child.mk'.
+Recently tried and failed to update file 'child.mk'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-recipe-t-pipe-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1065]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+ Recipe of 'Makefile' is being run.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+touch child.mk
+ Successfully remade target file 'child.mk'.
+touch Makefile
+touch Makefile
+ Considering target file 'Makefile'.
+ File 'Makefile' was considered already.
+Re-executing[1]: @BIN@ --no-print-directory -j2 -l2 --jobserver-style=pipe -t child.mk --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is older than target 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'child.mk'.
+ Finished prerequisites of target file 'child.mk'.
+ No need to remake target 'child.mk'.
+Updating goal targets....
+Considering target file 'child.mk'.
+File 'child.mk' was considered already.
+make: 'child.mk' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-optional-recipe-t-pipe-high"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1078]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (don't care) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+ Recipe of 'Makefile' is being run.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+touch child.mk
+ Successfully remade target file 'child.mk'.
+touch Makefile
+touch Makefile
+ Considering target file 'Makefile'.
+ File 'Makefile' was considered already.
+Re-executing[1]: @BIN@ --no-print-directory -j2 -l2 --jobserver-style=pipe -t child.mk --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (don't care) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is older than target 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'child.mk'.
+ Finished prerequisites of target file 'child.mk'.
+ No need to remake target 'child.mk'.
+Updating goal targets....
+Considering target file 'child.mk'.
+File 'child.mk' was considered already.
+make: 'child.mk' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-recipe-t-pipe-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1065]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+ Recipe of 'Makefile' is being run.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+touch child.mk
+ Successfully remade target file 'child.mk'.
+touch Makefile
+touch Makefile
+ Considering target file 'Makefile'.
+ File 'Makefile' was considered already.
+Re-executing[1]: @BIN@ --no-print-directory -j2 -l2 --jobserver-style=pipe -t child.mk --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is older than target 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'child.mk'.
+ Finished prerequisites of target file 'child.mk'.
+ No need to remake target 'child.mk'.
+Updating goal targets....
+Considering target file 'child.mk'.
+File 'child.mk' was considered already.
+make: 'child.mk' is up to date.
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-optional-recipe-t-pipe-low"
+flag = "m,v"
+requires_load = true
+fifo = true
+release_prefixes = [1078]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (don't care) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+ Recipe of 'Makefile' is being run.
+ Considering target file 'child.mk'.
+  File 'child.mk' does not exist.
+ Finished prerequisites of target file 'child.mk'.
+ Must remake target 'child.mk'.
+touch child.mk
+ Successfully remade target file 'child.mk'.
+touch Makefile
+touch Makefile
+ Considering target file 'Makefile'.
+ File 'Makefile' was considered already.
+Re-executing[1]: @BIN@ --no-print-directory -j2 -l2 --jobserver-style=pipe -t child.mk --debug=m,v all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'child.mk' (search path) (don't care) (no ~ expansion)...
+Using jobserver controller 3,4
+Updating makefiles....
+ Considering target file 'Makefile'.
+  Considering target file 'Makefile.sh'.
+  Finished prerequisites of target file 'Makefile.sh'.
+  No need to remake target 'Makefile.sh'.
+ Finished prerequisites of target file 'Makefile'.
+  Prerequisite 'Makefile.sh' is older than target 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'child.mk'.
+ Finished prerequisites of target file 'child.mk'.
+ No need to remake target 'child.mk'.
+Updating goal targets....
+Considering target file 'child.mk'.
+File 'child.mk' was considered already.
+make: 'child.mk' is up to date.
 Considering target file 'all'.
  File 'all' does not exist.
 Finished prerequisites of target file 'all'.
