@@ -182,3 +182,9 @@ its original leading spaces and tabs. It then folds any unescaped newlines.
 If folding consumes the entire command, the interpreter launches the
 configured shell with its flag arguments alone. Explicit empty flag words
 and command bytes remaining after the first newline are still passed.
+
+Shell capture expands the command argument before expanding `SHELL`,
+`.SHELLFLAGS`, and `IFS`, in that order. Configuration expansion suppresses
+undefined-variable warnings and restores the caller's policy afterward.
+A command that is empty or contains only spaces and tabs returns empty
+after configuration. It preserves `.SHELLSTATUS` and skips child exports.

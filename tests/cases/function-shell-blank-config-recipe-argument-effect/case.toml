@@ -1,0 +1,15 @@
+id = "function-shell-blank-config-recipe-argument-effect"
+requirement = "functions.shell"
+candidate = "required"
+description = "Shell configuration expansion order for a blank command."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "--warn-undefined-variables", "all"]
+timeout_seconds = 5
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout_hex = "636170747572653d5b5d207374617475733d5b395d0a6f726465723d5b6265666f72650a4152475b395d0a5348454c4c5b395d0a464c4147535b395d0a4946535b395d0a41465445525d0a"
+stderr_hex = ""
