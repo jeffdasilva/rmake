@@ -129,7 +129,7 @@ Directory-qualified sources, expanded identities, and
 combined load, grouped-remake, and debug paths need broader coverage.
 [Held remake gate](../tests/remake-parallel/README.md)
 
-The ordinary inventory contains 31,006 case manifests and 230 requirements.
+The ordinary inventory contains 31,012 case manifests and 230 requirements.
 Serial double-colon failure recovery, returned-failure diagnostics, and cached
 visits for repeated required makefiles and failed or unchanged optional
 declarations have independent expectations for exit status, streams, and file effects.
@@ -138,6 +138,7 @@ declarations have independent expectations for exit status, streams, and file ef
 Existing includes rewritten or removed by a successful serial grouped recipe
 are reread if their timestamp changes. Controls cover required and optional
 includes, query and dry-run, and a group whose recipe is up to date.
+Verbose serial controls check the first cached visit of a completed peer.
 GNU Make can also restart after a grouped recipe runs and leaves a read peer
 unchanged. That behavior remains open.
 An already loaded source retains its pre-remake file observation when an
