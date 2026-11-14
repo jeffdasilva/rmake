@@ -3286,8 +3286,8 @@ impl Engine {
             let unruled_primary = ordinary_mode
                 && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
-            let overlap_primary_recipe = unruled_primary
-                && matches!(named_load_files, [(include, false)] if !include.optional || !modes.question);
+            let overlap_primary_recipe =
+                unruled_primary && matches!(named_load_files, [(_, false)]);
             let check_primary_before_overlap = unruled_primary && !overlap_primary_recipe;
             let verbose_mode_remakes = ordinary_mode
                 && qualified_remake_debug
@@ -3399,13 +3399,12 @@ impl Engine {
                     let name = makefile.name.as_slice();
                     if !skip
                         && !makefile.missing
-                        && !self.database.rules.contains_key(name)
                         && !self.path_observations.contains_key(name)
                         && rmake_core::filenames::archive_parts(name).is_none()
                         && let Some(time) = self.modified(name)
                     {
                         // A prior remake can remove an already loaded source.
-                        // Its unruled visit still sees the pre-remake file.
+                        // Its visit still sees the pre-remake file.
                         self.check_clock_skew(name, Some(time));
                         self.path_observations
                             .insert(name.to_vec(), Some((None, Some(time))));
@@ -3915,6 +3914,14 @@ impl Engine {
                         }
                         ran_remake_recipe |= result.ran;
                         if result.question_outdated {
+                            if overlap_primary_recipe && remake.file.optional {
+                                // A load-delayed optional query finishes through
+                                // the job queue. Retain the same required-goal
+                                // diagnostic as an immediately settled query.
+                                self.optional_remake_failures
+                                    .entry(name.to_vec())
+                                    .or_default();
+                            }
                             if !failed && !optional_remake_failed {
                                 remake_question = true;
                             } else if !remake_question && !remake.file.optional {

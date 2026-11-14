@@ -1,0 +1,12 @@
+id = "include-serial-explicit-read-optional-own-query"
+requirement = "includes.remake"
+candidate = "required"
+description = "Preserve the pre-remake observation of an explicit serial include changed by an earlier recipe."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-q", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "READ:\n"
+stderr = ""

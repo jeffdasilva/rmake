@@ -94,8 +94,8 @@ The [locale collation slice](locale-collation.md) closes 33 observed preceding m
 
 ## Parallel modes, makefile remakes, and jobserver paths
 
-The held remake gate covers 2,850 profiles on Linux FIFO and pipe jobservers.
-It includes 872 remake-debug and 1,050 controlled load profiles. The gate authenticates 275 FIFO
+The held remake gate covers 2,878 profiles on Linux FIFO and pipe jobservers.
+It includes 896 remake-debug and 1,078 controlled load profiles. The gate authenticates 287 FIFO
 controller traces. The gate covers direct grouped optional
 recipes, stopped optional
 workers retained across load limits, named include and primary makefile goals,
@@ -129,7 +129,7 @@ Directory-qualified sources, expanded identities, and
 combined load, grouped-remake, and debug paths need broader coverage.
 [Held remake gate](../tests/remake-parallel/README.md)
 
-The ordinary inventory contains 31,018 case manifests and 230 requirements.
+The ordinary inventory contains 31,036 case manifests and 230 requirements.
 Serial double-colon failure recovery, returned-failure diagnostics, and cached
 visits for repeated required makefiles and failed or unchanged optional
 declarations have independent expectations for exit status, streams, and file effects.
@@ -140,9 +140,10 @@ are reread if their timestamp changes. Controls cover required and optional
 includes, query and dry-run, and a group whose recipe is up to date.
 GNU Make can also restart after a grouped recipe runs and leaves a read peer
 unchanged. That behavior remains open.
-An already loaded unruled source retains its pre-remake file observation
-when an earlier serial recipe removes it. Explicit empty rule debug traces
-remain open.
+An already loaded source retains its pre-remake file observation when an
+earlier serial recipe removes it. Controls cover unruled and explicitly ruled
+sources, empty rules, order-only and double-colon dependencies, and missing or
+stale sources that still need their own remake.
 
 The development and optimized builds from #374 each matched all 505
 held remake profiles, 1,098 affected ordinary cases, and 167 database
