@@ -2087,7 +2087,8 @@ def stock_primary_load_models() -> list[HeldModel]:
     results = []
     for transport in ('pipe', 'fifo'):
         for tag, load_input in (('high', LOAD_HIGH), ('low', LOAD_LOW)):
-            for optional, mode in ((False, 'n'), (False, 'q'), (False, 't'), (True, 'n'), (True, 't')):
+            for optional, mode in ((False, 'n'), (False, 'q'), (False, 't'),
+                                   (True, 'n'), (True, 'q'), (True, 't')):
                 include_source = source.replace(b'include child.mk', b'-include child.mk') if optional else source
                 replacement = include_source + b'PRIMARY := suffix\n'
                 files = {'Makefile': include_source, 'Makefile.sh': replacement,
@@ -2106,12 +2107,15 @@ def stock_primary_load_models() -> list[HeldModel]:
                 elif mode == 'q':
                     stdout = start
                     stderr = b"make: *** Deleting file 'Makefile'\n"
+                    if optional:
+                        stderr += b"make: *** No rule to make target 'child.mk'.  Stop.\n"
                 else:
                     updates.update({'Makefile': replacement, 'child.mk': b'', 'all': b''})
                     release_stdout += touch_child
                     load_trace = b''
                     stdout = release_stdout + b'touch Makefile\n' * 2 + up_to_date + b'touch all\n'
-                expected = {'exit_code': int(mode == 'q'), 'stdout_template_hex': stdout.hex(),
+                status = 1 + int(optional) if mode == 'q' else 0
+                expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
                             'stderr_template_hex': stderr.hex()}
                 args = ('--no-print-directory', '-j2', '-l2', f'--jobserver-style={transport}',
                         f'-{mode}', 'child.mk', 'all')
