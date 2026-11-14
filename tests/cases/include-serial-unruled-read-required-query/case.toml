@@ -1,0 +1,12 @@
+id = "include-serial-unruled-read-required-query"
+requirement = "includes.remake"
+candidate = "required"
+description = "An already loaded unruled include survives removal by an earlier serial remake."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-q", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "READ:\n"
+stderr = ""
