@@ -3387,6 +3387,24 @@ impl Engine {
                     ));
             self.parallel_makefile_remakes =
                 self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
+            if !self.parallel_makefile_remakes {
+                for (makefile, skip) in &read_files {
+                    let name = makefile.name.as_slice();
+                    if !skip
+                        && !makefile.missing
+                        && !self.database.rules.contains_key(name)
+                        && !self.path_observations.contains_key(name)
+                        && rmake_core::filenames::archive_parts(name).is_none()
+                        && let Some(time) = self.modified(name)
+                    {
+                        // A prior remake can remove an already loaded source.
+                        // Its unruled visit still sees the pre-remake file.
+                        self.check_clock_skew(name, Some(time));
+                        self.path_observations
+                            .insert(name.to_vec(), Some((None, Some(time))));
+                    }
+                }
+            }
             self.remaking = true;
             self.defer_stopped_remake_load = ordinary_mode;
             let mut changed = false;
