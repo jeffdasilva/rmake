@@ -3286,8 +3286,21 @@ impl Engine {
             let unruled_primary = ordinary_mode
                 && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
-            let overlap_primary_recipe =
-                unruled_primary && matches!(named_load_files, [(_, false)]);
+            // A quiet dry run or query can also keep a required unnamed
+            // include pending beside the named include. Touch and debug
+            // still need their own mixed-mode pass handling.
+            let mixed_named_overlap = matches!(named_load_files, [(_, false), (_, false)])
+                && !modes.touch
+                && !debug_before_remake.has(Mask::MAKEFILES);
+            let overlap_primary_recipe = unruled_primary
+                && named_load_files.iter().all(|(file, skip)| {
+                    *skip
+                        || (mixed_named_overlap && !file.optional)
+                        || self.is_makefile_goal(
+                            rmake_core::filenames::without_dot_prefix(&file.name),
+                            named_sources.as_ref(),
+                        )
+                });
             let check_primary_before_overlap = unruled_primary && !overlap_primary_recipe;
             let verbose_mode_remakes = ordinary_mode
                 && qualified_remake_debug
@@ -11815,7 +11828,8 @@ impl Engine {
             self.pending_rules.remove(&peer);
             let mut completed = cached;
             completed.database_result = database_result;
-            completed.debug_serial_group_peer = debug_serial_group_peer;
+            completed.debug_serial_group_peer = debug_serial_group_peer
+                || (track_read_peers && self.makefile_names.contains(&peer));
             completed.optional_group_peer_failure =
                 self.optional_remake() && outcome.failed && !outcome.fatal;
             completed.search_after_update = false;

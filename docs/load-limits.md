@@ -106,6 +106,15 @@ Twelve additional held profiles cover a single optional named include. When
 its query finishes in the load queue, the cached outcome retains the later
 required-goal diagnostic, just as for a query that settled during its visit.
 
+When every remaining makefile source is directly named, the stock primary can
+also overlap more than one include. Twenty-four additional held profiles cover
+two direct includes, including an optional first include that completes its
+pass while the second waits. The profiles compare the live release, command
+order, query cleanup, touched files and final mode. Sixteen further held
+profiles combine a named source and a required unnamed source in quiet dry-run
+and query modes. They verify real include contents and the primary file's mode
+after the pass. Mixed-source touch and debug paths need further coverage.
+
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
 otherwise successful remake. A separate remake failure still lets physically

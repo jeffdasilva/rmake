@@ -60,16 +60,19 @@ fn prepare_in_mode(
     {
         return direct_command(words);
     }
-    if mode == Mode::ShellFunction && command.contains(&b'\n') {
-        // Trim the original leading blanks before folding. If no bytes
-        // survive, the configured shell receives only its flag words.
+    if mode == Mode::ShellFunction {
         let start = command
             .iter()
             .position(|byte| !matches!(byte, b' ' | b'\t'))
             .unwrap_or(command.len());
-        let folded = fold_unescaped_newlines(&command[start..]);
-        let argument = (!folded.is_empty()).then_some(folded.as_slice());
-        return configured_shell_invocation(argument, shell, flags);
+        let command = &command[start..];
+        if command.contains(&b'\n') {
+            // If folding consumes the command, pass only the flag words.
+            let folded = fold_unescaped_newlines(command);
+            let argument = (!folded.is_empty()).then_some(folded.as_slice());
+            return configured_shell_invocation(argument, shell, flags);
+        }
+        return shell_invocation(command, shell, flags);
     }
     if mode == Mode::OneShellFunction {
         let command = crate::oneshell::shell_function_body(command, shell);

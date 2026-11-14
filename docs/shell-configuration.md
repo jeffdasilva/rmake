@@ -47,9 +47,9 @@ protected shell bytes with interpreted flags.
 A Bourne shell function call preserves prefix bytes in direct arguments. If
 command construction falls back to the shell, it removes blanks and modifiers
 at the start of each logical line. This scan follows backslash parity across
-newlines without interpreting shell quotes. Custom shells retain their command
-bytes. The focused fixtures cover both paths, quoting, continued lines, and
-ordinary recipes.
+newlines without interpreting shell quotes. Custom shells skip the initial
+spaces and tabs and retain the remaining command bytes. The focused fixtures
+cover both paths, quoting, continued lines, and ordinary recipes.
 
 ## Empty and undefined shell values
 
@@ -178,7 +178,7 @@ mode a bare newline instead reaches the shell as script text. Both
 expand the shell configuration and child exports before the launch.
 
 An ordinary shell capture that uses the slower shell constructor trims
-its original leading spaces and tabs before folding unescaped newlines.
+its original leading spaces and tabs. It then folds any unescaped newlines.
 If folding consumes the entire command, the interpreter launches the
 configured shell with its flag arguments alone. Explicit empty flag words
 and command bytes remaining after the first newline are still passed.
