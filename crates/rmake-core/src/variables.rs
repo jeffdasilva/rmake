@@ -4104,28 +4104,33 @@ impl Expansion<'_, '_> {
         if matches!(self.store, StoreAccess::Read(_)) {
             return Err(ExpandError::Unsupported(b"shell".to_vec()));
         }
-        if command.iter().all(|byte| matches!(byte, b' ' | b'\t')) {
-            return Ok(Vec::new());
-        }
-        let shell = self.variable(b"SHELL")?;
-        let flags_raw = self
-            .store
-            .database_lookup(b".SHELLFLAGS")
-            .map_or_else(Vec::new, |v| v.value.clone());
-        let flags = self.expand(&flags_raw)?;
-        let ifs = if self.lookup(b"IFS").is_some() {
-            Some(self.variable(b"IFS")?)
-        } else {
-            None
-        };
-        if shell_continuation_has_no_words(command)
-            && shell == b"/bin/sh"
-            && matches!(flags.as_slice(), b"-c" | b"-ec")
-            && ifs.as_ref().is_none_or(|value| {
-                value
-                    .iter()
-                    .all(|byte| matches!(byte, b' ' | b'\t' | b'\n'))
-            })
+        let warnings = self.context.replace_undefined_warnings(false);
+        let configuration = (|| {
+            let shell = self.variable(b"SHELL")?;
+            let flags_raw = self
+                .store
+                .database_lookup(b".SHELLFLAGS")
+                .map_or_else(Vec::new, |v| v.value.clone());
+            let flags = self.expand(&flags_raw)?;
+            let ifs = if self.lookup(b"IFS").is_some() {
+                Some(self.variable(b"IFS")?)
+            } else {
+                None
+            };
+            Ok::<_, ExpandError>((shell, flags, ifs))
+        })();
+        self.context.replace_undefined_warnings(warnings);
+        let (shell, flags, ifs) = configuration?;
+        let blank = command.iter().all(|byte| matches!(byte, b' ' | b'\t'));
+        if blank
+            || (shell_continuation_has_no_words(command)
+                && shell == b"/bin/sh"
+                && matches!(flags.as_slice(), b"-c" | b"-ec")
+                && ifs.as_ref().is_none_or(|value| {
+                    value
+                        .iter()
+                        .all(|byte| matches!(byte, b' ' | b'\t' | b'\n'))
+                }))
         {
             if self.context.is_cancelled() {
                 return Err(ExpandError::UnlocatedError(b"interrupted".to_vec()));
