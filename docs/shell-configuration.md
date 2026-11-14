@@ -178,7 +178,7 @@ mode a bare newline instead reaches the shell as script text. Both
 expand the shell configuration and child exports before the launch.
 
 An ordinary shell capture that uses the slower shell constructor trims
-its original leading spaces and tabs before folding unescaped newlines.
+its original leading spaces and tabs. It then folds any unescaped newlines.
 If folding consumes the entire command, the interpreter launches the
 configured shell with its flag arguments alone. Explicit empty flag words
 and command bytes remaining after the first newline are still passed.
