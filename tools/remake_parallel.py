@@ -2435,7 +2435,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                 or (flag == 'm,v' and '--jobserver-style=pipe' not in held.model.args)):
             raise h.HarnessError('invalid remake debug model')
         seen.add((name, flag))
-        stdout = row['stdout'].encode()
+        stdout = row['stdout'].replace('@SPACE@', ' ').encode()
         prefixes = row['release_prefixes']
         primary = held.before_primary is not None
         count = 1 + int(held.before_second is not None) + int(primary)
@@ -2669,6 +2669,8 @@ def execute_stock_primary(case: h.Case, runtime: Path, binary: Path, held: HeldM
         'RMAKE_LOAD_TRACE': str(trace), 'RMAKE_LOAD_AVERAGE': '100',
     })
     releases = []
+    release_stdout = debug.render(held.before_first_stdout, runtime)
+    verbose = '--debug=m,v' in case.args
 
     def observe(parent: int, stdout: bytes) -> None:
         if releases:
@@ -2700,8 +2702,16 @@ def execute_stock_primary(case: h.Case, runtime: Path, binary: Path, held: HeldM
                 if owner != child or started <= 0 or (work / 'primary.done').exists():
                     raise h.HarnessError('invalid stock primary child identity')
                 load_trace = trace.read_bytes() if trace.exists() else b''
-                if (held.load is not None and held.load.at_release == LOAD_LOW
-                        and '-n' in case.args and load_trace and stdout != held.before_first_stdout):
+                if verbose:
+                    expected = release_stdout
+                    if held.fifo_controller:
+                        path = runtime / 'tmp' / f'GMfifo{parent}'
+                        expected = expected.replace(b'Using jobserver controller 3,4\n',
+                                                    b'Using jobserver controller fifo:' + os.fsencode(path) + b'\n')
+                    if len(stdout) < len(expected) and expected.startswith(stdout):
+                        return
+                elif (held.load is not None and held.load.at_release == LOAD_LOW
+                      and '-n' in case.args and load_trace and stdout != release_stdout):
                     return
                 temporary = work / 'primary.release.tmp'
                 temporary.write_bytes(b'yes\n')
@@ -2752,7 +2762,7 @@ def release_errors(held: HeldModel, releases: list[dict], runtime: Path) -> list
             return ['live stock primary release']
         (release,) = releases
         errors = []
-        if release['stdout_hex'] != held.before_first_stdout.hex():
+        if release['stdout_hex'] != debug.render(held.before_first_stdout, runtime).hex():
             errors.append('stock primary release stdout')
         if (release['load_hex'] != held.load.at_release.hex()
                 or release['load_trace_hex'] != held.load.trace.hex()):
