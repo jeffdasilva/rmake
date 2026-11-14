@@ -110,8 +110,10 @@ When every remaining makefile source is directly named, the stock primary can
 also overlap more than one include. Twenty-four additional held profiles cover
 two direct includes, including an optional first include that completes its
 pass while the second waits. The profiles compare the live release, command
-order, query cleanup, touched files and final mode. Mixed named and unnamed
-sources need separate scheduling coverage.
+order, query cleanup, touched files and final mode. Sixteen further held
+profiles combine a named source and a required unnamed source in quiet dry-run
+and query modes. They verify real include contents and the primary file's mode
+after the pass. Mixed-source touch and debug paths need further coverage.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an

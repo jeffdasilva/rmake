@@ -3286,9 +3286,16 @@ impl Engine {
             let unruled_primary = ordinary_mode
                 && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
+            // A quiet dry run or query can also keep a required unnamed
+            // include pending beside the named include. Touch and debug
+            // still need their own mixed-mode pass handling.
+            let mixed_named_overlap = matches!(named_load_files, [(_, false), (_, false)])
+                && !modes.touch
+                && !debug_before_remake.has(Mask::MAKEFILES);
             let overlap_primary_recipe = unruled_primary
                 && named_load_files.iter().all(|(file, skip)| {
                     *skip
+                        || (mixed_named_overlap && !file.optional)
                         || self.is_makefile_goal(
                             rmake_core::filenames::without_dot_prefix(&file.name),
                             named_sources.as_ref(),
