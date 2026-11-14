@@ -3280,6 +3280,9 @@ impl Engine {
             } else {
                 None
             };
+            let check_primary_before_overlap = ordinary_mode
+                && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
+            let named_load_files = &read_files[usize::from(check_primary_before_overlap)..];
             let verbose_mode_remakes = ordinary_mode
                 && qualified_remake_debug
                 && debug_before_remake.has(Mask::VERBOSE)
@@ -3338,7 +3341,7 @@ impl Engine {
                             named_sources.as_ref(),
                         )
                 })
-                && self.qualified_load_debug_sources(&read_files, false, 2, true)
+                && self.qualified_load_debug_sources(named_load_files, false, 2, true)
                 && self.qualified_debug_remake_sources(&read_files, named_sources.as_ref());
             let named_load_debug = ordinary_mode
                 && qualified_remake_debug
@@ -3354,7 +3357,7 @@ impl Engine {
                             named_sources.as_ref(),
                         )
                 })
-                && self.qualified_load_debug_sources(&read_files, false, 2, true)
+                && self.qualified_load_debug_sources(named_load_files, false, 2, true)
                 && self.qualified_debug_remake_sources(&read_files, named_sources.as_ref());
             let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
                 || (qualified_remake_debug
@@ -3382,8 +3385,9 @@ impl Engine {
                         modes,
                         optional_named_load,
                     ));
-            self.parallel_makefile_remakes =
+            let parallel_remakes =
                 self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
+            self.parallel_makefile_remakes = parallel_remakes && !check_primary_before_overlap;
             self.remaking = true;
             self.defer_stopped_remake_load = ordinary_mode;
             let mut changed = false;
@@ -3814,6 +3818,20 @@ impl Engine {
                     // A stopping remake failure wins over any earlier update.
                     stopped = true;
                     break;
+                }
+                if source_index == 0 && parallel_remakes && check_primary_before_overlap {
+                    // The primary used the normal graph visit and implicit
+                    // lookup. Only an unchanged source with no selected recipe
+                    // can be left behind when the other roots overlap.
+                    self.parallel_makefile_remakes = !result.ran
+                        && !result.failed
+                        && !result.question_outdated
+                        && result.time == before
+                        && self
+                            .database
+                            .rules
+                            .get(name)
+                            .is_none_or(|rule| rule.recipes.is_none());
                 }
             }
             if !stopped && !pending.is_empty() {
@@ -4506,7 +4524,12 @@ impl Engine {
                                 || optional_named_load)
                             && (self.options.load_limit.is_none()
                                 || *load_sources_without_fallback.get_or_insert_with(|| {
-                                    self.load_remakes_without_fallback(read_files)
+                                    let start =
+                                        usize::from(self.unruled_primary_before_named_load(
+                                            read_files,
+                                            named_sources,
+                                        ));
+                                    self.load_remakes_without_fallback(&read_files[start..])
                                 }))
                             && self.simple_named_remake(file, name, &read_files[..index], modes)
                     }))
@@ -4766,6 +4789,43 @@ impl Engine {
         self.options.no_rules
             && self.database.database_implicit_rules().is_empty()
             && !self.database.rules.contains_key(b".DEFAULT".as_slice())
+    }
+
+    fn unruled_primary_before_named_load(
+        &self,
+        read_files: &[(Makefile, bool)],
+        named_sources: Option<&HashSet<&[u8]>>,
+    ) -> bool {
+        use rmake_core::filenames::without_dot_prefix;
+
+        let Some(((primary, false), includes)) = read_files.split_first() else {
+            return false;
+        };
+        let name = without_dot_prefix(&primary.name);
+        self.options.load_limit.is_some()
+            && !self.no_remake_recipe_fallback()
+            && !self.options.check_symlink_times
+            && self.assumptions.is_none()
+            && primary.location.is_none()
+            && !primary.optional
+            && !primary.missing
+            && !self.is_makefile_goal(name, named_sources)
+            && !self.database.rules.contains_key(name)
+            && !self.database.rules.contains_key(b".DEFAULT".as_slice())
+            && !self.database.loaded_modules.contains_key(name)
+            && includes.iter().any(|(file, skip)| {
+                !*skip && self.is_makefile_goal(without_dot_prefix(&file.name), named_sources)
+            })
+            && self.load_remakes_without_fallback(includes)
+            && self
+                .database
+                .database_implicit_rules()
+                .iter()
+                .all(|(_, rule)| {
+                    rule.recipes.as_ref().is_none_or(|recipes| {
+                        rule.secondary.is_none() && recipes.iter().all(|recipe| recipe.builtin)
+                    })
+                })
     }
 
     fn load_remakes_without_fallback(&self, read_files: &[(Makefile, bool)]) -> bool {

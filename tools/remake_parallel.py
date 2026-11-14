@@ -2050,8 +2050,9 @@ def named_load_models(available: list[HeldModel]) -> list[HeldModel]:
                                before_second_stdout=second_stdout)
             optional = optional_named_load_model(required, position, mode, high)
             results.extend((required, optional, directory_named_load_model(required),
-                            directory_named_load_model(optional), explicit_builtin_load_model(required),
-                            explicit_builtin_load_model(optional)))
+                            directory_named_load_model(optional), builtin_load_model(required, explicit=True),
+                            builtin_load_model(optional, explicit=True), builtin_load_model(required),
+                            builtin_load_model(optional)))
             results.append(skipped_required_named_load_model(held, required, high))
     return results
 
@@ -2313,18 +2314,28 @@ def directory_named_load_model(held: HeldModel) -> HeldModel:
                    named_recipe=path if held.named_recipe is not None else None)
 
 
-def explicit_builtin_load_model(held: HeldModel) -> HeldModel:
+def builtin_load_model(held: HeldModel, *, explicit: bool = False) -> HeldModel:
     model = held.model
-    files = {**model.files, 'Makefile': model.files['Makefile'] + b'Makefile: ;\n'}
+    files = model.files
+    if explicit:
+        files = {**files, 'Makefile': files['Makefile'] + b'Makefile: ;\n'}
+    primary_visit = b" Considering target file 'Makefile'.\n"
+    stock_visit = primary_visit + b'Directory . cache invalidated (count 1 != command 2)\n'
+
+    def builtin_stdout(stdout: bytes) -> bytes:
+        stdout = stdout.replace(b' -rR ', b' ')
+        return stdout if explicit else stdout.replace(primary_visit, stock_visit)
+
     expected = {**model.expected}
     stdout = bytes.fromhex(expected['stdout_template_hex'])
-    expected['stdout_template_hex'] = stdout.replace(b' -rR ', b' ').hex()
-    model = replace(model, id='explicit-builtin-' + model.id, files=files, expected=expected,
+    expected['stdout_template_hex'] = builtin_stdout(stdout).hex()
+    prefix = 'explicit-builtin-' if explicit else 'builtin-'
+    model = replace(model, id=prefix + model.id, files=files, expected=expected,
                     args=tuple(arg for arg in model.args if arg != '-rR'))
     second = held.before_second_stdout
     return replace(held, model=model,
-                   before_first_stdout=held.before_first_stdout.replace(b' -rR ', b' '),
-                   before_second_stdout=second.replace(b' -rR ', b' ') if second is not None else None)
+                   before_first_stdout=builtin_stdout(held.before_first_stdout),
+                   before_second_stdout=builtin_stdout(second) if second is not None else None)
 
 
 def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
@@ -2431,7 +2442,8 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     for held in selected:
         if held.model.id.startswith(('remake-debug-load-parallel-named-mode-',
                                      'remake-debug-load-optional-parallel-named-mode-')):
-            variants.extend((directory_named_load_model(held), explicit_builtin_load_model(held)))
+            variants.extend((directory_named_load_model(held), builtin_load_model(held, explicit=True),
+                             builtin_load_model(held)))
     return selected + variants
 
 
