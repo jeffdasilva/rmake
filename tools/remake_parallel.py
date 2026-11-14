@@ -76,6 +76,7 @@ class HeldModel:
     second_stdout_barrier: bytes | None = None
     tail_stdout_barrier: bytes | None = None
     named_recipe: bytes | None = None
+    stock_primary: bool = False
 
 
 def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list[HeldModel]:
@@ -2054,6 +2055,7 @@ def named_load_models(available: list[HeldModel]) -> list[HeldModel]:
                             builtin_load_model(optional, explicit=True), builtin_load_model(required),
                             builtin_load_model(optional)))
             results.append(skipped_required_named_load_model(held, required, high))
+    results.extend(stock_primary_load_models())
     return results
 
 
@@ -2070,6 +2072,55 @@ def skipped_required_named_load_model(base: HeldModel, required: HeldModel, high
     load = LoadProfile('normal', LOAD_HIGH if high else LOAD_LOW, b'proc\n')
     return HeldModel(model, not high, base.before_second, base.before_first,
                      before_second_stdout=b'', load=load)
+
+
+def stock_primary_load_models() -> list[HeldModel]:
+    source = (b'include child.mk\nall: ; @printf \'%s\\n\' "$(PRIMARY) $(CHILD)"\n'
+              b'child.mk: ; @printf \'%s\\n\' \'CHILD := loaded\' > $@\n')
+    new_source = source + b'PRIMARY := suffix\n'
+    start = b'cat Makefile.sh >Makefile \n'
+    mode_change = b'chmod a+x Makefile\n'
+    dry_child = b'printf \'%s\\n\' \'CHILD := loaded\' > child.mk\n'
+    dry_goal = b'printf \'%s\\n\' "suffix "\n'
+    up_to_date = b"make: 'child.mk' is up to date.\n"
+    touch_child = b'touch child.mk\n'
+    worker = (SOURCES / 'stock-primary-cat.py').read_bytes()
+    results = []
+    for transport in ('pipe', 'fifo'):
+        for tag, load_input in (('high', LOAD_HIGH), ('low', LOAD_LOW)):
+            files = {'Makefile': source, 'Makefile.sh': new_source, 'stock-primary-cat.py': worker,
+                     'load.input': load_input, 'seen': ANCHOR}
+            times = {**dict.fromkeys(files, INPUT_TIME), 'Makefile.sh': INPUT_TIME + 1_000_000_000}
+            for mode in 'nqt':
+                updates = {'primary.started': b'ready\n', 'primary.release': b'yes\n',
+                           'primary.done': b'done\n'}
+                release_stdout, load_trace, stderr = start, b'proc\n', b''
+                if mode == 'n':
+                    updates['Makefile'] = new_source
+                    if tag == 'low':
+                        release_stdout += dry_child
+                        stdout = release_stdout + mode_change + dry_child + up_to_date + dry_goal
+                    else:
+                        stdout = start + mode_change + dry_child * 2 + up_to_date + dry_goal
+                elif mode == 'q':
+                    stdout = start
+                    stderr = b"make: *** Deleting file 'Makefile'\n"
+                else:
+                    updates.update({'Makefile': new_source, 'child.mk': b'', 'all': b''})
+                    release_stdout += touch_child
+                    load_trace = b''
+                    stdout = release_stdout + b'touch Makefile\n' * 2 + up_to_date + b'touch all\n'
+                expected = {'exit_code': int(mode == 'q'), 'stdout_template_hex': stdout.hex(),
+                            'stderr_template_hex': stderr.hex()}
+                args = ('--no-print-directory', '-j2', '-l2', f'--jobserver-style={transport}',
+                        f'-{mode}', 'child.mk', 'all')
+                model = debug.Model(f'load-stock-primary-recipe-{mode}-{transport}-{tag}', files,
+                                    args, {'GNUMAKEFLAGS': ''}, expected, ANCHOR,
+                                    updates=updates, mtimes_ns=times)
+                results.append(HeldModel(model, False, None, before_first_stdout=release_stdout,
+                                         load=LoadProfile('normal', load_input, load_trace),
+                                         stock_primary=True))
+    return results
 
 
 def optional_named_load_model(held: HeldModel, position: str, mode: str, high: bool) -> HeldModel:
@@ -2596,6 +2647,78 @@ def execute(case: h.Case, runtime: Path, binary: Path,
     return h.execute(case, runtime, binary, observe=observe), releases
 
 
+def execute_stock_primary(case: h.Case, runtime: Path, binary: Path, held: HeldModel,
+                          load_shim: Path) -> tuple[h.Observation, list[dict]]:
+    h.reset_workspace(case, runtime, binary)
+    work = runtime / 'work'
+    script = work / 'stock-primary-cat.py'
+    script.chmod(0o755)
+    wrapper = runtime / 'bin' / 'cat'
+    wrapper.unlink(missing_ok=True)
+    wrapper.symlink_to(script)
+    trace = runtime / 'load.trace'
+    trace.unlink(missing_ok=True)
+    environment = h.clean_environment(runtime, {
+        **case.environment, 'LD_PRELOAD': str(load_shim), 'RMAKE_TEST_LOAD': 'normal',
+        'RMAKE_LOAD_TRACE': str(trace), 'RMAKE_LOAD_AVERAGE': '100',
+    })
+    releases = []
+
+    def observe(parent: int, stdout: bytes) -> None:
+        if releases:
+            return
+        proc = Path('/proc', str(parent))
+        try:
+            if (work / 'primary.started').read_bytes() != b'ready\n':
+                return
+            channel = (proc / 'wchan').read_text().strip()
+            if channel not in WAIT_CHANNELS and not poll_wait(proc, channel)[1]:
+                return
+            children = (proc / 'task' / str(parent) / 'children').read_bytes().split()
+            for child in map(int, children):
+                child_proc = Path('/proc', str(child))
+                shell_argv = child_proc.joinpath('cmdline').read_bytes().split(b'\0')
+                if shell_argv != [b'/bin/sh', b'-c', b'cat Makefile.sh >Makefile ', b'']:
+                    continue
+                shell_owner, shell_started = proc_identity(child)
+                if shell_owner != parent or shell_started <= 0:
+                    raise h.HarnessError('invalid stock primary shell identity')
+                grandchildren = child_proc.joinpath('task', str(child), 'children').read_bytes().split()
+                if len(grandchildren) != 1:
+                    continue
+                pid = int(grandchildren[0])
+                command = Path('/proc', str(pid), 'cmdline').read_bytes().split(b'\0')
+                if command != [b'/usr/bin/python3', os.fsencode(wrapper), b'Makefile.sh', b'']:
+                    continue
+                owner, started = proc_identity(pid)
+                if owner != child or started <= 0 or (work / 'primary.done').exists():
+                    raise h.HarnessError('invalid stock primary child identity')
+                load_trace = trace.read_bytes() if trace.exists() else b''
+                if (held.load is not None and held.load.at_release == LOAD_LOW
+                        and '-n' in case.args and load_trace and stdout != held.before_first_stdout):
+                    return
+                temporary = work / 'primary.release.tmp'
+                temporary.write_bytes(b'yes\n')
+                temporary.chmod(0o644)
+                temporary.rename(work / 'primary.release')
+                releases.append({'name': 'primary', 'parent': parent, 'shell': child, 'pid': pid,
+                                 'started': started,
+                                 'stdout_hex': stdout.hex(), 'load_trace_hex': load_trace.hex(),
+                                 'load_hex': (work / 'load.input').read_bytes().hex(), 'wchan': channel})
+                return
+        except (FileNotFoundError, ProcessLookupError):
+            return
+
+    try:
+        out, err, status, limit, leftovers = h.capture(
+            [str(runtime / 'bin' / 'make'), *case.args], work, environment, case.timeout,
+            observe=observe)
+    finally:
+        wrapper.unlink(missing_ok=True)
+    filesystem = h.snapshot({name: runtime / name for name in ('work', 'home', 'tmp')})
+    return h.Observation(out, err, status, limit, filesystem, leftovers), releases
+
+
 def bind_fifo_controller(observation: h.Observation, releases: list[dict], runtime: Path):
     if not releases:
         return observation, releases, ['missing live FIFO controller identity']
@@ -2618,6 +2741,17 @@ def bind_fifo_controller(observation: h.Observation, releases: list[dict], runti
 
 
 def release_errors(held: HeldModel, releases: list[dict], runtime: Path) -> list[str]:
+    if held.stock_primary:
+        if len(releases) != 1:
+            return ['live stock primary release']
+        (release,) = releases
+        errors = []
+        if release['stdout_hex'] != held.before_first_stdout.hex():
+            errors.append('stock primary release stdout')
+        if (release['load_hex'] != held.load.at_release.hex()
+                or release['load_trace_hex'] != held.load.trace.hex()):
+            errors.append('stock primary release load observation')
+        return errors
     order = list(held.release_order[:1] if held.before_second is None else held.release_order)
     wanted = ['primary', *order] if held.before_primary is not None else order
     if [release['name'] for release in releases] != wanted:
@@ -2724,13 +2858,23 @@ def main() -> int:
                 model = held.model
                 case, filesystem = debug.prepare(model, root / model.id, runtime)
                 samples = [set() for _ in executables]
-                observations, releases = zip(*(
-                    execute(case, runtime, binary, waits, load=held.load, load_shim=load_shim,
-                            release_order=held.release_order, hold_primary=held.before_primary is not None,
-                            second_stdout_barrier=held.second_stdout_barrier,
-                            tail_stdout_barrier=held.tail_stdout_barrier, named_recipe=held.named_recipe)
-                    for binary, waits in zip(executables, samples, strict=True)
-                ))
+                if held.stock_primary:
+                    assert load_shim is not None
+                    filesystem['work/stock-primary-cat.py']['mode'] = 0o755
+                    if '-q' in case.args:
+                        filesystem.pop('work/Makefile')
+                    observations, releases = zip(*(
+                        execute_stock_primary(case, runtime, binary, held, load_shim)
+                        for binary in executables
+                    ))
+                else:
+                    observations, releases = zip(*(
+                        execute(case, runtime, binary, waits, load=held.load, load_shim=load_shim,
+                                release_order=held.release_order, hold_primary=held.before_primary is not None,
+                                second_stdout_barrier=held.second_stdout_barrier,
+                                tail_stdout_barrier=held.tail_stdout_barrier, named_recipe=held.named_recipe)
+                        for binary, waits in zip(executables, samples, strict=True)
+                    ))
                 raw_observations, raw_releases = observations, releases
                 fifo_errors = [[] for _ in executables]
                 if held.fifo_controller:
