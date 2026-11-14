@@ -4104,10 +4104,7 @@ impl Expansion<'_, '_> {
         if matches!(self.store, StoreAccess::Read(_)) {
             return Err(ExpandError::Unsupported(b"shell".to_vec()));
         }
-        if command
-            .iter()
-            .all(|byte| matches!(byte, b' ' | b'\t' | b'\n'))
-        {
+        if command.iter().all(|byte| matches!(byte, b' ' | b'\t')) {
             return Ok(Vec::new());
         }
         let shell = self.variable(b"SHELL")?;
