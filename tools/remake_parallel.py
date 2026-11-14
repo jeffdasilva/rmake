@@ -2128,7 +2128,9 @@ def stock_primary_load_models() -> list[HeldModel]:
                                  load=LoadProfile('normal', load_input, load_trace),
                                  stock_primary=True)
                 results.extend((held, stock_primary_two_named_model(held, optional)))
-                if mode in ('n', 'q'):
+                if mode == 't':
+                    results.append(stock_primary_mixed_touch_model(held, optional))
+                else:
                     results.append(stock_primary_mixed_model(held, optional))
     return results
 
@@ -2214,6 +2216,17 @@ def stock_primary_mixed_model(held: HeldModel, optional: bool) -> HeldModel:
     model = replace(model, id=model.id.replace('-two-named-', '-mixed-'),
                     args=held.model.args, updates=updates, expected=expected)
     return replace(held, model=model, before_first_stdout=release, stock_primary_mode=mode)
+
+
+def stock_primary_mixed_touch_model(held: HeldModel, optional: bool) -> HeldModel:
+    model = stock_primary_two_named_model(held, optional).model
+    primary = b'touch Makefile\n' * 2 if optional else b'chmod a+x Makefile\n'
+    stdout = held.before_first_stdout + primary + b"make: 'child.mk' is up to date.\ntouch all\n"
+    model = replace(model, id=model.id.replace('-two-named-', '-mixed-first-'),
+                    args=held.model.args, updates={**model.updates, 'extra.mk': b'EXTRA := loaded\n'},
+                    expected={**model.expected, 'stdout_template_hex': stdout.hex()})
+    load = replace(held.load, trace=b'' if optional else b'proc\n')
+    return replace(held, model=model, load=load, stock_primary_mode=0o644 if optional else 0o755)
 
 
 def optional_named_load_model(held: HeldModel, position: str, mode: str, high: bool) -> HeldModel:

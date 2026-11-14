@@ -113,7 +113,10 @@ pass while the second waits. The profiles compare the live release, command
 order, query cleanup, touched files and final mode. Sixteen further held
 profiles combine a named source and a required unnamed source in quiet dry-run
 and query modes. They verify real include contents and the primary file's mode
-after the pass. Mixed-source touch and debug paths need further coverage.
+after the pass. Eight further held profiles cover standalone touch when the
+named include precedes the unnamed one. The pass restores the unnamed
+source's mode before refilling its queued recipe. Later-named touch,
+mixed-source debug and combined build modes remain open.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an

@@ -3286,12 +3286,26 @@ impl Engine {
             let unruled_primary = ordinary_mode
                 && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
-            // A quiet dry run or query can also keep a required unnamed
-            // include pending beside the named include. Touch and debug
-            // still need their own mixed-mode pass handling.
+            // A standalone touch can overlap the required unnamed source
+            // after the named source selects the first pass's build mode.
+            let named_first_touch = modes.touch
+                && !modes.dry_run
+                && !modes.question
+                && named_load_files.first().is_some_and(|(file, _)| {
+                    self.is_makefile_goal(
+                        rmake_core::filenames::without_dot_prefix(&file.name),
+                        named_sources.as_ref(),
+                    )
+                });
             let mixed_named_overlap = matches!(named_load_files, [(_, false), (_, false)])
-                && !modes.touch
-                && !debug_before_remake.has(Mask::MAKEFILES);
+                && !debug_before_remake.has(Mask::MAKEFILES)
+                && (!modes.touch || named_first_touch)
+                && named_load_files.iter().any(|(file, _)| {
+                    !self.is_makefile_goal(
+                        rmake_core::filenames::without_dot_prefix(&file.name),
+                        named_sources.as_ref(),
+                    )
+                });
             let overlap_primary_recipe = unruled_primary
                 && named_load_files.iter().all(|(file, skip)| {
                     *skip
@@ -3898,7 +3912,12 @@ impl Engine {
                     first_effect_generation.or(Some(pass_reaps))
                 };
                 let question_or_failure = remake_question || failed || optional_remake_failed;
-                let wait = if optional_named_load || (named_load_debug && verbose_load_trace) {
+                // A mixed touch pass restores the unnamed root's mode
+                // before refilling its load reservation after a reap.
+                let wait = if optional_named_load
+                    || (named_load_debug && verbose_load_trace)
+                    || (active_primary && mixed_named_overlap && modes.touch)
+                {
                     RemakeWait::LoadPass
                 } else if optional_dependency_load_debug {
                     RemakeWait::Recipe
