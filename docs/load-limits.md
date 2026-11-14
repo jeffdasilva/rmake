@@ -102,9 +102,9 @@ already simulated completion. Twelve held shell-suffix profiles verify
 the recipe's live child and load sample, dry-run command order and file mode,
 question-mode cleanup, and touch-mode restarts.
 
-Eight additional held profiles cover a single optional named include under
-dry run and touch. An optional query has a separate ordinary-goal failure
-boundary and still needs coverage.
+Twelve additional held profiles cover a single optional named include. When
+its query finishes in the load queue, the cached outcome retains the later
+required-goal diagnostic, just as for a query that settled during its visit.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
