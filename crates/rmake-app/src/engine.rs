@@ -3283,9 +3283,12 @@ impl Engine {
             } else {
                 None
             };
-            let check_primary_before_overlap = ordinary_mode
+            let unruled_primary = ordinary_mode
                 && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
-            let named_load_files = &read_files[usize::from(check_primary_before_overlap)..];
+            let named_load_files = &read_files[usize::from(unruled_primary)..];
+            let overlap_primary_recipe = unruled_primary
+                && matches!(named_load_files, [(include, false)] if !include.optional);
+            let check_primary_before_overlap = unruled_primary && !overlap_primary_recipe;
             let verbose_mode_remakes = ordinary_mode
                 && qualified_remake_debug
                 && debug_before_remake.has(Mask::VERBOSE)
@@ -3843,8 +3846,13 @@ impl Engine {
             }
             if !stopped && !pending.is_empty() {
                 // Reaping before the next source visit retains the last
-                // named mode while that source still has a pending recipe.
+                // named mode for a still-running implicit primary or named recipe.
+                let active_primary = overlap_primary_recipe
+                    && pending
+                        .first()
+                        .is_some_and(|remake| std::ptr::eq(remake.file, &read_files[0].0));
                 if MakefileModes::from_options(&self.options).active()
+                    && !active_primary
                     && !pending.last().is_some_and(|remake| remake.modes.active())
                 {
                     // Pending sources resume with their own build mode. The
