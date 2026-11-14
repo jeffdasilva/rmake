@@ -70,7 +70,7 @@ required failure replay and the considered state after an early optional pass.
 Both jobserver transports are covered.
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 2,650 profiles. Leading `./` spellings share one target record and
+run all 2,850 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -103,10 +103,10 @@ visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 
-The 764 debug profiles check the entire debug trace and the exact trace prefix
+The 872 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging.
-The 239 authenticated FIFO traces check the controller path against the
+The 275 authenticated FIFO traces check the controller path against the
 observed make PID and retain the raw trace before comparing the remaining
 bytes. The FIFO coverage includes named primary, direct, normal remake and
 duplicate-read profiles.

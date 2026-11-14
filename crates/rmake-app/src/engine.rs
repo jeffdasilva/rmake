@@ -1213,6 +1213,8 @@ pub struct Engine {
     remake_error_cursor: Option<SharedIncludeError>,
     // A missing cause here marks a direct, suppressed failure.
     optional_remake_failures: HashMap<Vec<u8>, Option<Rc<FailedPrerequisite>>>,
+    // Existing read peers can change before their own serial remake visit.
+    serial_remake_peer_times: HashMap<Vec<u8>, SystemTime>,
     vpath_dirs: Vec<Vec<u8>>,
     gpath_dirs: HashSet<Vec<u8>>,
     makefile_names: HashSet<Vec<u8>>,
@@ -1788,6 +1790,7 @@ impl Engine {
             active_makefile_remake: None,
             remake_error_cursor: None,
             optional_remake_failures: HashMap::new(),
+            serial_remake_peer_times: HashMap::new(),
             vpath_dirs: Vec::new(),
             gpath_dirs: HashSet::new(),
             makefile_names: HashSet::new(),
@@ -3280,6 +3283,12 @@ impl Engine {
             } else {
                 None
             };
+            let unruled_primary = ordinary_mode
+                && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
+            let named_load_files = &read_files[usize::from(unruled_primary)..];
+            let overlap_primary_recipe = unruled_primary
+                && matches!(named_load_files, [(include, false)] if !include.optional || !modes.question);
+            let check_primary_before_overlap = unruled_primary && !overlap_primary_recipe;
             let verbose_mode_remakes = ordinary_mode
                 && qualified_remake_debug
                 && debug_before_remake.has(Mask::VERBOSE)
@@ -3338,7 +3347,7 @@ impl Engine {
                             named_sources.as_ref(),
                         )
                 })
-                && self.qualified_load_debug_sources(&read_files, false, 2, true)
+                && self.qualified_load_debug_sources(named_load_files, false, 2, true)
                 && self.qualified_debug_remake_sources(&read_files, named_sources.as_ref());
             let named_load_debug = ordinary_mode
                 && qualified_remake_debug
@@ -3354,7 +3363,7 @@ impl Engine {
                             named_sources.as_ref(),
                         )
                 })
-                && self.qualified_load_debug_sources(&read_files, false, 2, true)
+                && self.qualified_load_debug_sources(named_load_files, false, 2, true)
                 && self.qualified_debug_remake_sources(&read_files, named_sources.as_ref());
             let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
                 || (qualified_remake_debug
@@ -3382,8 +3391,27 @@ impl Engine {
                         modes,
                         optional_named_load,
                     ));
-            self.parallel_makefile_remakes =
+            let parallel_remakes =
                 self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
+            self.parallel_makefile_remakes = parallel_remakes && !check_primary_before_overlap;
+            if !parallel_remakes {
+                for (makefile, skip) in &read_files {
+                    let name = makefile.name.as_slice();
+                    if !skip
+                        && !makefile.missing
+                        && !self.database.rules.contains_key(name)
+                        && !self.path_observations.contains_key(name)
+                        && rmake_core::filenames::archive_parts(name).is_none()
+                        && let Some(time) = self.modified(name)
+                    {
+                        // A prior remake can remove an already loaded source.
+                        // Its unruled visit still sees the pre-remake file.
+                        self.check_clock_skew(name, Some(time));
+                        self.path_observations
+                            .insert(name.to_vec(), Some((None, Some(time))));
+                    }
+                }
+            }
             self.remaking = true;
             self.defer_stopped_remake_load = ordinary_mode;
             let mut changed = false;
@@ -3676,7 +3704,11 @@ impl Engine {
                         result.fatal = true;
                     }
                 }
-                let before = before.unwrap_or(result.time);
+                let before = self
+                    .serial_remake_peer_times
+                    .remove(name)
+                    .filter(|_| !failed_opens.contains(name))
+                    .or(before.unwrap_or(result.time));
                 // A required chain under -k can revisit its cached head
                 // after a failed declaration and report the prune.
                 let settled_chain = !result.failed
@@ -3815,11 +3847,30 @@ impl Engine {
                     stopped = true;
                     break;
                 }
+                if source_index == 0 && parallel_remakes && check_primary_before_overlap {
+                    // The primary used the normal graph visit and implicit
+                    // lookup. Only an unchanged source with no selected recipe
+                    // can be left behind when the other roots overlap.
+                    self.parallel_makefile_remakes = !result.ran
+                        && !result.failed
+                        && !result.question_outdated
+                        && result.time == before
+                        && self
+                            .database
+                            .rules
+                            .get(name)
+                            .is_none_or(|rule| rule.recipes.is_none());
+                }
             }
             if !stopped && !pending.is_empty() {
                 // Reaping before the next source visit retains the last
-                // named mode while that source still has a pending recipe.
+                // named mode for a still-running implicit primary or named recipe.
+                let active_primary = overlap_primary_recipe
+                    && pending
+                        .first()
+                        .is_some_and(|remake| std::ptr::eq(remake.file, &read_files[0].0));
                 if MakefileModes::from_options(&self.options).active()
+                    && !active_primary
                     && !pending.last().is_some_and(|remake| remake.modes.active())
                 {
                     // Pending sources resume with their own build mode. The
@@ -3912,6 +3963,7 @@ impl Engine {
             self.output.set_debug_mask(debug_before_remake);
             self.remaking = false;
             self.parallel_makefile_remakes = false;
+            self.serial_remake_peer_times.clear();
             self.remake_error_cursor = None;
             if stopped || self.shutdown.get() != Shutdown::Running {
                 self.remove_intermediates();
@@ -4506,7 +4558,12 @@ impl Engine {
                                 || optional_named_load)
                             && (self.options.load_limit.is_none()
                                 || *load_sources_without_fallback.get_or_insert_with(|| {
-                                    self.load_remakes_without_fallback(read_files)
+                                    let start =
+                                        usize::from(self.unruled_primary_before_named_load(
+                                            read_files,
+                                            named_sources,
+                                        ));
+                                    self.load_remakes_without_fallback(&read_files[start..])
                                 }))
                             && self.simple_named_remake(file, name, &read_files[..index], modes)
                     }))
@@ -4766,6 +4823,43 @@ impl Engine {
         self.options.no_rules
             && self.database.database_implicit_rules().is_empty()
             && !self.database.rules.contains_key(b".DEFAULT".as_slice())
+    }
+
+    fn unruled_primary_before_named_load(
+        &self,
+        read_files: &[(Makefile, bool)],
+        named_sources: Option<&HashSet<&[u8]>>,
+    ) -> bool {
+        use rmake_core::filenames::without_dot_prefix;
+
+        let Some(((primary, false), includes)) = read_files.split_first() else {
+            return false;
+        };
+        let name = without_dot_prefix(&primary.name);
+        self.options.load_limit.is_some()
+            && !self.no_remake_recipe_fallback()
+            && !self.options.check_symlink_times
+            && self.assumptions.is_none()
+            && primary.location.is_none()
+            && !primary.optional
+            && !primary.missing
+            && !self.is_makefile_goal(name, named_sources)
+            && !self.database.rules.contains_key(name)
+            && !self.database.rules.contains_key(b".DEFAULT".as_slice())
+            && !self.database.loaded_modules.contains_key(name)
+            && includes.iter().any(|(file, skip)| {
+                !*skip && self.is_makefile_goal(without_dot_prefix(&file.name), named_sources)
+            })
+            && self.load_remakes_without_fallback(includes)
+            && self
+                .database
+                .database_implicit_rules()
+                .iter()
+                .all(|(_, rule)| {
+                    rule.recipes.as_ref().is_none_or(|recipes| {
+                        rule.secondary.is_none() && recipes.iter().all(|recipe| recipe.builtin)
+                    })
+                })
     }
 
     fn load_remakes_without_fallback(&self, read_files: &[(Makefile, bool)]) -> bool {
@@ -11673,6 +11767,12 @@ impl Engine {
             && !self.parallel_graph()
             && !outcome.question_outdated
             && !outcome.fatal;
+        let track_read_peers = self.remaking
+            && !self.parallel_makefile_remakes
+            && !group.implicit
+            && !outcome.failed
+            && outcome.ran
+            && outcome.completion == CompletionTime::Refresh;
         for (peer, before, phony) in group.members.into_iter().rev() {
             let database_result =
                 if observe_dry_group && !phony && (!group.implicit || peer != target) {
@@ -11719,6 +11819,16 @@ impl Engine {
             } else {
                 self.modified(&peer)
             };
+            if track_read_peers
+                && !phony
+                && let Some(time) = before
+                && completed.time != before
+                && self.makefile_names.contains(&peer)
+            {
+                self.serial_remake_peer_times
+                    .entry(peer.clone())
+                    .or_insert(time);
+            }
             if warn_missing && completed.time.is_none() {
                 emit_output(
                     &self.output,
@@ -12731,15 +12841,13 @@ impl Engine {
                     if !stdin_owner && descriptor_limited_pool.is_none() {
                         command.stdin(rmake_linux::process::closed_stdin()?);
                     }
-                    if let Some(buffer) = &output {
+                    if let Some(spool) = output.as_ref().and_then(|buffer| buffer.child_spool()) {
                         // Descriptor pressure can leave room for the spool but
                         // no room to clone it or open std's spawn error pipe.
-                        if buffer.enabled()
-                            && stdin_owner
+                        if stdin_owner
                             && self.jobserver.is_none()
                             && rmake_linux::child::Child::wake_pipe_unavailable()
                             && !crate::native::has_modules()
-                            && let Some(spool) = buffer.child_spool()
                             && let Some(process) =
                                 rmake_linux::child::Child::try_spawn_ordered_spool(
                                     &command,
@@ -12750,7 +12858,20 @@ impl Engine {
                         {
                             return process;
                         }
-                        buffer.configure_child(&mut command)?;
+                        if stdin_owner
+                            && self.jobserver.as_ref().is_some_and(|server| {
+                                server.auth().starts_with(b"fifo:")
+                                    && server.owned_slots().is_some()
+                            })
+                        {
+                            return rmake_linux::child::Child::spawn_ordered_fifo_spool(
+                                &mut command,
+                                image,
+                                os(arg0),
+                                &spool,
+                            );
+                        }
+                        spool.configure_child(&mut command)?;
                     }
                     if stdin_owner
                         && output.as_ref().is_none_or(|buffer| !buffer.enabled())

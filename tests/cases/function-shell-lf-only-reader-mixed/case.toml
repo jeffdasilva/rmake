@@ -1,0 +1,12 @@
+id = "function-shell-lf-only-reader-mixed"
+requirement = "functions.shell"
+candidate = "required"
+description = "GNU shell capture of an expanded newline and its configuration and export effects."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7368656c6c3d5b5d207374617475733d5b3132375d0a6578706f7274733d5b72616e5d20666c6167733d5b5d0a"
+stderr_hex = "6d616b653a200a3a204e6f20737563682066696c65206f72206469726563746f72790a"

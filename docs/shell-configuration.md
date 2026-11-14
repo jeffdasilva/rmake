@@ -164,3 +164,15 @@ pipe accounts for one retained pair. Its descriptors remain live for signal
 notification. Later failed pairs remain open for the interpreter's lifetime.
 When a capture occupies a standard descriptor, that slot retains its usual
 behavior.
+
+A shell function or shell assignment also skips process creation when the
+default command lexer consumes every byte as a continuation, an unquoted
+final backslash, or surrounding blanks. Shell configuration still expands
+first. Child exports are untouched, and the previous `.SHELLSTATUS` remains
+visible. Quoted arguments and nondefault shell configurations retain their
+normal launch behavior.
+
+A bare newline from expansion reaches shell command construction. The
+default fast path treats it as a literal program name. In `.ONESHELL`
+mode a bare newline instead reaches the shell as script text. Both
+expand the shell configuration and child exports before the launch.

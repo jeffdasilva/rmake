@@ -4104,10 +4104,7 @@ impl Expansion<'_, '_> {
         if matches!(self.store, StoreAccess::Read(_)) {
             return Err(ExpandError::Unsupported(b"shell".to_vec()));
         }
-        if command
-            .iter()
-            .all(|byte| matches!(byte, b' ' | b'\t' | b'\n'))
-        {
+        if command.iter().all(|byte| matches!(byte, b' ' | b'\t')) {
             return Ok(Vec::new());
         }
         let shell = self.variable(b"SHELL")?;
@@ -4121,6 +4118,20 @@ impl Expansion<'_, '_> {
         } else {
             None
         };
+        if shell_continuation_has_no_words(command)
+            && shell == b"/bin/sh"
+            && matches!(flags.as_slice(), b"-c" | b"-ec")
+            && ifs.as_ref().is_none_or(|value| {
+                value
+                    .iter()
+                    .all(|byte| matches!(byte, b' ' | b'\t' | b'\n'))
+            })
+        {
+            if self.context.is_cancelled() {
+                return Err(ExpandError::UnlocatedError(b"interrupted".to_vec()));
+            }
+            return Ok(Vec::new());
+        }
         // Configuration selects this call before recursive exports can run eval.
         let one_shell = self.store.one_shell;
         let prior = std::mem::replace(&mut self.context.preparing_shell_environment, true);
@@ -4831,6 +4842,20 @@ fn push(output: &mut Vec<u8>, value: &[u8]) -> Result<(), ExpandError> {
     }
     output.extend_from_slice(value);
     Ok(())
+}
+
+/// The default fast lexer consumes an unquoted continuation or final
+/// backslash without adding an argument. A bare newline is still meaningful.
+fn shell_continuation_has_no_words(mut command: &[u8]) -> bool {
+    while let Some((byte, rest)) = command.split_first() {
+        match byte {
+            b' ' | b'\t' => command = rest,
+            b'\\' if rest.is_empty() => return true,
+            b'\\' if rest.first() == Some(&b'\n') => command = &rest[1..],
+            _ => return false,
+        }
+    }
+    true
 }
 
 fn gnu_whitespace(byte: &u8) -> bool {

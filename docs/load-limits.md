@@ -88,6 +88,24 @@ makefile also qualifies. The 180 stock-rule profiles exercise the same quiet,
 basic and verbose schedules through both jobserver transports. Sources that
 need an implicit recipe still require separate remake scheduling coverage.
 
+An existing first makefile without an explicit rule can also complete its normal
+stock implicit search before the named includes overlap. Parallel admission
+requires the primary to settle unchanged without selecting a recipe. Another
+180 profiles verify this case, including the primary search's directory-cache
+diagnostic in verbose traces. The rule selection and visit run once in the
+normal graph.
+
+With a single required named include, a stock implicit primary recipe can
+overlap that include. The last named build mode stays in effect while the
+primary's running command advances, including when the include's recipe has
+already simulated completion. Twelve held shell-suffix profiles verify
+the recipe's live child and load sample, dry-run command order and file mode,
+question-mode cleanup, and touch-mode restarts.
+
+Eight additional held profiles cover a single optional named include under
+dry run and touch. An optional query has a separate ordinary-goal failure
+boundary and still needs coverage.
+
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
 otherwise successful remake. A separate remake failure still lets physically

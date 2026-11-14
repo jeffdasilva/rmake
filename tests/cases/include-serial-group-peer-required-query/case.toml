@@ -1,0 +1,12 @@
+id = "include-serial-group-peer-required-query"
+requirement = "includes.remake"
+candidate = "required"
+description = "A serial grouped remake rereads an existing include whose timestamp changed."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-q", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "READ:\nREAD:1\n"
+stderr = ""
