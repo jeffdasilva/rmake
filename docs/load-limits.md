@@ -102,6 +102,10 @@ already simulated completion. Twelve held shell-suffix profiles verify
 the recipe's live child and load sample, dry-run command order and file mode,
 question-mode cleanup, and touch-mode restarts.
 
+Eight additional held profiles cover a single optional named include under
+dry run and touch. An optional query has a separate ordinary-goal failure
+boundary and still needs coverage.
+
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
 otherwise successful remake. A separate remake failure still lets physically
