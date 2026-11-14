@@ -1,0 +1,12 @@
+id = "include-serial-explicit-read-missing-recipe-control"
+requirement = "includes.remake"
+candidate = "required"
+description = "An explicit serial include still updates from its independent recipe or newer input."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:\nREAD:1\nALL:seed\n"
+stderr = ""
