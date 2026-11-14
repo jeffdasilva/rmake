@@ -1,0 +1,5 @@
+#!/bin/sh
+printf 'argc=%s' "$#"
+for arg do printf ':<%s>' "$arg"; done
+printf '\n'
+exit 11
