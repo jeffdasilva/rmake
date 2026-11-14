@@ -2123,10 +2123,57 @@ def stock_primary_load_models() -> list[HeldModel]:
                 model = debug.Model(f'{name}-{mode}-{transport}-{tag}', files,
                                     args, {'GNUMAKEFLAGS': ''}, expected, ANCHOR,
                                     updates=updates, mtimes_ns=times)
-                results.append(HeldModel(model, False, None, before_first_stdout=release_stdout,
-                                         load=LoadProfile('normal', load_input, load_trace),
-                                         stock_primary=True))
+                held = HeldModel(model, False, None, before_first_stdout=release_stdout,
+                                 load=LoadProfile('normal', load_input, load_trace),
+                                 stock_primary=True)
+                results.extend((held, stock_primary_two_named_model(held, optional)))
     return results
+
+
+def stock_primary_two_named_model(held: HeldModel, optional: bool) -> HeldModel:
+    model = held.model
+    start = b'cat Makefile.sh >Makefile \n'
+    chmod = b'chmod a+x Makefile\n'
+    child = b'printf \'%s\\n\' \'CHILD := loaded\' > child.mk\n'
+    extra = b'printf \'%s\\n\' \'EXTRA := loaded\' > extra.mk\n'
+    extra_rule = b'extra.mk: ; @' + extra.removesuffix(b' > extra.mk\n') + b' > $@\n'
+    files = dict(model.files)
+    for name in ('Makefile', 'Makefile.sh'):
+        text = files[name].replace(b'include child.mk\n',
+                                   b'include child.mk\ninclude extra.mk\n')
+        files[name] = text.replace(b'$(CHILD)', b'$(CHILD) $(EXTRA)') + extra_rule
+    updates = dict(model.updates)
+    if 'Makefile' in updates:
+        updates['Makefile'] = files['Makefile.sh']
+    up_to_date = b"make: 'child.mk' is up to date.\nmake: 'extra.mk' is up to date.\n"
+    release = start
+    stdout = start
+    if '-n' in model.args:
+        dry_goal = b'printf \'%s\\n\' "suffix  "\n'
+        # An immediate optional result ends the first pass before extra.mk.
+        if held.load.at_release == LOAD_LOW:
+            release += child
+            if not optional:
+                release += extra
+        stdout = release + chmod
+        if held.load.at_release == LOAD_HIGH:
+            stdout += child + extra
+        elif optional:
+            stdout += extra
+        stdout += child + extra + up_to_date + dry_goal
+    elif '-t' in model.args:
+        release += b'touch child.mk\n'
+        if not optional:
+            release += b'touch extra.mk\n'
+        stdout = release + b'touch Makefile\n' * 2
+        if optional:
+            stdout += b'touch extra.mk\n'
+        stdout += up_to_date + b'touch all\n'
+        updates['extra.mk'] = b''
+    model = replace(model, id=model.id.replace('-recipe-', '-two-named-'), files=files,
+                    args=(*model.args[:-1], 'extra.mk', model.args[-1]), updates=updates,
+                    expected={**model.expected, 'stdout_template_hex': stdout.hex()})
+    return replace(held, model=model, before_first_stdout=release)
 
 
 def optional_named_load_model(held: HeldModel, position: str, mode: str, high: bool) -> HeldModel:

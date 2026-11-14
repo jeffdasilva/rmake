@@ -3283,8 +3283,14 @@ impl Engine {
             let unruled_primary = ordinary_mode
                 && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
-            let overlap_primary_recipe =
-                unruled_primary && matches!(named_load_files, [(_, false)]);
+            let overlap_primary_recipe = unruled_primary
+                && named_load_files.iter().all(|(file, skip)| {
+                    *skip
+                        || self.is_makefile_goal(
+                            rmake_core::filenames::without_dot_prefix(&file.name),
+                            named_sources.as_ref(),
+                        )
+                });
             let check_primary_before_overlap = unruled_primary && !overlap_primary_recipe;
             let verbose_mode_remakes = ordinary_mode
                 && qualified_remake_debug
