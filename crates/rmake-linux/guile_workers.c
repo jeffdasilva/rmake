@@ -44,7 +44,7 @@ static SCM leading_thread,notification;
 static atomic_int ready;
 /* The Rust scheduler owns any descriptor. A polling wait retains admission
  * without a descriptor. Publication and detachment use the same queue lock. */
-enum { wait_inactive=-1, wait_polling=-3 };
+enum { wait_inactive=-1, wait_polling=-3, wait_nested=-4 };
 static atomic_int wait_descriptor=wait_inactive;
 static SCM service(void);
 extern void *rg_dispatch_worker_host_yield(const void *request);
@@ -239,12 +239,14 @@ int rg_workers_can_submit(void) {
            ||atomic_load_explicit(&wait_descriptor,memory_order_relaxed)!=wait_inactive)
         &&GC_thread_is_registered();
 }
-int rg_workers_begin_wait(void) {
+int rg_workers_begin_wait(int allow_nested) {
     if(!atomic_load_explicit(&ready,memory_order_acquire))return -2;
     int ambient=errno;
     lock();
     if(atomic_load_explicit(&wait_descriptor,memory_order_relaxed)!=wait_inactive) {
-        unlock();errno=EBUSY;return -1;
+        unlock();
+        if(allow_nested){errno=ambient;return wait_nested;}
+        errno=EBUSY;return -1;
     }
     int descriptor=eventfd(0,EFD_NONBLOCK|EFD_CLOEXEC);
     int relocating=descriptor>=0&&descriptor<5;
@@ -271,6 +273,13 @@ int rg_workers_wait_notification(int descriptor) {
         do count=read(descriptor,&value,sizeof value);while(count<0&&errno==EINTR);
         if(count!=(ssize_t)sizeof value&&(count>=0||errno!=EAGAIN))_Exit(2);
     }
+    int pending=head!=NULL;
+    unlock();errno=saved;return pending;
+}
+/* A nested capture polls without modifying the outer descriptor. */
+int rg_workers_wait_pending(void) {
+    int saved=errno;
+    lock();
     int pending=head!=NULL;
     unlock();errno=saved;return pending;
 }

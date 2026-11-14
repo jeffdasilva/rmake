@@ -51,6 +51,7 @@ class LoadProfile:
     mode: str
     at_release: bytes
     trace: bytes
+    second_trace: bytes | None = None
 
 
 @dataclass(frozen=True)
@@ -168,6 +169,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
         results += load_direct_build_mode_models(direct_load)
         results += load_goal_summary_models(worker, markers)
         results += load_build_mode_models(results, markers)
+        results += named_load_models(results)
     return results
 
 
@@ -1982,6 +1984,66 @@ def load_direct_build_mode_models(available: list[HeldModel]) -> list[HeldModel]
     return results
 
 
+def named_load_models(available: list[HeldModel]) -> list[HeldModel]:
+    dry_named = b'printf "VALUE := rebuilt\\n" > named.gen\n'
+    dry_right = b'python3 worker.py right include\n'
+    dry_tail = b'printf "tail\\n" >> seen\n'
+    rebuilt = b'right\ntail\nread-1\nordinary-loaded-loaded-rebuilt\n'
+    results = []
+    for held in available:
+        base = held.model
+        named_source = base.id.startswith('named-source-mode-')
+        parallel_named = base.id.startswith('parallel-named-mode-') and base.id.endswith('-2-slots')
+        if not (named_source or parallel_named):
+            continue
+        if parallel_named:
+            position, mode, _, _, _ = base.id.removeprefix('parallel-named-mode-').split('-')
+        for tag, load_bytes in (('high', LOAD_HIGH), ('low', LOAD_LOW)):
+            files = {**base.files, 'load.input': load_bytes}
+            model = replace(base, id=f'load-{base.id}-{tag}', files=files,
+                            args=(*base.args[:2], '-l2', *base.args[2:]),
+                            mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+            load = LoadProfile('normal', load_bytes, b'proc\n')
+            if named_source:
+                # Its only live worker does not need a load sample.
+                results.append(replace(held, model=model, load=replace(load, trace=b'')))
+                continue
+
+            high = tag == 'high'
+            stdout = bytes.fromhex(base.expected['stdout_template_hex'])
+            seen, updates = base.seen, base.updates
+            first_stdout = held.before_first_stdout
+            before_second, second_stdout = held.before_second, held.before_second_stdout
+            if high and position == 'middle' and mode in ('n', 'q'):
+                # The named recipe executes with the queued ordinary remake
+                # visit and is already current when the requested mode resumes.
+                seen = before_second + rebuilt
+                updates = {**updates, 'named.gen': b'VALUE := rebuilt\n'}
+                stdout = stdout.removeprefix(dry_named * 2)
+                first_stdout = second_stdout = b''
+            elif high and position == 'last':
+                if mode == 'n':
+                    # The right worker starts only after a restart. Its tail
+                    # and the named recipe are simulated again on that pass.
+                    second_stdout = dry_right + dry_tail + dry_named
+                    before_second += b'read-1\ntail-expanded\n'
+                    seen = before_second + b'right\nread-2\nordinary-loaded-loaded-\n'
+                    stdout = second_stdout + dry_tail + stdout
+                    load = replace(load, second_trace=b'proc\nproc\n')
+                elif mode == 'q':
+                    # The query verdict retires the queued right recipe.
+                    seen = before_second + b'ordinary---\n'
+                    updates = {name: value for name, value in updates.items()
+                               if not name.startswith('right.')}
+                    before_second = second_stdout = None
+            expected = {**model.expected, 'stdout_template_hex': stdout.hex()}
+            model = replace(model, expected=expected, seen=seen, updates=updates)
+            results.append(replace(held, model=model, load=load, overlap=not high,
+                                   before_first_stdout=first_stdout, before_second=before_second,
+                                   before_second_stdout=second_stdout))
+    return results
+
+
 def load_build_mode_models(available: list[HeldModel], markers: dict[str, bytes]) -> list[HeldModel]:
     left_markers = {name: data for name, data in markers.items() if name.startswith('left.')}
     dry_worker = b'python3 worker.py right success\n'
@@ -2130,6 +2192,17 @@ def shuffled_remake_models(held_models: list[HeldModel]) -> list[HeldModel]:
     return results
 
 
+def hold_debug_tail(model: debug.Model) -> debug.Model:
+    source = model.files['Makefile']
+    command = b'printf "TAIL := loaded\\n" > "$@"'
+    if source.count(command) != 1:
+        raise h.HarnessError('tail release requires one tail recipe')
+    files = {**model.files, 'Makefile': source.replace(command, b'python3 tail-witness.py'),
+             'tail-witness.py': (SOURCES / 'tail-witness.py').read_bytes()}
+    return replace(model, files=files, updates={**model.updates, 'tail.release': b'yes\n'},
+                   mtimes_ns={**model.mtimes_ns, 'tail-witness.py': model.mtimes_ns['Makefile']})
+
+
 def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     data = tomllib.loads((SOURCES / 'debug-models.toml').read_text())
     if data.get('schema_version') != 1:
@@ -2145,8 +2218,8 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     for row in data['profiles']:
         name, flag = row['case'], row['flag']
         fifo = row.get('fifo', False)
-        fifo_second_barrier = row.get('fifo_second_stdout_barrier')
-        fifo_tail_barrier = row.get('fifo_tail_stdout_barrier')
+        trace_transports = row.get('second_trace_transports', [])
+        tail_barrier = row.get('tail_stdout_barrier')
         requires_load = row.get('requires_load', False)
         if requires_load is True and not has_load_profiles:
             continue
@@ -2155,8 +2228,13 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                 or (held.load is not None) != requires_load
                 or flag not in ('m', 'm,v') or not isinstance(fifo, bool)
                 or (fifo and flag != 'm,v')
-                or (fifo_second_barrier is not None and not fifo)
-                or (fifo_tail_barrier is not None and (not fifo or not requires_load))
+                or not isinstance(trace_transports, list)
+                or any(transport not in ('pipe', 'fifo') for transport in trace_transports)
+                or len(trace_transports) != len(set(trace_transports))
+                or ('fifo' in trace_transports and not fifo)
+                or (trace_transports and flag != 'm,v')
+                or (tail_barrier is not None and
+                    (not requires_load or set(trace_transports) != {'pipe', 'fifo'}))
                 or (flag == 'm,v' and '--jobserver-style=pipe' not in held.model.args)):
             raise h.HarnessError('invalid remake debug model')
         seen.add((name, flag))
@@ -2165,57 +2243,47 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         primary = held.before_primary is not None
         count = 1 + int(held.before_second is not None) + int(primary)
         if (len(prefixes) != count or prefixes != sorted(prefixes)
-                or not 0 < prefixes[0] <= prefixes[-1] <= len(stdout)
-                or b'@BIN@' in stdout[:prefixes[-1]]):
+                or not 0 < prefixes[0] <= prefixes[-1] <= len(stdout)):
             raise h.HarnessError('invalid remake debug release prefixes')
         if primary and any(not stdout[:end].endswith(barrier)
                            for end, barrier in zip(prefixes, PRIMARY_BARRIERS, strict=True)):
             raise h.HarnessError('invalid named primary debug release barrier')
         first = prefixes[int(primary)]
         second = prefixes[-1] if held.before_second is not None else None
+        second_trace = stdout[first:second] if second is not None else b''
+        if trace_transports and (not second_trace or b'@BIN@' in second_trace
+                                 or b'Using jobserver controller ' in second_trace):
+            raise h.HarnessError('invalid second release trace barrier')
+        if tail_barrier is not None:
+            if (not isinstance(tail_barrier, str) or not tail_barrier
+                    or tail_barrier.encode() not in second_trace):
+                raise h.HarnessError('invalid tail release trace barrier')
+            tail_barrier = tail_barrier.encode()
         args = (*held.model.args[:-1], f'--debug={flag}', held.model.args[-1])
         model = replace(held.model, id=f'remake-debug-{name}-{flag.replace(",", "")}', args=args,
                         expected={**held.model.expected, 'stdout_template_hex': stdout.hex()})
+        if tail_barrier is not None:
+            model = hold_debug_tail(model)
         selected.append(replace(held, model=model, before_first_stdout=stdout[:first],
                                 before_second_stdout=stdout[:second] if second is not None else None,
-                                before_primary_stdout=stdout[:prefixes[0]] if primary else b''))
+                                before_primary_stdout=stdout[:prefixes[0]] if primary else b'',
+                                second_stdout_barrier=second_trace if 'pipe' in trace_transports else None,
+                                tail_stdout_barrier=tail_barrier))
         if fifo:
             # Keep the same expected trace around the separately verified live path.
             if '-pipe' not in name or b'Using jobserver controller 3,4\n' not in stdout[:first]:
                 raise h.HarnessError('FIFO debug model requires a pipe controller trace')
             fifo_stdout = stdout.replace(b'--jobserver-style=pipe', b'--jobserver-style=fifo')
-            if fifo_second_barrier is not None:
-                if (not isinstance(fifo_second_barrier, str) or not fifo_second_barrier
-                        or second is None or not fifo_stdout[:second].endswith(fifo_second_barrier.encode())):
-                    raise h.HarnessError('invalid FIFO second release trace barrier')
-                fifo_second_barrier = fifo_second_barrier.encode()
             fifo_args = tuple('--jobserver-style=fifo' if arg == '--jobserver-style=pipe' else arg
                               for arg in args)
             fifo_model = replace(model, id=model.id.replace('-pipe', '-fifo'), args=fifo_args,
                                  expected={**model.expected, 'stdout_template_hex': fifo_stdout.hex()})
-            if fifo_tail_barrier is not None:
-                if (not isinstance(fifo_tail_barrier, str) or not fifo_tail_barrier
-                        or fifo_second_barrier is None
-                        or fifo_tail_barrier.encode() not in fifo_stdout[first:second]):
-                    raise h.HarnessError('invalid FIFO tail release trace barrier')
-                fifo_tail_barrier = fifo_tail_barrier.encode()
-                source = fifo_model.files['Makefile']
-                tail_command = b'printf "TAIL := loaded\\n" > "$@"'
-                if source.count(tail_command) != 1:
-                    raise h.HarnessError('FIFO tail release requires one tail recipe')
-                files = {**fifo_model.files,
-                         'Makefile': source.replace(tail_command, b'python3 tail-witness.py'),
-                         'tail-witness.py': (SOURCES / 'tail-witness.py').read_bytes()}
-                fifo_model = replace(fifo_model, files=files,
-                                     updates={**fifo_model.updates, 'tail.release': b'yes\n'},
-                                     mtimes_ns={**fifo_model.mtimes_ns,
-                                                'tail-witness.py': fifo_model.mtimes_ns['Makefile']})
             selected.append(replace(held, model=fifo_model, fifo_controller=True,
                                     before_first_stdout=fifo_stdout[:first],
                                     before_second_stdout=fifo_stdout[:second] if second is not None else None,
                                     before_primary_stdout=fifo_stdout[:prefixes[0]] if primary else b'',
-                                    second_stdout_barrier=fifo_second_barrier,
-                                    tail_stdout_barrier=fifo_tail_barrier))
+                                    second_stdout_barrier=second_trace if 'fifo' in trace_transports else None,
+                                    tail_stdout_barrier=tail_barrier))
     return selected
 
 
@@ -2373,7 +2441,7 @@ def bind_fifo_controller(observation: h.Observation, releases: list[dict], runti
     return replace(observation, stdout=stdout), prefixes, errors
 
 
-def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
+def release_errors(held: HeldModel, releases: list[dict], runtime: Path) -> list[str]:
     order = list(held.release_order[:1] if held.before_second is None else held.release_order)
     wanted = ['primary', *order] if held.before_primary is not None else order
     if [release['name'] for release in releases] != wanted:
@@ -2390,12 +2458,15 @@ def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
             errors.append('worker identities after primary release')
         if primary['seen_hex'] != held.before_primary.hex():
             errors.append('file effects at primary release')
-        if primary['stdout_hex'] != held.before_primary_stdout.hex():
+        if primary['stdout_hex'] != debug.render(held.before_primary_stdout, runtime).hex():
             errors.append('stdout at primary release')
     if held.load is not None and any(
         release.get('load_hex') != held.load.at_release.hex()
-        or release.get('load_trace_hex') != held.load.trace.hex()
-        for release in releases
+        or release.get('load_trace_hex') != (
+            held.load.second_trace if index == 1 and held.load.second_trace is not None
+            else held.load.trace
+        ).hex()
+        for index, release in enumerate(releases)
     ):
         errors.append('load observation at release')
     first = releases[0]
@@ -2404,7 +2475,7 @@ def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
         errors.append('active workers at first release')
     if first['seen_hex'] != held.before_first.hex():
         errors.append('file effects at first release')
-    if first['stdout_hex'] != held.before_first_stdout.hex():
+    if first['stdout_hex'] != debug.render(held.before_first_stdout, runtime).hex():
         errors.append('stdout at first release')
     if held.before_second is None:
         return errors
@@ -2422,7 +2493,7 @@ def release_errors(held: HeldModel, releases: list[dict]) -> list[str]:
     stdout_before_second = held.before_second_stdout
     if stdout_before_second is None:
         stdout_before_second = order[0].encode() + b'\n' if held.model.expected['stdout_template_hex'] else b''
-    if second['stdout_hex'] != stdout_before_second.hex():
+    if second['stdout_hex'] != debug.render(stdout_before_second, runtime).hex():
         errors.append('stdout at second release')
     return errors
 
@@ -2492,7 +2563,7 @@ def main() -> int:
                         for observed, release in zip(observations, releases, strict=True)
                     ))
                 record = debug.assess(model, case, runtime, filesystem, list(observations))
-                errors = [release_errors(held, release) + identity_errors
+                errors = [release_errors(held, release, runtime) + identity_errors
                           for release, identity_errors in zip(releases, fifo_errors, strict=True)]
                 if held.fifo_controller:
                     record.update(raw_stdout_hex=[observed.stdout.hex() for observed in raw_observations],

@@ -99,7 +99,7 @@ fn evaluate<T>(
         database,
         runtime_context(None, &mut receiver)
             .with_filesystem(&mut |effect| runtime.filesystem.borrow_mut().execute(effect))
-            .with_shell(&mut |request| {
+            .with_shell(&|request| {
                 crate::shell::run(
                     request,
                     runtime.program,

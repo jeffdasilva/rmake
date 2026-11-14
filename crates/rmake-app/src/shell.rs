@@ -4,9 +4,9 @@
 //! Process capture for make's shell function and shell assignments. Expansion
 //! and newline folding live in core; this module only launches and captures.
 
-use rmake_core::diagnostic::{EnvironmentValue, ShellRequest, ShellResult};
-use rmake_core::variables::MAX_OUTPUT;
-use rmake_linux::child::{CaptureSpawnError, Child};
+use rmake_core::diagnostic::{EnvironmentValue, Output, ShellRequest, ShellResult};
+use rmake_core::variables::{ExpandError, MAX_OUTPUT};
+use rmake_linux::child::{CaptureError, CapturePipe, CaptureSpawnError, Child};
 use std::ffi::OsStr;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::process::ExitStatusExt;
@@ -25,7 +25,7 @@ pub fn run(
     output: &crate::output::Controller,
     jobserver: Option<&rmake_linux::jobserver::Jobserver>,
     child_completed: impl FnOnce(),
-) -> Result<ShellResult, Vec<u8>> {
+) -> Result<ShellResult, ExpandError> {
     let invocation = crate::process::prepare_shell_function(
         request.command,
         request.shell,
@@ -66,19 +66,47 @@ pub fn run(
     }
     let buffer = output.current();
     output.start();
-    let mut pipe = None;
-    let mut retain_failed_pipe = false;
-    let (child, stdout) = match crate::engine::launch_child(
-        &program,
+    let environment = match rmake_linux::environment::Image::from_command(
         &command,
         &order,
         request.original_shell,
+    ) {
+        Ok(environment) => environment,
+        Err(error) => return Ok(launch_failure(output, program_name, &program, &error)),
+    };
+    let spool = buffer.as_ref().and_then(|buffer| buffer.child_spool());
+    let stderr = spool
+        .as_deref()
+        .and_then(rmake_linux::output::Spool::child_stderr);
+    // GNU creates the capture pair before looking up the executable. A failed
+    // lookup keeps the pair just like a failed launch of a selected program.
+    let mut pipe = match CapturePipe::new() {
+        Ok(pipe) => Some(pipe),
+        Err(error) => {
+            drop(spool);
+            let detail = crate::engine::os_error(&error);
+            let message = [b"pipe: ", detail.as_bytes()].concat();
+            crate::engine::emit_output(
+                output,
+                program_name,
+                Output::Warning {
+                    location: request.reading_location,
+                    message: &message,
+                },
+            );
+            return Ok(ShellResult {
+                stdout: Vec::new(),
+                status: None,
+            });
+        }
+    };
+    let mut retain_failed_pipe = true;
+    let launch = crate::engine::launch_child_with_environment(
+        &program,
+        &command,
+        &environment,
         |command, image, arg0| {
             retain_failed_pipe = false;
-            let spool = buffer.as_ref().and_then(|buffer| buffer.child_spool());
-            let stderr = spool
-                .as_deref()
-                .and_then(rmake_linux::output::Spool::child_stderr);
             match Child::spawn_capture_ordered(
                 command,
                 image,
@@ -94,38 +122,55 @@ pub fn run(
                 }
             }
         },
-    ) {
+    );
+    drop(spool);
+    let (child, stdout) = match launch {
         Ok(child) => child,
         Err(error) => {
             if retain_failed_pipe {
                 pipe.expect("failed launch owns a capture pipe")
                     .retain_failed();
             }
-            output.write_parts(
-                true,
-                &[
-                    program_name,
-                    b": ",
-                    &program,
-                    b": ",
-                    crate::engine::os_error(&error).as_bytes(),
-                    b"\n",
-                ],
-            );
-            return Ok(ShellResult {
-                stdout: Vec::new(),
-                status: 127,
-            });
+            return Ok(launch_failure(output, program_name, &program, &error));
         }
     };
-    let captured = rmake_linux::child::capture(child, stdout, MAX_OUTPUT);
+    let captured = rmake_linux::child::capture(child, stdout, MAX_OUTPUT, request.service_workers);
     child_completed();
-    let (stdout, status) =
-        captured.map_err(|_| b"rmake: shell output limit exceeded or capture failed".to_vec())?;
+    let (stdout, status) = captured.map_err(|error| match error {
+        CaptureError::Io(_) => ExpandError::UnlocatedError(
+            b"rmake: shell output limit exceeded or capture failed".to_vec(),
+        ),
+        CaptureError::Worker(error) => error,
+    })?;
     Ok(ShellResult {
         stdout,
-        status: status
-            .code()
-            .unwrap_or_else(|| 128 + status.signal().unwrap_or(0)),
+        status: Some(
+            status
+                .code()
+                .unwrap_or_else(|| 128 + status.signal().unwrap_or(0)),
+        ),
     })
+}
+
+fn launch_failure(
+    output: &crate::output::Controller,
+    program_name: &[u8],
+    program: &[u8],
+    error: &std::io::Error,
+) -> ShellResult {
+    output.write_parts(
+        true,
+        &[
+            program_name,
+            b": ",
+            program,
+            b": ",
+            crate::engine::os_error(error).as_bytes(),
+            b"\n",
+        ],
+    );
+    ShellResult {
+        stdout: Vec::new(),
+        status: Some(127),
+    }
 }

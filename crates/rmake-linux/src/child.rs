@@ -55,7 +55,7 @@ pub enum CaptureSpawnError {
 }
 
 impl CapturePipe {
-    fn new() -> io::Result<Self> {
+    pub fn new() -> io::Result<Self> {
         let (reader, writer) = io::pipe()?;
         Ok(Self {
             // Keep any occupied standard slots until the spawn attempt has
@@ -191,18 +191,7 @@ impl Child {
         }
         image
             .spawn_inherited(command, arg0, stdio, wire)
-            .map(|result| {
-                result.and_then(|pid| {
-                    if pid <= 0 {
-                        return Err(io::Error::other("spawn did not return an owned child"));
-                    }
-                    Ok(Self::with_pid(
-                        Process::Spawned { pid, status: None },
-                        pid,
-                        retain_pidfd,
-                    ))
-                })
-            })
+            .map(|result| result.and_then(|pid| Self::from_spawned_pid(pid, retain_pidfd)))
     }
 
     pub fn spawn_capture_ordered(
@@ -217,15 +206,15 @@ impl Child {
             None => capture.insert(CapturePipe::new().map_err(CaptureSpawnError::Prepare)?),
         };
         let writer = pipe.writer.as_raw_fd();
-        let stderr = stderr.map(|file| file.as_raw_fd());
-        if writer != 1 || stderr.is_some() {
+        let stderr_fd = stderr.map(|file| file.as_raw_fd());
+        if writer != 1 || stderr_fd.is_some() {
             // SAFETY: capture and the borrowed spool own both sources while
             // this command spawns synchronously. Copy stdout first: when the
             // capture writer occupies fd 2, installing stderr would replace it.
             unsafe {
                 command.pre_exec(move || {
                     set_capture_stream(writer, 1)?;
-                    if let Some(file) = stderr {
+                    if let Some(file) = stderr_fd {
                         set_capture_stream(file, 2)?;
                     }
                     Ok(())
@@ -235,12 +224,36 @@ impl Child {
         image
             .configure_exec(&mut command, arg0)
             .map_err(CaptureSpawnError::Prepare)?;
-        let child = command.spawn().map_err(CaptureSpawnError::Launch)?;
+        let child = match command.spawn() {
+            Ok(child) => Self::from_std(child),
+            Err(error) if matches!(error.raw_os_error(), Some(23 | 24)) => {
+                // The std fork-status socket can exhaust the remaining
+                // descriptors even though the capture pair already exists.
+                let out = (writer != 1).then(|| pipe.writer.as_fd());
+                let err = stderr.filter(|fd| fd.as_raw_fd() != 2);
+                image
+                    .spawn_inherited(&command, arg0, [None, out, err], None)
+                    .unwrap_or(Err(error))
+                    .and_then(|pid| Self::from_spawned_pid(pid, true))
+                    .map_err(CaptureSpawnError::Launch)?
+            }
+            Err(error) => return Err(CaptureSpawnError::Launch(error)),
+        };
         let CapturePipe { reader, writer } = capture.take().expect("capture pipe exists");
         drop(writer);
-        let child = Self::from_std(child);
         let stdout = prepare_capture_reader(reader).map_err(CaptureSpawnError::Prepare)?;
         Ok((child, stdout))
+    }
+
+    fn from_spawned_pid(pid: c_int, retain_pidfd: bool) -> io::Result<Self> {
+        if pid <= 0 {
+            return Err(io::Error::other("spawn did not return an owned child"));
+        }
+        Ok(Self::with_pid(
+            Process::Spawned { pid, status: None },
+            pid,
+            retain_pidfd,
+        ))
     }
 
     fn from_std(child: std::process::Child) -> Self {
@@ -472,17 +485,37 @@ pub fn wait_with_notification(
 /// Capture stays responsive both while reading a pipe and after its writer
 /// closes stdout but keeps running. Dropping the uniquely owned child on any
 /// error kills and reaps it; a recycled PID can never be signalled here.
+#[derive(Debug)]
+pub enum CaptureError {
+    Io(io::Error),
+    Worker(rmake_core::variables::ExpandError),
+}
+
+impl From<io::Error> for CaptureError {
+    fn from(error: io::Error) -> Self {
+        Self::Io(error)
+    }
+}
+
 pub fn capture(
     mut child: Child,
     stdout: File,
     maximum: usize,
-) -> io::Result<(Vec<u8>, ExitStatus)> {
+    _service_workers: Option<&mut rmake_core::diagnostic::ShellWorkers<'_>>,
+) -> Result<(Vec<u8>, ExitStatus), CaptureError> {
+    #[cfg(feature = "guile")]
+    let mut service_workers = _service_workers;
+    #[cfg(feature = "guile")]
+    let mut workers = service_workers
+        .as_ref()
+        .map(|_| crate::guile::WorkerWait::begin_capture())
+        .transpose()?;
     let mut bytes = Vec::new();
     let mut stdout = Some(stdout);
     let mut status = None;
     loop {
         if crate::signals::pending().is_some() {
-            return Err(io::ErrorKind::Interrupted.into());
+            return Err(io::Error::from(io::ErrorKind::Interrupted).into());
         }
         if let Some(reader) = &mut stdout {
             let mut block = [0; 8192];
@@ -496,38 +529,61 @@ pub fn capture(
                     }
                     Ok(count) => {
                         if bytes.len().saturating_add(count) > maximum {
-                            return Err(io::ErrorKind::FileTooLarge.into());
+                            return Err(io::Error::from(io::ErrorKind::FileTooLarge).into());
                         }
                         bytes.extend_from_slice(&block[..count]);
                         if crate::signals::pending().is_some() {
-                            return Err(io::ErrorKind::Interrupted.into());
+                            return Err(io::Error::from(io::ErrorKind::Interrupted).into());
                         }
                     }
                     Err(error) if error.kind() == io::ErrorKind::WouldBlock => break,
                     Err(error) if error.kind() == io::ErrorKind::Interrupted => {
                         if crate::signals::pending().is_some() {
-                            return Err(error);
+                            return Err(error.into());
                         }
                     }
-                    Err(error) => return Err(error),
+                    Err(error) => return Err(error.into()),
                 }
             }
         }
         if status.is_none() {
             status = child.try_wait()?;
         }
+        #[cfg(feature = "guile")]
+        if let Some(workers) = &mut workers {
+            let finished = stdout.is_none() && status.is_some();
+            let pending = if finished {
+                !workers.finish_if_idle()
+            } else {
+                workers.pending()
+            };
+            if pending {
+                service_workers
+                    .as_mut()
+                    .expect("worker wait has a callback")()
+                .map_err(CaptureError::Worker)?;
+                continue;
+            }
+        }
         if stdout.is_none()
             && let Some(status) = status
         {
             return Ok((bytes, status));
         }
+        #[cfg(feature = "guile")]
+        let (notification, retry) = workers.as_ref().map_or((None, None), |workers| {
+            (workers.descriptor(), workers.poll_interval())
+        });
+        #[cfg(not(feature = "guile"))]
+        let (notification, retry) = (None, None);
         let children = [(0, &child)];
-        wait(
+        wait_with_notification(
             if status.is_none() { &children } else { &[] },
             true,
             true,
             stdout.as_ref().map(AsRawFd::as_raw_fd),
-            None,
+            notification,
+            retry,
         )?;
     }
 }
@@ -583,7 +639,7 @@ mod tests {
         let mut command = Command::new("/bin/sh");
         command.args(["-c", "exec 1>&-; sleep .01; exit 7"]);
         let (child, stdout) = Child::spawn_capture(&mut command).unwrap();
-        let (bytes, status) = capture(child, stdout, 16).unwrap();
+        let (bytes, status) = capture(child, stdout, 16, None).unwrap();
         assert!(bytes.is_empty());
         assert_eq!(status.code(), Some(7));
     }
@@ -625,10 +681,10 @@ mod tests {
         let mut command = Command::new("/bin/sh");
         command.args(["-c", "printf abc"]);
         let (child, stdout) = Child::spawn_capture(&mut command).unwrap();
-        assert_eq!(
-            capture(child, stdout, 2).unwrap_err().kind(),
-            io::ErrorKind::FileTooLarge
-        );
+        assert!(matches!(
+            capture(child, stdout, 2, None),
+            Err(CaptureError::Io(error)) if error.kind() == io::ErrorKind::FileTooLarge
+        ));
     }
 
     #[test]

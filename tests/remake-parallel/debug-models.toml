@@ -947,11 +947,7 @@ right
 case = "required-keep-pipe"
 flag = "m,v"
 fifo = true
-fifo_second_stdout_barrier = '''
-   Still updating file 'right'.
-  The prerequisites of 'joined' are being made.
- The prerequisites of 'generated.gen' are being made.
-'''
+second_trace_transports = ["pipe", "fifo"]
 release_prefixes = [1216, 1628]
 stdout = '''
 GNU Make 4.4.1
@@ -3940,6 +3936,7 @@ Successfully remade target file 'all'.
 case = "primary-named-mode-explicit-stale-n-pipe-3-slots"
 flag = "m,v"
 fifo = true
+second_trace_transports = ["pipe"]
 release_prefixes = [1437, 1587]
 stdout = '''
 GNU Make 4.4.1
@@ -9839,6 +9836,7 @@ Successfully remade target file 'all'.
 case = "named-include-file-prerequisite-required-middle-n-pipe"
 flag = "m,v"
 fifo = true
+second_trace_transports = ["fifo"]
 release_prefixes = [1615, 1765]
 stdout = '''
 GNU Make 4.4.1
@@ -12985,8 +12983,8 @@ case = "load-dynamic-token-wait-pipe"
 flag = "m,v"
 fifo = true
 requires_load = true
-fifo_tail_stdout_barrier = "\n Still updating file 'tail.gen'.\n"
-fifo_second_stdout_barrier = " File 'tail.gen' was considered already.\n"
+second_trace_transports = ["pipe", "fifo"]
+tail_stdout_barrier = "\n Still updating file 'tail.gen'.\n"
 release_prefixes = [1258, 1664]
 stdout = '''
 GNU Make 4.4.1
@@ -13820,6 +13818,7 @@ case = "load-low-success-pipe-n"
 flag = "m,v"
 fifo = true
 requires_load = true
+second_trace_transports = ["fifo"]
 release_prefixes = [1184, 1334]
 stdout = '''
 GNU Make 4.4.1
@@ -14038,6 +14037,8 @@ case = "load-dynamic-token-wait-pipe-n"
 flag = "m,v"
 fifo = true
 requires_load = true
+second_trace_transports = ["pipe", "fifo"]
+tail_stdout_barrier = "\n Still updating file 'tail.gen'.\n"
 release_prefixes = [1258, 1664]
 stdout = '''
 GNU Make 4.4.1
@@ -14123,6 +14124,8 @@ case = "load-dynamic-token-wait-pipe-q"
 flag = "m,v"
 fifo = true
 requires_load = true
+second_trace_transports = ["pipe", "fifo"]
+tail_stdout_barrier = "\n Still updating file 'tail.gen'.\n"
 release_prefixes = [1258, 1664]
 stdout = '''
 GNU Make 4.4.1
@@ -14207,6 +14210,8 @@ case = "load-dynamic-token-wait-pipe-t"
 flag = "m,v"
 fifo = true
 requires_load = true
+second_trace_transports = ["pipe", "fifo"]
+tail_stdout_barrier = "\n Still updating file 'tail.gen'.\n"
 release_prefixes = [1258, 1664]
 stdout = '''
 GNU Make 4.4.1
@@ -15400,4 +15405,1350 @@ Finished prerequisites of target file 'all'.
 Must remake target 'all'.
 Successfully remade target file 'all'.
 make: Nothing to be done for 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-n-pipe-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [632, 632]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -n ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-n-pipe-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [632, 632]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -n ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-q-pipe-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [600, 600]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-q-pipe-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [600, 600]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-t-pipe-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [608, 608]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -t ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-t-pipe-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [608, 608]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -t ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-n-pipe-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [546, 546]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -n ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-n-pipe-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [632, 632]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -n ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-q-pipe-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [546, 546]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -q ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-q-pipe-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [600, 600]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-t-pipe-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [608, 608]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -t ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-t-pipe-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [608, 608]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -t ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-n-pipe-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [546, 1276]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+python3 worker.py right include
+printf "tail\n" >> seen
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -n ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "tail\n" >> seen
+printf "VALUE := rebuilt\n" > named.gen
+Re-executing[2]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -n ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-n-pipe-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [546, 632]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -n ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-q-pipe-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [546]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-q-pipe-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [546, 600]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-t-pipe-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [608, 608]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -t ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-t-pipe-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [608, 608]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=pipe -t ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-n-fifo-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [632, 632]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=fifo -n ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-n-fifo-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [632, 632]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=fifo -n ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-q-fifo-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [600, 600]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-q-fifo-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [600, 600]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-t-fifo-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [608, 608]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=fifo -t ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-first-t-fifo-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [608, 608]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=fifo -t ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-n-fifo-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [546, 546]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=fifo -n ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-n-fifo-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [632, 632]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=fifo -n ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-q-fifo-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [546, 546]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=fifo -q ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-q-fifo-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [600, 600]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-t-fifo-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [608, 608]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=fifo -t ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-middle-t-fifo-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [608, 608]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=fifo -t ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-n-fifo-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [546, 1276]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+python3 worker.py right include
+printf "tail\n" >> seen
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=fifo -n ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "tail\n" >> seen
+printf "VALUE := rebuilt\n" > named.gen
+Re-executing[2]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=fifo -n ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-n-fifo-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [546, 632]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=fifo -n ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+printf "VALUE := rebuilt\n" > named.gen
+ Successfully remade target file 'named.gen'.
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+printf "ordinary\n"
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-q-fifo-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [546]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-q-fifo-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [546, 600]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+ Target file 'named.gen' needs to be remade under -q.
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+Target file 'all' needs to be remade under -q.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-t-fifo-2-slots-high"
+flag = "m"
+requires_load = true
+release_prefixes = [608, 608]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=fifo -t ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-parallel-named-mode-last-t-fifo-2-slots-low"
+flag = "m"
+requires_load = true
+release_prefixes = [608, 608]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'left.gen' does not exist.
+ Must remake target 'left.gen'.
+  File 'right.gen' does not exist.
+ Must remake target 'right.gen'.
+  File 'named.gen' does not exist.
+ Must remake target 'named.gen'.
+touch named.gen
+ Successfully remade target file 'named.gen'.
+Re-executing[1]: @BIN@ -rR --no-print-directory -l2 -j2 --jobserver-style=fifo -t ./named.gen --debug=m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'named.gen' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
 '''

@@ -19,23 +19,27 @@ unsafe extern "C" {
     fn rg_guile_component_signal(number: c_int);
     fn rg_guile_notify_signal(number: c_int);
     fn rg_guile_pending_signal() -> c_int;
-    fn rg_workers_begin_wait() -> c_int;
+    fn rg_workers_begin_wait(allow_nested: c_int) -> c_int;
     fn rg_workers_wait_notification(descriptor: c_int) -> c_int;
+    fn rg_workers_wait_pending() -> c_int;
     fn rg_workers_end_wait(descriptor: c_int, idle_only: c_int) -> c_int;
 }
 
 const POLLING_WAIT: c_int = -3;
+const NESTED_WAIT: c_int = -4;
 
 enum WorkerWake {
     Event(OwnedFd),
     Poll,
+    NestedPoll,
 }
 
 impl WorkerWake {
-    fn registration(&self) -> c_int {
+    fn registration(&self) -> Option<c_int> {
         match self {
-            Self::Event(descriptor) => descriptor.as_raw_fd(),
-            Self::Poll => POLLING_WAIT,
+            Self::Event(descriptor) => Some(descriptor.as_raw_fd()),
+            Self::Poll => Some(POLLING_WAIT),
+            Self::NestedPoll => None,
         }
     }
 }
@@ -48,14 +52,25 @@ pub struct WorkerWait {
 
 impl WorkerWait {
     pub fn begin() -> std::io::Result<Self> {
+        Self::begin_wait(false)
+    }
+
+    /// An admitted callback can itself evaluate a shell function. The outer
+    /// wait owns admission and its descriptor while the nested capture runs.
+    pub(crate) fn begin_capture() -> std::io::Result<Self> {
+        Self::begin_wait(true)
+    }
+
+    fn begin_wait(allow_nested: bool) -> std::io::Result<Self> {
         let wake = if initialized() {
             if !host_active() {
                 return Err(std::io::ErrorKind::Unsupported.into());
             }
             // SAFETY: the leading dispatcher owns admission. C transfers a
             // fresh descriptor and borrows it until this guard detaches it.
-            match unsafe { rg_workers_begin_wait() } {
+            match unsafe { rg_workers_begin_wait(c_int::from(allow_nested)) } {
                 POLLING_WAIT => Some(WorkerWake::Poll),
+                NESTED_WAIT => Some(WorkerWake::NestedPoll),
                 -2 => None,
                 -1 => return Err(std::io::Error::last_os_error()),
                 descriptor => Some(WorkerWake::Event(unsafe {
@@ -78,19 +93,23 @@ impl WorkerWait {
     pub fn descriptor(&self) -> Option<BorrowedFd<'_>> {
         match self.wake.as_ref()? {
             WorkerWake::Event(descriptor) => Some(descriptor.as_fd()),
-            WorkerWake::Poll => None,
+            WorkerWake::Poll | WorkerWake::NestedPoll => None,
         }
     }
 
     pub fn poll_interval(&self) -> Option<Duration> {
-        matches!(self.wake, Some(WorkerWake::Poll)).then_some(Duration::from_millis(5))
+        matches!(self.wake, Some(WorkerWake::Poll | WorkerWake::NestedPoll))
+            .then_some(Duration::from_millis(5))
     }
 
     pub fn pending(&self) -> bool {
         // The wait stays registered during this call.
         self.wake
             .as_ref()
-            .is_some_and(|wake| unsafe { rg_workers_wait_notification(wake.registration()) != 0 })
+            .is_some_and(|wake| match wake.registration() {
+                Some(descriptor) => unsafe { rg_workers_wait_notification(descriptor) != 0 },
+                None => unsafe { rg_workers_wait_pending() != 0 },
+            })
     }
 
     pub fn finish_if_idle(&mut self) -> bool {
@@ -103,10 +122,16 @@ impl WorkerWait {
 
     fn finish(&mut self, idle_only: bool) -> bool {
         // Clear admission under the queue lock before dropping any fd.
-        if let Some(wake) = &self.wake
-            && unsafe { rg_workers_end_wait(wake.registration(), c_int::from(idle_only)) } == 0
-        {
-            return false;
+        if let Some(wake) = &self.wake {
+            let idle = match wake.registration() {
+                Some(descriptor) => unsafe {
+                    rg_workers_end_wait(descriptor, c_int::from(idle_only)) != 0
+                },
+                None => !idle_only || unsafe { rg_workers_wait_pending() == 0 },
+            };
+            if !idle {
+                return false;
+            }
         }
         self.wake.take();
         true

@@ -620,7 +620,11 @@ fn runtime_context<'a>(
         .with_cancellation(rmake_linux::signals::cancellation())
 }
 
-fn emit_output(controller: &crate::output::Controller, program: &[u8], output: Output<'_>) {
+pub(crate) fn emit_output(
+    controller: &crate::output::Controller,
+    program: &[u8],
+    output: Output<'_>,
+) {
     if let Output::SystemWarning { location, message } = output {
         let message = crate::messages::system(message.message());
         return emit_output(
@@ -1861,7 +1865,7 @@ impl Engine {
             .with_makeflags(&mut self.flag_state.receiver())
             .with_target_reads(&mut target_reads)
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-            .with_shell(&mut |request| {
+            .with_shell(&|request| {
                 crate::shell::run(
                     request,
                     &self.program,
@@ -1896,7 +1900,7 @@ impl Engine {
             )
             .with_makeflags(&mut self.flag_state.receiver())
             .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-            .with_shell(&mut |request| {
+            .with_shell(&|request| {
                 crate::shell::run(
                     request,
                     &self.program,
@@ -1927,7 +1931,7 @@ impl Engine {
             let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
                 self.filesystem.borrow_mut().execute(effect)
             };
-            let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+            let shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
                 crate::shell::run(
                     request,
                     &self.program,
@@ -1941,7 +1945,7 @@ impl Engine {
             let mut context = runtime_context(location, &mut output)
                 .with_makeflags(&mut flags)
                 .with_filesystem(&mut filesystem)
-                .with_shell(&mut shell)
+                .with_shell(&shell)
                 .with_includes(&mut include);
             if reload {
                 self.database
@@ -2010,7 +2014,7 @@ impl Engine {
         let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
             self.filesystem.borrow_mut().execute(effect)
         };
-        let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+        let shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
             crate::shell::run(
                 request,
                 &self.program,
@@ -2024,7 +2028,7 @@ impl Engine {
         let mut context = runtime_context(None, &mut output)
             .with_makeflags(&mut flags)
             .with_filesystem(&mut filesystem)
-            .with_shell(&mut shell)
+            .with_shell(&shell)
             .with_includes(&mut include);
         operation(&mut self.database, &mut context)
     }
@@ -2387,7 +2391,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -2462,7 +2466,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -2551,7 +2555,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -2911,7 +2915,7 @@ impl Engine {
                     )
                     .with_makeflags(&mut self.flag_state.receiver())
                     .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                    .with_shell(&mut |request| {
+                    .with_shell(&|request| {
                         crate::shell::run(
                             request,
                             &self.program,
@@ -2967,7 +2971,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -3066,7 +3070,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -3115,7 +3119,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -3305,19 +3309,31 @@ impl Engine {
                 && debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits());
             let verbose_load_debug = verbose_load_trace
                 && (!ordinary_mode || direct_mode_remakes)
-                && self.qualified_load_debug_sources(&read_files, false);
+                && self.qualified_load_debug_sources(&read_files, false, 1);
             let optional_dependency_load_debug = ordinary_mode
                 && (basic_load_debug || verbose_load_trace)
                 && direct_mode_remakes
-                && self.qualified_load_debug_sources(&read_files, true);
+                && self.qualified_load_debug_sources(&read_files, true, 1);
             let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
                 || (qualified_remake_debug
                     && (self.options.load_limit.is_none()
                         || basic_load_debug
                         || verbose_load_debug
                         || optional_dependency_load_debug));
+            let named_load_debug = ordinary_mode
+                && basic_load_debug
+                && read_files.iter().any(|(file, skip)| {
+                    !*skip
+                        && self.is_makefile_goal(
+                            rmake_core::filenames::without_dot_prefix(&file.name),
+                            named_sources.as_ref(),
+                        )
+                })
+                && self.qualified_load_debug_sources(&read_files, false, 2)
+                && self.qualified_debug_remake_sources(&read_files, named_sources.as_ref());
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
+                    || named_load_debug
                     || (((debug_before_remake.bits() == remake_debug_bits && !basic_load_debug)
                         || verbose_mode_remakes
                         || direct_mode_remakes)
@@ -3993,7 +4009,7 @@ impl Engine {
                             .with_filesystem(&mut |effect| {
                                 self.filesystem.borrow_mut().execute(effect)
                             })
-                            .with_shell(&mut |request| {
+                            .with_shell(&|request| {
                                 crate::shell::run(
                                     request,
                                     &self.program,
@@ -4445,6 +4461,7 @@ impl Engine {
         &self,
         read_files: &[(Makefile, bool)],
         optional_dependencies_only: bool,
+        max_recipe_lines: usize,
     ) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
@@ -4480,10 +4497,9 @@ impl Engine {
                 continue;
             };
             if !plain_rule(rule)
-                || rule
-                    .recipes
-                    .as_ref()
-                    .is_some_and(|recipes| recipes.len() > 1 || !nonrecursive(recipes))
+                || rule.recipes.as_ref().is_some_and(|recipes| {
+                    recipes.len() > max_recipe_lines || !nonrecursive(recipes)
+                })
             {
                 return false;
             }
@@ -4522,7 +4538,15 @@ impl Engine {
         if (primary && (file.optional || file.missing))
             || self.database.loaded_modules.contains_key(name)
             || self.assumptions.is_some()
-            || self.options.load_limit.is_some()
+        {
+            return false;
+        }
+        let limited_load = self.options.load_limit.is_some();
+        if limited_load
+            && (primary
+                || file.optional
+                || self.special(b".PHONY", name, false)
+                || !self.no_remake_recipe_fallback())
         {
             return false;
         }
@@ -4532,6 +4556,17 @@ impl Engine {
             .rules
             .get(name)
             .map_or(primary && no_default_recipe, |rule| {
+                if limited_load {
+                    // A direct named include may carry its mode across a
+                    // load-delayed sibling without expanding a dependency.
+                    return rule.dependencies.is_empty()
+                        && rule.secondary.is_none()
+                        && rule.group.is_none()
+                        && rule.double_colon.is_none()
+                        && rule.recipes.as_ref().is_some_and(|recipes| {
+                            matches!(recipes.as_slice(), [recipe] if !recipe_is_recursive(recipe))
+                        });
+                }
                 if rule.secondary.is_some() && !no_default_recipe {
                     return false;
                 }
@@ -8329,7 +8364,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -8402,7 +8437,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -8559,7 +8594,7 @@ impl Engine {
             let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
                 self.filesystem.borrow_mut().execute(effect)
             };
-            let mut shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+            let shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
                 crate::shell::run(
                     request,
                     &self.program,
@@ -8576,7 +8611,7 @@ impl Engine {
             let mut context = runtime_context(None, &mut diagnostic_output)
                 .with_makeflags(&mut makeflags)
                 .with_filesystem(&mut filesystem)
-                .with_shell(&mut shell)
+                .with_shell(&shell)
                 .with_includes(&mut includes);
             let mut expanded = Vec::new();
             let mut pending_wait = None;
@@ -11570,7 +11605,7 @@ impl Engine {
                 )
                 .with_makeflags(&mut self.flag_state.receiver())
                 .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&mut |request| {
+                .with_shell(&|request| {
                     crate::shell::run(
                         request,
                         &self.program,
@@ -12397,7 +12432,7 @@ impl Engine {
                             .with_filesystem(&mut |effect| {
                                 self.filesystem.borrow_mut().execute(effect)
                             })
-                            .with_shell(&mut |request| {
+                            .with_shell(&|request| {
                                 crate::shell::run(
                                     request,
                                     &self.program,
@@ -12999,79 +13034,78 @@ fn signal_status(status: std::process::ExitStatus) -> String {
     message
 }
 
-/// Keep the exact executable that returned ENOEXEC. Re-searching using file mode
-/// bits is incorrect: an earlier PATH entry can have an execute bit yet deny the
-/// current user execution. Only the kernel's actual exec result decides that.
-pub(crate) fn launch_child<T>(
+/// Select the first executable non-directory in the child's PATH before
+/// spawning it. An exec failure for that file is a launch failure, even when
+/// the same program name is executable in a later PATH directory.
+fn recipe_program(program: &[u8], template: &Command) -> io::Result<std::path::PathBuf> {
+    use rmake_linux::process::executable;
+
+    if program.contains(&b'/') {
+        let path = std::path::PathBuf::from(os(program));
+        executable(&path)?;
+        return Ok(path);
+    }
+
+    let path = template
+        .get_envs()
+        .find(|(key, _)| *key == "PATH")
+        .and_then(|(_, value)| value)
+        .unwrap_or_else(|| OsStr::new("/bin:/usr/bin"));
+    let mut failure = io::Error::from_raw_os_error(2);
+    for directory in std::env::split_paths(path) {
+        let local = directory.as_os_str().is_empty() || directory.as_os_str() == ".";
+        // The local PATH component tests the bare name before prepending ./
+        // for launch. A quoted empty argv[0] therefore finds no local file.
+        if local && program.is_empty() {
+            continue;
+        }
+        let candidate = if local {
+            std::path::Path::new(".").join(os(program))
+        } else {
+            directory.join(os(program))
+        };
+        match executable(&candidate) {
+            Ok(()) => return Ok(candidate),
+            Err(error) if error.raw_os_error() != Some(2) => failure = error,
+            Err(_) => {}
+        }
+    }
+    Err(failure)
+}
+
+fn launch_child<T>(
     program: &[u8],
     template: &Command,
     order: &[Vec<u8>],
     original_shell: Option<&[u8]>,
-    mut run: impl FnMut(Command, &rmake_linux::environment::Image, &[u8]) -> io::Result<T>,
+    run: impl FnMut(Command, &rmake_linux::environment::Image, &[u8]) -> io::Result<T>,
 ) -> io::Result<T> {
-    let paths = if program.contains(&b'/') {
-        vec![std::path::PathBuf::from(os(program))]
-    } else {
-        let path = template
-            .get_envs()
-            .find(|(key, _)| *key == "PATH")
-            .and_then(|(_, value)| value.map(OsStr::to_owned))
-            .unwrap_or_else(|| "/bin:/usr/bin".into());
-        std::env::split_paths(&path)
-            .map(|directory| {
-                let directory = if directory.as_os_str().is_empty() {
-                    std::path::PathBuf::from(".")
-                } else {
-                    directory
-                };
-                directory.join(os(program))
-            })
-            .collect()
-    };
     let environment =
         rmake_linux::environment::Image::from_command(template, order, original_shell)?;
-    let mut denied = None;
-    let mut missing = io::Error::from_raw_os_error(2);
-    for path in &paths {
-        let mut command = Command::new(path);
-        command.arg0(os(program)).args(template.get_args());
-        rmake_linux::signals::configure_child(&mut command);
-        match run(command, &environment, program) {
-            // Linux ENOEXEC: interpret the attempted file through /bin/sh,
-            // preserving args/environment but not the recipe's -e/-c flags.
-            Err(error) if error.raw_os_error() == Some(8) => {
-                let mut shell = Command::new("/bin/sh");
-                shell.arg(path).args(template.get_args());
-                rmake_linux::signals::configure_child(&mut shell);
-                return run(shell, &environment, b"/bin/sh");
-            }
-            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
-                // A failed fork has not checked the executable yet. Recover
-                // the lookup diagnostic without retrying the child launch.
-                let mut lookup = io::Error::from_raw_os_error(2);
-                for candidate in &paths {
-                    match rmake_linux::process::executable(candidate) {
-                        Ok(()) => return Err(error),
-                        Err(error) if error.raw_os_error() != Some(2) => lookup = error,
-                        Err(_) => {}
-                    }
-                }
-                return Err(lookup);
-            }
-            Err(error)
-                if !program.contains(&b'/') && error.kind() == io::ErrorKind::PermissionDenied =>
-            {
-                denied = Some(error)
-            }
-            Err(error)
-                if !program.contains(&b'/') && matches!(error.raw_os_error(), Some(2 | 20)) =>
-            {
-                missing = error
-            }
-            result => return result,
+    launch_child_with_environment(program, template, &environment, run)
+}
+
+pub(crate) fn launch_child_with_environment<T>(
+    program: &[u8],
+    template: &Command,
+    environment: &rmake_linux::environment::Image,
+    mut run: impl FnMut(Command, &rmake_linux::environment::Image, &[u8]) -> io::Result<T>,
+) -> io::Result<T> {
+    let path = recipe_program(program, template)?;
+    let mut command = Command::new(&path);
+    command.arg0(os(program)).args(template.get_args());
+    rmake_linux::signals::configure_child(&mut command);
+    match run(command, environment, program) {
+        Err(error) if error.raw_os_error() == Some(8) => {
+            // Interpret the selected file through /bin/sh with its original
+            // arguments and environment.
+            let mut shell = Command::new("/bin/sh");
+            shell.arg(path).args(template.get_args());
+            rmake_linux::signals::configure_child(&mut shell);
+            run(shell, environment, b"/bin/sh")
         }
+        result => result,
     }
-    Err(denied.unwrap_or(missing))
 }
 
 #[cfg(feature = "test-support")]
@@ -13112,15 +13146,23 @@ mod tests {
 
     #[test]
     fn process_pressure_lookup_does_not_retry_the_launch() {
-        let mut command = Command::new("unavailable");
-        command.env("PATH", "/dev/null:/dev/null");
+        let mut missing = Command::new("unavailable");
+        missing.env("PATH", "/dev/null:/dev/null");
+        let result = launch_child::<()>(b"unavailable", &missing, &[], None, |_, _, _| {
+            panic!("lookup failure must not attempt a launch");
+        });
+        assert_eq!(result.unwrap_err().raw_os_error(), Some(20));
+
+        let mut available = Command::new("true");
+        available.env("PATH", "/dev/null:/bin:/usr/bin");
         let mut attempts = 0;
-        let result = launch_child(b"unavailable", &command, &[], None, |_, _, _| {
+        let result = launch_child(b"true", &available, &[], None, |command, _, _| {
+            assert_eq!(command.get_program(), "/bin/true");
             attempts += 1;
             Err::<(), _>(io::Error::from_raw_os_error(11))
         });
         assert_eq!(attempts, 1);
-        assert_eq!(result.unwrap_err().raw_os_error(), Some(20));
+        assert_eq!(result.unwrap_err().raw_os_error(), Some(11));
     }
 
     #[test]

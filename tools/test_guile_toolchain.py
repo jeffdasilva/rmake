@@ -228,7 +228,8 @@ class GuileToolchainTests(unittest.TestCase):
                 feature = command.index('--features')
                 self.assertEqual(command[feature + 1], 'guile')
                 for script in ('guile_detached.py', 'guile_eventfd_pressure.py',
-                               'guile_detached_parallel.py', 'guile_parallel_pressure.py'):
+                               'guile_detached_parallel.py', 'guile_parallel_pressure.py',
+                               'guile_shell_capture.py'):
                     selected = [call.args[0] for call in commands
                                 if call.args[0][1:2] == ['tools/' + script]]
                     with self.subTest(script=script):

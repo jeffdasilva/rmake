@@ -253,15 +253,21 @@ pub struct ShellRequest<'a> {
     /// active recursive export. Interpretation performs no implicit OS reads.
     pub environment: &'a [(Vec<u8>, EnvironmentValue)],
     pub original_shell: Option<&'a [u8]>,
+    pub reading_location: Option<&'a Location>,
     pub one_shell: bool,
+    pub service_workers: Option<&'a mut ShellWorkers<'a>>,
 }
+
+pub type ShellWorkers<'a> = dyn FnMut() -> Result<(), crate::variables::ExpandError> + 'a;
 
 pub struct ShellResult {
     pub stdout: Vec<u8>,
-    pub status: i32,
+    /// A capture pipe failure leaves .SHELLSTATUS unchanged.
+    pub status: Option<i32>,
 }
 
-type ShellReceiver<'a> = dyn FnMut(ShellRequest<'_>) -> Result<ShellResult, Vec<u8>> + 'a;
+type ShellReceiver<'a> =
+    dyn Fn(ShellRequest<'_>) -> Result<ShellResult, crate::variables::ExpandError> + 'a;
 
 /// Global MAKEFLAGS assignment is an interpreter effect. Expand the value
 /// before invoking the receiver, so nested eval can report its own assignment
@@ -442,7 +448,7 @@ pub struct ExpansionContext<'a> {
     output: Option<&'a mut dyn OutputReceiver>,
     filesystem: Option<&'a mut FilesystemReceiver<'a>>,
     includes: Option<&'a mut IncludeReceiver<'a>>,
-    shell: Option<&'a mut ShellReceiver<'a>>,
+    shell: Option<&'a ShellReceiver<'a>>,
     original_environment: Option<OriginalEnvironmentLookup>,
     pub(crate) preparing_shell_environment: bool,
     makeflags: Option<&'a mut dyn MakeflagsReceiver>,
@@ -1106,7 +1112,7 @@ impl<'a> ExpansionContext<'a> {
         self.includes.as_mut().map(|receiver| receiver(name))
     }
 
-    pub fn with_shell(mut self, shell: &'a mut ShellReceiver<'a>) -> Self {
+    pub fn with_shell(mut self, shell: &'a ShellReceiver<'a>) -> Self {
         self.shell = Some(shell);
         self
     }
@@ -1125,11 +1131,8 @@ impl<'a> ExpansionContext<'a> {
         self.shell.is_some()
     }
 
-    pub fn run_shell(&mut self, request: ShellRequest<'_>) -> Option<Result<ShellResult, Vec<u8>>> {
-        if self.is_cancelled() {
-            return Some(Err(b"interrupted".to_vec()));
-        }
-        self.shell.as_mut().map(|receiver| receiver(request))
+    pub(crate) fn shell_receiver(&self) -> Option<&'a ShellReceiver<'a>> {
+        self.shell
     }
 
     pub(crate) fn has_filesystem(&self) -> bool {
@@ -1278,10 +1281,7 @@ impl<'a> ExpansionContext<'a> {
                 Some(includes) => Some(&mut **includes),
                 None => None,
             },
-            shell: match &mut self.shell {
-                Some(shell) => Some(&mut **shell),
-                None => None,
-            },
+            shell: self.shell,
             original_environment: self.original_environment,
             preparing_shell_environment: self.preparing_shell_environment,
             makeflags: match &mut self.makeflags {

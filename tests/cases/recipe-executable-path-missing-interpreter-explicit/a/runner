@@ -1,0 +1,2 @@
+#!/__rmake_nonexistent_recipe_interpreter__
+printf unexpected

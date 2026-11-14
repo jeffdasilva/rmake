@@ -70,7 +70,7 @@ required failure replay and the considered state after an early optional pass.
 Both jobserver transports are covered.
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 2,046 profiles. Leading `./` spellings share one target record and
+run all 2,146 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -80,7 +80,7 @@ The overlap checks detected all twenty.
 
 ## Load limits
 
-The development and release gates include 82 held load profiles in addition
+The development and release gates include 146 held load profiles in addition
 to the debug variants.
 For a standalone run, add `--include-load` to compile the tracked shim
 with `cc` in the harness temporary directory. Use `--load-shim PATH` to
@@ -92,13 +92,18 @@ deferral, a low-load overlap control, and a controlled load drop during
 token wait. A stopped optional remake retains its queued sibling while
 a required failure cancels the queue. The optional-stop ordinary goal
 records its secondary expansion before the queued sibling releases.
+Named include goals use both high and low load in dry-run, question, and
+touch modes. The held workers distinguish deferred dispatch, the named
+recipe's carried mode, and restarts before the second include starts.
+The 64 cases cover both pipe and FIFO transports.
+
 Ordinary goal profiles check file effects, successful and failed exits,
 ignored failures, and the summary for work dispatched outside a goal
 visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 
-The 440 debug profiles check the entire debug trace and the exact trace prefix
+The 476 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging with the pipe
 transport. The 131 authenticated FIFO traces check the controller path against the
@@ -127,17 +132,19 @@ is checked under dry-run, question and touch with both transports.
 
 The standard developer gates include these profiles. The selector runs
 the debug profiles that do not require the load shim. Add `--include-load`
-to include 82 basic and 82 verbose makefile traces with controlled load
-and held workers. Eighteen of the verbose traces cover dry-run, question,
+to include 118 basic and 82 verbose makefile traces with controlled load
+and held workers. Thirty-six basic traces cover named includes under load.
+The expected executable path comes from the test workspace when a restart
+precedes a worker release. Eighteen of the verbose traces cover dry-run, question,
 and touch for direct includes under high, low, and falling load on both
 transports. These cases use unique read sources and explicit leaf
 recipes. Another 36 traces check stopped and keep-going optional include
 remakes with a carried recipe or a later command under controlled load.
 FIFO cases verify the live controller path.
-The required keep-going FIFO case waits for the cached right prerequisite
-trace before releasing the second worker.
-The dynamic-load FIFO case releases the tail after its pending trace and
-releases the right worker after the tail's cached visit.
+The required keep-going traces and selected named dry-run traces wait for
+the authored reconsideration trace before releasing the right worker.
+The dynamic-load verbose cases release the tail after its pending trace and
+the right worker after the tail's cached visit on both transports.
 The named primary traces cover existing prerequisites, built-in prerequisite
 recipes, and a forced primary recipe while an earlier include is running.
 Pipe profiles also check verbose reconsideration after a recipe with several

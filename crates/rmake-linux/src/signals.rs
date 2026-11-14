@@ -35,7 +35,13 @@ unsafe extern "C" {
     fn getpid() -> c_int;
     fn kill(pid: c_int, number: c_int) -> c_int;
     fn rmake_set_execution_mask(reader: c_int) -> c_int;
-    fn rmake_compact_pipe_budget(minimum: u32, roomy: u32, roomy_budget: *mut c_int) -> c_int;
+    fn rmake_compact_pipe_budget(
+        minimum: u32,
+        wake_minimum: u32,
+        roomy: u32,
+        allow_wake_pipe: *mut c_int,
+        roomy_budget: *mut c_int,
+    ) -> c_int;
 }
 
 // Rust's startup changes SIGPIPE to SIG_IGN. Record its inherited disposition
@@ -131,12 +137,22 @@ impl Guard {
         // The normal recursive path can retain three stdio descriptors,
         // two incoming endpoints, three private endpoints, two wake ends,
         // and std's two exec-error descriptors. Keep smaller budgets free.
+        let recursive_minimum = 3 + 2 + 3 + 2 + 2;
+        // Keep the two capture ends available at startup as well. The
+        // jobserver still chooses its own layout from the recursive budget.
+        let mut allow_wake_pipe = 1;
         let mut roomy = 0;
-        // SAFETY: C writes one descriptor budget result into this local.
-        let compact =
-            unsafe { rmake_compact_pipe_budget(3 + 2 + 3 + 2 + 2, ROOMY_FD_BUDGET, &mut roomy) }
-                != 0;
-        let wake = if compact {
+        // SAFETY: C writes only to the two live local outputs.
+        let compact = unsafe {
+            rmake_compact_pipe_budget(
+                recursive_minimum,
+                recursive_minimum + 2,
+                ROOMY_FD_BUDGET,
+                &mut allow_wake_pipe,
+                &mut roomy,
+            )
+        } != 0;
+        let wake = if allow_wake_pipe == 0 {
             Ok(None)
         } else {
             wake_pipe(roomy != 0).map(Some)
