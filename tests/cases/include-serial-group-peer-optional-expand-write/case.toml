@@ -1,0 +1,12 @@
+id = "include-serial-group-peer-optional-expand-write"
+requirement = "includes.remake"
+candidate = "required"
+description = "A running serial grouped recipe can change an existing include during shell expansion."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:\nREAD:1\nALL:new\n"
+stderr = ""

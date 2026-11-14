@@ -1213,6 +1213,8 @@ pub struct Engine {
     remake_error_cursor: Option<SharedIncludeError>,
     // A missing cause here marks a direct, suppressed failure.
     optional_remake_failures: HashMap<Vec<u8>, Option<Rc<FailedPrerequisite>>>,
+    // Existing read peers can change before their own serial remake visit.
+    serial_remake_peer_times: HashMap<Vec<u8>, SystemTime>,
     vpath_dirs: Vec<Vec<u8>>,
     gpath_dirs: HashSet<Vec<u8>>,
     makefile_names: HashSet<Vec<u8>>,
@@ -1788,6 +1790,7 @@ impl Engine {
             active_makefile_remake: None,
             remake_error_cursor: None,
             optional_remake_failures: HashMap::new(),
+            serial_remake_peer_times: HashMap::new(),
             vpath_dirs: Vec::new(),
             gpath_dirs: HashSet::new(),
             makefile_names: HashSet::new(),
@@ -3676,7 +3679,11 @@ impl Engine {
                         result.fatal = true;
                     }
                 }
-                let before = before.unwrap_or(result.time);
+                let before = self
+                    .serial_remake_peer_times
+                    .remove(name)
+                    .filter(|_| !failed_opens.contains(name))
+                    .or(before.unwrap_or(result.time));
                 // A required chain under -k can revisit its cached head
                 // after a failed declaration and report the prune.
                 let settled_chain = !result.failed
@@ -3912,6 +3919,7 @@ impl Engine {
             self.output.set_debug_mask(debug_before_remake);
             self.remaking = false;
             self.parallel_makefile_remakes = false;
+            self.serial_remake_peer_times.clear();
             self.remake_error_cursor = None;
             if stopped || self.shutdown.get() != Shutdown::Running {
                 self.remove_intermediates();
@@ -11673,6 +11681,12 @@ impl Engine {
             && !self.parallel_graph()
             && !outcome.question_outdated
             && !outcome.fatal;
+        let track_read_peers = self.remaking
+            && !self.parallel_makefile_remakes
+            && !group.implicit
+            && !outcome.failed
+            && outcome.ran
+            && outcome.completion == CompletionTime::Refresh;
         for (peer, before, phony) in group.members.into_iter().rev() {
             let database_result =
                 if observe_dry_group && !phony && (!group.implicit || peer != target) {
@@ -11719,6 +11733,16 @@ impl Engine {
             } else {
                 self.modified(&peer)
             };
+            if track_read_peers
+                && !phony
+                && let Some(time) = before
+                && completed.time != before
+                && self.makefile_names.contains(&peer)
+            {
+                self.serial_remake_peer_times
+                    .entry(peer.clone())
+                    .or_insert(time);
+            }
             if warn_missing && completed.time.is_none() {
                 emit_output(
                     &self.output,
