@@ -3392,13 +3392,12 @@ impl Engine {
                     let name = makefile.name.as_slice();
                     if !skip
                         && !makefile.missing
-                        && !self.database.rules.contains_key(name)
                         && !self.path_observations.contains_key(name)
                         && rmake_core::filenames::archive_parts(name).is_none()
                         && let Some(time) = self.modified(name)
                     {
                         // A prior remake can remove an already loaded source.
-                        // Its unruled visit still sees the pre-remake file.
+                        // Its visit still sees the pre-remake file.
                         self.check_clock_skew(name, Some(time));
                         self.path_observations
                             .insert(name.to_vec(), Some((None, Some(time))));
