@@ -94,8 +94,8 @@ The [locale collation slice](locale-collation.md) closes 33 observed preceding m
 
 ## Parallel modes, makefile remakes, and jobserver paths
 
-The held remake gate covers 2,470 profiles on Linux FIFO and pipe jobservers.
-It includes 656 remake-debug and 670 controlled load profiles. The gate authenticates 203 FIFO
+The held remake gate covers 2,650 profiles on Linux FIFO and pipe jobservers.
+It includes 764 remake-debug and 850 controlled load profiles. The gate authenticates 239 FIFO
 controller traces. The gate covers direct grouped optional
 recipes, stopped optional
 workers retained across load limits, named include and primary makefile goals,
