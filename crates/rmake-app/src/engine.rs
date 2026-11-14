@@ -995,6 +995,7 @@ impl RuleState {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum BuildVisit {
     Ordinary,
+    NamedTouchRemake,
     GoalPassStart,
     RevisitPrerequisite,
     PrerequisiteAfterRecipe,
@@ -3286,12 +3287,16 @@ impl Engine {
             let unruled_primary = ordinary_mode
                 && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
-            // A quiet dry run or query can also keep a required unnamed
-            // include pending beside the named include. Touch and debug
-            // still need their own mixed-mode pass handling.
+            let standalone_touch = modes.touch && !modes.dry_run && !modes.question;
             let mixed_named_overlap = matches!(named_load_files, [(_, false), (_, false)])
-                && !modes.touch
-                && !debug_before_remake.has(Mask::MAKEFILES);
+                && !debug_before_remake.has(Mask::MAKEFILES)
+                && (!modes.touch || standalone_touch)
+                && named_load_files.iter().any(|(file, _)| {
+                    !self.is_makefile_goal(
+                        rmake_core::filenames::without_dot_prefix(&file.name),
+                        named_sources.as_ref(),
+                    )
+                });
             let overlap_primary_recipe = unruled_primary
                 && named_load_files.iter().all(|(file, skip)| {
                     *skip
@@ -3652,12 +3657,25 @@ impl Engine {
                         .and_then(|remake| remake.open_error.clone());
                     self.graph_epoch = self.graph_epoch.wrapping_add(1);
                 }
+                // A later named touch runs before the queued unnamed
+                // predecessor is allowed to use its active touch mode.
+                let build_visit = if mixed_named_overlap
+                    && standalone_touch
+                    && self.parallel_makefile_remakes
+                    && source_index == 2
+                    && named_source
+                    && self.pending(&read_files[1].0.name)
+                {
+                    BuildVisit::NamedTouchRemake
+                } else {
+                    BuildVisit::Ordinary
+                };
                 let mut result = self.build_recording_initial_time(
                     name,
                     None,
                     0,
                     initial_time,
-                    BuildVisit::Ordinary,
+                    build_visit,
                     None,
                 );
                 let serial_declarations = if result.failed && !result.fatal {
@@ -3898,7 +3916,12 @@ impl Engine {
                     first_effect_generation.or(Some(pass_reaps))
                 };
                 let question_or_failure = remake_question || failed || optional_remake_failed;
-                let wait = if optional_named_load || (named_load_debug && verbose_load_trace) {
+                // A mixed touch pass restores the unnamed root's mode
+                // before refilling its load reservation after a reap.
+                let wait = if optional_named_load
+                    || (named_load_debug && verbose_load_trace)
+                    || (active_primary && mixed_named_overlap && modes.touch)
+                {
                     RemakeWait::LoadPass
                 } else if optional_dependency_load_debug {
                     RemakeWait::Recipe
@@ -9367,7 +9390,9 @@ impl Engine {
         if cached_wait {
             self.observe_interrupt();
         }
-        if !cached_wait || self.shutdown.get() != Shutdown::Running {
+        if visit == BuildVisit::NamedTouchRemake {
+            self.observe_interrupt();
+        } else if !cached_wait || self.shutdown.get() != Shutdown::Running {
             self.poll_jobs();
         }
         if self.forced_query_stop {

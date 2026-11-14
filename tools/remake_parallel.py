@@ -2128,7 +2128,10 @@ def stock_primary_load_models() -> list[HeldModel]:
                                  load=LoadProfile('normal', load_input, load_trace),
                                  stock_primary=True)
                 results.extend((held, stock_primary_two_named_model(held, optional)))
-                if mode in ('n', 'q'):
+                if mode == 't':
+                    results.extend(stock_primary_mixed_touch_model(held, optional, named_first)
+                                   for named_first in (True, False))
+                else:
                     results.append(stock_primary_mixed_model(held, optional))
     return results
 
@@ -2214,6 +2217,31 @@ def stock_primary_mixed_model(held: HeldModel, optional: bool) -> HeldModel:
     model = replace(model, id=model.id.replace('-two-named-', '-mixed-'),
                     args=held.model.args, updates=updates, expected=expected)
     return replace(held, model=model, before_first_stdout=release, stock_primary_mode=mode)
+
+
+def stock_primary_mixed_touch_model(held: HeldModel, optional: bool, named_first: bool) -> HeldModel:
+    model = stock_primary_two_named_model(held, optional).model
+    files = dict(model.files)
+    if not named_first:
+        child = b'-include child.mk\n' if optional else b'include child.mk\n'
+        extra = b'include extra.mk\n'
+        for name in ('Makefile', 'Makefile.sh'):
+            files[name] = files[name].replace(child + extra, extra + child)
+    high = held.load.at_release == LOAD_HIGH
+    release = held.before_first_stdout
+    if not named_first and not high:
+        release += b'touch extra.mk\n'
+    primary_touched = (optional and named_first) or (high and not named_first)
+    primary = b'touch Makefile\n' * 2 if primary_touched else b'chmod a+x Makefile\n'
+    stdout = release + primary + b"make: 'child.mk' is up to date.\ntouch all\n"
+    updates = {**model.updates, 'Makefile': files['Makefile.sh'], 'extra.mk': b'EXTRA := loaded\n'}
+    position = 'first' if named_first else 'last'
+    model = replace(model, id=model.id.replace('-two-named-', f'-mixed-{position}-'),
+                    files=files, args=held.model.args, updates=updates,
+                    expected={**model.expected, 'stdout_template_hex': stdout.hex()})
+    load = replace(held.load, trace=b'' if optional and named_first else b'proc\n')
+    return replace(held, model=model, before_first_stdout=release, load=load,
+                   stock_primary_mode=0o644 if primary_touched else 0o755)
 
 
 def optional_named_load_model(held: HeldModel, position: str, mode: str, high: bool) -> HeldModel:
@@ -2757,7 +2785,6 @@ def execute_stock_primary(case: h.Case, runtime: Path, binary: Path, held: HeldM
     })
     releases = []
     release_stdout = debug.render(held.before_first_stdout, runtime)
-    verbose = '--debug=m,v' in case.args
 
     def observe(parent: int, stdout: bytes) -> None:
         if releases:
@@ -2789,16 +2816,14 @@ def execute_stock_primary(case: h.Case, runtime: Path, binary: Path, held: HeldM
                 if owner != child or started <= 0 or (work / 'primary.done').exists():
                     raise h.HarnessError('invalid stock primary child identity')
                 load_trace = trace.read_bytes() if trace.exists() else b''
-                if verbose:
-                    expected = release_stdout
-                    if held.fifo_controller:
-                        path = runtime / 'tmp' / f'GMfifo{parent}'
-                        expected = expected.replace(b'Using jobserver controller 3,4\n',
-                                                    b'Using jobserver controller fifo:' + os.fsencode(path) + b'\n')
-                    if len(stdout) < len(expected) and expected.startswith(stdout):
-                        return
-                elif (held.load is not None and held.load.at_release == LOAD_LOW
-                      and '-n' in case.args and load_trace and stdout != release_stdout):
+                expected = release_stdout
+                if held.fifo_controller:
+                    path = runtime / 'tmp' / f'GMfifo{parent}'
+                    expected = expected.replace(b'Using jobserver controller 3,4\n',
+                                                b'Using jobserver controller fifo:' + os.fsencode(path) + b'\n')
+                if len(stdout) < len(expected) and expected.startswith(stdout):
+                    # The child can reach its wait before capture drains the
+                    # bytes the parent has already written to the pipe.
                     return
                 temporary = work / 'primary.release.tmp'
                 temporary.write_bytes(b'yes\n')
