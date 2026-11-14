@@ -11821,7 +11821,8 @@ impl Engine {
             self.pending_rules.remove(&peer);
             let mut completed = cached;
             completed.database_result = database_result;
-            completed.debug_serial_group_peer = debug_serial_group_peer;
+            completed.debug_serial_group_peer = debug_serial_group_peer
+                || (track_read_peers && self.makefile_names.contains(&peer));
             completed.optional_group_peer_failure =
                 self.optional_remake() && outcome.failed && !outcome.fatal;
             completed.search_after_update = false;
