@@ -1,0 +1,13 @@
+id = "runtime-output-owned-fifo-launch-pressure-high-separate"
+requirement = "runtime.output-sync"
+candidate = "required"
+description = "Owned FIFO recipe output synchronization under inherited descriptor pressure."
+provenance = "Original Makefiles with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+output = "separate"
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7265616465723d5b4f50454e5d207374617475733d5b305d0a4f55542d66697273740a4f55542d6c6173740a5441494c0a"
+stderr_hex = "4552522d66697273740a4552522d6c6173740a"

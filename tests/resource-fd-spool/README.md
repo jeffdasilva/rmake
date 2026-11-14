@@ -10,3 +10,9 @@ Run `tools/resource_fd_spool.py --candidate PATH --report PATH`, or use
 `--oracle-only`. The focused ID is `spool-fd6-separate-identity`. The gate
 checks exact streams, status, full fixture filesystem, and process
 containment with two independent runs of the verified GNU oracle.
+
+The `runtime-output-owned-fifo-launch-pressure-*` fixtures exercise target
+output sync with an owned FIFO and a live wake pipe. If the standard launch
+runs out of descriptors, an inherited-stdin recipe can borrow the existing
+spool streams for the ordered spawn. Both split and merged output retain
+their usual buffering and order.

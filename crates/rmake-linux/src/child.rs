@@ -218,6 +218,37 @@ impl Child {
             .map(|result| result.and_then(|pid| Self::from_spawned_pid(pid, true)))
     }
 
+    /// Preserve the standard launch when it can clone and spawn. The
+    /// fallback lends existing spool endpoints only for this synchronous
+    /// spawn call, while the buffer remains owned by the recipe.
+    pub fn spawn_ordered_fifo_spool(
+        command: &mut Command,
+        image: &crate::environment::Image,
+        arg0: &std::ffi::OsStr,
+        spool: &crate::output::Spool,
+    ) -> io::Result<Self> {
+        let result = spool
+            .configure_child(command)
+            .and_then(|()| Self::spawn_ordered(command, image, arg0));
+        match result {
+            Err(error)
+                if matches!(error.raw_os_error(), Some(23 | 24))
+                    && crate::signals::pending().is_none() =>
+            {
+                // A failed std spawn still owns both cloned streams.
+                command
+                    .stdout(std::process::Stdio::inherit())
+                    .stderr(std::process::Stdio::inherit());
+                let [out, err] = spool.child_output();
+                image
+                    .spawn_inherited(command, arg0, [None, out, err], None)
+                    .map(|result| result.and_then(|pid| Self::from_spawned_pid(pid, true)))
+                    .unwrap_or(Err(error))
+            }
+            result => result,
+        }
+    }
+
     pub fn wake_pipe_unavailable() -> bool {
         crate::signals::wake_descriptor() < 0
     }

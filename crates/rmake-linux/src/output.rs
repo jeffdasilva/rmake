@@ -358,11 +358,13 @@ impl Spool {
     }
 
     pub fn configure_child(&self, child: &mut Command) -> io::Result<()> {
-        if let Some(file) = self.stream(false) {
-            child.stdout(Stdio::from(file.try_clone()?));
+        let stdout = self.stream(false).map(File::try_clone).transpose()?;
+        let stderr = self.stream(true).map(File::try_clone).transpose()?;
+        if let Some(file) = stdout {
+            child.stdout(Stdio::from(file));
         }
-        if let Some(file) = self.stream(true) {
-            child.stderr(Stdio::from(file.try_clone()?));
+        if let Some(file) = stderr {
+            child.stderr(Stdio::from(file));
         }
         Ok(())
     }

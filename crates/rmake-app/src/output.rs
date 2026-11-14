@@ -528,12 +528,6 @@ impl Buffer {
         self.prepare(self.reader && self.controller.mode().root_buffered());
         Ref::filter_map(self.spool.borrow(), Option::as_ref).ok()
     }
-    pub fn configure_child(&self, child: &mut std::process::Command) -> io::Result<()> {
-        if let Some(spool) = self.child_spool() {
-            spool.configure_child(child)?;
-        }
-        Ok(())
-    }
     pub fn dump(&self) {
         let error = {
             let spool = self.spool.borrow();

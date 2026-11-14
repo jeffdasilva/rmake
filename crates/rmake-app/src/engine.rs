@@ -12731,15 +12731,13 @@ impl Engine {
                     if !stdin_owner && descriptor_limited_pool.is_none() {
                         command.stdin(rmake_linux::process::closed_stdin()?);
                     }
-                    if let Some(buffer) = &output {
+                    if let Some(spool) = output.as_ref().and_then(|buffer| buffer.child_spool()) {
                         // Descriptor pressure can leave room for the spool but
                         // no room to clone it or open std's spawn error pipe.
-                        if buffer.enabled()
-                            && stdin_owner
+                        if stdin_owner
                             && self.jobserver.is_none()
                             && rmake_linux::child::Child::wake_pipe_unavailable()
                             && !crate::native::has_modules()
-                            && let Some(spool) = buffer.child_spool()
                             && let Some(process) =
                                 rmake_linux::child::Child::try_spawn_ordered_spool(
                                     &command,
@@ -12750,7 +12748,21 @@ impl Engine {
                         {
                             return process;
                         }
-                        buffer.configure_child(&mut command)?;
+                        if stdin_owner
+                            && self.jobserver.as_ref().is_some_and(|server| {
+                                server.auth().starts_with(b"fifo:")
+                                    && server.owned_slots().is_some()
+                            })
+                            && !rmake_linux::child::Child::wake_pipe_unavailable()
+                        {
+                            return rmake_linux::child::Child::spawn_ordered_fifo_spool(
+                                &mut command,
+                                image,
+                                os(arg0),
+                                &spool,
+                            );
+                        }
+                        spool.configure_child(&mut command)?;
                     }
                     if stdin_owner
                         && output.as_ref().is_none_or(|buffer| !buffer.enabled())
