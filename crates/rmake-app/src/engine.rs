@@ -12753,7 +12753,6 @@ impl Engine {
                                 server.auth().starts_with(b"fifo:")
                                     && server.owned_slots().is_some()
                             })
-                            && !rmake_linux::child::Child::wake_pipe_unavailable()
                         {
                             return rmake_linux::child::Child::spawn_ordered_fifo_spool(
                                 &mut command,

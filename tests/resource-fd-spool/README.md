@@ -16,3 +16,7 @@ output sync with an owned FIFO and a live wake pipe. If the standard launch
 runs out of descriptors, an inherited-stdin recipe can borrow the existing
 spool streams for the ordered spawn. Both split and merged output retain
 their usual buffering and order.
+
+The `runtime-output-owned-fifo-bounded-wait-*` cases cover the same retry
+at descriptor limits where fatal signal delivery uses the existing bounded
+wait. Both target output paths keep their original spool lifetime.
