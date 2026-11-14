@@ -354,6 +354,12 @@ fn requires_shell(program: &[u8]) -> bool {
 }
 
 fn shell_invocation(command: &[u8], shell: &[u8], flags: &[u8]) -> Invocation {
+    if shell == b"/bin/sh" && matches!(flags, b"-c" | b"-ec") {
+        return Invocation::Shell {
+            program: shell.to_vec(),
+            args: vec![flags.to_vec(), command.to_vec()],
+        };
+    }
     let mut configuration = Vec::with_capacity(shell.len() + flags.len() + 1);
     // GNU protects these SHELL bytes before reparsing the configuration. This
     // happens even inside single quotes: their contents retain the inserted
