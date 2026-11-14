@@ -82,7 +82,13 @@ pub fn transform<'a>(command: &'a [u8], shell: &[u8]) -> Cow<'a, [u8]> {
 /// Only the slow shell-function constructor removes Bourne line modifiers.
 pub(crate) fn shell_function_body<'a>(command: &'a [u8], shell: &[u8]) -> Cow<'a, [u8]> {
     if !bourne_compatible(shell) {
-        return Cow::Borrowed(command);
+        // Every shell capture skips the initial spaces and tabs. Custom
+        // shells still receive any modifiers and subsequent script bytes.
+        let start = command
+            .iter()
+            .position(|byte| !matches!(byte, b' ' | b'\t'))
+            .unwrap_or(command.len());
+        return Cow::Borrowed(&command[start..]);
     }
     let command = prefixes(command).0;
     if command
