@@ -2077,7 +2077,6 @@ def skipped_required_named_load_model(base: HeldModel, required: HeldModel, high
 def stock_primary_load_models() -> list[HeldModel]:
     source = (b'include child.mk\nall: ; @printf \'%s\\n\' "$(PRIMARY) $(CHILD)"\n'
               b'child.mk: ; @printf \'%s\\n\' \'CHILD := loaded\' > $@\n')
-    new_source = source + b'PRIMARY := suffix\n'
     start = b'cat Makefile.sh >Makefile \n'
     mode_change = b'chmod a+x Makefile\n'
     dry_child = b'printf \'%s\\n\' \'CHILD := loaded\' > child.mk\n'
@@ -2088,15 +2087,17 @@ def stock_primary_load_models() -> list[HeldModel]:
     results = []
     for transport in ('pipe', 'fifo'):
         for tag, load_input in (('high', LOAD_HIGH), ('low', LOAD_LOW)):
-            files = {'Makefile': source, 'Makefile.sh': new_source, 'stock-primary-cat.py': worker,
-                     'load.input': load_input, 'seen': ANCHOR}
-            times = {**dict.fromkeys(files, INPUT_TIME), 'Makefile.sh': INPUT_TIME + 1_000_000_000}
-            for mode in 'nqt':
+            for optional, mode in ((False, 'n'), (False, 'q'), (False, 't'), (True, 'n'), (True, 't')):
+                include_source = source.replace(b'include child.mk', b'-include child.mk') if optional else source
+                replacement = include_source + b'PRIMARY := suffix\n'
+                files = {'Makefile': include_source, 'Makefile.sh': replacement,
+                         'stock-primary-cat.py': worker, 'load.input': load_input, 'seen': ANCHOR}
+                times = {**dict.fromkeys(files, INPUT_TIME), 'Makefile.sh': INPUT_TIME + 1_000_000_000}
                 updates = {'primary.started': b'ready\n', 'primary.release': b'yes\n',
                            'primary.done': b'done\n'}
                 release_stdout, load_trace, stderr = start, b'proc\n', b''
                 if mode == 'n':
-                    updates['Makefile'] = new_source
+                    updates['Makefile'] = replacement
                     if tag == 'low':
                         release_stdout += dry_child
                         stdout = release_stdout + mode_change + dry_child + up_to_date + dry_goal
@@ -2106,7 +2107,7 @@ def stock_primary_load_models() -> list[HeldModel]:
                     stdout = start
                     stderr = b"make: *** Deleting file 'Makefile'\n"
                 else:
-                    updates.update({'Makefile': new_source, 'child.mk': b'', 'all': b''})
+                    updates.update({'Makefile': replacement, 'child.mk': b'', 'all': b''})
                     release_stdout += touch_child
                     load_trace = b''
                     stdout = release_stdout + b'touch Makefile\n' * 2 + up_to_date + b'touch all\n'
@@ -2114,7 +2115,8 @@ def stock_primary_load_models() -> list[HeldModel]:
                             'stderr_template_hex': stderr.hex()}
                 args = ('--no-print-directory', '-j2', '-l2', f'--jobserver-style={transport}',
                         f'-{mode}', 'child.mk', 'all')
-                model = debug.Model(f'load-stock-primary-recipe-{mode}-{transport}-{tag}', files,
+                name = 'load-stock-primary-optional-recipe' if optional else 'load-stock-primary-recipe'
+                model = debug.Model(f'{name}-{mode}-{transport}-{tag}', files,
                                     args, {'GNUMAKEFLAGS': ''}, expected, ANCHOR,
                                     updates=updates, mtimes_ns=times)
                 results.append(HeldModel(model, False, None, before_first_stdout=release_stdout,

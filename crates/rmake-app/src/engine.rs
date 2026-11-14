@@ -3287,7 +3287,7 @@ impl Engine {
                 && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
             let overlap_primary_recipe = unruled_primary
-                && matches!(named_load_files, [(include, false)] if !include.optional);
+                && matches!(named_load_files, [(include, false)] if !include.optional || !modes.question);
             let check_primary_before_overlap = unruled_primary && !overlap_primary_recipe;
             let verbose_mode_remakes = ordinary_mode
                 && qualified_remake_debug
