@@ -20,8 +20,11 @@ while not release.is_file():
 if release.read_bytes() != b'yes\n':
     raise SystemExit(96)
 
-with Path('seen').open('ab') as stream:
-    stream.write((name + '\n').encode())
+if mode == 'named-value':
+    Path('named.gen').write_bytes(b'VALUE := rebuilt\n')
+else:
+    with Path('seen').open('ab') as stream:
+        stream.write((name + '\n').encode())
 if mode == 'include':
     output = Path(name + '.gen')
     output.write_bytes((name.upper() + ' := loaded\n').encode())

@@ -87,15 +87,36 @@ fn duplicate_wake_end(file: &File, floor: c_int) -> io::Result<Option<File>> {
     if file.as_raw_fd() >= floor {
         return Ok(None);
     }
+    duplicate_descriptor(file, floor).map(Some)
+}
+
+fn duplicate_descriptor(file: &File, floor: c_int) -> io::Result<File> {
     let descriptor = unsafe { fcntl(file.as_raw_fd(), 1030, floor) };
     if descriptor < 0 {
         return Err(io::Error::last_os_error());
     }
-    Ok(Some(unsafe { File::from_raw_fd(descriptor) }))
+    Ok(unsafe { File::from_raw_fd(descriptor) })
 }
 
-fn private_wake_end(file: File) -> io::Result<File> {
-    Ok(duplicate_wake_end(&file, LOW_WAKE_FLOOR)?.unwrap_or(file))
+fn finish_wake_pipe(
+    reader: File,
+    writer: File,
+    private_reader: Option<File>,
+    private_writer: Option<File>,
+) -> io::Result<(File, File)> {
+    // Leave room for the open makefile and both capture endpoints. The
+    // original private slots that relocation will release count as headroom.
+    // Check before publication so no handler can observe a temporary slot.
+    let displaced = usize::from(private_reader.is_some() && reader.as_raw_fd() > 2)
+        + usize::from(private_writer.is_some() && writer.as_raw_fd() > 2);
+    let mut reserved = [None, None, None];
+    for slot in &mut reserved[..3 - displaced] {
+        *slot = Some(duplicate_descriptor(&reader, 3)?);
+    }
+    Ok((
+        private_reader.unwrap_or(reader),
+        private_writer.unwrap_or(writer),
+    ))
 }
 
 fn wake_pipe(roomy: bool) -> io::Result<(File, File)> {
@@ -112,10 +133,12 @@ fn wake_pipe(roomy: bool) -> io::Result<(File, File)> {
         let high = duplicate_wake_end(&reader, ROOMY_WAKE_FLOOR)
             .and_then(|read| Ok((read, duplicate_wake_end(&writer, ROOMY_WAKE_FLOOR)?)));
         if let Ok((read, write)) = high {
-            return Ok((read.unwrap_or(reader), write.unwrap_or(writer)));
+            return finish_wake_pipe(reader, writer, read, write);
         }
     }
-    Ok((private_wake_end(reader)?, private_wake_end(writer)?))
+    let private_reader = duplicate_wake_end(&reader, LOW_WAKE_FLOOR)?;
+    let private_writer = duplicate_wake_end(&writer, LOW_WAKE_FLOOR)?;
+    finish_wake_pipe(reader, writer, private_reader, private_writer)
 }
 
 pub struct Guard {

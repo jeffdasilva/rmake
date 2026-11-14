@@ -14,6 +14,17 @@ completion must restore the token and leave no process or temporary resource.
 Noncanonical bytes and the separate fatal token loss observed in GNU Make
 remain compatibility questions outside this canonical gate.
 
+When private setup descriptors exhaust an inherited table, the owned pipe
+can schedule and seed tokens with its two original wire endpoints. Its ordered
+launch keeps a live parent wake pipe private. The
+`jobserver-owned-inherited-compact-*` conformance fixtures exercise the
+fallback with ordinary and recursive recipes.
+
+An owned normal pipe can launch an inherited-stdio recipe through the
+same ordered backend when the standard spawn reports descriptor exhaustion.
+The retry uses the published wire numbers for recursive recipes. The
+`jobserver-owned-normal-launch-pressure-*` fixtures check this boundary.
+
 Run `tools/resource_fd_pipe.py --candidate PATH --report PATH`, or use
 `--oracle-only`. The focused case is `borrowed-wire-fd6`. Exact streams,
 status, fixture filesystem and containment are checked against two verified

@@ -463,6 +463,13 @@ impl MakefileModes {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RemakeWait {
+    Command,
+    Recipe,
+    LoadPass,
+}
+
 struct PendingMakefileRemake<'a> {
     modes: MakefileModes,
     file: &'a Makefile,
@@ -1087,6 +1094,11 @@ struct ImplicitSelection {
     prepared_scope: Option<Box<ImplicitScope>>,
     explicit_names: Vec<Vec<u8>>,
     intermediate_names: Vec<Vec<u8>>,
+}
+
+enum ImplicitFilenames {
+    Single(Dependency),
+    Expanded(Vec<Dependency>),
 }
 
 struct ImplicitScope {
@@ -3309,19 +3321,32 @@ impl Engine {
                 && debug_before_remake.bits() == (remake_debug_bits | Mask::VERBOSE.bits());
             let verbose_load_debug = verbose_load_trace
                 && (!ordinary_mode || direct_mode_remakes)
-                && self.qualified_load_debug_sources(&read_files, false, 1);
+                && self.qualified_load_debug_sources(&read_files, false, 1, false);
             let optional_dependency_load_debug = ordinary_mode
                 && (basic_load_debug || verbose_load_trace)
                 && direct_mode_remakes
-                && self.qualified_load_debug_sources(&read_files, true, 1);
-            let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
-                || (qualified_remake_debug
-                    && (self.options.load_limit.is_none()
-                        || basic_load_debug
-                        || verbose_load_debug
-                        || optional_dependency_load_debug));
+                && self.qualified_load_debug_sources(&read_files, true, 1, false);
+            let optional_named_load = ordinary_mode
+                && self.options.load_limit.is_some()
+                && (!debug_before_remake.has(Mask::MAKEFILES)
+                    || (qualified_remake_debug && verbose_load_trace))
+                && read_files.iter().any(|(file, skip)| {
+                    !*skip
+                        && file.optional
+                        && self.is_makefile_goal(
+                            rmake_core::filenames::without_dot_prefix(&file.name),
+                            named_sources.as_ref(),
+                        )
+                })
+                && self.qualified_load_debug_sources(&read_files, false, 2, true)
+                && self.qualified_debug_remake_sources(&read_files, named_sources.as_ref());
             let named_load_debug = ordinary_mode
-                && basic_load_debug
+                && qualified_remake_debug
+                && (basic_load_debug
+                    || (verbose_load_trace
+                        && read_files
+                            .iter()
+                            .all(|(file, skip)| *skip || !file.optional)))
                 && read_files.iter().any(|(file, skip)| {
                     !*skip
                         && self.is_makefile_goal(
@@ -3329,11 +3354,20 @@ impl Engine {
                             named_sources.as_ref(),
                         )
                 })
-                && self.qualified_load_debug_sources(&read_files, false, 2)
+                && self.qualified_load_debug_sources(&read_files, false, 2, true)
                 && self.qualified_debug_remake_sources(&read_files, named_sources.as_ref());
+            let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
+                || (qualified_remake_debug
+                    && (self.options.load_limit.is_none()
+                        || basic_load_debug
+                        || verbose_load_debug
+                        || optional_dependency_load_debug
+                        || named_load_debug
+                        || optional_named_load));
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
                     || named_load_debug
+                    || optional_named_load
                     || (((debug_before_remake.bits() == remake_debug_bits && !basic_load_debug)
                         || verbose_mode_remakes
                         || direct_mode_remakes)
@@ -3346,6 +3380,7 @@ impl Engine {
                         &read_files,
                         named_sources.as_ref(),
                         modes,
+                        optional_named_load,
                     ));
             self.parallel_makefile_remakes =
                 self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
@@ -3359,8 +3394,11 @@ impl Engine {
             let initial_reaps = self.recipe_reaps;
             let mut pass_reaps = initial_reaps;
             let mut pass_progress = self.filesystem.borrow().generation();
-            let track_remake_effects =
-                direct_mode_remakes || basic_load_debug || verbose_load_debug;
+            let track_remake_effects = direct_mode_remakes
+                || basic_load_debug
+                || verbose_load_debug
+                || named_load_debug
+                || optional_named_load;
             let first_effect_generation = track_remake_effects.then_some(pass_progress);
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
@@ -3743,6 +3781,27 @@ impl Engine {
                         }
                         (pass_reaps, pass_progress) =
                             self.settle_optional_remake_pass(pass_progress);
+                        if optional_named_load
+                            && verbose_load_trace
+                            && self.shutdown.get() == Shutdown::Running
+                        {
+                            for request in pending.iter_mut().filter(|request| request.active) {
+                                let prior = self.aliases.resolve(&request.file.name);
+                                if !self.pending(prior)
+                                    && self.done.get(prior).is_some_and(|outcome| {
+                                        !outcome.failed && !outcome.question_outdated
+                                    })
+                                {
+                                    // A successful earlier source is pruned
+                                    // before the first unvisited root starts.
+                                    crate::debug::emit(
+                                        &self.output,
+                                        crate::debug::Event::Pruning(prior, 1),
+                                    );
+                                    request.active = false;
+                                }
+                            }
+                        }
                     }
                 }
                 if self.forced_query_stop
@@ -3776,12 +3835,19 @@ impl Engine {
                     first_effect_generation.or(Some(pass_reaps))
                 };
                 let question_or_failure = remake_question || failed || optional_remake_failed;
+                let wait = if optional_named_load || (named_load_debug && verbose_load_trace) {
+                    RemakeWait::LoadPass
+                } else if optional_dependency_load_debug {
+                    RemakeWait::Recipe
+                } else {
+                    RemakeWait::Command
+                };
                 stopped = !self.wait_makefile_remakes(
                     &mut pending,
                     &visited,
                     previous_progress,
                     track_remake_effects,
-                    optional_dependency_load_debug,
+                    wait,
                     question_or_failure,
                 );
                 if !stopped {
@@ -3861,7 +3927,9 @@ impl Engine {
                 self.parallel_failed = false;
                 failed = false;
             }
-            failed |= !skipped_errors.is_empty();
+            let skipped_required_read = !skipped_errors.is_empty();
+            let unsuccessful_remake = failed || optional_remake_failed;
+            failed |= skipped_required_read;
             // These are reported after the remake chain, using the locale
             // and gettext domain that its recipes left in effect.
             for error in skipped_errors.iter().rev() {
@@ -3925,7 +3993,9 @@ impl Engine {
                     }
                 }
             }
-            if changed && !remake_question {
+            // A skipped required read suppresses an otherwise successful
+            // restart. A failed remake still checks for physically updated peers.
+            if changed && !remake_question && (!skipped_required_read || unsuccessful_remake) {
                 self.wait_all_jobs();
                 self.remove_intermediates();
                 break 'makefiles true;
@@ -4372,6 +4442,7 @@ impl Engine {
         read_files: &[(Makefile, bool)],
         named_sources: Option<&HashSet<&[u8]>>,
         modes: MakefileModes,
+        optional_named_load: bool,
     ) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
@@ -4406,10 +4477,15 @@ impl Engine {
             return false;
         }
         let mut named = HashMap::new();
+        let mut load_sources_without_fallback = None;
         read_files.iter().enumerate().all(|(index, (file, skip))| {
             let name = without_dot_prefix(&file.name);
-            // A plain subdirectory goal cannot name a leaf makefile.
-            if has_subdirectory_goal && name.contains(&b'/') {
+            // Directory-qualified includes need a directly matched goal
+            // before they can use the parallel named remake path.
+            if has_subdirectory_goal
+                && name.contains(&b'/')
+                && !self.qualified_directory_named_include(file, name, named_sources)
+            {
                 return false;
             }
             *skip
@@ -4425,6 +4501,13 @@ impl Engine {
                                     include_policy.is_some() && include_policy == earlier_policy
                                 });
                         compatible_read
+                            && (!file.optional
+                                || self.options.load_limit.is_none()
+                                || optional_named_load)
+                            && (self.options.load_limit.is_none()
+                                || *load_sources_without_fallback.get_or_insert_with(|| {
+                                    self.load_remakes_without_fallback(read_files)
+                                }))
                             && self.simple_named_remake(file, name, &read_files[..index], modes)
                     }))
         })
@@ -4457,15 +4540,42 @@ impl Engine {
         })
     }
 
+    fn qualified_directory_named_include(
+        &self,
+        file: &Makefile,
+        name: &[u8],
+        named_sources: Option<&HashSet<&[u8]>>,
+    ) -> bool {
+        self.options.load_limit.is_some()
+            && file.location.is_some()
+            && !self.options.check_symlink_times
+            && self.options.include_directories.is_empty()
+            && !name.starts_with(b"~")
+            && !name.starts_with(b"-l")
+            && rmake_core::filenames::archive_parts(name).is_none()
+            && name.contains(&b'/')
+            && name
+                .split(|&byte| byte == b'/')
+                .all(|component| !matches!(component, b"" | b"." | b".."))
+            && self.is_makefile_goal(name, named_sources)
+            && self.simple_named_remake(file, name, &[], MakefileModes::default())
+    }
+
     fn qualified_load_debug_sources(
         &self,
         read_files: &[(Makefile, bool)],
         optional_dependencies_only: bool,
         max_recipe_lines: usize,
+        named_load_sources: bool,
     ) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
-        if !self.no_remake_recipe_fallback() {
+        let sources_without_fallback = if named_load_sources {
+            self.load_remakes_without_fallback(read_files)
+        } else {
+            self.no_remake_recipe_fallback()
+        };
+        if !sources_without_fallback {
             return false;
         }
         let plain_name = |name: &[u8]| {
@@ -4487,7 +4597,9 @@ impl Engine {
                 continue;
             }
             let name = without_dot_prefix(&file.name);
-            if !plain_name(name)
+            let supported_name = plain_name(name)
+                || (named_load_sources && self.qualified_directory_named_include(file, name, None));
+            if !supported_name
                 || !seen.insert(name)
                 || self.database.loaded_modules.contains_key(name)
             {
@@ -4542,12 +4654,7 @@ impl Engine {
             return false;
         }
         let limited_load = self.options.load_limit.is_some();
-        if limited_load
-            && (primary
-                || file.optional
-                || self.special(b".PHONY", name, false)
-                || !self.no_remake_recipe_fallback())
-        {
+        if limited_load && (primary || self.special(b".PHONY", name, false)) {
             return false;
         }
         let no_default_recipe = !self.database.rules.contains_key(b".DEFAULT".as_slice());
@@ -4661,6 +4768,27 @@ impl Engine {
             && !self.database.rules.contains_key(b".DEFAULT".as_slice())
     }
 
+    fn load_remakes_without_fallback(&self, read_files: &[(Makefile, bool)]) -> bool {
+        self.no_remake_recipe_fallback()
+            || read_files.iter().all(|(file, skip)| {
+                // An explicit recipe on every source keeps the built-in
+                // implicit rules out of this remake chain.
+                let name = rmake_core::filenames::without_dot_prefix(&file.name);
+                *skip
+                    || (!self.database.loaded_modules.contains_key(name)
+                        && self.database.rules.get(name).is_some_and(|rule| {
+                            rule.dependencies.is_empty()
+                                && rule.secondary.is_none()
+                                && rule.group.is_none()
+                                && rule.double_colon.is_none()
+                                && rule.recipes.as_ref().is_some_and(|recipes| {
+                                    recipes.len() <= 2
+                                        && recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
+                                })
+                        }))
+            })
+    }
+
     fn optional_mode_sources_settle(
         &self,
         read_files: &[(Makefile, bool)],
@@ -4702,7 +4830,8 @@ impl Engine {
         read_files.iter().all(|(file, skip)| {
             let name = without_dot_prefix(&file.name);
             *skip
-                || (!name.contains(&b'/')
+                || ((!name.contains(&b'/')
+                    || self.qualified_directory_named_include(file, name, named_sources))
                     && !name.starts_with(b"~")
                     && !name.starts_with(b"-l")
                     && archive_parts(name).is_none()
@@ -5646,10 +5775,11 @@ impl Engine {
         visited: &MakefileVisits<'_>,
         mut previous_progress: Option<u64>,
         track_effects: bool,
-        block_for_recipe: bool,
+        wait_mode: RemakeWait,
         mut question_or_failure: bool,
     ) -> bool {
         let wait_for_completed_job = previous_progress.is_none();
+        let start_load_at_pass = wait_mode == RemakeWait::LoadPass;
         let progress = |engine: &Self| {
             if track_effects {
                 engine.filesystem.borrow().generation()
@@ -5665,8 +5795,17 @@ impl Engine {
             // Reap against the previous pass's cursor. A pass with no newly
             // completed commands waits before changing which root is current.
             let previous_jobs = self.parallel_jobs.len();
+            let previous_load_waiters = self.load_waiting.len();
             let wait = Some(progress(self)) == previous_progress;
-            self.poll_jobs();
+            if start_load_at_pass {
+                // These verbose named remakes refill the load queue at the
+                // pass boundary, before collecting exited children.
+                self.observe_interrupt();
+                self.start_load_waiting();
+                self.poll_child_events(false);
+            } else {
+                self.poll_jobs();
+            }
             if wait
                 && (if wait_for_completed_job {
                     self.parallel_jobs.len() >= previous_jobs
@@ -5679,7 +5818,7 @@ impl Engine {
                 // completes a recipe. Revisiting between commands can apply
                 // touch mode to the final command of an ordinary sibling.
                 let finish_recipe = wait_for_completed_job
-                    || block_for_recipe
+                    || wait_mode != RemakeWait::Command
                     || (self.options.load_limit.is_none()
                         && requests.iter().any(|request| {
                             request.active
@@ -5701,7 +5840,12 @@ impl Engine {
                 {
                     self.reap_job();
                 }
-                self.poll_jobs();
+                if start_load_at_pass {
+                    self.observe_interrupt();
+                    self.poll_child_events(false);
+                } else {
+                    self.poll_jobs();
+                }
             }
             if self.forced_query_stop || self.shutdown.get() != Shutdown::Running {
                 return false;
@@ -5713,6 +5857,13 @@ impl Engine {
                 self.debug_pass = self.debug_progress();
             } else {
                 self.advance_debug_pass();
+                if start_load_at_pass && self.load_waiting.len() < previous_load_waiters {
+                    // A simulated load-delayed command can complete without a
+                    // child reap. Its launch still starts a new considered pass.
+                    if let Some(considered) = &mut self.debug_considered {
+                        considered.clear();
+                    }
+                }
             }
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let pass_epoch = self.graph_epoch;
@@ -5760,7 +5911,10 @@ impl Engine {
                     .copied()
                     .unwrap_or(request.initial);
                 if !needs_visit {
-                    if wait_for_completed_job && outcome.question_outdated && !request.active {
+                    if (wait_for_completed_job || start_load_at_pass)
+                        && outcome.question_outdated
+                        && !request.active
+                    {
                         self.debug_consider(name, name, 1);
                         crate::debug::emit(
                             &self.output,
@@ -5795,7 +5949,8 @@ impl Engine {
             if self.graph_epoch == pass_epoch
                 && (self.parallel_jobs.is_empty()
                     || (self.defer_stopped_remake_load
-                        && self.parallel_jobs.values().all(|job| job.waiting_load)))
+                        && self.parallel_jobs.values().all(|job| job.waiting_load)
+                        && (!start_load_at_pass || self.next_load_waiter().is_none())))
                 && requests.iter().any(|request| request.active)
             {
                 self.fatal(None, b"cannot advance pending makefile remakes");
@@ -5836,9 +5991,14 @@ impl Engine {
     fn poll_jobs(&mut self) {
         self.observe_interrupt();
         self.start_load_waiting();
+        self.poll_child_events(true);
+    }
+
+    fn poll_child_events(&mut self, refill_load: bool) {
         loop {
             match self.child_events(false, None) {
-                Ok(true) => self.start_load_waiting(),
+                Ok(true) if refill_load => self.start_load_waiting(),
+                Ok(true) => {}
                 Ok(false) => break,
                 Err(error) => {
                     self.fatal(None, os_error(&error).as_bytes());
@@ -6139,31 +6299,36 @@ impl Engine {
             }
             return;
         }
-        while let Some(last) = self.load_waiting.len().checked_sub(1) {
+        while !self.load_waiting.is_empty() {
             if self.parallel_jobs.values().any(|job| !job.waiting_load) && self.load_high() {
                 break;
             }
-            let next = if self.defer_stopped_remake_load
-                && self
-                    .active_makefile_remake
-                    .as_ref()
-                    .is_none_or(MakefileRemake::stopped)
-            {
-                // A queued sibling of a stopped optional remake keeps its
-                // reservation and sees the ordinary build mode on dispatch.
-                self.load_waiting.iter().rposition(|(name, identity)| {
-                    !self
-                        .parallel_jobs
-                        .get(name, *identity)
-                        .and_then(|job| job.continuation.remake.as_ref())
-                        .is_some_and(MakefileRemake::stopped)
-                })
-            } else {
-                Some(last)
+            let Some(index) = self.next_load_waiter() else {
+                break;
             };
-            let Some(index) = next else { break };
             let (target, identity) = self.load_waiting.remove(index);
             self.complete_job((target, identity, None), false);
+        }
+    }
+
+    fn next_load_waiter(&self) -> Option<usize> {
+        if self.defer_stopped_remake_load
+            && self
+                .active_makefile_remake
+                .as_ref()
+                .is_none_or(MakefileRemake::stopped)
+        {
+            // A queued sibling of a stopped optional remake keeps its
+            // reservation and sees the ordinary build mode on dispatch.
+            self.load_waiting.iter().rposition(|(name, identity)| {
+                !self
+                    .parallel_jobs
+                    .get(name, *identity)
+                    .and_then(|job| job.continuation.remake.as_ref())
+                    .is_some_and(MakefileRemake::stopped)
+            })
+        } else {
+            self.load_waiting.len().checked_sub(1)
         }
     }
 
@@ -7921,7 +8086,7 @@ impl Engine {
             self.database.implicit_candidates_excluding(target, active)
         };
         let mut compatibility_needed = false;
-        let mut cancelled = HashSet::new();
+        let mut cancelled = Vec::new();
         let intermediate = !active.is_empty();
         let mut variables = None;
         for chain in [false, true] {
@@ -7936,7 +8101,7 @@ impl Engine {
                     return Ok(None);
                 }
                 *budget -= 1;
-                if cancelled.contains(&ordinal)
+                if cancelled.get(ordinal).copied().unwrap_or(false)
                     || active.contains(&candidate.identity)
                     || (chain && candidate.rule.terminal)
                     || (intermediate && candidate.match_anything && !candidate.rule.terminal)
@@ -8060,7 +8225,7 @@ impl Engine {
                                 }
                             }
                             let value = value?;
-                            self.implicit_filenames(
+                            ImplicitFilenames::Expanded(self.implicit_filenames(
                                 &value,
                                 &mut order_only,
                                 if percent {
@@ -8068,7 +8233,7 @@ impl Engine {
                                 } else {
                                     None
                                 },
-                            )?
+                            )?)
                         } else {
                             // ONEWORD parsing preserves blanks and pipes from a
                             // stem, but still expands newly introduced globs.
@@ -8077,12 +8242,16 @@ impl Engine {
                                 .position(|byte| !matches!(byte, b' ' | b'\t'..=b'\r'))
                                 .unwrap_or(part.len());
                             if start == part.len() {
-                                Vec::new()
+                                ImplicitFilenames::Expanded(Vec::new())
                             } else {
                                 self.implicit_filename(&part[start..], occurrence.order_only, None)?
                             }
                         };
-                        for mut dependency in names {
+                        let (single, expanded) = match names {
+                            ImplicitFilenames::Single(name) => (Some(name), Vec::new()),
+                            ImplicitFilenames::Expanded(names) => (None, names),
+                        };
+                        for mut dependency in single.into_iter().chain(expanded) {
                             dependency.hidden = occurrence.hidden;
                             let identity = self.aliases.resolve(&dependency.name);
                             if identity != dependency.name {
@@ -8133,7 +8302,10 @@ impl Engine {
                                         ),
                                     );
                                 }
-                                cancelled.insert(ordinal);
+                                if ordinal >= cancelled.len() {
+                                    cancelled.resize(ordinal + 1, false);
+                                }
+                                cancelled[ordinal] = true;
                                 valid = false;
                                 break 'prerequisites;
                             }
@@ -8422,7 +8594,7 @@ impl Engine {
         name: &[u8],
         order_only: bool,
         directory: Option<&[u8]>,
-    ) -> Result<Vec<Dependency>, ExpandError> {
+    ) -> Result<ImplicitFilenames, ExpandError> {
         let name = rmake_core::filenames::without_dot_prefix(name);
         let name = if name.starts_with(b"~") {
             self.database.rule_tilde(
@@ -8458,11 +8630,11 @@ impl Engine {
             if let Some(history) = self.database.database_history() {
                 history.intern(&name);
             }
-            return Ok(vec![Dependency {
+            return Ok(ImplicitFilenames::Single(Dependency {
                 name,
                 order_only,
                 hidden: false,
-            }]);
+            }));
         }
         let bytes = self
             .filesystem
@@ -8476,20 +8648,22 @@ impl Engine {
                     ExpandError::UnlocatedError(message)
                 }
             })?;
-        Ok(bytes
-            .split(|&byte| byte == 0)
-            .filter(|name| !name.is_empty())
-            .map(|name| {
-                if let Some(history) = self.database.database_history() {
-                    history.intern(name);
-                }
-                Dependency {
-                    name: name.to_vec(),
-                    order_only,
-                    hidden: false,
-                }
-            })
-            .collect())
+        Ok(ImplicitFilenames::Expanded(
+            bytes
+                .split(|&byte| byte == 0)
+                .filter(|name| !name.is_empty())
+                .map(|name| {
+                    if let Some(history) = self.database.database_history() {
+                        history.intern(name);
+                    }
+                    Dependency {
+                        name: name.to_vec(),
+                        order_only,
+                        hidden: false,
+                    }
+                })
+                .collect(),
+        ))
     }
 
     fn implicit_filenames(
@@ -8509,7 +8683,10 @@ impl Engine {
             (order.unwrap_or_default(), true),
         ] {
             for name in rmake_core::filenames::sequence(text) {
-                result.extend(self.implicit_filename(&name, role, directory)?);
+                match self.implicit_filename(&name, role, directory)? {
+                    ImplicitFilenames::Single(name) => result.push(name),
+                    ImplicitFilenames::Expanded(names) => result.extend(names),
+                }
             }
             // Each secondary-expanded word and its order-only partition
             // are parsed separately. A marker cannot escape either.
@@ -12587,7 +12764,27 @@ impl Engine {
                     {
                         return process;
                     }
-                    rmake_linux::child::Child::spawn_ordered(&mut command, image, os(arg0))
+                    match rmake_linux::child::Child::spawn_ordered(&mut command, image, os(arg0)) {
+                        Err(error)
+                            if matches!(error.raw_os_error(), Some(23 | 24))
+                                && stdin_owner
+                                && output.as_ref().is_none_or(|buffer| !buffer.enabled())
+                                && rmake_linux::signals::pending().is_none() =>
+                        {
+                            let Some(server) = &self.jobserver else {
+                                return Err(error);
+                            };
+                            rmake_linux::child::Child::try_spawn_ordered_owned_pool(
+                                &command,
+                                image,
+                                os(arg0),
+                                server,
+                                force,
+                            )
+                            .unwrap_or(Err(error))
+                        }
+                        result => result,
+                    }
                 },
             );
             self.retain_database_context(target, branch, variables);
@@ -13588,19 +13785,19 @@ mod tests {
         )];
 
         assert_eq!(engine.options.goals, [b"left.gen".to_vec()]);
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         reads[0].1 = true;
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
 
         reads[0].1 = false;
         engine.options.goals = vec![b"named".to_vec(), b"all".to_vec()];
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         engine.vpath_dirs.push(b"search".to_vec());
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         engine.vpath_dirs.clear();
         for goal in ["~/all", "-lwidget", "archive.a(member)"] {
             engine.options.goals = vec![goal.as_bytes().to_vec()];
-            assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
+            assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         }
     }
 
@@ -13640,8 +13837,8 @@ mod tests {
         assert!(engine.is_makefile_goal(b"left-\xff.gen", Some(&indexed)));
         assert!(!engine.is_makefile_goal(b"other-3.gen", Some(&indexed)));
         assert_eq!(
-            engine.ordinary_mode_remakes_settle(&reads, Some(&indexed), modes),
-            engine.ordinary_mode_remakes_settle(&reads, None, modes),
+            engine.ordinary_mode_remakes_settle(&reads, Some(&indexed), modes, false),
+            engine.ordinary_mode_remakes_settle(&reads, None, modes, false),
         );
     }
 
@@ -13669,7 +13866,7 @@ mod tests {
         };
         let mut reads = [(leaf(b"././Makefile"), false), (leaf(b"left.gen"), false)];
         assert_eq!(engine.options.goals[0], b"build/result");
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
 
         for name in [
             b"build/result".as_slice(),
@@ -13677,9 +13874,9 @@ mod tests {
             b"sub/../left.gen",
         ] {
             reads[1] = (leaf(name), false);
-            assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
+            assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
             reads[1].1 = true;
-            assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
+            assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         }
         reads[1] = (leaf(b"left.gen"), false);
         for goal in [
@@ -13691,17 +13888,17 @@ mod tests {
             b"archive.a(build/result)",
         ] {
             engine.options.goals[0] = goal.to_vec();
-            assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
+            assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         }
         engine.options.goals[0] = b"build/result".to_vec();
         engine.gpath_dirs.insert(b"build".to_vec());
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         engine.gpath_dirs.clear();
         engine
             .database
             .read(b"vpath %.gen build\n", b"Makefile")
             .unwrap();
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
     }
 
     #[test]
@@ -13725,36 +13922,36 @@ mod tests {
             read_error: None,
         };
         let mut reads = vec![(source.clone(), false)];
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         engine.options.no_rules = false;
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         engine.options.no_rules = true;
 
         let mut alias = source.clone();
         alias.name = b"./optional.gen".to_vec();
         alias.optional = false;
         reads.push((alias, false));
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         reads.pop();
 
         engine.vpath_dirs.push(b"search".to_vec());
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         engine.vpath_dirs.clear();
         engine
             .database
             .read(b"optional.gen: ; @:\n", b"Makefile")
             .unwrap();
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         engine.options.no_rules = false;
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         engine.options.no_rules = true;
         engine
             .database
             .read(b"optional.gen: prerequisite\n", b"Makefile")
             .unwrap();
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         engine.options.load_limit = Some(1.0);
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         let mut required = source;
         required.name = b"required.gen".to_vec();
         required.optional = false;
@@ -13763,9 +13960,9 @@ mod tests {
             .read(b"required.gen: ; @:\n", b"Makefile")
             .unwrap();
         reads.push((required, false));
-        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         engine.options.load_limit = None;
-        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes));
+        assert!(engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
     }
 
     #[test]

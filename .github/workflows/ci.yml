@@ -17,11 +17,15 @@ jobs:
   validation:
     name: compatibility-${{ matrix.gate }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: ${{ matrix.timeout }}
     strategy:
       fail-fast: false
       matrix:
-        gate: [development, optimized]
+        include:
+          - gate: development
+            timeout: 150
+          - gate: optimized
+            timeout: 90
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -44,6 +44,12 @@ REMAKE_ERROR = b"Makefile:2: Failed to remake makefile 'generated.gen'.\n"
 
 LOAD_HIGH = b'0 0 0 99/100 1\n'
 LOAD_LOW = b'0 0 0 0/100 1\n'
+NAMED_LOAD_BARRIER = (b" Still updating file 'named.gen'.\n"
+                      b" Considering target file 'right.gen'.\n"
+                      b" Still updating file 'right.gen'.\n")
+NAMED_LOAD_RIGHT_BARRIER = (b" File 'named.gen' was considered already.\n"
+                            b" Considering target file 'right.gen'.\n"
+                            b" Still updating file 'right.gen'.\n")
 
 
 @dataclass(frozen=True)
@@ -69,6 +75,7 @@ class HeldModel:
     fifo_controller: bool = False
     second_stdout_barrier: bytes | None = None
     tail_stdout_barrier: bytes | None = None
+    named_recipe: bytes | None = None
 
 
 def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list[HeldModel]:
@@ -1354,11 +1361,11 @@ def order_named_completion(held: HeldModel, *, after: str | None = None) -> Held
                                 b"    from named_reap import record_process\n"
                                 b"    record_process('right.pid')")
     else:
-        anchor = b"with Path('seen').open('ab') as stream:"
+        anchor = b"if release.read_bytes() != b'yes\\n':\n    raise SystemExit(96)\n"
         assert worker.count(anchor) == 1
-        worker = worker.replace(anchor, b"if name == 'right':\n"
+        worker = worker.replace(anchor, anchor + b"\nif name == 'right':\n"
                                 b"    from named_reap import wait_for_reap\n"
-                                b"    wait_for_reap('named.pid')\n\n" + anchor)
+                                b"    wait_for_reap('named.pid')\n")
     assert makefile.count(named_recipe) == 1
     files = {**model.files, 'Makefile': makefile.replace(named_recipe, named_command),
              'worker.py': worker, 'named_reap.py': (SOURCES / 'named_reap.py').read_bytes()}
@@ -2038,10 +2045,78 @@ def named_load_models(available: list[HeldModel]) -> list[HeldModel]:
                     before_second = second_stdout = None
             expected = {**model.expected, 'stdout_template_hex': stdout.hex()}
             model = replace(model, expected=expected, seen=seen, updates=updates)
-            results.append(replace(held, model=model, load=load, overlap=not high,
-                                   before_first_stdout=first_stdout, before_second=before_second,
-                                   before_second_stdout=second_stdout))
+            required = replace(held, model=model, load=load, overlap=not high,
+                               before_first_stdout=first_stdout, before_second=before_second,
+                               before_second_stdout=second_stdout)
+            optional = optional_named_load_model(required, position, mode, high)
+            results.extend((required, optional, directory_named_load_model(required),
+                            directory_named_load_model(optional), explicit_builtin_load_model(required),
+                            explicit_builtin_load_model(optional)))
+            results.append(skipped_required_named_load_model(held, required, high))
     return results
+
+
+def skipped_required_named_load_model(base: HeldModel, required: HeldModel, high: bool) -> HeldModel:
+    model = required.model
+    files = {**model.files, 'Makefile': model.files['Makefile'] + b'.PHONY: named.gen\n'}
+    updates = {name: value for name, value in base.model.updates.items()
+               if name.startswith(('left.', 'right.'))}
+    missing = b'Makefile:3: named.gen: No such file or directory\n'
+    expected = {'exit_code': 2, 'stdout_template_hex': '', 'stderr_template_hex': missing.hex()}
+    model = replace(model, id=model.id.replace('load-parallel-', 'load-phony-parallel-', 1),
+                    files=files, expected=expected, seen=base.before_second + b'right\ntail\n',
+                    updates=updates)
+    load = LoadProfile('normal', LOAD_HIGH if high else LOAD_LOW, b'proc\n')
+    return HeldModel(model, not high, base.before_second, base.before_first,
+                     before_second_stdout=b'', load=load)
+
+
+def optional_named_load_model(held: HeldModel, position: str, mode: str, high: bool) -> HeldModel:
+    model = held.model
+    lines = model.files['Makefile'].splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        if line.startswith(b'include '):
+            names = line.removeprefix(b'include ').split()
+            lines[index] = b''.join((b'-include ' if name == b'named.gen' else b'include ')
+                                    + name + b'\n' for name in names)
+            break
+    files = {**model.files, 'Makefile': b''.join(lines)}
+    stdout = bytes.fromhex(model.expected['stdout_template_hex'])
+    seen, updates, expected = model.seen, model.updates, model.expected
+    if mode == 'q' and (position != 'middle' or not high):
+        seen = seen.removesuffix(b'ordinary---\n')
+        missing = b"make: *** No rule to make target 'named.gen'.  Stop.\n"
+        expected = {**expected, 'exit_code': 2, 'stderr_template_hex': missing.hex()}
+    if position == 'middle':
+        if mode == 'n' and high:
+            # The optional write ends the first pass before the simulated
+            # right recipe can be run in ordinary mode on the next read.
+            prefix = b'python3 worker.py right include\nprintf "tail\\n" >> seen\n'
+            before_second = held.before_second + b'read-1\ntail-expanded\n'
+            seen = before_second + b'right\ntail\nread-2\nordinary-loaded-loaded-rebuilt\n'
+            stdout = prefix + stdout
+            held = replace(held, before_second=before_second, before_second_stdout=prefix)
+        elif mode == 'q' and high:
+            # The queued right recipe returns a question verdict without
+            # spawning, so only the already written optional source remains.
+            seen = held.before_second + b'ordinary---\n'
+            updates = {name: value for name, value in updates.items()
+                       if not name.startswith('right.')}
+            held = replace(held, before_second=None, before_second_stdout=None)
+        elif mode in ('n', 't'):
+            # An immediately simulated named recipe ends the pass before
+            # the right recipe expands. It starts after the left has exited.
+            second = BEFORE_FIRST + b'left\ntail-expanded\n'
+            seen = seen.replace(held.before_second, second, 1)
+            held = replace(held, overlap=False, before_first=BEFORE_FIRST, before_second=second)
+            if mode == 't':
+                prefix = held.before_first_stdout + b'touch left.gen\n'
+                stdout = prefix + stdout.removeprefix(held.before_first_stdout)
+                held = replace(held, before_second_stdout=prefix, load=replace(held.load, trace=b''))
+    expected = {**expected, 'stdout_template_hex': stdout.hex()}
+    model = replace(model, id=model.id.replace('load-parallel-', 'load-optional-parallel-', 1),
+                    files=files, expected=expected, seen=seen, updates=updates)
+    return replace(held, model=model)
 
 
 def load_build_mode_models(available: list[HeldModel], markers: dict[str, bytes]) -> list[HeldModel]:
@@ -2203,6 +2278,55 @@ def hold_debug_tail(model: debug.Model) -> debug.Model:
                    mtimes_ns={**model.mtimes_ns, 'tail-witness.py': model.mtimes_ns['Makefile']})
 
 
+def named_load_debug_witness(model: debug.Model) -> debug.Model:
+    original = b'named.gen: ; @printf "VALUE := rebuilt\\n" > named.gen'
+    source = model.files['Makefile']
+    if original not in source:
+        raise h.HarnessError('invalid named load recipe witness')
+    files = {**model.files, 'Makefile': source.replace(
+        original, b'named.gen: ; @python3 worker.py named named-value')}
+    updates = {**model.updates, 'named.started': b'started\n',
+               'named.release': b'yes\n', 'named.done': b'done\n'}
+    return replace(model, files=files, updates=updates)
+
+
+def directory_named_load_model(held: HeldModel) -> HeldModel:
+    model = held.model
+    leaf, path = b'named.gen', b'cfg/named.gen'
+    files = {**model.files, 'cfg/.keep': b''}
+    files['Makefile'] = files['Makefile'].replace(leaf, path)
+    if held.named_recipe is not None:
+        files['worker.py'] = files['worker.py'].replace(leaf, path)
+    updates = {name.replace(leaf.decode(), path.decode()): content for name, content in model.updates.items()}
+    expected = {**model.expected}
+    for stream in ('stdout_template_hex', 'stderr_template_hex'):
+        expected[stream] = bytes.fromhex(expected[stream]).replace(leaf, path).hex()
+    args = tuple(arg.replace(leaf.decode(), path.decode()) for arg in model.args)
+    model = replace(model, id='directory-' + model.id, files=files, args=args, updates=updates,
+                    expected=expected, mtimes_ns={**model.mtimes_ns, 'cfg/.keep': INPUT_TIME})
+    return replace(held, model=model,
+                   before_first_stdout=held.before_first_stdout.replace(leaf, path),
+                   before_second_stdout=(held.before_second_stdout.replace(leaf, path)
+                                         if held.before_second_stdout is not None else None),
+                   second_stdout_barrier=(held.second_stdout_barrier.replace(leaf, path)
+                                          if held.second_stdout_barrier is not None else None),
+                   named_recipe=path if held.named_recipe is not None else None)
+
+
+def explicit_builtin_load_model(held: HeldModel) -> HeldModel:
+    model = held.model
+    files = {**model.files, 'Makefile': model.files['Makefile'] + b'Makefile: ;\n'}
+    expected = {**model.expected}
+    stdout = bytes.fromhex(expected['stdout_template_hex'])
+    expected['stdout_template_hex'] = stdout.replace(b' -rR ', b' ').hex()
+    model = replace(model, id='explicit-builtin-' + model.id, files=files, expected=expected,
+                    args=tuple(arg for arg in model.args if arg != '-rR'))
+    second = held.before_second_stdout
+    return replace(held, model=model,
+                   before_first_stdout=held.before_first_stdout.replace(b' -rR ', b' '),
+                   before_second_stdout=second.replace(b' -rR ', b' ') if second is not None else None)
+
+
 def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     data = tomllib.loads((SOURCES / 'debug-models.toml').read_text())
     if data.get('schema_version') != 1:
@@ -2220,6 +2344,8 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         fifo = row.get('fifo', False)
         trace_transports = row.get('second_trace_transports', [])
         tail_barrier = row.get('tail_stdout_barrier')
+        second_barrier = row.get('second_stdout_barrier')
+        hold_named = row.get('hold_named', False)
         requires_load = row.get('requires_load', False)
         if requires_load is True and not has_load_profiles:
             continue
@@ -2227,12 +2353,15 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         if (held is None or (name, flag) in seen or not isinstance(requires_load, bool)
                 or (held.load is not None) != requires_load
                 or flag not in ('m', 'm,v') or not isinstance(fifo, bool)
+                or not isinstance(hold_named, bool)
+                or (hold_named and (flag != 'm,v' or not requires_load or trace_transports))
                 or (fifo and flag != 'm,v')
                 or not isinstance(trace_transports, list)
                 or any(transport not in ('pipe', 'fifo') for transport in trace_transports)
                 or len(trace_transports) != len(set(trace_transports))
                 or ('fifo' in trace_transports and not fifo)
                 or (trace_transports and flag != 'm,v')
+                or (trace_transports and second_barrier is not None)
                 or (tail_barrier is not None and
                     (not requires_load or set(trace_transports) != {'pipe', 'fifo'}))
                 or (flag == 'm,v' and '--jobserver-style=pipe' not in held.model.args)):
@@ -2264,10 +2393,23 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                         expected={**held.model.expected, 'stdout_template_hex': stdout.hex()})
         if tail_barrier is not None:
             model = hold_debug_tail(model)
+        if hold_named:
+            if primary or held.release_order != WORKERS:
+                raise h.HarnessError('invalid named load recipe witness')
+            if second is not None and second_barrier is None:
+                second_barrier = NAMED_LOAD_RIGHT_BARRIER.decode()
+            model = named_load_debug_witness(model)
+            held = replace(held, named_recipe=b'named.gen')
+        if second_barrier is not None:
+            if (not isinstance(second_barrier, str) or not second_barrier or second is None
+                    or not stdout[:second].endswith(second_barrier.encode())):
+                raise h.HarnessError('invalid second release trace barrier')
+            held = replace(held, second_stdout_barrier=second_barrier.encode())
         selected.append(replace(held, model=model, before_first_stdout=stdout[:first],
                                 before_second_stdout=stdout[:second] if second is not None else None,
                                 before_primary_stdout=stdout[:prefixes[0]] if primary else b'',
-                                second_stdout_barrier=second_trace if 'pipe' in trace_transports else None,
+                                second_stdout_barrier=(second_trace if 'pipe' in trace_transports
+                                                       else held.second_stdout_barrier),
                                 tail_stdout_barrier=tail_barrier))
         if fifo:
             # Keep the same expected trace around the separately verified live path.
@@ -2282,9 +2424,15 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                                     before_first_stdout=fifo_stdout[:first],
                                     before_second_stdout=fifo_stdout[:second] if second is not None else None,
                                     before_primary_stdout=fifo_stdout[:prefixes[0]] if primary else b'',
-                                    second_stdout_barrier=second_trace if 'fifo' in trace_transports else None,
+                                    second_stdout_barrier=(second_trace if 'fifo' in trace_transports
+                                                           else held.second_stdout_barrier),
                                     tail_stdout_barrier=tail_barrier))
-    return selected
+    variants = []
+    for held in selected:
+        if held.model.id.startswith(('remake-debug-load-parallel-named-mode-',
+                                     'remake-debug-load-optional-parallel-named-mode-')):
+            variants.extend((directory_named_load_model(held), explicit_builtin_load_model(held)))
+    return selected + variants
 
 
 def active_workers(parent: int, proc: Path,
@@ -2337,10 +2485,12 @@ def execute(case: h.Case, runtime: Path, binary: Path,
             wait_stdout: Callable[[Path, bytes], bytes] | None = None,
             release_order: tuple[str, str] = WORKERS, hold_primary: bool = False,
             second_stdout_barrier: bytes | None = None,
-            tail_stdout_barrier: bytes | None = None):
+            tail_stdout_barrier: bytes | None = None, named_recipe: bytes | None = None):
     if sorted(release_order) != list(WORKERS):
         raise h.HarnessError('held release order must name both workers')
     order = ('primary', *release_order) if hold_primary else release_order
+    named_barrier = NAMED_LOAD_BARRIER.replace(b'named.gen', named_recipe) if named_recipe is not None else None
+    allowed = (*order, 'named') if named_barrier is not None else order
     work = runtime / 'work'
     trace = runtime / 'load.trace'
     if load is not None:
@@ -2361,22 +2511,36 @@ def execute(case: h.Case, runtime: Path, binary: Path,
             return
         if hold_primary and not stdout.endswith(PRIMARY_BARRIERS[phase]):
             return
-        if phase == len(order) - 1:
-            if tail_stdout_barrier is not None and tail_stdout_barrier in stdout:
-                marker = work / 'tail.release'
-                if not marker.exists():
-                    marker.write_bytes(b'yes\n')
-            if second_stdout_barrier is not None and not stdout.endswith(second_stdout_barrier):
-                return
+        if (phase == len(order) - 1 and tail_stdout_barrier is not None
+                and tail_stdout_barrier in stdout):
+            marker = work / 'tail.release'
+            if not marker.exists():
+                marker.write_bytes(b'yes\n')
         proc = Path('/proc', str(parent))
         try:
+            if named_barrier is not None and phase == 1 and not (work / 'named.release').exists():
+                # Let both active roots report their pending state before the
+                # short named recipe can finish and advance the remake pass.
+                if named_barrier in stdout and 'named' in active_workers(parent, proc, allowed):
+                    if (work / 'named.started').read_bytes() != b'started\n':
+                        raise h.HarnessError('unexpected held named recipe marker')
+                    temporary = work / 'named.release.tmp'
+                    temporary.write_bytes(b'yes\n')
+                    temporary.chmod(0o644)
+                    temporary.rename(work / 'named.release')
+                return
+            if (second_stdout_barrier is not None and phase == len(order) - 1
+                    and not stdout.endswith(second_stdout_barrier)):
+                return
             channel = (proc / 'wchan').read_text().strip()
             number, blocked = (None, True) if channel in WAIT_CHANNELS else poll_wait(proc, channel)
             if wait_samples is not None:
                 wait_samples.add((channel, number))
             if not blocked:
                 return
-            workers = active_workers(parent, proc, order)
+            workers = active_workers(parent, proc, allowed)
+            if 'named' in workers:
+                return
             if not workers or released.intersection(workers):
                 return
             if hold_primary and (set(workers) != set(order[phase:])
@@ -2552,7 +2716,7 @@ def main() -> int:
                     execute(case, runtime, binary, waits, load=held.load, load_shim=load_shim,
                             release_order=held.release_order, hold_primary=held.before_primary is not None,
                             second_stdout_barrier=held.second_stdout_barrier,
-                            tail_stdout_barrier=held.tail_stdout_barrier)
+                            tail_stdout_barrier=held.tail_stdout_barrier, named_recipe=held.named_recipe)
                     for binary, waits in zip(executables, samples, strict=True)
                 ))
                 raw_observations, raw_releases = observations, releases

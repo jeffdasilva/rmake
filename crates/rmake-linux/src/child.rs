@@ -66,10 +66,30 @@ impl CapturePipe {
     }
 
     pub fn retain_failed(self) {
-        static PRIVATE_ENDS: Mutex<Vec<File>> = Mutex::new(Vec::new());
-        PRIVATE_ENDS
-            .lock()
-            .expect("failed capture ownership")
+        struct Retained {
+            private_ends: Vec<File>,
+            wake_accounted: bool,
+        }
+
+        static RETAINED: Mutex<Retained> = Mutex::new(Retained {
+            private_ends: Vec::new(),
+            wake_accounted: false,
+        });
+        let mut retained = RETAINED.lock().expect("failed capture ownership");
+        // GNU leaves two private close-on-exec descriptors open after a
+        // failed launch. Our interpreter-wide wake pipe already reserves
+        // those two slots for the same lifetime. Count it once and leave
+        // its live endpoints and the handler's access to them untouched.
+        if !retained.wake_accounted
+            && self.reader.as_raw_fd() > 2
+            && self.writer.as_raw_fd() > 2
+            && crate::signals::wake_descriptor() >= 0
+        {
+            retained.wake_accounted = true;
+            return;
+        }
+        retained
+            .private_ends
             .extend([self.reader, self.writer].into_iter().filter_map(|end| {
                 if end.as_raw_fd() > 2 {
                     return Some(end);
@@ -156,6 +176,9 @@ impl Child {
         server: &crate::jobserver::Jobserver,
         recursive: bool,
     ) -> Option<io::Result<Self>> {
+        if !server.uses_compact_pipe() && !Self::wake_pipe_unavailable() {
+            return None;
+        }
         let wire = if recursive {
             match server.compact_wire() {
                 Ok(wire) => wire,
@@ -164,14 +187,35 @@ impl Child {
         } else {
             None
         };
-        Self::try_spawn_ordered_fds(
-            command,
-            image,
-            arg0,
-            [stdin.map(AsFd::as_fd), None, None],
-            wire,
-            false,
-        )
+        // The compact owner can also be selected after an active wake
+        // pipe leaves too few setup slots. Its wake endpoints stay private.
+        image
+            .spawn_inherited(command, arg0, [stdin.map(AsFd::as_fd), None, None], wire)
+            .map(|result| result.and_then(|pid| Self::from_spawned_pid(pid, false)))
+    }
+
+    /// Retry an inherited-stdio launch under descriptor pressure. An owned
+    /// normal pipe uses its advertised wire numbers, while a FIFO is opened
+    /// by name by recursive children.
+    pub fn try_spawn_ordered_owned_pool(
+        command: &Command,
+        image: &crate::environment::Image,
+        arg0: &std::ffi::OsStr,
+        server: &crate::jobserver::Jobserver,
+        recursive: bool,
+    ) -> Option<io::Result<Self>> {
+        let wire = if server.auth().starts_with(b"fifo:") {
+            server.owned_slots()?;
+            if Self::wake_pipe_unavailable() {
+                return None;
+            }
+            None
+        } else {
+            recursive.then_some(server.owned_normal_pipe_wire()?)
+        };
+        image
+            .spawn_inherited(command, arg0, [None; 3], wire)
+            .map(|result| result.and_then(|pid| Self::from_spawned_pid(pid, true)))
     }
 
     pub fn wake_pipe_unavailable() -> bool {
