@@ -4477,6 +4477,7 @@ impl Engine {
             return false;
         }
         let mut named = HashMap::new();
+        let mut load_sources_without_fallback = None;
         read_files.iter().enumerate().all(|(index, (file, skip))| {
             let name = without_dot_prefix(&file.name);
             // Directory-qualified includes need a directly matched goal
@@ -4503,6 +4504,10 @@ impl Engine {
                             && (!file.optional
                                 || self.options.load_limit.is_none()
                                 || optional_named_load)
+                            && (self.options.load_limit.is_none()
+                                || *load_sources_without_fallback.get_or_insert_with(|| {
+                                    self.load_remakes_without_fallback(read_files)
+                                }))
                             && self.simple_named_remake(file, name, &read_files[..index], modes)
                     }))
         })
@@ -4561,11 +4566,16 @@ impl Engine {
         read_files: &[(Makefile, bool)],
         optional_dependencies_only: bool,
         max_recipe_lines: usize,
-        directory_named_include: bool,
+        named_load_sources: bool,
     ) -> bool {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
-        if !self.no_remake_recipe_fallback() {
+        let sources_without_fallback = if named_load_sources {
+            self.load_remakes_without_fallback(read_files)
+        } else {
+            self.no_remake_recipe_fallback()
+        };
+        if !sources_without_fallback {
             return false;
         }
         let plain_name = |name: &[u8]| {
@@ -4588,8 +4598,7 @@ impl Engine {
             }
             let name = without_dot_prefix(&file.name);
             let supported_name = plain_name(name)
-                || (directory_named_include
-                    && self.qualified_directory_named_include(file, name, None));
+                || (named_load_sources && self.qualified_directory_named_include(file, name, None));
             if !supported_name
                 || !seen.insert(name)
                 || self.database.loaded_modules.contains_key(name)
@@ -4645,11 +4654,7 @@ impl Engine {
             return false;
         }
         let limited_load = self.options.load_limit.is_some();
-        if limited_load
-            && (primary
-                || self.special(b".PHONY", name, false)
-                || !self.no_remake_recipe_fallback())
-        {
+        if limited_load && (primary || self.special(b".PHONY", name, false)) {
             return false;
         }
         let no_default_recipe = !self.database.rules.contains_key(b".DEFAULT".as_slice());
@@ -4761,6 +4766,27 @@ impl Engine {
         self.options.no_rules
             && self.database.database_implicit_rules().is_empty()
             && !self.database.rules.contains_key(b".DEFAULT".as_slice())
+    }
+
+    fn load_remakes_without_fallback(&self, read_files: &[(Makefile, bool)]) -> bool {
+        self.no_remake_recipe_fallback()
+            || read_files.iter().all(|(file, skip)| {
+                // An explicit recipe on every source keeps the built-in
+                // implicit rules out of this remake chain.
+                let name = rmake_core::filenames::without_dot_prefix(&file.name);
+                *skip
+                    || (!self.database.loaded_modules.contains_key(name)
+                        && self.database.rules.get(name).is_some_and(|rule| {
+                            rule.dependencies.is_empty()
+                                && rule.secondary.is_none()
+                                && rule.group.is_none()
+                                && rule.double_colon.is_none()
+                                && rule.recipes.as_ref().is_some_and(|recipes| {
+                                    recipes.len() <= 2
+                                        && recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
+                                })
+                        }))
+            })
     }
 
     fn optional_mode_sources_settle(
