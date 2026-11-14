@@ -164,3 +164,10 @@ pipe accounts for one retained pair. Its descriptors remain live for signal
 notification. Later failed pairs remain open for the interpreter's lifetime.
 When a capture occupies a standard descriptor, that slot retains its usual
 behavior.
+
+A shell function or shell assignment also skips process creation when the
+default command lexer consumes every byte as a continuation, an unquoted
+final backslash, or surrounding blanks. Shell configuration still expands
+first. Child exports are untouched, and the previous `.SHELLSTATUS` remains
+visible. Quoted arguments and nondefault shell configurations retain their
+normal launch behavior.
