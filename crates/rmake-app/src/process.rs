@@ -61,7 +61,15 @@ fn prepare_in_mode(
         return direct_command(words);
     }
     if mode == Mode::ShellFunction && command.contains(&b'\n') {
-        return shell_invocation(&fold_unescaped_newlines(command), shell, flags);
+        // Trim the original leading blanks before folding. If no bytes
+        // survive, the configured shell receives only its flag words.
+        let start = command
+            .iter()
+            .position(|byte| !matches!(byte, b' ' | b'\t'))
+            .unwrap_or(command.len());
+        let folded = fold_unescaped_newlines(&command[start..]);
+        let argument = (!folded.is_empty()).then_some(folded.as_slice());
+        return configured_shell_invocation(argument, shell, flags);
     }
     if mode == Mode::OneShellFunction {
         let command = crate::oneshell::shell_function_body(command, shell);
@@ -354,6 +362,10 @@ fn requires_shell(program: &[u8]) -> bool {
 }
 
 fn shell_invocation(command: &[u8], shell: &[u8], flags: &[u8]) -> Invocation {
+    configured_shell_invocation(Some(command), shell, flags)
+}
+
+fn configured_shell_invocation(command: Option<&[u8]>, shell: &[u8], flags: &[u8]) -> Invocation {
     let mut configuration = Vec::with_capacity(shell.len() + flags.len() + 1);
     // GNU protects these SHELL bytes before reparsing the configuration. This
     // happens even inside single quotes: their contents retain the inserted
@@ -373,6 +385,7 @@ fn shell_invocation(command: &[u8], shell: &[u8], flags: &[u8]) -> Invocation {
     }) = split_words(&configuration, Mode::Configuration)
     {
         if words.is_empty() {
+            let command = command.unwrap_or_default();
             // With no configured program or flags, the recipe is one literal
             // word. An '=' requires a shell to recognize assignment syntax;
             // quote other bytes so values cannot become commands or redirects.
@@ -401,14 +414,14 @@ fn shell_invocation(command: &[u8], shell: &[u8], flags: &[u8]) -> Invocation {
             };
         }
         if !requires_shell(&words[0]) {
-            if joins_command {
+            if joins_command && let Some(command) = command {
                 words
                     .last_mut()
                     .expect("joined word")
                     .extend_from_slice(command);
             }
             let program = words.remove(0);
-            if !joins_command {
+            if !joins_command && let Some(command) = command {
                 words.push(command.to_vec());
             }
             return Invocation::Shell {
@@ -425,8 +438,10 @@ fn shell_invocation(command: &[u8], shell: &[u8], flags: &[u8]) -> Invocation {
     // Unescaped configuration LFs fold at that boundary; original backslash-LF
     // pairs survive to the interpreter. The recipe is quoted only afterwards.
     configuration = fold_unescaped_newlines(&configuration);
-    configuration.push(b' ');
-    single_quote(command, &mut configuration);
+    if let Some(command) = command {
+        configuration.push(b' ');
+        single_quote(command, &mut configuration);
+    }
     Invocation::Shell {
         program: b"/bin/sh".to_vec(),
         args: vec![b"-c".to_vec(), configuration],
