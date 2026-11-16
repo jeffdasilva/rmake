@@ -1022,6 +1022,7 @@ struct DoubleColonState {
     depth: usize,
     before: Option<SystemTime>,
     phony: bool,
+    assumed_phony_input: bool,
     branches: std::collections::VecDeque<(usize, Option<Rule>)>,
     active: Option<usize>,
     last_epoch: Option<u64>,
@@ -9342,6 +9343,7 @@ impl Engine {
                 depth,
                 before,
                 phony,
+                assumed_phony_input: false,
                 branches,
                 active: None,
                 last_epoch: None,
@@ -9999,6 +10001,7 @@ impl Engine {
                     depth,
                     before,
                     phony,
+                    assumed_phony_input: false,
                     branches,
                     active: None,
                     last_epoch: None,
@@ -10250,9 +10253,12 @@ impl Engine {
                     }
                     state.combined.database_result = DatabaseResult::ObservedDoubleColon;
                 }
-                state.combined.time = if state.phony {
+                state.combined.time = if state.phony && !state.assumed_phony_input {
                     None
-                } else if state.combined.completion.preserves() || state.combined.failed {
+                } else if state.assumed_phony_input
+                    || state.combined.completion.preserves()
+                    || state.combined.failed
+                {
                     state.combined.time
                 } else {
                     self.modified(target)
@@ -10397,6 +10403,23 @@ impl Engine {
                     );
                 }
             }
+            // A fresh assumed-new entry is appended after declarations
+            // have been marked phony. An inferred recipe with inputs
+            // can therefore compare its own logical newest timestamp.
+            let synthetic_time = if state.phony
+                && !declared
+                && implicit_branch.is_some()
+                && branch.implicit_pattern.is_some()
+                && branch.group.is_none()
+                && !branch.dependencies.is_empty()
+            {
+                self.assumed_new_double_colon_time(target)
+            } else {
+                None
+            };
+            state.assumed_phony_input = synthetic_time.is_some();
+            let branch_phony = state.phony && !state.assumed_phony_input;
+            let branch_before = synthetic_time.or(branch_before);
             let before = assumed_time.or(branch_before);
             let comparison = self.comparison_time(target, before);
             if declared
@@ -10453,7 +10476,7 @@ impl Engine {
                     state.depth,
                     branch_before,
                     comparison,
-                    state.phony,
+                    branch_phony,
                     branch,
                     Some(ordinal),
                     replay_cached_after_recipe,

@@ -176,6 +176,11 @@ impl Engine {
             count
         }
     }
+    pub(super) fn assumed_new_double_colon_time(&self, name: &[u8]) -> Option<SystemTime> {
+        self.assumptions
+            .as_ref()
+            .and_then(|files| (files.new_double_colon_entry_count(name) != 0).then_some(files.new))
+    }
     pub(super) fn cached_double_colon_input_due(&self, name: &[u8]) -> bool {
         self.assumptions
             .as_ref()
