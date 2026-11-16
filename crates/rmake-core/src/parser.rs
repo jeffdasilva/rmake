@@ -5630,7 +5630,9 @@ impl Database {
                         if name.is_empty() {
                             continue;
                         }
-                        if !declaration.patterns.contains_key(target) && stem.is_none() {
+                        if ordinal == 0 && !implicit && stem.is_none() {
+                            // Every ordinary target uses the same prerequisite
+                            // spelling. The first occurrence registers it.
                             self.explicit_names.insert(name.clone());
                         }
                         if bind_prerequisites
