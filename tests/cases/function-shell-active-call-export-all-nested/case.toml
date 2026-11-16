@@ -1,0 +1,14 @@
+id = "function-shell-active-call-export-all-nested"
+requirement = "functions.shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--warn-undefined-variables", "all"]
+timeout_seconds = 3
+description = "Export-all recognizes both active named calls during a capture."
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout = "[[|value]]\n"
+stderr = ""
