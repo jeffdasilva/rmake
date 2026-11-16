@@ -123,7 +123,10 @@ verbose pass, the next wait uses the progress recorded at that boundary.
 The 48 quiet combined-mode profiles check touch with dry run, question,
 or both. A query can stop the active primary continuation and remove the
 file while a successful ordinary touch still determines the final status.
-Other debug masks and combined-mode debug traces remain open.
+Fourteen held combined-mode debug profiles cover an optional named source
+followed by a required unnamed source. The verbose pass prunes a completed
+primary immediately when its query verdict ended the recipe. Other debug
+masks and the number of visits during unheld high-load races remain open.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
