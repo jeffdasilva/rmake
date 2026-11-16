@@ -175,6 +175,12 @@ fn promote_order_only_duplicates(dependencies: &mut [Dependency], ready: impl Fn
     }
     for index in promotions {
         dependencies[index].order_only = false;
+        if let Some(wait) = dependencies[..index].last_mut()
+            && wait.name == b".WAIT"
+        {
+            // GNU keeps the barrier on the occurrence whose role changed.
+            wait.order_only = false;
+        }
     }
 }
 
@@ -3312,13 +3318,26 @@ impl Engine {
                         !debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug
                     }
                     [(first, false), (middle, false), (last, false)] => {
+                        let named_first = named_include(first);
+                        let named_last = named_include(last);
+                        let early_named = named_first || (!named_last && named_include(middle));
+                        let required_ends = !(first.optional || last.optional);
+                        let all_required = required_ends && !middle.optional;
+                        let required_touch = !named_last
+                            && all_required
+                            && modes.touch
+                            && (!modes.dry_run || !modes.question);
+                        let optional_middle_touch = !(named_first || named_last)
+                            && required_ends
+                            && middle.optional
+                            && modes.touch;
                         !debug_before_remake.has(Mask::MAKEFILES)
                             && ((modes.question && !modes.touch)
-                                || (named_include(first) && !named_include(last))
-                                || (modes.dry_run
-                                    && !modes.touch
-                                    && (named_include(first)
-                                        || (named_include(middle) && !named_include(last)))))
+                                || (named_first && !named_last)
+                                || (early_named
+                                    && ((modes.dry_run && !modes.touch)
+                                        || required_touch
+                                        || optional_middle_touch)))
                     }
                     _ => false,
                 }
@@ -3629,7 +3648,7 @@ impl Engine {
                         {
                             // A settled repeat can end the next pass too.
                             (pass_reaps, pass_progress) =
-                                self.settle_optional_remake_pass(pass_progress);
+                                self.settle_optional_remake_pass(pass_progress, false);
                         }
                         continue;
                     }
@@ -3869,8 +3888,17 @@ impl Engine {
                         if visit_modes.touch && physically_changed {
                             touched_optional_remakes.insert(name);
                         }
+                        // Keep the optional mode through the primary continuation.
+                        // Admit the earlier unnamed job after restoring ordinary mode.
+                        let defer_load_refill = mixed_named_overlap
+                            && read_files.len() == 4
+                            && source_index == 2
+                            && visit_modes.touch
+                            && pending.iter().any(|request| {
+                                request.file.location.is_some() && !request.modes.active()
+                            });
                         (pass_reaps, pass_progress) =
-                            self.settle_optional_remake_pass(pass_progress);
+                            self.settle_optional_remake_pass(pass_progress, defer_load_refill);
                         if optional_named_load
                             && verbose_load_trace
                             && self.shutdown.get() == Shutdown::Running
@@ -5929,21 +5957,38 @@ impl Engine {
                 || !(self.options.dry_run || self.options.question || self.options.touch))
     }
 
-    fn settle_optional_remake_pass(&mut self, previous_progress: u64) -> (u64, u64) {
-        self.poll_jobs();
+    fn settle_optional_remake_pass(
+        &mut self,
+        previous_progress: u64,
+        defer_load_refill: bool,
+    ) -> (u64, u64) {
+        let poll = |engine: &mut Self| {
+            if defer_load_refill {
+                engine.observe_interrupt();
+                engine.poll_child_events(false);
+            } else {
+                engine.poll_jobs();
+            }
+        };
+        let can_reap = |engine: &Self| {
+            engine
+                .parallel_jobs
+                .values()
+                .any(|job| !defer_load_refill || !job.waiting_load)
+        };
+        poll(self);
         // Directory generation counts make-function effects and all
         // completed children, including a synchronous shell expansion.
-        if self.filesystem.borrow().generation() == previous_progress
-            && !self.parallel_jobs.is_empty()
-        {
+        if self.filesystem.borrow().generation() == previous_progress && can_reap(self) {
             let previous_jobs = self.parallel_jobs.len();
             while self.parallel_jobs.len() >= previous_jobs
                 && self.shutdown.get() == Shutdown::Running
                 && self.graph_abort.is_none()
+                && can_reap(self)
             {
                 self.reap_job();
             }
-            self.poll_jobs();
+            poll(self);
         }
         self.advance_debug_pass();
         (self.recipe_reaps, self.filesystem.borrow().generation())
@@ -11945,10 +11990,10 @@ impl Engine {
             };
             if track_read_peers && !phony && self.makefile_names.contains(&peer) {
                 // A missing group member can stop peer freshness checks.
-                // The serial read pass can still prove a peer was removed.
+                // The serial read pass can still establish the peer's time
+                // before a successful recipe changed or removed it.
                 let before = before.or_else(|| {
                     if use_saved_peer_time
-                        && (failed_required_remake || completed.time.is_none())
                         && let Some(Some((None, Some(time)))) = self.path_observations.get(&peer)
                     {
                         Some(*time)
@@ -13371,18 +13416,13 @@ impl Engine {
                 }
             };
             if cleanup == Cleanup::ExistingAfterContinuation || date != before {
-                let context =
-                    owner.map_or_else(Vec::new, |owner| [b"[".as_slice(), owner, b"] "].concat());
-                self.stderr(
-                    &[
-                        b"*** ".as_slice(),
-                        &context,
-                        b"Archive member '",
+                self.stderr(&crate::messages::system(
+                    rmake_core::messages::Message::RecipeCleanup {
                         target,
-                        b"' may be bogus; not deleted",
-                    ]
-                    .concat(),
-                );
+                        owner,
+                        archive: true,
+                    },
+                ));
             }
             return false;
         }
@@ -13397,17 +13437,13 @@ impl Engine {
         {
             return false;
         }
-        let context = owner.map_or_else(Vec::new, |owner| [b"[".as_slice(), owner, b"] "].concat());
-        self.stderr(
-            &[
-                b"*** ".as_slice(),
-                &context,
-                b"Deleting file '",
+        self.stderr(&crate::messages::system(
+            rmake_core::messages::Message::RecipeCleanup {
                 target,
-                b"'",
-            ]
-            .concat(),
-        );
+                owner,
+                archive: false,
+            },
+        ));
         if let Err(error) = fs::remove_file(os(target))
             && error.kind() != io::ErrorKind::NotFound
         {

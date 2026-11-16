@@ -76,6 +76,7 @@ class HeldModel:
     second_stdout_barrier: bytes | None = None
     tail_stdout_barrier: bytes | None = None
     named_recipe: bytes | None = None
+    named_parent_wait: bool = False
     stock_primary: bool = False
     stock_primary_mode: int | None = None
 
@@ -2051,8 +2052,15 @@ def named_load_models(available: list[HeldModel]) -> list[HeldModel]:
                                before_first_stdout=first_stdout, before_second=before_second,
                                before_second_stdout=second_stdout)
             optional = optional_named_load_model(required, position, mode, high)
+            directory_optional = optional
+            if high and position == 'middle' and mode == 'n':
+                directory_optional = replace(
+                    optional, model=named_load_witness(optional.model),
+                    named_recipe=b'named.gen', named_parent_wait=True,
+                )
             results.extend((required, optional, directory_named_load_model(required),
-                            directory_named_load_model(optional), builtin_load_model(required, explicit=True),
+                            directory_named_load_model(directory_optional),
+                            builtin_load_model(required, explicit=True),
                             builtin_load_model(optional, explicit=True), builtin_load_model(required),
                             builtin_load_model(optional)))
             results.append(skipped_required_named_load_model(held, required, high))
@@ -2143,18 +2151,25 @@ def stock_primary_load_models() -> list[HeldModel]:
                                  'last', 'last-adjacent', 'last-adjacent-reversed')),
                         ):
                             for position in positions:
-                                if optional and position == 'first-reversed' and held.load.at_release == LOAD_HIGH:
-                                    # GNU can remake the later required includes on either side
-                                    # of the same held optional visit at this load.
-                                    continue
                                 query = stock_primary_three_query_model(held, optional, position, count)
-                                results.append(query)
-                                results.append(replace(query, model=stock_primary_three_modes(query.model, 'nq')))
+                                ends_unnamed = position in ('first', 'first-reversed', 'middle')
+                                # A held primary alone cannot order all later
+                                # required jobs in these high-load queries.
+                                if not (optional and ends_unnamed and held.load.at_release == LOAD_HIGH):
+                                    results.append(query)
+                                    results.append(replace(query, model=stock_primary_three_modes(query.model, 'nq')))
                                 if position == 'first':
                                     results.extend(stock_primary_three_prefix_model(query, optional, count, modes)
                                                    for modes in ('n', 't', 'nt', 'qt', 'nqt'))
                                 elif position in ('middle', 'alternating') or (position == 'last' and count == 2):
                                     results.append(stock_primary_three_interleaved_dry_run(query, optional, position))
+                                    if position == 'middle':
+                                        if optional:
+                                            results.extend(stock_primary_three_optional_middle_touch(query, modes)
+                                                           for modes in ('t', 'nt', 'qt', 'nqt'))
+                                        else:
+                                            results.extend(stock_primary_three_prefix_model(query, False, count, modes)
+                                                           for modes in ('t', 'nt', 'qt'))
     return results
 
 
@@ -2430,6 +2445,39 @@ def stock_primary_three_prefix_model(held: HeldModel, optional: bool, named_coun
                    stock_primary_mode=primary_mode)
 
 
+def stock_primary_three_optional_middle_touch(held: HeldModel, modes: str) -> HeldModel:
+    model = stock_primary_three_modes(held.model, modes)
+    high = held.load.at_release == LOAD_HIGH
+    dry_run = 'n' in modes
+    question = 'q' in modes
+    release = held.before_first_stdout + b'touch child.mk\n'
+    if not high:
+        release += b'touch extra.mk\n'
+    stdout, stderr = release, b''
+    updates = {**model.updates, 'extra.mk': b'EXTRA := loaded\n', 'leaf.mk': b'LEAF := loaded\n'}
+    primary_mode = 0o644 if high else 0o755
+    primary_removed = high and question
+    if primary_removed:
+        primary_mode = None
+        updates.pop('Makefile')
+        stderr = b"make: *** Deleting file 'Makefile'\n"
+    else:
+        stdout += b'touch Makefile\n' * 2 if high else b'chmod a+x Makefile\n'
+    if dry_run:
+        updates.pop('child.mk', None)
+        if not primary_removed:
+            stdout += b'touch child.mk\n'
+    else:
+        updates.update({'child.mk': b'', 'all': b''})
+    if not question:
+        stdout += b"make: 'child.mk' is up to date.\n"
+    stdout += b'touch all\n'
+    expected = {'exit_code': 0, 'stdout_template_hex': stdout.hex(),
+                'stderr_template_hex': stderr.hex()}
+    model = replace(model, expected=expected, updates=updates)
+    return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode)
+
+
 def stock_primary_combined_touch_model(held: HeldModel, modes: str) -> HeldModel:
     model = held.model
     dry_run = 'n' in modes
@@ -2668,7 +2716,7 @@ def hold_debug_tail(model: debug.Model) -> debug.Model:
                    mtimes_ns={**model.mtimes_ns, 'tail-witness.py': model.mtimes_ns['Makefile']})
 
 
-def named_load_debug_witness(model: debug.Model) -> debug.Model:
+def named_load_witness(model: debug.Model) -> debug.Model:
     original = b'named.gen: ; @printf "VALUE := rebuilt\\n" > named.gen'
     source = model.files['Makefile']
     if original not in source:
@@ -2798,7 +2846,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                 raise h.HarnessError('invalid named load recipe witness')
             if second is not None and second_barrier is None:
                 second_barrier = NAMED_LOAD_RIGHT_BARRIER.decode()
-            model = named_load_debug_witness(model)
+            model = named_load_witness(model)
             held = replace(held, named_recipe=b'named.gen')
         if second_barrier is not None:
             if (not isinstance(second_barrier, str) or not second_barrier or second is None
@@ -2880,13 +2928,32 @@ def poll_wait(proc: Path, channel: str = '') -> tuple[int | None, bool]:
         return None, False
 
 
+def named_parent_wait_witness(parent: int, proc: Path, work: Path,
+                              allowed: tuple[str, ...], stdout: bytes) -> dict | None:
+    channel = (proc / 'wchan').read_text().strip()
+    number, blocked = (None, True) if channel in WAIT_CHANNELS else poll_wait(proc, channel)
+    if not blocked:
+        return None
+    workers = active_workers(parent, proc, allowed)
+    if set(workers) != {'named'}:
+        return None
+    children = (proc / 'task' / str(parent) / 'children').read_bytes().split()
+    if children != [str(workers['named'][0]).encode()]:
+        return None
+    if (work / 'right.started').exists() or (work / 'left.done').read_bytes() != b'done\n':
+        return None
+    return {'parent': parent, 'workers': workers, 'wchan': channel, 'poll_syscall': number,
+            'seen_hex': (work / 'seen').read_bytes().hex(), 'stdout_hex': stdout.hex()}
+
+
 def execute(case: h.Case, runtime: Path, binary: Path,
             wait_samples: set[tuple[str, int | None]] | None = None, *,
             load: LoadProfile | None = None, load_shim: Path | None = None,
             wait_stdout: Callable[[Path, bytes], bytes] | None = None,
             release_order: tuple[str, str] = WORKERS, hold_primary: bool = False,
             second_stdout_barrier: bytes | None = None,
-            tail_stdout_barrier: bytes | None = None, named_recipe: bytes | None = None):
+            tail_stdout_barrier: bytes | None = None, named_recipe: bytes | None = None,
+            named_parent_wait: bool = False):
     if sorted(release_order) != list(WORKERS):
         raise h.HarnessError('held release order must name both workers')
     order = ('primary', *release_order) if hold_primary else release_order
@@ -2920,15 +2987,25 @@ def execute(case: h.Case, runtime: Path, binary: Path,
         proc = Path('/proc', str(parent))
         try:
             if named_barrier is not None and phase == 1 and not (work / 'named.release').exists():
-                # Let both active roots report their pending state before the
-                # short named recipe can finish and advance the remake pass.
-                if named_barrier in stdout and 'named' in active_workers(parent, proc, allowed):
-                    if (work / 'named.started').read_bytes() != b'started\n':
-                        raise h.HarnessError('unexpected held named recipe marker')
-                    temporary = work / 'named.release.tmp'
-                    temporary.write_bytes(b'yes\n')
-                    temporary.chmod(0o644)
-                    temporary.rename(work / 'named.release')
+                witness = None
+                if named_parent_wait:
+                    # The quiet fixture has no verbose anchor. Wait until the
+                    # parent is blocked on the named child alone.
+                    witness = named_parent_wait_witness(parent, proc, work, allowed, stdout)
+                    if witness is None or witness != previous:
+                        previous = witness
+                        return
+                elif named_barrier not in stdout or 'named' not in active_workers(parent, proc, allowed):
+                    # Verbose cases wait for debug output from both roots.
+                    return
+                if (work / 'named.started').read_bytes() != b'started\n':
+                    raise h.HarnessError('unexpected held named recipe marker')
+                temporary = work / 'named.release.tmp'
+                temporary.write_bytes(b'yes\n')
+                temporary.chmod(0o644)
+                temporary.rename(work / 'named.release')
+                if witness is not None:
+                    releases[0]['named_wait_witness'] = witness
                 return
             if (second_stdout_barrier is not None and phase == len(order) - 1
                     and not stdout.endswith(second_stdout_barrier)):
@@ -3132,6 +3209,14 @@ def release_errors(held: HeldModel, releases: list[dict], runtime: Path) -> list
         errors.append('file effects at first release')
     if first['stdout_hex'] != debug.render(held.before_first_stdout, runtime).hex():
         errors.append('stdout at first release')
+    if held.named_parent_wait:
+        witness = first.get('named_wait_witness')
+        expected_seen = held.before_first + b'left\n'
+        if (witness is None or witness['parent'] != first['parent']
+                or set(witness['workers']) != {'named'}
+                or witness['seen_hex'] != expected_seen.hex()
+                or witness['stdout_hex'] != first['stdout_hex']):
+            errors.append('named parent wait before restart')
     if held.before_second is None:
         return errors
     second = releases[1]
@@ -3219,7 +3304,8 @@ def main() -> int:
                         execute(case, runtime, binary, waits, load=held.load, load_shim=load_shim,
                                 release_order=held.release_order, hold_primary=held.before_primary is not None,
                                 second_stdout_barrier=held.second_stdout_barrier,
-                                tail_stdout_barrier=held.tail_stdout_barrier, named_recipe=held.named_recipe)
+                                tail_stdout_barrier=held.tail_stdout_barrier, named_recipe=held.named_recipe,
+                                named_parent_wait=held.named_parent_wait)
                         for binary, waits in zip(executables, samples, strict=True)
                     ))
                 raw_observations, raw_releases = observations, releases

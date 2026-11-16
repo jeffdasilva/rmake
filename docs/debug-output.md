@@ -249,3 +249,10 @@ If the successful recipe removes a previously read peer beyond that point,
 the saved read timestamp also establishes the change. Four fixtures cover
 physical removal with required and optional reads, query mode and the
 reverse declaration order where the ordinary scan already sees the peer.
+
+The saved physical time also establishes a forward or backward timestamp
+change when the same successful group rewrites that read peer. Fixtures
+cover required and optional includes, verbose output, query mode and the
+ordinary observation path in the reverse declaration order.
+The same observation applies when the absent group member is the optional
+owner of the recipe.

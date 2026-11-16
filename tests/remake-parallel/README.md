@@ -70,7 +70,7 @@ required failure replay and the considered state after an early optional pass.
 Both jobserver transports are covered.
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 3,280 profiles. Leading `./` spellings share one target record and
+run all 3,296 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -227,6 +227,11 @@ Named includes with an existing file prerequisite cover forced and simulated
 recipes. An optional named include between two workers can finish a dry-run
 or touch pass before the second worker starts. The held cases verify both
 the completed worker's mode and the subsequent restart.
+For the high-load directory dry-run cases, the optional writer starts after
+the left worker finishes. The harness checks the writer's process identity and
+waits for the parent to block with that writer as its sole child before
+releasing it. At the second release, the right worker must have started after
+the first restart, with exact stdout and file effects at both releases.
 The named primary can also depend on an earlier direct include already
 being remade. The held profiles check both prerequisite choices, source
 spellings with and without `./`, and the modes applied to each completion.

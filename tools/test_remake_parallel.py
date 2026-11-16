@@ -66,3 +66,29 @@ class PollWaitTests(unittest.TestCase):
         self.sample(7, "0xffffffff")
         with patch.object(remake_parallel, "X86_64", False):
             self.assertEqual(remake_parallel.poll_wait(self.proc), (None, False))
+
+
+
+class NamedParentWaitTests(unittest.TestCase):
+    def test_named_writer_must_be_the_only_direct_child(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            proc, work = root / 'proc', root / 'work'
+            task = proc / 'task' / '42'
+            task.mkdir(parents=True)
+            work.mkdir()
+            (proc / 'wchan').write_text('do_wait')
+            (work / 'left.done').write_bytes(b'done\n')
+            (work / 'seen').write_bytes(b'left\n')
+            children = task / 'children'
+            children.write_bytes(b'43')
+            with patch.object(remake_parallel, 'active_workers', return_value={'named': (43, 100)}):
+                def sample():
+                    return remake_parallel.named_parent_wait_witness(42, proc, work, ('named',), b'')
+
+                self.assertEqual(sample()['workers'], {'named': (43, 100)})
+                children.write_bytes(b'43 44')
+                self.assertIsNone(sample())
+                children.write_bytes(b'43')
+                (work / 'right.started').touch()
+                self.assertIsNone(sample())
