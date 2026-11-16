@@ -2053,13 +2053,15 @@ def named_load_models(available: list[HeldModel]) -> list[HeldModel]:
                                before_first_stdout=first_stdout, before_second=before_second,
                                before_second_stdout=second_stdout)
             optional = optional_named_load_model(required, position, mode, high)
-            directory_optional = optional
-            if high and position == 'middle' and mode == 'n':
+            directory_optional = direct_optional = optional
+            if high and position == 'middle' and mode in ('n', 'q'):
                 directory_optional = replace(
                     optional, model=named_load_witness(optional.model),
                     named_recipe=b'named.gen', named_parent_wait=True,
                 )
-            results.extend((required, optional, directory_named_load_model(required),
+                if mode == 'q':
+                    direct_optional = directory_optional
+            results.extend((required, direct_optional, directory_named_load_model(required),
                             directory_named_load_model(directory_optional),
                             builtin_load_model(required, explicit=True),
                             builtin_load_model(optional, explicit=True), builtin_load_model(required),
@@ -3103,8 +3105,10 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                 raise h.HarnessError('invalid named load recipe witness')
             if second is not None and second_barrier is None:
                 second_barrier = NAMED_LOAD_RIGHT_BARRIER.decode()
-            model = named_load_witness(model)
-            held = replace(held, named_recipe=b'named.gen')
+            if held.named_recipe is None:
+                model = named_load_witness(model)
+            # The verbose trace has its own release point.
+            held = replace(held, named_recipe=b'named.gen', named_parent_wait=False)
         if second_barrier is not None:
             if (not isinstance(second_barrier, str) or not second_barrier or second is None
                     or not stdout[:second].endswith(second_barrier.encode())):
