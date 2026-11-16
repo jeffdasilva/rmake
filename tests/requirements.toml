@@ -1833,8 +1833,8 @@ title = "Implicit and default recipes for synthetic double-colon entries"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 78
-fixture_count = 78
+candidate_required = 81
+fixture_count = 81
 cases = [
   "assumed-double-recipe-fresh-no-rule",
   "assumed-double-recipe-fresh-default",
@@ -1914,6 +1914,9 @@ cases = [
   "assumed-double-query-tail-multi-restarted-prior-query",
   "declared-double-implicit-default-synthetic",
   "declared-double-implicit-forced-assumed",
+  "assumed-double-phony-default-completion",
+  "assumed-double-phony-empty-pattern-completion",
+  "assumed-double-phony-empty-pattern-physical-refresh",
 ]
 
 [[requirements]]

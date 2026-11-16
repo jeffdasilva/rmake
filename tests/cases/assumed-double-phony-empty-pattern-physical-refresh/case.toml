@@ -1,0 +1,11 @@
+id = "assumed-double-phony-empty-pattern-physical-refresh"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+provenance = "Original rmake differential fixture for assumed-new phony double-colon completion."
+args = ["-rR", "--no-print-directory", "-j1", "-W", "leaf", "all"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout = "pattern[leaf]\nparent\nleaf-mtime[1600000003]\n"
+stderr = ""

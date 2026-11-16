@@ -10404,14 +10404,13 @@ impl Engine {
                 }
             }
             // A fresh assumed-new entry is appended after declarations
-            // have been marked phony. An inferred recipe with inputs
-            // can therefore compare its own logical newest timestamp.
+            // have been marked phony. Its recipe and dependents use the
+            // synthetic entry's own timestamp.
             let synthetic_time = if state.phony
                 && !declared
                 && implicit_branch.is_some()
-                && branch.implicit_pattern.is_some()
+                && (branch.implicit_pattern.is_some() || branch.default_recipe)
                 && branch.group.is_none()
-                && !branch.dependencies.is_empty()
             {
                 self.assumed_new_double_colon_time(target)
             } else {
