@@ -12499,21 +12499,13 @@ impl Engine {
             }
             let mut command = trim_leading(&bytes);
             let raw_flags = crate::oneshell::prefixes(&recipe.bytes).1;
-            let mut quiet = self.globally_silent()
-                || self.special(b".SILENT", target, false)
-                || raw_flags.quiet;
+            let mut quiet = self.special(b".SILENT", target, false) || raw_flags.quiet;
             let mut command_noerror = raw_flags.ignore_errors;
-            let mut ignore = self.options.ignore_errors
-                || self.special(b".IGNORE", target, true)
-                || raw_flags.ignore_errors;
             let mut force = flow.recursive(index);
             while let Some(prefix) = command.first() {
                 match prefix {
                     b'@' => quiet = true,
-                    b'-' => {
-                        ignore = true;
-                        command_noerror = true;
-                    }
+                    b'-' => command_noerror = true,
                     b'+' => force = true,
                     _ => break,
                 }
@@ -12559,6 +12551,10 @@ impl Engine {
                     Ok((shell, flags, ifs))
                 },
             );
+            // MAKEFLAGS effects in configuration apply to this command.
+            let ignore = self.options.ignore_errors
+                || command_noerror
+                || self.special(b".IGNORE", target, true);
             let (shell, flags, ifs) = match configuration {
                 Ok(configuration) => configuration,
                 Err(err) => {
@@ -12661,7 +12657,7 @@ impl Engine {
             }
             if self.options.dry_run
                 || self.output.debug_mask().has(crate::debug::Mask::PRINT)
-                || !quiet
+                || !(quiet || self.globally_silent())
             {
                 self.stdout(echo);
             }
@@ -13188,11 +13184,7 @@ impl Engine {
         if !self.options.touch || phony || !flow.has_ordinary() {
             return Execution::success(ran).with_recursion(!flow.has_ordinary());
         }
-        let passes = if one_shell {
-            1
-        } else {
-            flow.completion_passes()
-        };
+        let passes = flow.completion_passes();
         for pass in 0..passes {
             if pass + 1 == passes
                 && let Some(buffer) = &output

@@ -1,0 +1,15 @@
+id = "oneshell-live-touch-phony-control"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "Touch completion during one-shell recipe preparation."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe", "target"]
+timeout_seconds = 5
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027746172676574272e0a"
+stderr_hex = ""

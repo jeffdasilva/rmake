@@ -51,6 +51,10 @@ still appear at the recipe location. A live `MAKEFLAGS` assignment can enable
 undefined-variable warnings within configuration. After configuration, the
 next command or target uses the saved policy.
 
+A silent or ignore-errors option enabled by configuration applies to the
+current command. Dry-run and trace output retain their ordinary precedence.
+Local recipe modifiers and the corresponding special targets still apply.
+
 ## Shell functions in one-shell mode
 
 A Bourne shell function call preserves prefix bytes in direct arguments. If

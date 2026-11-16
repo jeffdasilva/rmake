@@ -107,6 +107,12 @@ launch can finalize twice, matching duplicate touch output. Initial dispatch
 exhaustion also follows the latter path. Focused helper tests check these
 transitions separately from shell preparation and filesystem effects.
 
+A one-shell recipe can enter touch mode during body or shell configuration
+expansion. If the prepared script ends in a scan without launching a child,
+both completion passes can touch the target. Plain touch selected before
+preparation takes the direct shortcut. The live-transition fixtures verify
+both paths, including dry run, phony targets and output synchronization.
+
 The 195 probes comprised 168 cleanup/protection combinations and 27 child-boundary
 cases. Some early restoration probes used local-time `touch -t`; exact restored
 mtime conclusions come from the separate boundary probes with `TZ=UTC` and fixed

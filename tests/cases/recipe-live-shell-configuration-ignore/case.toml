@@ -1,0 +1,15 @@
+id = "recipe-live-shell-configuration-ignore"
+requirement = "recipes.shell"
+candidate = "required"
+description = "Live silent or ignore policy applied during recipe shell configuration."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-j1", "--jobserver-style=pipe", "all"]
+timeout_seconds = 5
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout_hex = "66616c73650a6c696e650a61667465720a"
+stderr_hex = "6d616b653a205b4d616b6566696c653a383a207461726765745d204572726f722031202869676e6f726564290a"

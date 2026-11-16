@@ -1,0 +1,15 @@
+id = "recipe-live-shell-configuration-silent-dry-control"
+requirement = "recipes.shell"
+candidate = "required"
+description = "Live silent or ignore policy applied during recipe shell configuration."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-j1", "--jobserver-style=pipe", "-n", "all"]
+timeout_seconds = 5
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout_hex = "6563686f206c696e650a66616c73650a6563686f2061667465720a"
+stderr_hex = ""
