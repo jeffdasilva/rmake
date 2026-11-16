@@ -1,0 +1,15 @@
+id = "function-shell-active-call-imported"
+requirement = "functions.shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--warn-undefined-variables", "all"]
+timeout_seconds = 3
+description = "An active exported call falls back to its original environment value."
+
+[environment]
+GNUMAKEFLAGS = ""
+CHECK = "imported"
+
+[expected]
+exit_code = 0
+stdout = "[[imported|value]]\nmake: Nothing to be done for 'all'.\n"
+stderr = ""
