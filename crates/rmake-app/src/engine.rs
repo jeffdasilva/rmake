@@ -3299,13 +3299,19 @@ impl Engine {
                         !debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug
                     }
                     [(first, false), (middle, false), (last, false)] => {
+                        let named_first = named_include(first);
+                        let named_last = named_include(last);
+                        let early_named = named_first || (!named_last && named_include(middle));
+                        let all_required = !(first.optional || middle.optional || last.optional);
+                        let required_touch = !named_last
+                            && all_required
+                            && modes.touch
+                            && (!modes.dry_run || !modes.question);
                         !debug_before_remake.has(Mask::MAKEFILES)
                             && ((modes.question && !modes.touch)
-                                || (named_include(first) && !named_include(last))
-                                || (modes.dry_run
-                                    && !modes.touch
-                                    && (named_include(first)
-                                        || (named_include(middle) && !named_include(last)))))
+                                || (named_first && !named_last)
+                                || (early_named
+                                    && ((modes.dry_run && !modes.touch) || required_touch)))
                     }
                     _ => false,
                 }

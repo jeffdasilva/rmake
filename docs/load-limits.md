@@ -137,7 +137,10 @@ That schedule remains outside the exact gate. Eighty further held profiles
 place named goals first and exercise quiet dry-run, touch, and mixed flags.
 Twenty-four standalone dry-run profiles interleave named and unnamed roots.
 They verify which recipes leave files and which print commands across rereads.
-Other touch and final-adjacent dry-run schedules remain open.
+Twelve required-source profiles place one named include in the middle
+under `-t`, `-n -t`, and `-q -t`. They compare the named touch before
+unnamed load reservations, the primary's mode, and actual file effects.
+Additional optional and final-adjacent mode schedules remain open.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an

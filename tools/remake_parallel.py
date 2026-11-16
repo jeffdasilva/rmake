@@ -2155,6 +2155,9 @@ def stock_primary_load_models() -> list[HeldModel]:
                                                    for modes in ('n', 't', 'nt', 'qt', 'nqt'))
                                 elif position in ('middle', 'alternating') or (position == 'last' and count == 2):
                                     results.append(stock_primary_three_interleaved_dry_run(query, optional, position))
+                                    if position == 'middle' and not optional:
+                                        results.extend(stock_primary_three_prefix_model(query, False, count, modes)
+                                                       for modes in ('t', 'nt', 'qt'))
     return results
 
 
