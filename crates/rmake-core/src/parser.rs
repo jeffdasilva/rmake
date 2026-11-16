@@ -1308,8 +1308,11 @@ fn static_stem(pattern: &Pattern, target: &[u8]) -> Vec<u8> {
     stem
 }
 
-fn static_prerequisite(name: &[u8], stem: &[u8]) -> Result<Vec<u8>, ExpandError> {
-    let pattern = Pattern::new(name);
+fn static_prerequisite(
+    name: &[u8],
+    pattern: &Pattern,
+    stem: &[u8],
+) -> Result<Vec<u8>, ExpandError> {
     if !pattern.has_wildcard() {
         return Ok(name.to_vec());
     }
@@ -5266,6 +5269,9 @@ impl Database {
                     return Err(ParseError::system(location, message, context));
                 }
                 let pattern = Pattern::new(&patterns[0]);
+                if let Some(history) = &self.database_history {
+                    history.intern(crate::filenames::without_dot_prefix(&patterns[0]));
+                }
                 prereqs = &prereqs[second + 1..];
                 Some(pattern)
             } else {
@@ -5422,6 +5428,18 @@ impl Database {
             }
             Some(names)
         };
+        if static_pattern.is_some()
+            && !secondary
+            && prerequisite_names.is_none()
+            && let Some(history) = &self.database_history
+        {
+            // The declaration reads these names before deriving any target stem.
+            for name in crate::filenames::words(normal).chain(crate::filenames::words(order)) {
+                if name.as_ref() != b".WAIT" {
+                    history.intern(crate::filenames::without_dot_prefix(&name));
+                }
+            }
+        }
         let implicit = declaration.target_patterns[0];
         if implicit && static_pattern.is_some() {
             return Err(ParseError {
@@ -5556,6 +5574,9 @@ impl Database {
             }
             rule.prerequisite_location = Some(location.clone());
             if let Some(stem) = &stem {
+                if let Some(history) = &self.database_history {
+                    history.intern(stem);
+                }
                 rule.stem = Some(stem.clone());
             }
             if !unmatched && !secondary && target == b".SUFFIXES" && empty_dependencies {
@@ -5610,18 +5631,37 @@ impl Database {
                     let mut pending_wait = None;
                     for (name, order_only) in names {
                         let wait_marker = name.as_ref() == b".WAIT";
+                        let history = self
+                            .database_history
+                            .as_ref()
+                            .filter(|_| !observed_prereqs && !wait_marker);
                         // Normalize the parsed name before a static stem can
                         // introduce leading dot components of its own.
                         let normalized = (!observed_prereqs && name.starts_with(b"./"))
                             .then(|| crate::filenames::without_dot_prefix(&name));
                         let name = if let Some(stem) = &stem {
-                            static_prerequisite(normalized.unwrap_or(&name), stem).map_err(
-                                |error| ParseError {
+                            let original = normalized.unwrap_or(&name);
+                            let pattern = Pattern::new(original);
+                            let mut expanded = static_prerequisite(original, &pattern, stem)
+                                .map_err(|error| ParseError {
                                     unlocated: false,
                                     location: location.clone(),
                                     message: error.diagnostic(),
-                                },
-                            )?
+                                })?;
+                            if pattern.has_wildcard()
+                                && !expanded.is_empty()
+                                && let Some(history) = history
+                            {
+                                if stem.is_empty() {
+                                    // Empty-stem replacement registers the copied NUL.
+                                    expanded.push(0);
+                                    history.intern_buffer(&expanded);
+                                    expanded.truncate(expanded.len() - 1);
+                                } else {
+                                    history.intern(&expanded);
+                                }
+                            }
+                            expanded
                         } else if let Some(normalized) = normalized {
                             normalized.to_vec()
                         } else {
@@ -5636,10 +5676,9 @@ impl Database {
                             // spelling. The first occurrence registers it.
                             self.explicit_names.insert(name.clone());
                         }
-                        if bind_prerequisites
-                            && !observed_prereqs
-                            && !wait_marker
-                            && let Some(history) = &self.database_history
+                        if ordinal == 0
+                            && stem.is_none()
+                            && let Some(history) = history
                         {
                             history.intern(&name);
                         }

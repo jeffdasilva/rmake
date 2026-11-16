@@ -897,7 +897,7 @@ struct RecipeInputs<'a> {
     phony: bool,
     before: Option<SystemTime>,
     branch: Option<usize>,
-    implicit_group: bool,
+    record_suffix_stem_lookup: bool,
     location: Option<&'a Location>,
     dependencies: &'a [Dependency],
     dropped: &'a HashSet<Vec<u8>>,
@@ -11623,7 +11623,8 @@ impl Engine {
                         phony,
                         before,
                         branch,
-                        implicit_group,
+                        record_suffix_stem_lookup: !implicit_group
+                            && (rule.stem.is_none() || rule.implicit_pattern.is_some()),
                         location: recipes.first().map(|recipe| &recipe.location),
                         dependencies: &rule.dependencies,
                         dropped: &dropped,
@@ -12167,7 +12168,7 @@ impl Engine {
             phony,
             before,
             branch,
-            implicit_group,
+            record_suffix_stem_lookup,
             location,
             dependencies,
             dropped,
@@ -12259,7 +12260,7 @@ impl Engine {
             }
         };
         self.database.refresh_scoped_variables(&mut variables);
-        if !implicit_group && !self.database_stem_prepared(target, branch) {
+        if record_suffix_stem_lookup && !self.database_stem_prepared(target, branch) {
             self.record_explicit_stem_lookup();
         }
         for (name, value) in automatic {
