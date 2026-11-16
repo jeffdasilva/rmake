@@ -3310,21 +3310,28 @@ impl Engine {
                 )
             };
             let limited_load = self.options.load_limit.is_some();
-            let final_named_sources = ordinary_mode
-                && matches!(
-                    read_files.as_slice(),
-                    [(_, false), (first, false), (middle, false), (last, false)]
-                        if !named_include(first)
-                            && named_include(middle)
-                            && named_include(last)
-                            && !(first.optional || middle.optional || last.optional)
-                );
+            let final_named_required = match read_files.as_slice() {
+                [(_, false), (first, false), (middle, false), (last, false)]
+                    if ordinary_mode
+                        && !named_include(first)
+                        && named_include(middle)
+                        && named_include(last) =>
+                {
+                    match (first.optional, middle.optional, last.optional) {
+                        (false, false, false) => Some(true),
+                        (false, true, false) | (false, false, true) => Some(false),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
             let final_named_dry = limited_load
-                && final_named_sources
+                && final_named_required == Some(true)
                 && modes.dry_run
                 && !(modes.question || modes.touch)
                 && self.options.jobs.is_some_and(|slots| slots >= 4);
-            let final_named_touch = final_named_sources
+            let final_named_touch = final_named_required
+                .is_some_and(|required| required || limited_load)
                 && modes.touch
                 && !debug_before_remake.has(Mask::MAKEFILES)
                 && self.options.jobs.is_some_and(|slots| slots >= 3);
@@ -3995,7 +4002,19 @@ impl Engine {
                         .and_then(|remake| remake.context.open_error.clone());
                     MakefileModes::default().apply(&mut self.options);
                 }
-                let previous_progress = if verbose_mode_remakes {
+                let primary_after_optional_pass = active_primary
+                    && final_named_touch
+                    && pass_reaps != initial_reaps
+                    && self.pending(&read_files[0].0.name);
+                let previous_progress = if primary_after_optional_pass {
+                    // The optional pass already reaped an earlier include.
+                    // Keep the trailing named mode until the primary finishes.
+                    Some(if track_remake_effects {
+                        self.filesystem.borrow().generation()
+                    } else {
+                        self.recipe_reaps
+                    })
+                } else if verbose_mode_remakes {
                     None
                 } else {
                     // An optional source can finish an earlier pass while

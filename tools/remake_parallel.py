@@ -2171,7 +2171,10 @@ def stock_primary_load_models() -> list[HeldModel]:
                                         else:
                                             results.extend(stock_primary_three_prefix_model(query, False, count, modes)
                                                            for modes in ('t', 'nt', 'qt'))
-                                elif not optional and position.startswith('last-adjacent'):
+                                elif optional and position.startswith('last-adjacent'):
+                                    results.extend(stock_primary_three_optional_final_touch(query, modes, slots)
+                                                   for modes in ('t', 'qt', 'nt', 'nqt') for slots in (3, 4))
+                                elif position.startswith('last-adjacent'):
                                     dry = stock_primary_three_interleaved_dry_run(query, False, position)
                                     args = tuple('-j4' if arg == '-j3' else arg for arg in dry.model.args)
                                     results.append(replace(dry, model=replace(
@@ -2449,6 +2452,57 @@ def stock_primary_three_final_touch(held: HeldModel, modes: str, slots: int) -> 
         updates['Makefile'] = model.files['Makefile.sh']
         if dry_run:
             stdout += named_touches
+    if not question:
+        stdout += b''.join(f"make: '{goal}' is up to date.\n".encode() for goal in goals)
+    stdout += b'touch all\n'
+    if not dry_run:
+        updates.update(dict.fromkeys((*goals, 'all'), b''))
+    expected = {'exit_code': 0, 'stdout_template_hex': stdout.hex(),
+                'stderr_template_hex': stderr.hex()}
+    model = replace(model, id=f'{model.id}-{slots}-slots', args=args,
+                    expected=expected, updates=updates)
+    return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode)
+
+
+def stock_primary_three_optional_final_touch(held: HeldModel, modes: str, slots: int) -> HeldModel:
+    model = stock_primary_three_modes(held.model, modes)
+    args = tuple(f'-j{slots}' if arg == '-j3' else arg for arg in model.args)
+    goals = model.args[-3:-1]
+    first, last = (f'touch {goal}\n'.encode() for goal in goals)
+    leaf_touch = b'touch leaf.mk\n'
+    high = held.load.at_release == LOAD_HIGH
+    optional_first = goals[0] == 'child.mk'
+    interrupts_pass = optional_first and high
+    dry_run = 'n' in modes
+    question = 'q' in modes
+    removed = question and (high or optional_first)
+    release = held.before_first_stdout + first
+    if not interrupts_pass:
+        if optional_first:
+            release += leaf_touch + last
+        else:
+            release += last if high else last + leaf_touch
+    stdout = release
+    stderr = b''
+    updates = {name: data for name, data in model.updates.items() if name.startswith('primary.')}
+    if not interrupts_pass or not question:
+        updates['leaf.mk'] = b'' if interrupts_pass and not dry_run else b'LEAF := loaded\n'
+    primary_mode = None
+    if removed:
+        stderr = b"make: *** Deleting file 'Makefile'\n"
+        if interrupts_pass:
+            stdout += last
+    else:
+        touched_primary = high or optional_first
+        primary_mode = 0o644 if touched_primary else 0o755
+        stdout += b'touch Makefile\n' * 2 if touched_primary else b'chmod a+x Makefile\n'
+        updates['Makefile'] = model.files['Makefile.sh']
+        if interrupts_pass:
+            stdout += last + leaf_touch * 2
+            if dry_run:
+                stdout += first + leaf_touch + last
+        if dry_run:
+            stdout += first + last
     if not question:
         stdout += b''.join(f"make: '{goal}' is up to date.\n".encode() for goal in goals)
     stdout += b'touch all\n'
