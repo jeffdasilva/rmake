@@ -1,0 +1,15 @@
+id = "recipe-live-flags-configuration-silent-oneshell-touch"
+requirement = "recipes.shell"
+candidate = "required"
+description = "Live silent or ignore policy applied during recipe shell configuration."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-j1", "--jobserver-style=pipe", "-t", "all"]
+timeout_seconds = 5
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 2
+stdout_hex = "6c696e650a"
+stderr_hex = "6d616b653a202a2a2a205b4d616b6566696c653a393a207461726765745d204572726f7220310a"

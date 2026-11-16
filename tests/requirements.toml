@@ -250,10 +250,10 @@ id = "recipes.shell"
 title = "Shell lifetime and oneshell behavior"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 12
+candidate_required = 21
 reference = "https://www.gnu.org/software/make/manual/html_node/Execution.html"
-fixture_count = 12
-cases = ["recipe-oneshell-state", "recipe-independent-shells", "ordinary-recipe-config-warning-body", "ordinary-recipe-config-warning-oneshell", "ordinary-recipe-config-warning-dry", "ordinary-recipe-config-warning-query", "ordinary-recipe-config-warning-forced-touch", "ordinary-recipe-config-warning-target", "ordinary-recipe-config-warning-simple-flags", "ordinary-recipe-config-warning-explicit", "ordinary-recipe-config-warning-live-restore", "ordinary-recipe-config-warning-fatal"]
+fixture_count = 21
+cases = ["recipe-oneshell-state", "recipe-independent-shells", "ordinary-recipe-config-warning-body", "ordinary-recipe-config-warning-oneshell", "ordinary-recipe-config-warning-dry", "ordinary-recipe-config-warning-query", "ordinary-recipe-config-warning-forced-touch", "ordinary-recipe-config-warning-target", "ordinary-recipe-config-warning-simple-flags", "ordinary-recipe-config-warning-explicit", "ordinary-recipe-config-warning-live-restore", "ordinary-recipe-config-warning-fatal", "recipe-live-shell-configuration-silent", "recipe-live-flags-configuration-silent-oneshell-touch", "recipe-live-ifs-configuration-silent-forced-query", "recipe-live-shell-configuration-ignore", "recipe-live-flags-configuration-ignore-oneshell", "recipe-live-ifs-configuration-ignore-parallel-sync", "recipe-live-shell-configuration-silent-ignore-sync", "recipe-live-shell-configuration-silent-dry-control", "recipe-live-flags-configuration-local-ignore-control"]
 
 [[requirements]]
 id = "recursion.environment"
