@@ -7867,9 +7867,17 @@ impl Engine {
 
     /// Local implicit prerequisites use directory membership without a fresh
     /// stat. VPATH candidates still require its positive-name stat check.
-    fn implicit_presence(&mut self, target: &[u8]) -> Result<ImplicitPresence, ExpandError> {
+    fn implicit_presence(
+        &mut self,
+        target: &[u8],
+        attempt: crate::debug::Event<'_>,
+    ) -> Result<ImplicitPresence, ExpandError> {
         if rmake_core::filenames::archive_parts(target).is_none() {
-            return if self.directory_member(target)? {
+            // The local lookup can announce an invalidated directory
+            // before the prerequisite attempt. VPATH follows the attempt.
+            let present = self.directory_member(target);
+            crate::debug::emit(&self.output, attempt);
+            return if present? {
                 Ok(ImplicitPresence::Local)
             } else {
                 Ok(match self.searched_file(target)? {
@@ -7879,6 +7887,7 @@ impl Engine {
                 })
             };
         }
+        crate::debug::emit(&self.output, attempt);
         // Viability uses the archive date alone. Standalone-member freshness
         // belongs to the later build timestamp phase. Existing containers enter
         // the filename table even if the candidate is eventually rejected.
@@ -8578,10 +8587,8 @@ impl Engine {
                             {
                                 intermediate_names.push(name.clone());
                             }
-                            crate::debug::emit(
-                                &self.output,
-                                crate::debug::Event::TryingPrerequisite(name, literal, event_depth),
-                            );
+                            let attempt =
+                                crate::debug::Event::TryingPrerequisite(name, literal, event_depth);
                             let explicit = (self.has_file_record(name)
                                 && self.record_is_target(name))
                                 || self.database.rules.get(target).is_some_and(|rule| {
@@ -8592,6 +8599,9 @@ impl Engine {
                                             })
                                     })
                                 });
+                            if name == b".WAIT" || explicit {
+                                crate::debug::emit(&self.output, attempt);
+                            }
                             if explicit {
                                 crate::debug::emit(
                                     &self.output,
@@ -8602,7 +8612,7 @@ impl Engine {
                                 );
                             }
                             if name != b".WAIT" && !explicit {
-                                let presence = self.implicit_presence(name)?;
+                                let presence = self.implicit_presence(name, attempt)?;
                                 if matches!(presence, ImplicitPresence::Local) {
                                     crate::debug::emit(
                                         &self.output,
