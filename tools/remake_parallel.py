@@ -2177,6 +2177,19 @@ def stock_primary_load_models() -> list[HeldModel]:
                                         args = tuple('-j4' if arg == '-j3' else arg for arg in dry.model.args)
                                         results.append(replace(dry, model=replace(
                                             dry.model, id=f'{dry.model.id}-four-slots', args=args)))
+                                        if query.load.at_release == LOAD_HIGH:
+                                            results.extend(stock_primary_no_load_dry_overlap(dry, slots, first)
+                                                           for slots in (2, 3, 4)
+                                                           for first in ('primary', 'leaf'))
+                                        else:
+                                            for slots in (3, 4):
+                                                args = tuple(f'-j{slots}' if arg == '-j3' else arg
+                                                             for arg in dry.model.args if arg != '-l2')
+                                                model = replace(
+                                                    dry.model, args=args,
+                                                    id=dry.model.id.replace('-low', f'-no-load-{slots}-slots'))
+                                                results.append(replace(dry, model=model,
+                                                                       load=replace(dry.load, trace=b'')))
                                     results.extend(stock_primary_three_final_touch_profiles(query, optional))
     return results
 
@@ -2413,6 +2426,31 @@ def stock_primary_three_interleaved_dry_run(held: HeldModel, optional: bool,
     model = replace(model, files=files, expected=expected, updates=updates)
     return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode,
                    before_second_stdout=second_stdout, load=load, stock_second_worker=second_worker)
+
+
+def stock_primary_no_load_dry_overlap(held: HeldModel, slots: int, first: str) -> HeldModel:
+    model = held.model
+    args = tuple(f'-j{slots}' if arg == '-j3' else arg for arg in model.args if arg != '-l2')
+    goals = args[-3:-1]
+    named = b''.join(f"printf '%s\\n' '{goal[:-3].upper()} := loaded' > {goal}\n".encode()
+                     for goal in goals)
+    start = held.before_first_stdout
+    chmod = b'chmod a+x Makefile\n'
+    before_first = start if slots == 2 else start + named
+    before_second = start + named
+    if first == 'primary':
+        before_second = start + (chmod + named if slots == 2 else named + chmod)
+    stdout = start + (chmod + named if slots == 2 and first == 'primary' else named + chmod)
+    stdout += named + b''.join(f"make: '{goal}' is up to date.\n".encode() for goal in goals)
+    stdout += b'printf \'%s\\n\' "suffix   loaded"\n'
+    expected = {**model.expected, 'stdout_template_hex': stdout.hex()}
+    label = f'-no-load-{slots}-slots-{first}-first'
+    model = replace(model, id=model.id.replace('-high', label), args=args, expected=expected)
+    order = ('primary', 'leaf') if first == 'primary' else ('leaf', 'primary')
+    return replace(held, model=model, overlap=True, release_order=order,
+                   before_first_stdout=before_first, before_second_stdout=before_second,
+                   stock_primary_mode=0o644 if first == 'primary' else 0o755,
+                   load=replace(held.load, trace=b'', second_trace=b''))
 
 
 def stock_primary_three_final_touch(held: HeldModel, modes: str) -> HeldModel:
@@ -3210,56 +3248,23 @@ def execute_stock_primary(case: h.Case, runtime: Path, binary: Path, held: HeldM
         'RMAKE_LOAD_TRACE': str(trace), 'RMAKE_LOAD_AVERAGE': '100',
     })
     releases = []
-    release_stdout = debug.render(held.before_first_stdout, runtime)
-    second_worker = held.stock_second_worker
-    second_stdout = held.before_second_stdout
+    order = held.release_order if held.overlap else ('primary',)
+    if not held.overlap and held.stock_second_worker is not None:
+        order += (held.stock_second_worker,)
+    before_first = debug.render(held.before_first_stdout, runtime)
+    before_second = (debug.render(held.before_second_stdout, runtime)
+                     if held.before_second_stdout is not None else None)
+    previous = None
 
-    def observe(parent: int, stdout: bytes) -> None:
-        if len(releases) > 1 or (releases and second_worker is None):
-            return
-        proc = Path('/proc', str(parent))
-        try:
-            if (work / 'primary.started').read_bytes() != b'ready\n':
-                return
-            channel = (proc / 'wchan').read_text().strip()
-            if channel not in WAIT_CHANNELS and not poll_wait(proc, channel)[1]:
-                return
-            children = (proc / 'task' / str(parent) / 'children').read_bytes().split()
-            if releases:
-                if len(children) != 1 or (work / 'primary.done').read_bytes() != b'done\n':
-                    return
-                pid = int(children[0])
-                command = Path('/proc', str(pid), 'cmdline').read_bytes().split(b'\0')
-                worker_arg = f'--{second_worker}'.encode()
-                if command != [b'/usr/bin/python3', b'./stock-primary-cat.py', worker_arg, b'']:
-                    return
-                if (work / f'{second_worker}.started').read_bytes() != b'ready\n':
-                    return
-                owner, started = proc_identity(pid)
-                release = work / f'{second_worker}.release'
-                if (owner != parent or started <= 0 or os.getpgid(pid) != os.getpgid(parent)
-                        or (work / f'{second_worker}.done').exists() or release.exists()):
-                    raise h.HarnessError(f'invalid stock primary {second_worker} identity')
-                assert second_stdout is not None
-                expected = debug.render(second_stdout, runtime)
-                if len(stdout) < len(expected) and expected.startswith(stdout):
-                    return
-                load_trace = trace.read_bytes() if trace.exists() else b''
-                temporary = release.with_suffix('.release.tmp')
-                temporary.write_bytes(b'yes\n')
-                temporary.chmod(0o644)
-                temporary.rename(release)
-                releases.append({'name': second_worker, 'parent': parent, 'pid': pid, 'started': started,
-                                 'stdout_hex': stdout.hex(), 'load_trace_hex': load_trace.hex(),
-                                 'load_hex': (work / 'load.input').read_bytes().hex(), 'wchan': channel})
-                return
-            for child in map(int, children):
-                child_proc = Path('/proc', str(child))
-                shell_argv = child_proc.joinpath('cmdline').read_bytes().split(b'\0')
-                if shell_argv != [b'/bin/sh', b'-c', b'cat Makefile.sh >Makefile ', b'']:
+    def stock_worker(name: str, parent: int, children: list[int]) -> dict | None:
+        for child in children:
+            child_proc = Path('/proc', str(child))
+            command = child_proc.joinpath('cmdline').read_bytes().split(b'\0')
+            if name == 'primary':
+                if command != [b'/bin/sh', b'-c', b'cat Makefile.sh >Makefile ', b'']:
                     continue
-                shell_owner, shell_started = proc_identity(child)
-                if shell_owner != parent or shell_started <= 0:
+                owner, started = proc_identity(child)
+                if owner != parent or started <= 0:
                     raise h.HarnessError('invalid stock primary shell identity')
                 grandchildren = child_proc.joinpath('task', str(child), 'children').read_bytes().split()
                 if len(grandchildren) != 1:
@@ -3268,28 +3273,68 @@ def execute_stock_primary(case: h.Case, runtime: Path, binary: Path, held: HeldM
                 command = Path('/proc', str(pid), 'cmdline').read_bytes().split(b'\0')
                 if command != [b'/usr/bin/python3', os.fsencode(wrapper), b'Makefile.sh', b'']:
                     continue
-                owner, started = proc_identity(pid)
-                if owner != child or started <= 0 or (work / 'primary.done').exists():
-                    raise h.HarnessError('invalid stock primary child identity')
-                load_trace = trace.read_bytes() if trace.exists() else b''
-                expected = release_stdout
-                if held.fifo_controller:
-                    path = runtime / 'tmp' / f'GMfifo{parent}'
-                    expected = expected.replace(b'Using jobserver controller 3,4\n',
-                                                b'Using jobserver controller fifo:' + os.fsencode(path) + b'\n')
-                if len(stdout) < len(expected) and expected.startswith(stdout):
-                    # The child can reach its wait before capture drains the
-                    # bytes the parent has already written to the pipe.
-                    return
-                temporary = work / 'primary.release.tmp'
-                temporary.write_bytes(b'yes\n')
-                temporary.chmod(0o644)
-                temporary.rename(work / 'primary.release')
-                releases.append({'name': 'primary', 'parent': parent, 'shell': child, 'pid': pid,
-                                 'started': started,
-                                 'stdout_hex': stdout.hex(), 'load_trace_hex': load_trace.hex(),
-                                 'load_hex': (work / 'load.input').read_bytes().hex(), 'wchan': channel})
+                expected_parent = child
+                identity = {'shell': child}
+            else:
+                if command != [b'/usr/bin/python3', b'./stock-primary-cat.py', f'--{name}'.encode(), b'']:
+                    continue
+                pid = child
+                expected_parent = parent
+                identity = {}
+            if (work / f'{name}.started').read_bytes() != b'ready\n':
+                return None
+            owner, started = proc_identity(pid)
+            if (owner != expected_parent or started <= 0 or os.getpgid(pid) != os.getpgid(parent)
+                    or (work / f'{name}.done').exists() or (work / f'{name}.release').exists()):
+                raise h.HarnessError(f'invalid stock primary {name} identity')
+            return {**identity, 'pid': pid, 'started': started}
+        return None
+
+    def observe(parent: int, stdout: bytes) -> None:
+        nonlocal previous
+        phase = len(releases)
+        if phase == len(order):
+            return
+        proc = Path('/proc', str(parent))
+        try:
+            channel = (proc / 'wchan').read_text().strip()
+            if channel not in WAIT_CHANNELS and not poll_wait(proc, channel)[1]:
                 return
+            children = [int(pid) for pid in (proc / 'task' / str(parent) / 'children').read_bytes().split()]
+            if any((work / f'{name}.done').read_bytes() != b'done\n' for name in order[:phase]):
+                return
+            name = order[phase]
+            needs = order[phase:] if held.overlap else (name,)
+            if (held.overlap or phase) and len(children) != len(needs):
+                return
+            workers = {worker: stock_worker(worker, parent, children) for worker in needs}
+            if any(identity is None for identity in workers.values()):
+                return
+            expected = before_second if phase else before_first
+            assert expected is not None
+            if held.fifo_controller and not phase:
+                path = runtime / 'tmp' / f'GMfifo{parent}'
+                expected = expected.replace(b'Using jobserver controller 3,4\n',
+                                            b'Using jobserver controller fifo:' + os.fsencode(path) + b'\n')
+            if len(stdout) < len(expected) and expected.startswith(stdout):
+                # Drain stdout already written before the child reached its wait.
+                return
+            signature = (workers, stdout)
+            if held.overlap and signature != previous:
+                previous = signature
+                return
+            load_trace = trace.read_bytes() if trace.exists() else b''
+            release = work / f'{name}.release'
+            temporary = release.with_suffix('.release.tmp')
+            temporary.write_bytes(b'yes\n')
+            temporary.chmod(0o644)
+            temporary.rename(release)
+            record = {'name': name, 'parent': parent, **workers[name], 'stdout_hex': stdout.hex(),
+                      'load_trace_hex': load_trace.hex(),
+                      'load_hex': (work / 'load.input').read_bytes().hex(), 'wchan': channel}
+            if held.overlap:
+                record['workers'] = workers
+            releases.append(record)
         except (FileNotFoundError, ProcessLookupError):
             return
 
@@ -3328,8 +3373,13 @@ def release_errors(held: HeldModel, releases: list[dict], runtime: Path) -> list
     if held.stock_primary:
         second_worker = held.stock_second_worker
         expected = ['primary', second_worker] if second_worker is not None else ['primary']
+        if held.overlap:
+            expected = list(held.release_order)
         if [release['name'] for release in releases] != expected:
             return ['live stock primary release']
+        if held.overlap and any(set(release['workers']) != set(expected[i:])
+                                for i, release in enumerate(releases)):
+            return ['live overlapping stock primary workers']
         release = releases[0]
         errors = []
         if release['stdout_hex'] != debug.render(held.before_first_stdout, runtime).hex():
@@ -3337,14 +3387,14 @@ def release_errors(held: HeldModel, releases: list[dict], runtime: Path) -> list
         if (release['load_hex'] != held.load.at_release.hex()
                 or release['load_trace_hex'] != held.load.trace.hex()):
             errors.append('stock primary release load observation')
-        if second_worker is not None:
+        if len(expected) == 2:
             second = releases[1]
             assert held.before_second_stdout is not None and held.load.second_trace is not None
             if second['stdout_hex'] != debug.render(held.before_second_stdout, runtime).hex():
-                errors.append(f'stock primary {second_worker} release stdout')
+                errors.append(f"stock primary {second['name']} release stdout")
             if (second['load_hex'] != held.load.at_release.hex()
                     or second['load_trace_hex'] != held.load.second_trace.hex()):
-                errors.append(f'stock primary {second_worker} release load observation')
+                errors.append(f"stock primary {second['name']} release load observation")
         return errors
     order = list(held.release_order[:1] if held.before_second is None else held.release_order)
     wanted = ['primary', *order] if held.before_primary is not None else order

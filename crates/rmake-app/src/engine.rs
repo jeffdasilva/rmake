@@ -3327,10 +3327,11 @@ impl Engine {
                 }
                 _ => None,
             };
-            let final_named_dry = limited_load
-                && final_named_required == Some(true)
+            let final_required_dry = final_named_required == Some(true)
                 && modes.dry_run
-                && !(modes.question || modes.touch)
+                && !(modes.question || modes.touch);
+            let final_named_dry = limited_load
+                && final_required_dry
                 && self.options.jobs.is_some_and(|slots| slots >= 4);
             let final_named_touch = final_named_required.is_some()
                 && modes.touch
@@ -3338,6 +3339,14 @@ impl Engine {
                 && self.options.jobs.is_some_and(|slots| slots >= 2);
             let unruled_primary = ordinary_mode
                 && (limited_load || final_named_touch)
+                && self.unruled_primary_before_named_includes(&read_files, named_sources.as_ref());
+            let no_load_primary_dry = !limited_load
+                && final_required_dry
+                && !debug_before_remake.has(Mask::MAKEFILES)
+                && self
+                    .options
+                    .jobs
+                    .is_some_and(|slots| (3..usize::MAX).contains(&slots))
                 && self.unruled_primary_before_named_includes(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
             let mixed_named_overlap = unruled_primary
@@ -3988,10 +3997,19 @@ impl Engine {
             if !stopped && !pending.is_empty() {
                 // Reaping before the next source visit retains the last
                 // named mode for a still-running implicit primary or named recipe.
-                let active_primary = overlap_primary_recipe
-                    && pending
-                        .first()
-                        .is_some_and(|remake| std::ptr::eq(remake.file, &read_files[0].0));
+                // Without a load limit, keep this only while the earlier unnamed
+                // include and the primary both have running recipe children.
+                let active_primary = pending
+                    .first()
+                    .is_some_and(|remake| std::ptr::eq(remake.file, &read_files[0].0))
+                    && (overlap_primary_recipe
+                        || (no_load_primary_dry
+                            && read_files[..2].iter().all(|(file, _)| {
+                                self.parallel_jobs
+                                    .primary
+                                    .get(self.aliases.resolve(&file.name))
+                                    .is_some_and(|job| job.child.is_some())
+                            })));
                 if MakefileModes::from_options(&self.options).active()
                     && !active_primary
                     && !pending.last().is_some_and(|remake| remake.modes.active())
