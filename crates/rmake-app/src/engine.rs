@@ -10368,7 +10368,6 @@ impl Engine {
                 && !state.phony
                 && branch.recipes.is_none()
                 && branch.group.is_none()
-                && branch.secondary.is_none()
                 && !self.shuffle.enabled()
                 && !self.terminal_prerequisites.contains(target)
                 && self

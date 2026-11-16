@@ -1,0 +1,11 @@
+id = "declared-double-secondary-pattern-order"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+provenance = "Original rmake differential fixture for secondary expansion on a declared double-colon branch."
+args = ["-rR", "--no-print-directory", "-j1", "-B", "-W", "leaf", "all"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout = "implicit[leaf||||af|]\ndeclared[leaf|input|input|input|af|]\nrecipe[leaf][input][input fixed base][af][gate]\nimplicit[leaf||||af|]\nsecond[leaf|input|input|input|af|]\nrecipe[leaf][input][input other base][af][]\nimplicit[leaf||||af|]\nrecipe[leaf][input][input][af][]\nparent\n"
+stderr = ""
