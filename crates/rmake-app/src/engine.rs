@@ -1859,6 +1859,18 @@ impl Engine {
         bytes: &[u8],
         location: Option<&Location>,
     ) -> Result<Vec<u8>, ExpandError> {
+        self.with_scoped_expansion(location, false, |database, context| {
+            database.expand_in(variables, bytes, context)
+        })
+    }
+
+    fn with_scoped_expansion<T>(
+        &mut self,
+        location: Option<&Location>,
+        mute_undefined: bool,
+        operation: impl FnOnce(&mut Database, ExpansionContext<'_>) -> T,
+    ) -> T {
+        let warnings = mute_undefined.then(|| self.flag_state.replace_scoped_warning_policy(false));
         let mut target_reads = TargetReads {
             parents: &self.scope_parents,
             retained_parents: &self.retained_scope_parents,
@@ -1867,32 +1879,33 @@ impl Engine {
             recipes: &mut self.database_contexts,
             branches: &self.database_branch_contexts,
         };
-        let result = self.database.expand_in(
-            variables,
-            bytes,
-            runtime_context(
-                location,
-                &mut RuntimeOutput::new(
-                    &self.output,
-                    &self.program,
-                    &self.flag_state.warn_undefined,
-                ),
+        let mut output =
+            RuntimeOutput::new(&self.output, &self.program, &self.flag_state.warn_undefined);
+        let mut flags = self.flag_state.receiver();
+        let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
+            self.filesystem.borrow_mut().execute(effect)
+        };
+        let shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+            crate::shell::run(
+                request,
+                &self.program,
+                self.makelevel,
+                &self.output,
+                self.jobserver.as_ref(),
+                || self.filesystem.borrow_mut().child_completed(),
             )
-            .with_makeflags(&mut self.flag_state.receiver())
+        };
+        let mut include = |name: &[u8]| self.include_search.borrow().read(name);
+        let context = runtime_context(location, &mut output)
+            .with_makeflags(&mut flags)
             .with_target_reads(&mut target_reads)
-            .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-            .with_shell(&|request| {
-                crate::shell::run(
-                    request,
-                    &self.program,
-                    self.makelevel,
-                    &self.output,
-                    self.jobserver.as_ref(),
-                    || self.filesystem.borrow_mut().child_completed(),
-                )
-            })
-            .with_includes(&mut |name| self.include_search.borrow().read(name)),
-        );
+            .with_filesystem(&mut filesystem)
+            .with_shell(&shell)
+            .with_includes(&mut include);
+        let result = operation(&mut self.database, context);
+        if let Some(warnings) = warnings {
+            self.flag_state.replace_scoped_warning_policy(warnings);
+        }
         if let Some(options) = self.flag_state.take() {
             self.options = options;
         }
@@ -12488,13 +12501,43 @@ impl Engine {
             // all recipe bodies have expanded. A nonempty expansion consisting
             // only of blanks/modifiers still reaches configuration; a zero-byte
             // expansion does not. Only the unforced touch shortcut skips expansion.
-            let selected_shell = if variables.get(b"SHELL").is_some() {
-                self.expand(variables, b"$(SHELL)", Some(&recipe.location))
-            } else {
-                Ok(Vec::new())
-            };
-            let shell = match selected_shell {
-                Ok(shell) => shell,
+            // A live MAKEFLAGS assignment can enable warnings inside configuration.
+            // Restore the original policy before the next command or target.
+            let configuration = self.with_scoped_expansion(
+                Some(&recipe.location),
+                true,
+                |database, mut context| {
+                    let shell = if variables.get(b"SHELL").is_some() {
+                        database.expand_in(variables, b"$(SHELL)", context.reborrow())?
+                    } else {
+                        Vec::new()
+                    };
+                    // GNU rescans raw flag text even for a simple binding.
+                    let flag_text = variables.database_lookup(b".SHELLFLAGS").map_or_else(
+                        Vec::new,
+                        |variable| {
+                            if database.posix && variable.origin() == Origin::Default {
+                                if command_noerror {
+                                    b"-c".to_vec()
+                                } else {
+                                    b"-ec".to_vec()
+                                }
+                            } else {
+                                variable.raw_value().to_vec()
+                            }
+                        },
+                    );
+                    let flags = database.expand_in(variables, &flag_text, context.reborrow())?;
+                    let ifs = if variables.database_lookup(b"IFS").is_some() {
+                        Some(database.expand_in(variables, b"$(IFS)", context.reborrow())?)
+                    } else {
+                        None
+                    };
+                    Ok((shell, flags, ifs))
+                },
+            );
+            let (shell, flags, ifs) = match configuration {
+                Ok(configuration) => configuration,
                 Err(err) => {
                     self.recipe_expansion_error(
                         target,
@@ -12509,56 +12552,6 @@ impl Engine {
                 }
             };
             let shell = shell.as_slice();
-            // GNU rescans the raw flag text even for a simple binding and
-            // attributes direct errors to the recipe, not .SHELLFLAGS itself.
-            let flag_text =
-                variables
-                    .database_lookup(b".SHELLFLAGS")
-                    .map_or_else(Vec::new, |variable| {
-                        if self.database.posix && variable.origin() == Origin::Default {
-                            if command_noerror {
-                                b"-c".to_vec()
-                            } else {
-                                b"-ec".to_vec()
-                            }
-                        } else {
-                            variable.raw_value().to_vec()
-                        }
-                    });
-            let flags = match self.expand(variables, &flag_text, Some(&recipe.location)) {
-                Ok(flags) => flags,
-                Err(err) => {
-                    self.recipe_expansion_error(
-                        target,
-                        &recipe.location,
-                        &err,
-                        &flow,
-                        ignore,
-                        output.as_ref(),
-                    );
-                    self.retain_configuration_abort(&mut owner.permit, &err);
-                    return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
-                }
-            };
-            let ifs = if variables.database_lookup(b"IFS").is_some() {
-                match self.expand(variables, b"$(IFS)", Some(&recipe.location)) {
-                    Ok(value) => Some(value),
-                    Err(err) => {
-                        self.recipe_expansion_error(
-                            target,
-                            &recipe.location,
-                            &err,
-                            &flow,
-                            ignore,
-                            output.as_ref(),
-                        );
-                        self.retain_configuration_abort(&mut owner.permit, &err);
-                        return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
-                    }
-                }
-            } else {
-                None
-            };
             if command.is_empty() {
                 continue;
             }

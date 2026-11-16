@@ -1,0 +1,15 @@
+id = "ordinary-recipe-config-warning-live-restore"
+requirement = "recipes.shell"
+candidate = "required"
+description = "Undefined warning policy during recipe shell configuration."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout_hex = "6c6173740a"
+stderr_hex = "4d616b6566696c653a363a207761726e696e673a20756e646566696e6564207661726961626c652027434f4e4649475f4d495353494e47270a4d616b6566696c653a363a207761726e696e673a20756e646566696e6564207661726961626c652027464c4147535f4d495353494e47270a4d616b6566696c653a363a207761726e696e673a20756e646566696e6564207661726961626c6520274946535f4d495353494e47270a"
