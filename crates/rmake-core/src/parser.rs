@@ -427,6 +427,19 @@ impl Rule {
             );
         }
     }
+    /// Place a newly appended block before the earlier declarations in its suffix.
+    fn promote_appended_prerequisites(&mut self, start: usize, appended_at: usize) {
+        let count = self.dependencies.len() - appended_at;
+        let tail = &mut self.dependencies[start..];
+        tail.rotate_right(count);
+        if let Some(secondary) = &mut self.secondary {
+            for clause in secondary.iter_mut().filter(|clause| clause.index >= start) {
+                clause.index = start + (clause.index - start + count) % tail.len();
+            }
+            secondary.sort_by_key(|clause| clause.index);
+        }
+    }
+
     pub fn grouped_targets(&self) -> Option<&[Vec<u8>]> {
         self.group.as_ref().map(|group| group.targets.as_slice())
     }
@@ -5436,6 +5449,7 @@ impl Database {
         let single_target = declaration.targets.len() == 1;
         let has_recipes = !declaration.recipes.is_empty();
         let mut recipe_targets = HashSet::new();
+        let mut duplicate_prerequisites = None;
         for (ordinal, target) in declaration.targets.iter().enumerate() {
             // The targets share prerequisite spellings. Static patterns
             // derive separate names for each target.
@@ -5524,7 +5538,7 @@ impl Database {
             if grouped || (declaration.patterns.len() > 1) {
                 if grouped && !double_colon && rule.group.is_some() {
                     declaration.group_warnings.push((
-                        location.clone(),
+                        declaration.recipes[0].location.clone(),
                         [
                             b"warning: overriding group membership for target '".as_slice(),
                             target,
@@ -5549,13 +5563,16 @@ impl Database {
                 rule.dependencies.clear();
                 rule.secondary = None;
             }
-            let offset = rule.dependencies.len();
+            let previous_len = rule.dependencies.len();
             let offset = if has_recipes && !single_target {
                 // Repeated target spellings share the original offset, recorded
                 // after any suffix reset and before appending prerequisites.
-                *declaration.offsets.entry(target.clone()).or_insert(offset)
+                *declaration
+                    .offsets
+                    .entry(target.clone())
+                    .or_insert(previous_len)
             } else {
-                offset
+                previous_len
             };
             if !unmatched {
                 if secondary {
@@ -5655,6 +5672,14 @@ impl Database {
                 && !implicit
                 && !recipe_targets.insert(target.as_slice());
             if duplicate {
+                // The first occurrence put this declaration's block first.
+                // Remember its length so all later blocks can move together.
+                if offset != 0 && previous_len < rule.dependencies.len() {
+                    duplicate_prerequisites
+                        .get_or_insert_with(HashMap::new)
+                        .entry(target.as_slice())
+                        .or_insert((previous_len - offset, previous_len));
+                }
                 declaration.warnings.push((
                     location.clone(),
                     [
@@ -5694,6 +5719,12 @@ impl Database {
             for (location, message) in declaration.warnings.drain(..) {
                 record_warning(&mut self.warnings, context, location, message);
             }
+        }
+        for (target, (start, appended_at)) in duplicate_prerequisites.into_iter().flatten() {
+            self.rules
+                .get_mut(target)
+                .expect("repeated explicit rule")
+                .promote_appended_prerequisites(start, appended_at);
         }
         drop(prerequisite_names);
         prerequisite_text.clear();
@@ -5776,15 +5807,7 @@ impl Database {
         warnings: &mut Vec<(Location, Diagnostic)>,
         recipes: Vec<Recipe>,
     ) {
-        let count = rule.dependencies.len() - offset;
-        rule.dependencies.rotate_right(count);
-        if let Some(secondary) = &mut rule.secondary {
-            let length = rule.dependencies.len();
-            for clause in secondary.iter_mut() {
-                clause.index = (clause.index + count) % length;
-            }
-            secondary.sort_by_key(|clause| clause.index);
-        }
+        rule.promote_appended_prerequisites(0, offset);
         let location = &recipes[0].location;
         if let Some(previous) = &rule.recipe_location {
             warnings.push((

@@ -1,0 +1,12 @@
+id = "duplicate-rule-recipe-prerequisite-order-literal"
+requirement = "rules.declaration-recording"
+candidate = "required"
+description = "Literal duplicate blocks precede the previous declaration."
+provenance = "Original Makefile and exact pinned GNU 4.4.1 observations; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b615d5b66697273745d5b6669727374207365636f6e64206f6c645d5b6669727374207365636f6e64206669727374206669727374207365636f6e64206669727374206f6c645d5b6f72646572207461696c5d0a"
+stderr_hex = "4d616b6566696c653a333a207461726765742027612720676976656e206d6f7265207468616e206f6e636520696e207468652073616d652072756c650a"
