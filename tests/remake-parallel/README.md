@@ -97,6 +97,12 @@ touch modes. The held workers distinguish deferred dispatch, the named
 recipe's carried mode, and restarts before the second include starts.
 The 64 cases cover both pipe and FIFO transports.
 
+The high-load stock-primary dry runs hold a second worker when the queue
+depends on an immediate child exit. The optional named midpoint is held in
+the first make process image, and the unnamed predecessor of two trailing
+named goals is held after restart. Both jobserver transports compare the
+live worker identity, stdout and load trace at release, and final file state.
+
 Ordinary goal profiles check file effects, successful and failed exits,
 ignored failures, and the summary for work dispatched outside a goal
 visit. A low-load control starts both children during their visits.
