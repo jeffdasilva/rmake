@@ -3339,8 +3339,7 @@ impl Engine {
                 && self.options.jobs.is_some_and(|slots| slots >= 4);
             let final_named_touch = modes.touch
                 && !final_named_sources.is_empty()
-                && (optional_named_sources == 0
-                    || (final_named_sources.len() == 2 && optional_named_sources == 1))
+                && optional_named_sources <= 1
                 && !debug_before_remake.has(Mask::MAKEFILES)
                 && self.options.jobs.is_some_and(|slots| slots >= 2);
             let unruled_primary = ordinary_mode
@@ -3938,8 +3937,7 @@ impl Engine {
                         // Keep the optional mode through the primary continuation.
                         // Admit the earlier unnamed job after restoring ordinary mode.
                         let defer_load_refill = mixed_named_overlap
-                            && read_files.len() == 4
-                            && source_index == 2
+                            && (final_named_touch || (read_files.len() == 4 && source_index == 2))
                             && visit_modes.touch
                             && pending.iter().any(|request| {
                                 request.file.location.is_some() && !request.modes.active()

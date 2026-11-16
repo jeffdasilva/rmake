@@ -170,6 +170,9 @@ without a load option, including both optional-source positions.
 The required named sources can also extend beyond the final pair.
 Ninety-six more cases check three or eight named includes with two or
 four slots, including exact order, primary mode, and file effects.
+One optional include can also appear anywhere among the named sources.
+The 144 additional cases cover all three optional positions in a
+three-name tail and the pass boundary before a later required visit.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
