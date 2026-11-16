@@ -11874,7 +11874,7 @@ impl Engine {
             && outcome.ran
             && outcome.completion == CompletionTime::Refresh
             && (!outcome.failed || failed_required_remake);
-        let use_saved_peer_time = failed_required_remake
+        let use_saved_peer_time = track_read_peers
             && group.before.is_none()
             && self.assumptions.is_none()
             && !self.options.check_symlink_times
@@ -11934,9 +11934,10 @@ impl Engine {
             };
             if track_read_peers && !phony && self.makefile_names.contains(&peer) {
                 // A missing owner skips peer freshness checks. The serial read
-                // pass can still supply the earlier physical time of a peer.
+                // pass can still prove that a successful recipe removed a peer.
                 let before = before.or_else(|| {
                     if use_saved_peer_time
+                        && (failed_required_remake || completed.time.is_none())
                         && let Some(Some((None, Some(time)))) = self.path_observations.get(&peer)
                     {
                         Some(*time)

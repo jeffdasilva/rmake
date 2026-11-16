@@ -236,3 +236,10 @@ group members. A failed required group under keep-going can still compare an
 existing peer's saved serial read timestamp with its final physical time.
 Four fixtures cover forward and backward timestamp changes, a same-time
 rewrite, and a removed peer.
+
+A successful missing grouped owner can also remove an existing peer.
+The saved read timestamp and the peer's now-missing observation establish
+the change before the reread. One fixture uses the removed peer's presence
+to enable the original group, so deletion itself ends that remake path.
+Other fixtures cover required failure on reread, query mode and the
+existing case where a missing peer appears.
