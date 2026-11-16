@@ -158,6 +158,7 @@ def models() -> list[Model]:
     result.extend(deep_models())
     result.extend(source_provenance_models())
     result.extend(startup_exit_models())
+    result.extend(loaded_scope_models())
     result.extend(target_read_models())
     result.extend(secondary_scope_models())
     result.extend(retained_double_branch_models())
@@ -567,6 +568,89 @@ def startup_exit_models() -> list[Model]:
                   tuple(Module('startup_probe.c', name) for name in row['modules']),
                   args=tuple(row['args']), environment=row['environment'])
             for row in data['models']]
+
+
+def loaded_scope_models() -> list[Model]:
+    """A successful module appends the visible raw binding into the global value."""
+    field = b'$(origin .LOADED)|$(flavor .LOADED)|$(value .LOADED)|$(.LOADED)'
+    result = []
+
+    def emit(label: bytes, tail: bytes = b'') -> bytes:
+        return b'$(info ' + label + b'=[' + field + b']' + tail + b')'
+
+    def model(name, source, stdout, *, status=-1, bridge=False, args=(), environment=None):
+        module = Module('setup_result.c', 'probe.so', ('IMAGE="safe"', f'SETUP_RESULT={status}'))
+        before, after = (b'setup\n', b'eval-returned\n') if bridge else (b'', b'')
+        modules = (module, Module(defines=('PROBE_TRACE_SETUP',))) if bridge else (module,)
+        result.append(Model('native-loaded-scope-' + name,
+                            {'Makefile': source, 'seen': b'anchor\n'},
+                            {'exit_code': 0, 'stdout_hex': stdout.hex(), 'stderr_hex': ''},
+                            b'anchor\n' + before + b'ctor-safe\nsetup-safe\n' + after + b'dtor-safe\n',
+                            modules, ('-rR', '--no-print-directory', *args),
+                            {'GNUMAKEFLAGS': '', **(environment or {})}))
+
+    local = b'file|simple|local probe.so|local probe.so'
+    for name, keyword, seed, bridge, args, env, expected in (
+        ('foreach', b'foreach', b'', False, (), {}, local),
+        ('let-recursive', b'let', b'VAR := value\n.LOADED = $(VAR)\n', False, (), {}, local),
+        ('nested-callback', b'foreach', b'load probe_api.so\n', True, (), {}, local),
+        ('command-origin', b'foreach', b'', False, ('.LOADED=command',), {},
+         b'command line|recursive|command|command'),
+        ('environment-override', b'let', b'', False, ('-e',), {'.LOADED': 'env'},
+         b'environment override|recursive|env|env'),
+    ):
+        load = b'$(probe_eval_guard load ./probe.so)' if bridge else b'$(eval load ./probe.so)'
+        source = (seed + b'$(' + keyword + b' .LOADED,local,' + load + emit(b'inside') + b')\n'
+                  + emit(b'read') + b'\n.PHONY: all\nall:;@' + emit(b'goal', b' image=[$(probe_image )]') + b':\n')
+        stdout = (b'inside=[automatic|simple|local|local]\nread=[' + expected + b']\n'
+                  b'goal=[' + expected + b'] image=[safe]\n')
+        model(name, source, stdout, bridge=bridge, args=args, environment=env)
+
+    load = b'$(eval load ./probe.so)'
+    nested = b'$(foreach .LOADED,inner,' + load + emit(b'inner') + b')'
+    simple_seed = b'.LOADED := seed\n'
+    recursive_seed = b'.LOADED = $(VALUE)-seed\n'
+    simple = b'file|simple|seed|seed'
+    recursive = b'file|recursive|$(VALUE)-seed|value-seed'
+    target = b'file|recursive|$(VALUE)|value'
+    target_appended = b'file|recursive|$(VALUE) probe.so|value probe.so'
+    bridge_seed = b'load probe_api.so\n'
+
+    for name, seed, declaration, recipe, status, bridge, read, lexical, current, after in (
+        ('target-recursive', recursive_seed, b'loader: .LOADED = $(VALUE)\n', load,
+         1, False, recursive, b'', target, target_appended),
+        ('target-append', recursive_seed, b'loader: .LOADED += local\n', load,
+         -1, False, recursive, b'', b'file|recursive|local|local probe.so local',
+         b'file|recursive|local probe.so|local probe.so'),
+        ('pattern', simple_seed, b'load%: .LOADED := pattern\n', load,
+         -1, False, simple, b'', b'file|simple|pattern|pattern',
+         b'file|simple|pattern probe.so|pattern probe.so'),
+        ('inherited-target', recursive_seed, b'all: .LOADED := parent\n', load,
+         -1, False, recursive, b'', b'file|simple|parent|parent',
+         b'file|simple|parent probe.so|parent probe.so'),
+        ('empty-local-target', simple_seed, b'loader: .LOADED := target\n',
+         b'$(let .LOADED,,' + load + emit(b'inner') + b')', -1, False, simple,
+         b'inner=[automatic|simple||]\n', b'file|simple|target|target', b'file|simple|probe.so|probe.so'),
+        ('nested-lexical', simple_seed, b'', b'$(foreach .LOADED,outer,' + nested + emit(b'outer') + b')',
+         1, False, simple, b'inner=[automatic|simple|inner|inner]\nouter=[automatic|simple|outer|outer]\n',
+         b'file|simple|inner probe.so|inner probe.so', b'file|simple|inner probe.so|inner probe.so'),
+        ('target-callback', recursive_seed + bridge_seed, b'loader: .LOADED = $(VALUE)\n',
+         b'$(if $(probe_eval_guard load ./probe.so),,)', -1, True,
+         b'file|recursive|$(VALUE)-seed probe_api.so|value-seed probe_api.so', b'', target, target_appended),
+        ('optional-failure', simple_seed + bridge_seed, b'loader: .LOADED := target\n',
+         b'$(foreach .LOADED,inner,$(if $(probe_eval_guard -load ./probe.so),,)' + emit(b'inner') + b')',
+         0, True, b'file|simple|seed probe_api.so|seed probe_api.so',
+         b'inner=[automatic|simple|inner|inner]\n', b'file|simple|target|target',
+         b'file|simple|seed probe_api.so|seed probe_api.so'),
+    ):
+        source = (b'VALUE := value\n' + seed + declaration + emit(b'read') + b'\n'
+                  b'.PHONY: all loader observer\nall: loader\nloader:;@'
+                  + recipe + emit(b'loader', b' image=[$(probe_image )]') + b':\nobserver:;@'
+                  + emit(b'observed') + b':\n')
+        stdout = (b'read=[' + read + b']\n' + lexical + b'loader=[' + current + b'] image=[safe]\n'
+                  b'observed=[' + after + b']\n')
+        model(name, source, stdout, status=status, bridge=bridge, args=('all', 'observer'))
+    return result
 
 
 def target_read_models() -> list[Model]:

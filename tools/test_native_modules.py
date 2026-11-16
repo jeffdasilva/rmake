@@ -112,8 +112,8 @@ class NativeModuleTests(unittest.TestCase):
 
     def test_original_inventory_covers_native_lifetime_and_fatal_boundaries(self):
         models = n.models()
-        self.assertEqual(len(models), 253)
-        self.assertEqual(len({m.id for m in models}), 253)
+        self.assertEqual(len(models), 266)
+        self.assertEqual(len({m.id for m in models}), 266)
         self.assertEqual(sum(m.id.startswith('native-setup-result-') for m in models), 5)
         self.assertEqual(sum(m.id.startswith('native-loader-debug-') for m in models), 6)
         self.assertEqual(sum(m.id.startswith('native-directory-epoch-') for m in models), 5)
@@ -121,6 +121,7 @@ class NativeModuleTests(unittest.TestCase):
         self.assertEqual(sum(m.id.startswith('native-stdio-') for m in models), 16)
         self.assertEqual(sum(m.id.startswith('native-registration-') for m in models), 41)
         self.assertEqual(sum(m.id.startswith('native-deep-') for m in models), 7)
+        self.assertEqual(sum(m.id.startswith('native-loaded-scope-') for m in models), 13)
         self.assertEqual(sum(m.id.startswith('native-target-read-') for m in models), 8)
         self.assertEqual(sum(m.id.startswith('native-secondary-scope-') for m in models), 4)
         self.assertEqual(sum(m.id.startswith('native-retained-double-branch-') for m in models), 2)

@@ -4080,8 +4080,20 @@ impl Database {
             loaded.status,
             NativeLoadStatus::Loaded | NativeLoadStatus::LoadedWithoutRemake
         ) {
-            self.variables
-                .append_literal_at(b".LOADED", &loaded.name, Origin::File, location)?;
+            // Read the active binding and publish the appended value globally.
+            let current = self
+                .evaluation_bindings
+                .iter()
+                .rev()
+                .find_map(|frame| frame.get(b".LOADED"))
+                .or_else(|| self.evaluation_scope.as_ref()?.local_binding(b".LOADED"));
+            self.variables.append_literal_from_at(
+                b".LOADED",
+                &loaded.name,
+                Origin::File,
+                location,
+                current,
+            )?;
         }
         // A successful or optional attempt retains its file identity even
         // when the runtime has already loaded the module. Only a genuinely
