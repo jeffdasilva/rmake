@@ -3288,7 +3288,12 @@ impl Engine {
                 && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
             let mixed_named_overlap = unruled_primary
-                && matches!(named_load_files, [(_, false), (_, false)])
+                && (matches!(named_load_files, [(_, false), (_, false)])
+                    || (modes.question
+                        && !modes.dry_run
+                        && !modes.touch
+                        && !debug_before_remake.has(Mask::MAKEFILES)
+                        && matches!(named_load_files, [(_, false), (_, false), (_, false)])))
                 && (!debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug)
                 && named_load_files.iter().any(|(file, _)| {
                     !self.is_makefile_goal(
