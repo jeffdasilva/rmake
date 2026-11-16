@@ -208,4 +208,12 @@ Recipe cleanup renders removal and archive-member warnings through the active
 catalog, including grouped peers. File names and group owners remain raw byte
 arguments. Twelve profiles cover serial recipes, both jobservers with target
 output sync, non-UTF-8 names, retained archive members, precious siblings, and
-ignored failures. The full diagnostic gate now runs 193 profiles.
+ignored failures.
+
+## Outstanding recipes
+
+The notice emitted while a failed build drains its remaining recipes uses the
+active catalog. Eight profiles hold a sibling until the failure and wait
+notice are captured. They compare both streams and the released worker's
+files in C and French, with both jobservers and with target output sync.
+The diagnostic gate runs 201 profiles.

@@ -25,6 +25,7 @@ pub enum MessageId {
     DeletePeer,
     RetainArchiveMember,
     RetainPeerArchiveMember,
+    WaitForJobs,
     Ignored,
     NoTargets,
     NoMakefile,
@@ -81,7 +82,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 71] = [
+    pub const ALL: [Self; 72] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -100,6 +101,7 @@ impl MessageId {
         Self::DeletePeer,
         Self::RetainArchiveMember,
         Self::RetainPeerArchiveMember,
+        Self::WaitForJobs,
         Self::Ignored,
         Self::NoTargets,
         Self::NoMakefile,
@@ -201,6 +203,7 @@ impl MessageId {
                     Self::RetainArchiveMember | Self::RetainPeerArchiveMember
                 ),
             },
+            Self::WaitForJobs => Message::WaitForJobs,
             Self::Ignored => Message::Ignored,
             Self::NoTargets | Self::NoMakefile => Message::NoTargets {
                 makefile_found: self == Self::NoTargets,
@@ -342,6 +345,7 @@ impl MessageId {
             Self::RetainPeerArchiveMember => {
                 c"*** [%s] Archive member '%s' may be bogus; not deleted"
             }
+            Self::WaitForJobs => c"*** Waiting for unfinished jobs....",
             Self::Ignored => c" (ignored)",
             Self::NoTargets => c"No targets",
             Self::NoMakefile => c"No targets specified and no makefile found",
@@ -489,6 +493,7 @@ pub enum Message<'a> {
         owner: Option<&'a [u8]>,
         archive: bool,
     },
+    WaitForJobs,
     Ignored,
     NoTargets {
         makefile_found: bool,
@@ -605,6 +610,7 @@ impl<'a> Message<'a> {
                 (false, true) => MessageId::RetainArchiveMember,
                 (true, true) => MessageId::RetainPeerArchiveMember,
             },
+            Self::WaitForJobs => MessageId::WaitForJobs,
             Self::Ignored => MessageId::Ignored,
             Self::NoTargets {
                 makefile_found: true,
@@ -700,6 +706,7 @@ impl<'a> Message<'a> {
             | Self::UnterminatedReference
             | Self::LoadLimitUnsupported
             | Self::LoadLimitErrorPrefix
+            | Self::WaitForJobs
             | Self::ClockSkew
             | Self::MissingTargetPattern
             | Self::MultipleTargetPatterns

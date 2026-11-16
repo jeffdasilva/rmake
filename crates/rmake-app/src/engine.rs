@@ -6203,7 +6203,9 @@ impl Engine {
 
     fn notice_waiting_for_jobs(&self) {
         if !self.waiting_reported.replace(true) {
-            self.stderr(b"*** Waiting for unfinished jobs....");
+            self.stderr(&crate::messages::system(
+                rmake_core::messages::Message::WaitForJobs,
+            ));
         }
     }
 

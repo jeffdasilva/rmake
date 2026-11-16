@@ -416,11 +416,13 @@ def capture(command: list[str], cwd: Path, environment: dict[str, str], timeout:
 
 
 def execute(case: Case, root: Path, executable: Path, *,
-            observe: Callable[[int, bytes], None] | None = None) -> Observation:
+            observe: Callable[[int, bytes], None] | None = None,
+            observe_streams: Callable[[bytes, bytes], None] | None = None) -> Observation:
     reset_workspace(case, root, executable)
     out, err, status, limit, leftovers = capture(
         [str(root / "bin" / "make"), *case.args], root / "work",
-        clean_environment(root, case.environment), case.timeout, case.output == "merged", observe=observe)
+        clean_environment(root, case.environment), case.timeout, case.output == "merged",
+        observe=observe, observe_streams=observe_streams)
     files = snapshot({name: root / name for name in ("work", "home", "tmp")})
     return Observation(out, err, status, limit, files, leftovers)
 
