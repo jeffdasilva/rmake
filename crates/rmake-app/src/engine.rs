@@ -11532,6 +11532,18 @@ impl Engine {
             && rule.recipes.is_none()
             && !self.options.always
             && !dependencies_changed;
+        let forced_current_leaf = self.options.always
+            && mask.has(crate::debug::Mask::BASIC)
+            && !self.remaking
+            && branch.is_none()
+            && group.is_none()
+            && before.is_some()
+            && !phony
+            && !rule.record_only
+            && rule.recipes.is_none()
+            && rule.dependencies.is_empty();
+        // GNU's always-make option adds no work to an existing leaf without a recipe.
+        let report_remake = debug_remake && !no_recipe_no_changes && !forced_current_leaf;
         if debug_remake && double_without_prerequisites {
             crate::debug::emit(
                 &self.output,
@@ -11549,7 +11561,7 @@ impl Engine {
             );
         }
         if debug_remake {
-            if !no_recipe_no_changes {
+            if report_remake {
                 crate::debug::emit(
                     &self.output,
                     crate::debug::Event::MustRemake(target, debug_depth),
@@ -11809,7 +11821,7 @@ impl Engine {
                 if branch.is_some() && debug_depth == 0 && outcome.failed && outcome.blocked {
                     self.report_blocked_goal(target);
                 }
-            } else if debug_remake && !no_recipe_no_changes {
+            } else if report_remake {
                 crate::debug::emit(
                     &self.output,
                     if outcome.failed {
