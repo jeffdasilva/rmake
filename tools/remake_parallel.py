@@ -2136,6 +2136,9 @@ def stock_primary_load_models() -> list[HeldModel]:
                                        for modes in ('nt', 'qt', 'nqt'))
                 else:
                     results.append(stock_primary_mixed_model(held, optional))
+                    if mode == 'q':
+                        results.extend(stock_primary_three_query_model(held, optional, first, count)
+                                       for first in (True, False) for count in (1, 2))
     return results
 
 
@@ -2245,6 +2248,46 @@ def stock_primary_mixed_touch_model(held: HeldModel, optional: bool, named_first
     load = replace(held.load, trace=b'' if optional and named_first else b'proc\n')
     return replace(held, model=model, before_first_stdout=release, load=load,
                    stock_primary_mode=0o644 if primary_touched else 0o755)
+
+
+def stock_primary_three_query_model(held: HeldModel, optional: bool,
+                                    named_first: bool, named_count: int) -> HeldModel:
+    model = stock_primary_two_named_model(held, optional).model
+    files = dict(model.files)
+    child = b'-include child.mk\n' if optional else b'include child.mk\n'
+    extra = b'include extra.mk\n'
+    leaf = b'include leaf.mk\n'
+    reads = child + extra + leaf if named_first else extra + leaf + child
+    for name in ('Makefile', 'Makefile.sh'):
+        text = files[name].replace(child + extra, reads).replace(b'$(EXTRA)', b'$(EXTRA) $(LEAF)')
+        files[name] = text + b"leaf.mk: ; @printf '%s\\n' 'LEAF := loaded' > $@\n"
+    high = held.load.at_release == LOAD_HIGH
+    primary_removed = high and not named_first
+    updates = dict(held.model.updates)
+    stdout = held.before_first_stdout
+    stderr = b''
+    if primary_removed:
+        stderr = b"make: *** Deleting file 'Makefile'\n"
+    else:
+        updates.update({'Makefile': files['Makefile.sh'], 'leaf.mk': b'LEAF := loaded\n'})
+        stdout += b'chmod a+x Makefile\n'
+        if high:
+            updates['child.mk'] = b'CHILD := loaded\n'
+        if high or named_count == 1:
+            updates['extra.mk'] = b'EXTRA := loaded\n'
+    missing = optional and (primary_removed or not high)
+    if missing:
+        stderr += b"make: *** No rule to make target 'child.mk'.  Stop.\n"
+    required_goals = ('child.mk',) if named_count == 1 else (
+        ('child.mk', 'extra.mk') if named_first else ('extra.mk', 'child.mk'))
+    args = tuple('-j3' if arg == '-j2' else arg for arg in model.args[:-3])
+    args = (*args, *required_goals, model.args[-1])
+    expected = {'exit_code': 1 + int(missing), 'stdout_template_hex': stdout.hex(),
+                'stderr_template_hex': stderr.hex()}
+    position = 'first' if named_first else 'last'
+    name = model.id.replace('-two-named-', f'-three-mixed-{position}-{named_count}-')
+    model = replace(model, id=name, files=files, args=args, updates=updates, expected=expected)
+    return replace(held, model=model, stock_primary_mode=None if primary_removed else 0o755)
 
 
 def stock_primary_combined_touch_model(held: HeldModel, modes: str) -> HeldModel:

@@ -127,6 +127,9 @@ Fourteen held combined-mode debug profiles cover an optional named source
 followed by a required unnamed source. The verbose pass prunes a completed
 primary immediately when its query verdict ended the recipe. Other debug
 masks and the number of visits during unheld high-load races remain open.
+Thirty-two additional held query profiles cover three direct includes, one
+or two named goals, and the stock primary worker under three job slots.
+Dry-run and touch schedules with additional sources remain open.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
