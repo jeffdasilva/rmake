@@ -1117,6 +1117,7 @@ struct ImplicitSearch {
     compatibility: bool,
     archive: bool,
     intermediate_scope: Option<ImplicitScope>,
+    branch: Option<usize>,
 }
 
 // A selected Makefile record can name a file that does not exist yet.
@@ -8013,7 +8014,7 @@ impl Engine {
             Some(rule) => (true, rule.record_only.then(|| rule.dependencies.clone())),
             None => (false, Some(Vec::new())),
         };
-        let Ok(plan) = self.plan_implicit_update(target, debug_depth, true) else {
+        let Ok(plan) = self.plan_implicit_update(target, debug_depth, true, None) else {
             return false;
         };
         if plan.is_none()
@@ -8043,6 +8044,7 @@ impl Engine {
         target: &[u8],
         debug_depth: usize,
         record_attempt: bool,
+        branch: Option<usize>,
     ) -> Result<Option<Vec<ImplicitSelection>>, ()> {
         if self.terminal_prerequisites.contains(target) {
             return Ok(None);
@@ -8062,7 +8064,14 @@ impl Engine {
             crate::debug::Event::Looking(target, debug_depth + 1),
         );
         let mut budget = 100_000;
-        match self.implicit_plan(target, &mut Vec::new(), false, &mut budget, debug_depth) {
+        match self.implicit_plan(
+            target,
+            &mut Vec::new(),
+            false,
+            &mut budget,
+            debug_depth,
+            branch,
+        ) {
             Ok(None) if budget == 0 => {
                 self.fatal(None, b"rmake: implicit rule search resource limit exceeded");
                 Err(())
@@ -8226,12 +8235,15 @@ impl Engine {
         &mut self,
         target: &[u8],
         depth: usize,
+        branch: Option<usize>,
     ) -> Result<Option<Rule>, ()> {
         let depth = depth + usize::from(self.remaking);
-        Ok(match self.plan_implicit_update(target, depth, false)? {
-            Some(plan) => self.install_implicit_plan(target, plan, true),
-            None => self.default_update_rule(target, depth, true),
-        })
+        Ok(
+            match self.plan_implicit_update(target, depth, false, branch)? {
+                Some(plan) => self.install_implicit_plan(target, plan, true),
+                None => self.default_update_rule(target, depth, true),
+            },
+        )
     }
 
     /// Search is transactional: a rejected branch never installs rules or marks
@@ -8244,6 +8256,7 @@ impl Engine {
         compatibility: bool,
         budget: &mut usize,
         debug_depth: usize,
+        branch: Option<usize>,
     ) -> Result<Option<Vec<ImplicitSelection>>, ExpandError> {
         if active.len() >= 128 {
             *budget = 0;
@@ -8259,6 +8272,7 @@ impl Engine {
             compatibility,
             archive: false,
             intermediate_scope: None,
+            branch,
         };
         for archive_search in [false, true] {
             if archive_search && archive_name.is_none() {
@@ -8432,6 +8446,7 @@ impl Engine {
                                     intermediate,
                                     candidate.rule.stem.clone().unwrap_or_default(),
                                     &mut search.intermediate_scope,
+                                    search.branch,
                                 )?);
                             } else if !stem_set {
                                 variables.as_mut().unwrap().define_literal(
@@ -8457,6 +8472,12 @@ impl Engine {
                                     if scope.shell_status.as_ref() != Some(status) {
                                         scope.shell_status = Some(status.clone());
                                     }
+                                } else if let Some(ordinal) = search.branch {
+                                    // A later branch inherits the head, but its shell
+                                    // completion belongs to its own recipe variables.
+                                    let mut context = self.rule_variables(target, Some(ordinal))?;
+                                    context.retain_local_shell_status(status);
+                                    self.retain_database_context(target, Some(ordinal), &context);
                                 } else if let Some(context) =
                                     self.target_contexts.get_mut(self.aliases.resolve(target))
                                 {
@@ -8670,6 +8691,7 @@ impl Engine {
                                         compatibility,
                                         budget,
                                         debug_depth,
+                                        None,
                                     )? {
                                         plan.extend(child);
                                     } else {
@@ -8763,6 +8785,7 @@ impl Engine {
         intermediate: bool,
         stem: Vec<u8>,
         intermediate_scope: &mut Option<ImplicitScope>,
+        branch: Option<usize>,
     ) -> Result<VariableStore, ExpandError> {
         if intermediate && intermediate_scope.is_none() {
             let pattern = self.database.prepare_pattern_scope(
@@ -8804,7 +8827,7 @@ impl Engine {
             }
             context
         } else {
-            self.target_variables(target)?
+            self.rule_variables(target, branch)?
         };
         let mut empty = Rule::default();
         let explicit = if intermediate {
@@ -9231,7 +9254,7 @@ impl Engine {
                 if self.new_double_colon_entry_count(target) > 1 {
                     return self.start_late_double_colon_recipe(target, depth, time, outcome, None);
                 }
-                match self.synthetic_double_colon_recipe(target, depth) {
+                match self.synthetic_double_colon_recipe(target, depth, None) {
                     Ok(Some(rule)) => {
                         return self.start_late_double_colon_recipe(
                             target,
@@ -10257,6 +10280,11 @@ impl Engine {
                 .synthetic_tail
                 .as_ref()
                 .and_then(|tail| tail.assumed_time);
+            let implicit_branch = (ordinal != 0
+                && !self.remaking
+                && self.active_makefile_remake.is_none()
+                && assumed_time.is_none())
+            .then_some(ordinal);
             if ordinal != 0 && !declared && !self.remaking && assumed_time.is_none() {
                 // A fresh synthetic branch announces its visit before
                 // implicit search, even when no recipe can be found.
@@ -10283,7 +10311,7 @@ impl Engine {
                         head,
                     }));
                 }
-                match self.synthetic_double_colon_recipe(target, state.depth) {
+                match self.synthetic_double_colon_recipe(target, state.depth, implicit_branch) {
                     Ok(Some(rule)) => rule,
                     Ok(None) => {
                         self.fail_double_colon_input(target, state.depth, &mut state.combined);
@@ -10374,7 +10402,9 @@ impl Engine {
                     .database_branch_implicit
                     .insert((target.to_vec(), ordinal))
             {
-                let Ok(plan) = self.plan_implicit_update(target, state.depth, false) else {
+                let Ok(plan) =
+                    self.plan_implicit_update(target, state.depth, false, implicit_branch)
+                else {
                     state.combined.failed = true;
                     state.combined.fatal = true;
                     state.branches.clear();
