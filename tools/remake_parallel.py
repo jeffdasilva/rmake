@@ -2129,8 +2129,11 @@ def stock_primary_load_models() -> list[HeldModel]:
                                  stock_primary=True)
                 results.extend((held, stock_primary_two_named_model(held, optional)))
                 if mode == 't':
-                    results.extend(stock_primary_mixed_touch_model(held, optional, named_first)
-                                   for named_first in (True, False))
+                    for named_first in (True, False):
+                        touch = stock_primary_mixed_touch_model(held, optional, named_first)
+                        results.append(touch)
+                        results.extend(stock_primary_combined_touch_model(touch, modes)
+                                       for modes in ('nt', 'qt', 'nqt'))
                 else:
                     results.append(stock_primary_mixed_model(held, optional))
     return results
@@ -2242,6 +2245,37 @@ def stock_primary_mixed_touch_model(held: HeldModel, optional: bool, named_first
     load = replace(held.load, trace=b'' if optional and named_first else b'proc\n')
     return replace(held, model=model, before_first_stdout=release, load=load,
                    stock_primary_mode=0o644 if primary_touched else 0o755)
+
+
+def stock_primary_combined_touch_model(held: HeldModel, modes: str) -> HeldModel:
+    model = held.model
+    dry_run = 'n' in modes
+    question = 'q' in modes
+    updates = dict(model.updates)
+    release = held.before_first_stdout
+    primary_mode = held.stock_primary_mode
+    stderr = b''
+    stdout = release
+    if question and primary_mode == 0o644:
+        updates.pop('Makefile')
+        primary_mode = None
+        stderr = b"make: *** Deleting file 'Makefile'\n"
+    else:
+        stdout += b'touch Makefile\n' * 2 if primary_mode == 0o644 else b'chmod a+x Makefile\n'
+        if dry_run:
+            stdout += b'touch child.mk\n'
+    if not question:
+        stdout += b"make: 'child.mk' is up to date.\n"
+    stdout += b'touch all\n'
+    if dry_run:
+        updates.pop('all')
+        updates.pop('child.mk')
+    index = model.args.index('-t')
+    args = (*model.args[:index], *(f'-{mode}' for mode in modes), *model.args[index + 1:])
+    expected = {**model.expected, 'stdout_template_hex': stdout.hex(), 'stderr_template_hex': stderr.hex()}
+    return replace(held, model=replace(model, id=f'{model.id}-combined-{modes}', args=args,
+                                       expected=expected, updates=updates),
+                   stock_primary_mode=primary_mode)
 
 
 def optional_named_load_model(held: HeldModel, position: str, mode: str, high: bool) -> HeldModel:
