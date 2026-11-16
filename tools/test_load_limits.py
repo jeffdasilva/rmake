@@ -11,8 +11,11 @@ import load_limits as campaign
 class LoadLimitsTests(unittest.TestCase):
     def test_inventory_covers_thresholds_recovery_errors_and_failure_queue_policy(self):
         cells = campaign.inventory()
-        self.assertEqual(len(cells), 21)
+        self.assertEqual(len(cells), 25)
         self.assertEqual(len({c.id for c in cells}), len(cells))
+        self.assertEqual({(c.average, c.transport) for c in cells if c.french},
+                         {(error, transport) for error in ('eio', 'unsupported')
+                          for transport in ('pipe', 'fifo')})
         self.assertTrue({'above', 'equal', 'below', 'zero', 'disabled', 'unsigned-wrap',
                          'unsigned-overflow', 'load-drops-after-peer-completion',
                          'interrupted-read', 'read-fallback', 'malformed-fallback',

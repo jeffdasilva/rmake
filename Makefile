@@ -378,8 +378,8 @@ test-output-sync: build oracle-verify
 	$(PYTHON) tools/output_sync.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
 
 test-load: build oracle-verify
-	$(PYTHON) tools/load_limits.py --oracle "$(ORACLE)" --self-test
-	$(PYTHON) tools/load_limits.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)"
+	$(PYTHON) tools/load_limits.py --oracle "$(ORACLE)" --locale-root "$(LOCALE_DATA_ROOT)" --self-test
+	$(PYTHON) tools/load_limits.py --oracle "$(ORACLE)" --locale-root "$(LOCALE_DATA_ROOT)" --candidate "$(CANDIDATE)"
 
 test-graph-progress: build oracle-verify
 	$(PYTHON) tools/conformance.py --oracle "$(ORACLE)" --self-test --repeat "$(PROGRESS_REPEAT)" --case graph-ready-two-barriers --case graph-ready-wait-nested --case grouped-parallel-queued-peer --case double-grouped-parallel-queued --case gpath-destination-built-parallel-first --case gpath-overlap-failure --case gpath-overlap-ignored-failure --case gpath-overlap-scope-refresh --case lazy-record-freshness-normal-parallel --case lazy-record-freshness-promoted-parallel --case lazy-record-double-first-new-parallel --case lazy-record-group-double-first-new-parallel --case vpath-record-overlap-scope-refresh --case vpath-record-overlap-failure --case vpath-record-overlap-ignored-failure --case vpath-record-destination-built-parallel-first --case directory-search-recipe-late-gpath-parallel --case directory-search-candidate-write-parallel
@@ -546,7 +546,7 @@ test-m4-release: release oracle-verify test-nls-release test-nls-directory-relea
 	$(PYTHON) tools/nested_short_proposal.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/nested-short-proposal/release.json
 	$(PYTHON) tools/shuffle_modes.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --report artifacts/shuffle-modes/release.json
 	$(PYTHON) tools/stateful.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
-	$(PYTHON) tools/load_limits.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
+	$(PYTHON) tools/load_limits.py --oracle "$(ORACLE)" --locale-root "$(LOCALE_DATA_ROOT)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/cancellation_effects.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/startup_exits.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"
 	$(PYTHON) tools/source_streams.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)"

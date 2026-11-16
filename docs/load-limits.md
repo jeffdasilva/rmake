@@ -152,6 +152,14 @@ forms, an existing or optional skipped file, and a failing optional peer.
 Thirty-six held profiles cover the missing phony source among two successfully
 remade peers under `-n`, `-q` and `-t` with both jobserver transports.
 
+## Fallback diagnostics
+
+A failed load-average probe renders the active catalog's warning. The
+reported operating-system error uses the active libc message locale.
+Four French profiles cover an unsupported probe and an I/O error with
+both jobservers. They retain the verified probe order, queue order, and
+byte-for-byte streams alongside the existing C controls.
+
 ## Reference study
 
 Consulted the verified GNU Make 4.4.1 source archive, SHA-256

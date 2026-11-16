@@ -25,6 +25,7 @@ pub enum MessageId {
     DeletePeer,
     RetainArchiveMember,
     RetainPeerArchiveMember,
+    WaitForJobs,
     Ignored,
     NoTargets,
     NoMakefile,
@@ -50,12 +51,17 @@ pub enum MessageId {
     LeaveUnknownDirectoryAtDepth,
     OsError,
     SourceError,
+    LoadLimitUnsupported,
+    LoadLimitErrorPrefix,
     FailedMakefileRemake,
     NothingToBeDone,
     UpToDate,
     LowResolutionTime,
     FutureFileTime,
     ClockSkew,
+    IntermediatePolicyConflict,
+    IntermediateTargetConflict,
+    SecondaryTargetConflict,
     CircularDependency,
     MissingTargetPattern,
     MultipleTargetPatterns,
@@ -79,7 +85,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 69] = [
+    pub const ALL: [Self; 75] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -98,6 +104,7 @@ impl MessageId {
         Self::DeletePeer,
         Self::RetainArchiveMember,
         Self::RetainPeerArchiveMember,
+        Self::WaitForJobs,
         Self::Ignored,
         Self::NoTargets,
         Self::NoMakefile,
@@ -123,12 +130,17 @@ impl MessageId {
         Self::LeaveUnknownDirectoryAtDepth,
         Self::OsError,
         Self::SourceError,
+        Self::LoadLimitUnsupported,
+        Self::LoadLimitErrorPrefix,
         Self::FailedMakefileRemake,
         Self::NothingToBeDone,
         Self::UpToDate,
         Self::LowResolutionTime,
         Self::FutureFileTime,
         Self::ClockSkew,
+        Self::IntermediatePolicyConflict,
+        Self::IntermediateTargetConflict,
+        Self::SecondaryTargetConflict,
         Self::CircularDependency,
         Self::MissingTargetPattern,
         Self::MultipleTargetPatterns,
@@ -197,6 +209,7 @@ impl MessageId {
                     Self::RetainArchiveMember | Self::RetainPeerArchiveMember
                 ),
             },
+            Self::WaitForJobs => Message::WaitForJobs,
             Self::Ignored => Message::Ignored,
             Self::NoTargets | Self::NoMakefile => Message::NoTargets {
                 makefile_found: self == Self::NoTargets,
@@ -260,6 +273,8 @@ impl MessageId {
                 path: b"Makefile",
                 detail: b"I/O error",
             },
+            Self::LoadLimitUnsupported => Message::LoadLimitUnsupported,
+            Self::LoadLimitErrorPrefix => Message::LoadLimitErrorPrefix,
             Self::FailedMakefileRemake => Message::FailedMakefileRemake(b"Makefile"),
             Self::NothingToBeDone => Message::NothingToBeDone(b"target"),
             Self::UpToDate => Message::UpToDate(b"target"),
@@ -269,6 +284,13 @@ impl MessageId {
                 seconds: b"1.5",
             },
             Self::ClockSkew => Message::ClockSkew,
+            Self::IntermediatePolicyConflict => Message::IntermediatePolicyConflict,
+            Self::IntermediateTargetConflict | Self::SecondaryTargetConflict => {
+                Message::IntermediateTargetConflict {
+                    target: b"target",
+                    secondary: self == Self::SecondaryTargetConflict,
+                }
+            }
             Self::CircularDependency => Message::CircularDependency {
                 target: b"target",
                 prerequisite: b"input",
@@ -336,6 +358,7 @@ impl MessageId {
             Self::RetainPeerArchiveMember => {
                 c"*** [%s] Archive member '%s' may be bogus; not deleted"
             }
+            Self::WaitForJobs => c"*** Waiting for unfinished jobs....",
             Self::Ignored => c" (ignored)",
             Self::NoTargets => c"No targets",
             Self::NoMakefile => c"No targets specified and no makefile found",
@@ -361,6 +384,8 @@ impl MessageId {
             Self::LeaveUnknownDirectoryAtDepth => c"%s[%u]: Leaving an unknown directory\n",
             Self::OsError => c"%s%s: %s",
             Self::SourceError => c"%s: %s",
+            Self::LoadLimitUnsupported => c"cannot enforce load limits on this operating system",
+            Self::LoadLimitErrorPrefix => c"cannot enforce load limit: ",
             Self::FailedMakefileRemake => c"Failed to remake makefile '%s'.",
             Self::NothingToBeDone => c"Nothing to be done for '%s'.",
             Self::UpToDate => c"'%s' is up to date.",
@@ -369,6 +394,13 @@ impl MessageId {
             }
             Self::FutureFileTime => c"Warning: File '%s' has modification time %s s in the future",
             Self::ClockSkew => c"warning:  Clock skew detected.  Your build may be incomplete.",
+            Self::IntermediatePolicyConflict => {
+                c".NOTINTERMEDIATE and .SECONDARY are mutually exclusive"
+            }
+            Self::IntermediateTargetConflict => {
+                c"%s cannot be both .NOTINTERMEDIATE and .INTERMEDIATE"
+            }
+            Self::SecondaryTargetConflict => c"%s cannot be both .NOTINTERMEDIATE and .SECONDARY",
             Self::CircularDependency => c"Circular %s <- %s dependency dropped.",
             Self::MissingTargetPattern => c"missing target pattern",
             Self::MultipleTargetPatterns => c"multiple target patterns",
@@ -481,6 +513,7 @@ pub enum Message<'a> {
         owner: Option<&'a [u8]>,
         archive: bool,
     },
+    WaitForJobs,
     Ignored,
     NoTargets {
         makefile_found: bool,
@@ -514,6 +547,8 @@ pub enum Message<'a> {
         path: &'a [u8],
         detail: &'a [u8],
     },
+    LoadLimitUnsupported,
+    LoadLimitErrorPrefix,
     FailedMakefileRemake(&'a [u8]),
     NothingToBeDone(&'a [u8]),
     UpToDate(&'a [u8]),
@@ -523,6 +558,11 @@ pub enum Message<'a> {
         seconds: &'a [u8],
     },
     ClockSkew,
+    IntermediatePolicyConflict,
+    IntermediateTargetConflict {
+        target: &'a [u8],
+        secondary: bool,
+    },
     CircularDependency {
         target: &'a [u8],
         prerequisite: &'a [u8],
@@ -595,6 +635,7 @@ impl<'a> Message<'a> {
                 (false, true) => MessageId::RetainArchiveMember,
                 (true, true) => MessageId::RetainPeerArchiveMember,
             },
+            Self::WaitForJobs => MessageId::WaitForJobs,
             Self::Ignored => MessageId::Ignored,
             Self::NoTargets {
                 makefile_found: true,
@@ -637,12 +678,22 @@ impl<'a> Message<'a> {
             },
             Self::OsError { .. } => MessageId::OsError,
             Self::SourceError { .. } => MessageId::SourceError,
+            Self::LoadLimitUnsupported => MessageId::LoadLimitUnsupported,
+            Self::LoadLimitErrorPrefix => MessageId::LoadLimitErrorPrefix,
             Self::FailedMakefileRemake(_) => MessageId::FailedMakefileRemake,
             Self::NothingToBeDone(_) => MessageId::NothingToBeDone,
             Self::UpToDate(_) => MessageId::UpToDate,
             Self::LowResolutionTime(_) => MessageId::LowResolutionTime,
             Self::FutureFileTime { .. } => MessageId::FutureFileTime,
             Self::ClockSkew => MessageId::ClockSkew,
+            Self::IntermediatePolicyConflict => MessageId::IntermediatePolicyConflict,
+            Self::IntermediateTargetConflict { secondary, .. } => {
+                if secondary {
+                    MessageId::SecondaryTargetConflict
+                } else {
+                    MessageId::IntermediateTargetConflict
+                }
+            }
             Self::CircularDependency { .. } => MessageId::CircularDependency,
             Self::MissingTargetPattern => MessageId::MissingTargetPattern,
             Self::MultipleTargetPatterns => MessageId::MultipleTargetPatterns,
@@ -686,7 +737,11 @@ impl<'a> Message<'a> {
             | Self::EmptyVariableName
             | Self::MissingEndef
             | Self::UnterminatedReference
+            | Self::LoadLimitUnsupported
+            | Self::LoadLimitErrorPrefix
+            | Self::WaitForJobs
             | Self::ClockSkew
+            | Self::IntermediatePolicyConflict
             | Self::MissingTargetPattern
             | Self::MultipleTargetPatterns
             | Self::TargetPatternWithoutPercent
@@ -698,6 +753,7 @@ impl<'a> Message<'a> {
             | Self::EmptyNativeFunction => {}
             Self::RecursiveVariable(name)
             | Self::DuplicateRecipe { target: name, .. }
+            | Self::IntermediateTargetConflict { target: name, .. }
             | Self::NothingToBeDone(name)
             | Self::UpToDate(name)
             | Self::LowResolutionTime(name)

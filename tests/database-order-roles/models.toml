@@ -351,3 +351,89 @@ all: $$(N) ; @$(file >>seen,$^):
 records = ["all: n | .WAIT z gate"]
 seen_hex = "6e0a"
 flags = ["-p"]
+
+[[case]]
+id = "static-stem-uses-declared-pattern"
+makefile = '''
+all: al%: n | z ; @$(file >>seen,$*):
+'''
+records = ["all: n | z"]
+seen_hex = "6c0a"
+flags = ["-p"]
+
+[[case]]
+id = "static-empty-stem-bypasses-suffix-fallback"
+makefile = '''
+.SUFFIXES: l
+all: all%: n ; @$(file >>seen,$*):
+'''
+records = ["all: n"]
+seen_hex = "0a"
+flags = ["-p"]
+
+[[case]]
+id = "static-stem-late-database"
+makefile = '''
+all: a%: z | n .WAIT z ; @$(eval MAKEFLAGS += -p)$(file >>seen,$*:$^:$|):
+'''
+records = ["all: MFLAGS = -prRs --no-print-directory", "all: MAKEFLAGS = prRs --no-print-directory", "all: z .WAIT z | n"]
+seen_hex = "6c6c3a7a3a6e0a"
+
+[[case]]
+id = "static-stem-secondary-file-effects"
+makefile = '''
+.SECONDEXPANSION:
+all: al%: n $$(file >>seen,secondary=$$*) ; @$(file >>seen,recipe=$*):
+'''
+records = ["all: n"]
+seen_hex = "7365636f6e646172793d6c0a7265636970653d6c0a"
+flags = ["-p"]
+
+[[case]]
+id = "static-stem-hidden-inputs-in-question-mode"
+makefile = '''
+all: .EXTRA_PREREQS := gate
+all: a%: z | n .WAIT z ; @$(file >>seen,$*:$^:$|):
+'''
+records = ["all: .EXTRA_PREREQS := gate", "all: z .WAIT z gate | n"]
+seen_hex = "6c6c3a7a3a6e0a"
+flags = ["-p", "-q"]
+status = 1
+
+[[case]]
+id = "static-unvisited-stem-is-recorded"
+makefile = '''
+unused: un%: z
+all: n ; @$(file >>seen,all):
+'''
+records = ["unused: z", "all: n"]
+seen_hex = "616c6c0a"
+flags = ["-p"]
+
+[[case]]
+id = "static-multiple-targets-record-their-stems"
+makefile = '''
+all unused: %: n ; @$(file >>seen,$*):
+'''
+records = ["unused: n", "all: n"]
+seen_hex = "616c6c0a"
+flags = ["-p"]
+
+[[case]]
+id = "static-stem-registers-substituted-input"
+makefile = '''
+all: a%: % ; @$(file >>seen,$*:$<):
+ll: n ; @:
+'''
+records = ["all: ll"]
+seen_hex = "6c6c3a6c6c0a"
+flags = ["-p"]
+
+[[case]]
+id = "static-empty-stem-registers-substituted-input"
+makefile = '''
+all: all%: n% ; @$(file >>seen,$*:$<):
+'''
+records = ["all: n"]
+seen_hex = "3a6e0a"
+flags = ["-p"]

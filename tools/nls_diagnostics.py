@@ -92,9 +92,11 @@ def cases(selection):
     low_resolution = json.loads((DATA / "low-resolution.json").read_bytes())
     touch_open = json.loads((DATA / "touch-open.json").read_bytes())
     cleanup = json.loads((DATA / "cleanup.json").read_bytes())
+    wait_notice = json.loads((DATA / "wait-notice.json").read_bytes())
+    intermediate = json.loads((DATA / "intermediate-policy.json").read_bytes())
     suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution,
-              touch_open, cleanup)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 18, 15, 20, 14, 13, 18, 16, 12, 12):
+              touch_open, cleanup, wait_notice, intermediate)
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 18, 15, 20, 14, 13, 18, 16, 12, 12, 8, 12):
         raise h.HarnessError("unexpected NLS model inventory")
     rows = [row for suite in suites for row in suite["rows"]]
     if len({row["id"] for row in rows}) != len(rows):
@@ -122,8 +124,9 @@ def cases(selection):
     fixtures["include_errno.c"] = include_fixtures["include_errno.c"]
     if remake["fixture_sha256"] != {"nls_control.c": fixtures["nls_control.c"]}:
         raise h.HarnessError("remake fixture inventory or shared source identity differs")
-    if any(suite["fixture_sha256"] for suite in (repeat, replay, low_resolution, touch_open, cleanup)):
-        raise h.HarnessError("unexpected source fixtures for repeat, replay, timestamp, touch or cleanup cases")
+    if any(suite["fixture_sha256"] for suite in (repeat, replay, low_resolution, touch_open, cleanup,
+                                                wait_notice, intermediate)):
+        raise h.HarnessError("unexpected source fixtures for later diagnostic cases")
     for name, expected in fixtures.items():
         if h.sha256_file(DATA / name) != expected:
             raise h.HarnessError("NLS fixture source hash differs: " + name)
@@ -178,6 +181,23 @@ def prepare_reference(oracle, catalog_sha256, locale_root):
     return oracle, oracle_profile, catalog, profile
 
 
+def release_on_wait_notice(runtime):
+    notices = (
+        b"make: *** Waiting for unfinished jobs....\n",
+        "make: *** Attente des tâches non terminées....\n".encode(),
+    )
+    release = runtime / "work/release"
+
+    def observe(_stdout, stderr):
+        # Either notice frees the worker. The exact bytes are checked separately.
+        if not release.exists() and any(notice in stderr for notice in notices):
+            if (runtime / "work/held").read_bytes() != b"ready\n":
+                raise h.HarnessError("wait diagnostic did not hold a live sibling")
+            release.write_bytes(b"yes\n")
+
+    return observe
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--oracle", type=Path, default=ROOT / ".tools/oracle/bin/make")
@@ -202,6 +222,8 @@ def main(argv=None):
               "low_resolution_sha256": h.sha256_file(DATA / "low-resolution.json"),
               "touch_open_sha256": h.sha256_file(DATA / "touch-open.json"),
               "cleanup_sha256": h.sha256_file(DATA / "cleanup.json"),
+              "wait_notice_sha256": h.sha256_file(DATA / "wait-notice.json"),
+              "intermediate_policy_sha256": h.sha256_file(DATA / "intermediate-policy.json"),
               "tool_sha256": h.sha256_file(Path(__file__)), "locale_profile": profile,
               "oracle": h.executable_identity(oracle, oracle=True), "oracle_profile_id": oracle_profile["profile_id"], "candidate": h.executable_identity(args.candidate) if args.candidate else None,
               "reference_catalog": {"path": str(catalog), "sha256": h.sha256_file(catalog)},
@@ -246,8 +268,9 @@ def main(argv=None):
             expected_mtimes = row.get("expected_mtimes_ns", {})
             timestamp_paths = {name: reset / "work" / native.safe_relative(name) for name in expected_mtimes}
             observed = []
+            observer = release_on_wait_notice(reset) if row.get("held_wait") else None
             for executable in [oracle, oracle, *([args.candidate] if args.candidate else [])]:
-                value = h.execute(case, reset, executable)
+                value = h.execute(case, reset, executable, observe_streams=observer)
                 differences = h.differences(observed[0], value) if observed else []
                 observed.append(value)
                 timestamps = {name: path.stat().st_mtime_ns if path.exists() else None

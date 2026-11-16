@@ -9,8 +9,11 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import conformance as harness
+import locale_data
+from nls_diagnostics import OS_WITNESS
 import oracle
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,6 +51,9 @@ with open('lock', 'a') as lock:
 if name == 'a' and mode.startswith('fail'):
     raise SystemExit(7)
 '''
+FRENCH_ENVIRONMENT = {
+    'LC_ALL': 'fr_FR.UTF-8', 'LANG': 'fr_FR.UTF-8', 'LANGUAGE': 'fr',
+}
 
 @dataclasses.dataclass(frozen=True)
 class Cell:
@@ -60,6 +66,8 @@ class Cell:
     trace: bytes = b'proc\n'
     stderr: bytes = b''
     jobs: int = 4
+    french: bool = False
+    transport: str | None = None
 
     @property
     def maximum(self):
@@ -103,6 +111,14 @@ def inventory():
                              ('unsupported', b'make: cannot enforce load limits on this operating system\n')]:
         cells.append(Cell('average-' + kind, b'', '0', 'serial', 'open-denied', kind,
                           b'proc\naverage\n', diagnostic))
+    for kind, diagnostic in (
+        ('eio', "make: impossible d'imposer des limites de charge\u00a0: getloadavg : @OS_DETAIL@\n"),
+        ('unsupported', "make: impossible d'imposer des limites de charge sur ce système d'exploitation\n"),
+    ):
+        for transport in ('pipe', 'fifo'):
+            cells.append(Cell(f'average-{kind}-fr-{transport}', b'', '0', 'serial',
+                              'open-denied', kind, b'proc\naverage\n', diagnostic.encode(),
+                              french=True, transport=transport))
     for mode, suffix in [('fail', b''), ('fail-keep', b"make: Target 'all' not remade because of errors.\n"), ('fail-ignore', b'')]:
         cells.append(Cell('queued-' + mode, b'0 0 0 99/100 1\n', '2', mode,
                           stderr=(b'make: [Makefile:5: a] Error 7 (ignored)\n' if mode == 'fail-ignore' else b'make: *** [Makefile:5: a] Error 7\n') + suffix))
@@ -119,16 +135,20 @@ def materialize(cell, path):
         (path / name).write_text('0')
 
 
-def execute(cell, root, fixture, binary, helper):
+def execute(cell, root, fixture, binary, helper, locale_environment=None):
     trace = root / 'load.trace'
     trace.unlink(missing_ok=True)
     case = harness.Case(fixture, cell.id, 'runtime.load', 'required',
                         ('-rR', '--no-print-directory', '-j' + str(cell.jobs), '-l' + cell.limit,
+                         *([f'--jobserver-style={cell.transport}'] if cell.transport else []),
                          *(['-k'] if cell.behavior == 'fail-keep' else ['-i'] if cell.behavior == 'fail-ignore' else [])), 6, {}, {})
     harness.reset_workspace(case, root, binary)
-    environment = harness.clean_environment(root, {
+    variables = {
         'LD_PRELOAD': str(helper), 'RMAKE_TEST_LOAD': cell.mode,
-        'RMAKE_LOAD_AVERAGE': cell.average, 'RMAKE_LOAD_TRACE': str(trace)})
+        'RMAKE_LOAD_AVERAGE': cell.average, 'RMAKE_LOAD_TRACE': str(trace)}
+    if cell.french:
+        variables.update(locale_environment)
+    environment = harness.clean_environment(root, variables)
     out, err, status, limit, leftovers = harness.capture(
         [str(root / 'bin/make'), *case.args], root / 'work', environment, case.timeout)
     # Parallel completion order has no specified order. The fixture checks
@@ -168,6 +188,7 @@ def main():
     parser.add_argument('--repeat', type=int, default=3)
     parser.add_argument('--case', action='append', default=[])
     parser.add_argument('--artifacts', type=Path, default=ROOT / 'artifacts/load')
+    parser.add_argument('--locale-root', type=Path, default=ROOT / '.tools/locale-data')
     args = parser.parse_args()
     if bool(args.candidate) == args.self_test: parser.error('choose candidate or self-test')
     if not 1 <= args.repeat <= 100: parser.error('repeat must be 1-100')
@@ -181,16 +202,28 @@ def main():
                     str(SOURCE), '-ldl', '-o', str(helper)], check=True)
     cells = inventory()
     if set(args.case) - {c.id for c in cells}: parser.error('unknown case')
+    cells = tuple(cell for cell in cells if not args.case or cell.id in args.case)
+    locale_profile, locale_environment = None, None
+    if any(cell.french for cell in cells):
+        locale_profile = locale_data.provision(args.locale_root.resolve())
+        locale_environment = {**locale_profile['environment'], **FRENCH_ENVIRONMENT}
+        witness = subprocess.run([sys.executable, '-c', OS_WITNESS, 'EIO'],
+                                 env=locale_environment, capture_output=True, timeout=5, check=True)
+        if witness.stderr or not witness.stdout or b'\n' in witness.stdout:
+            raise harness.HarnessError('could not witness libc load error in the French locale')
+        cells = tuple(dataclasses.replace(cell, stderr=cell.stderr.replace(b'@OS_DETAIL@', witness.stdout))
+                      for cell in cells)
     results = []
     for cell in cells:
-        if args.case and cell.id not in args.case: continue
         fixture = destination / ('input-' + cell.id)
         materialize(cell, fixture)
         for repeat in range(args.repeat):
             root = destination / 'run'
             root.mkdir(exist_ok=True)
-            baseline, baseline_errors, baseline_order, baseline_trace = execute(cell, root, fixture, args.oracle.resolve(), helper)
-            observed, errors, order, trace = execute(cell, root, fixture, candidate, helper)
+            baseline, baseline_errors, baseline_order, baseline_trace = execute(
+                cell, root, fixture, args.oracle.resolve(), helper, locale_environment)
+            observed, errors, order, trace = execute(
+                cell, root, fixture, candidate, helper, locale_environment)
             errors += baseline_errors + harness.differences(baseline, observed)
             row = {'case': cell.id, 'repeat': repeat, 'errors': errors,
                    'oracle': dataclasses.asdict(baseline), 'candidate': dataclasses.asdict(observed),
@@ -198,7 +231,7 @@ def main():
                    'oracle_trace': baseline_trace, 'candidate_trace': trace}
             results.append(row)
             print('FAIL' if errors else 'PASS', cell.id, repeat, errors, flush=True)
-    report = {'oracle_profile': profile, 'candidate_identity': identity,
+    report = {'oracle_profile': profile, 'locale_profile': locale_profile, 'candidate_identity': identity,
               'source_sha256': harness.sha256_file(SOURCE), 'runner_sha256': harness.sha256_file(Path(__file__)),
               'results': results,
               'limitations': ['Trusted fixtures and LD_PRELOAD, not a security sandbox.',
