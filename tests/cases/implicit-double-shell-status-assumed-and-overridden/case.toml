@@ -1,0 +1,11 @@
+id = "implicit-double-shell-status-assumed-and-overridden"
+requirement = "scope.implicit-secondary-status"
+candidate = "required"
+provenance = "Original rmake differential fixture for branch-local implicit shell status."
+args = ["-rR", "--no-print-directory", "-j1", "-W", "leaf", "all"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout = "head[11]\nsearch[7|af]\ntail[13|input|af]\nthird[17]\nsearch[7|af]\nhead[17]\ninferred[input][af][13]\nthird[17]\ninferred[input][af][7]\n"
+stderr = ""
