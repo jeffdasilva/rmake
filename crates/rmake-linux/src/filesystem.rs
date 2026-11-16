@@ -3,12 +3,13 @@
 
 //! Byte-preserving filesystem effects, with GNU-compatible stdio boundaries.
 
-use std::ffi::OsStr;
+use std::ffi::{CStr, OsStr};
 use std::fs;
 use std::io;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 
 use rmake_core::diagnostic::{FilesystemEffect, FilesystemError};
+use rmake_core::messages::Argument;
 use rmake_core::variables::MAX_OUTPUT;
 
 use crate::stdio::Stream;
@@ -161,17 +162,17 @@ fn execute_with<O>(
         FilesystemEffect::ReadFile(path) => read(path, missing_read).map_err(Into::into),
         FilesystemEffect::WriteFile { path, text, append } => {
             let mut stream = Stream::open(path, if append { c"a" } else { c"w" })
-                .map_err(|error| diagnostic(b"open", path, error))?;
+                .map_err(|error| diagnostic(c"open: %s: %s", path, &error))?;
             wildcard.invalidate();
             *file_writes = file_writes.wrapping_add(1);
             if let Some(text) = text {
                 stream
                     .write_text(text, !text.ends_with(b"\n"))
-                    .map_err(|error| diagnostic(b"write", path, error))?;
+                    .map_err(|error| diagnostic(c"write: %s: %s", path, &error))?;
             }
             stream
                 .close()
-                .map_err(|error| diagnostic(b"close", path, error))?;
+                .map_err(|error| diagnostic(c"close: %s: %s", path, &error))?;
             Ok(Vec::new())
         }
     }
@@ -193,14 +194,14 @@ fn read(path: &[u8], missing_read: impl FnOnce(&[u8], &io::Error)) -> Result<Vec
             missing_read(path, &error);
             return Ok(Vec::new());
         }
-        Err(error) => return Err(diagnostic(b"open", path, error)),
+        Err(error) => return Err(diagnostic(c"open: %s: %s", path, &error)),
     };
     let mut output = Vec::new();
     let mut buffer = [0; 1024];
     loop {
         let count = stream
             .read(&mut buffer)
-            .map_err(|error| diagnostic(b"read", path, error))?;
+            .map_err(|error| diagnostic(c"read: %s: %s", path, &error))?;
         if count == 0 {
             break;
         }
@@ -213,7 +214,7 @@ fn read(path: &[u8], missing_read: impl FnOnce(&[u8], &io::Error)) -> Result<Vec
     }
     stream
         .close()
-        .map_err(|error| diagnostic(b"close", path, error))?;
+        .map_err(|error| diagnostic(c"close: %s: %s", path, &error))?;
     if output.ends_with(b"\n") {
         output.pop();
         if output.ends_with(b"\r") {
@@ -242,14 +243,12 @@ pub fn source_error_detail(error: &io::Error) -> Vec<u8> {
         .to_vec()
 }
 
-fn diagnostic(stage: &[u8], path: &[u8], error: io::Error) -> Vec<u8> {
-    let message = error.to_string();
-    let suffix = error
-        .raw_os_error()
-        .map(|code| format!(" (os error {code})"))
-        .unwrap_or_default();
-    let message = message.strip_suffix(&suffix).unwrap_or(&message);
-    [stage, b": ", path, b": ", message.as_bytes()].concat()
+fn diagnostic(key: &'static CStr, path: &[u8], error: &io::Error) -> Vec<u8> {
+    let detail = source_error_detail(error);
+    crate::messages::render_format(key, &[Argument::Bytes(path), Argument::Bytes(&detail)])
+        .unwrap_or_else(|error| {
+            format!("invalid localized system message format: {error:?}").into_bytes()
+        })
 }
 
 /// Open now and retain the source descriptor through interpretation. The

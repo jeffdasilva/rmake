@@ -222,4 +222,12 @@ files in C and French, with both jobservers and with target output sync.
 Conflicting intermediate-file declarations use the active catalog for
 global policies and named targets. Twelve profiles check the German,
 Japanese, and Polish messages, C and French fallback, raw target bytes,
-and a nonconflicting control. The diagnostic gate runs 213 profiles.
+and a nonconflicting control.
+
+## File function I/O
+
+Failures in `$(file ...)` select the active open, read, write, or close
+template. The path and libc error remain raw byte arguments. Twelve
+profiles verify reader and recipe expansion, raw file names, buffered
+write and close failures, and effects completed before the failure. The
+diagnostic gate runs 225 profiles.

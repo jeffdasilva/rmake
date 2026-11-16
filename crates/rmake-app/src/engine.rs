@@ -10218,12 +10218,14 @@ impl Engine {
                 };
                 state.combined.debug_time_changed =
                     self.output.debug_mask().has(crate::debug::Mask::BASIC)
-                        && state
-                            .synthetic_tail
-                            .as_ref()
-                            .and_then(|tail| tail.assumed_time)
-                            .or(state.before)
-                            != state.combined.time;
+                        && self.debug_timestamp_changed(
+                            state
+                                .synthetic_tail
+                                .as_ref()
+                                .and_then(|tail| tail.assumed_time)
+                                .or(state.before),
+                            state.combined,
+                        );
                 if let Some(tail) = state.synthetic_tail {
                     if !state.combined.failed {
                         if tail.assumed_time.is_some() {
@@ -11134,8 +11136,8 @@ impl Engine {
             // changed timestamp independently of the final freshness test.
             let observe_change = first
                 && self.output.debug_mask().has(crate::debug::Mask::BASIC)
-                && !self.done.contains_key(dependency)
-                && !self.parallel_graph();
+                && !self.done.contains_key(dependency);
+            let serial_observation = observe_change && !self.parallel_graph();
             let unknown_archive = self
                 .done
                 .get(dependency)
@@ -11201,7 +11203,12 @@ impl Engine {
             } else {
                 self.observe_updated(dependency, child)
             };
-            if observe_change && !pending && child.debug_time_changed {
+            if observe_change
+                && !pending
+                && child.debug_time_changed
+                && (serial_observation
+                    || (self.parallel_jobs.is_empty() && self.debug_has_logical_time(child)))
+            {
                 state
                     .debug_changed_edges
                     .get_or_insert_default()
@@ -11238,6 +11245,28 @@ impl Engine {
         ) || before.is_none()
             || child.time.is_none()
             || child.time > before
+    }
+
+    fn debug_has_logical_time(&self, outcome: Outcome) -> bool {
+        // The pure dry-run path already records which grouped outcomes
+        // preserve a physical timestamp instead of simulating an update.
+        !self.remaking
+            && outcome.completion == CompletionTime::AssumeNew
+            && (outcome.database_result == DatabaseResult::Simulated
+                || !self.options.dry_run
+                || self.options.question
+                || self.options.touch)
+    }
+
+    fn debug_timestamp_changed(&self, before: Option<SystemTime>, outcome: Outcome) -> bool {
+        if self.debug_has_logical_time(outcome) {
+            // A simulated recipe supplies a logical newest timestamp.
+            return self
+                .assumptions
+                .as_ref()
+                .is_none_or(|files| !files.is_new_time(before));
+        }
+        outcome.time != before
     }
 
     fn finish_rule(&mut self, target: &[u8], state: RuleState) -> Outcome {
@@ -11461,13 +11490,15 @@ impl Engine {
                     continue;
                 }
                 use crate::debug::Prerequisite;
+                let logical_time = child.is_some_and(|child| self.debug_has_logical_time(child));
                 let state = match child {
                     _ if occurrence.order_only => Prerequisite::OrderOnly,
-                    Some(child) if child.time.is_some() => {
+                    Some(child) if child.time.is_some() || logical_time => {
                         if changed
                             || child.time > comparison
                             || (child.completion == CompletionTime::AssumeNew
-                                && self.prerequisite_stale(comparison, child))
+                                && ((!logical_time && self.options.always)
+                                    || self.prerequisite_timestamp_stale(comparison, child)))
                             || inspected_stale
                         {
                             Prerequisite::Newer
@@ -11746,7 +11777,7 @@ impl Engine {
             outcome.debug_time_changed = mask.has(crate::debug::Mask::BASIC)
                 && !outcome.failed
                 && !self.parallel_jobs.contains_key(target)
-                && outcome.time != before;
+                && self.debug_timestamp_changed(before, outcome);
         }
         if !debug_remake && !outcome.failed && !self.special(b".NOTINTERMEDIATE", target, true) {
             if let Some(ordinal) = branch {

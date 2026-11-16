@@ -1,6 +1,6 @@
 # Verbose debug decisions
 
-These 31 original Makefiles exercise VPATH and GPATH spelling, observed
+These 45 original Makefiles exercise VPATH and GPATH spelling, observed
 prerequisite timestamp changes, serial pruning, declaration order-only
 roles, always-make, empty double-colon branches, existing targets without
 recipes, stopping and keep-going prerequisite failures, and missing and
@@ -17,6 +17,12 @@ parent's freshness decision.
 The cache controls check first access, repeated access, a rebound directory
 alias, and a shell launch failure alongside a stale lookup. The C and French
 streams retain the same cache diagnostic.
+
+Dry-run and query controls verify the reported age of a simulated prerequisite
+with no physical file. They include explicit dependencies, an implicit chain,
+explicitly newest parents with shared and repeated dependencies, empty
+recipes, phony targets, explicit groups, actual forced commands, and order-only
+prerequisites. Repeated dry-run prerequisites also exercise both jobservers.
 
 Run from a checkout with the pinned oracle and locale data.
 
