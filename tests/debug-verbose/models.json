@@ -2319,6 +2319,116 @@
         "fixed": 1600000003,
         "other": 1600000000
       }
+    },
+    {
+      "id": "assumed-new-phony-double-pattern-stays-current",
+      "makefile": ".PHONY: leaf\nall: leaf\n\t@printf \"%s\\n\" parent\nleaf:: base\nle%: input\n\t@printf \"%s\\n\" inferred > unexpected\n",
+      "initial_file_offsets": {
+        "all": 2,
+        "base": 0,
+        "input": 3
+      },
+      "args": [
+        "-j1",
+        "--debug=v",
+        "-W",
+        "leaf",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'leaf'.\n  File 'leaf' does not exist.\n  Considering target file 'base'.\n  Finished prerequisites of target file 'base'.\n  No need to remake target 'base'.\n Finished prerequisites of target file 'leaf'.\n Must remake target 'leaf'.\n Successfully remade target file 'leaf'.\n Considering target file 'leaf'.\n  Considering target file 'input'.\n  Finished prerequisites of target file 'input'.\n  No need to remake target 'input'.\n Finished prerequisites of target file 'leaf'.\n  Prerequisite 'input' is older than target 'leaf'.\n No need to remake target 'leaf'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'leaf' is newer than target 'all'.\nMust remake target 'all'.\nparent\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « leaf ».\n  Le fichier « leaf » n'existe pas.\n  Étude du fichier cible « base ».\n  Fin des dépendances du fichier cible « base ».\n  Inutile de refabriquer la cible « base ».\n Fin des dépendances du fichier cible « leaf ».\n Il faut refabriquer la cible « leaf ».\n Refabrication réussie du fichier cible « leaf ».\n Étude du fichier cible « leaf ».\n  Étude du fichier cible « input ».\n  Fin des dépendances du fichier cible « input ».\n  Inutile de refabriquer la cible « input ».\n Fin des dépendances du fichier cible « leaf ».\n  La dépendance « input » est plus ancienne que la cible « leaf ».\n Inutile de refabriquer la cible « leaf ».\nFin des dépendances du fichier cible « all ».\n La dépendance « leaf » est plus récente que la cible « all ».\nIl faut refabriquer la cible « all ».\nparent\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "all": 1600000002,
+        "base": 1600000000,
+        "input": 1600000003
+      }
+    },
+    {
+      "id": "assumed-new-phony-double-pattern-newest-parent",
+      "makefile": ".PHONY: leaf\nall: leaf\n\t@printf \"%s\\n\" parent\nleaf:: base\n\t@printf \"%s\\n\" head\nle%: input\n\t@printf \"%s\\n\" inferred > unexpected\n",
+      "initial_file_offsets": {
+        "all": 2,
+        "leaf": 1,
+        "base": 0,
+        "input": 3
+      },
+      "args": [
+        "-j1",
+        "--debug=v",
+        "-W",
+        "leaf",
+        "-W",
+        "all",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'leaf'.\n  File 'leaf' does not exist.\n  Considering target file 'base'.\n  Finished prerequisites of target file 'base'.\n  No need to remake target 'base'.\n Finished prerequisites of target file 'leaf'.\n Must remake target 'leaf'.\nhead\n Successfully remade target file 'leaf'.\n Considering target file 'leaf'.\nDirectory . cache invalidated (count 1 != command 2)\n  Considering target file 'input'.\n  Finished prerequisites of target file 'input'.\n  No need to remake target 'input'.\n Finished prerequisites of target file 'leaf'.\n  Prerequisite 'input' is older than target 'leaf'.\n No need to remake target 'leaf'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'leaf' is newer than target 'all'.\nNo need to remake target 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « leaf ».\n  Le fichier « leaf » n'existe pas.\n  Étude du fichier cible « base ».\n  Fin des dépendances du fichier cible « base ».\n  Inutile de refabriquer la cible « base ».\n Fin des dépendances du fichier cible « leaf ».\n Il faut refabriquer la cible « leaf ».\nhead\n Refabrication réussie du fichier cible « leaf ».\n Étude du fichier cible « leaf ».\nDirectory . cache invalidated (count 1 != command 2)\n  Étude du fichier cible « input ».\n  Fin des dépendances du fichier cible « input ».\n  Inutile de refabriquer la cible « input ».\n Fin des dépendances du fichier cible « leaf ».\n  La dépendance « input » est plus ancienne que la cible « leaf ».\n Inutile de refabriquer la cible « leaf ».\nFin des dépendances du fichier cible « all ».\n La dépendance « leaf » est plus récente que la cible « all ».\nInutile de refabriquer la cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "all": 1600000002,
+        "leaf": 1600000001,
+        "base": 1600000000,
+        "input": 1600000003
+      }
+    },
+    {
+      "id": "assumed-new-phony-double-pattern-forced-order-only",
+      "makefile": ".PHONY: leaf\nall: leaf\n\t@printf \"%s\\n\" parent\nleaf:: base\nle%: | input\n\t@printf \"%s\\n\" inferred > unexpected\n",
+      "initial_file_offsets": {
+        "all": 2,
+        "leaf": 1,
+        "base": 0,
+        "input": 3
+      },
+      "args": [
+        "-j1",
+        "--debug=v",
+        "-W",
+        "leaf",
+        "-n",
+        "-B",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'leaf'.\n  File 'leaf' does not exist.\n  Considering target file 'base'.\n  Finished prerequisites of target file 'base'.\n  No need to remake target 'base'.\n Finished prerequisites of target file 'leaf'.\n Must remake target 'leaf'.\n Successfully remade target file 'leaf'.\n Considering target file 'leaf'.\n  Considering target file 'input'.\n  Finished prerequisites of target file 'input'.\n  No need to remake target 'input'.\n Finished prerequisites of target file 'leaf'.\n  Prerequisite 'input' is order-only for target 'leaf'.\n Making 'leaf' due to always-make flag.\n Must remake target 'leaf'.\nprintf \"%s\\n\" inferred > unexpected\n Successfully remade target file 'leaf'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'leaf' is newer than target 'all'.\nMust remake target 'all'.\nprintf \"%s\\n\" parent\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « leaf ».\n  Le fichier « leaf » n'existe pas.\n  Étude du fichier cible « base ».\n  Fin des dépendances du fichier cible « base ».\n  Inutile de refabriquer la cible « base ».\n Fin des dépendances du fichier cible « leaf ».\n Il faut refabriquer la cible « leaf ».\n Refabrication réussie du fichier cible « leaf ».\n Étude du fichier cible « leaf ».\n  Étude du fichier cible « input ».\n  Fin des dépendances du fichier cible « input ».\n  Inutile de refabriquer la cible « input ».\n Fin des dépendances du fichier cible « leaf ».\n  La dépendance « input » ne commande que la cible « leaf ».\n Fabrication de « leaf » à cause de l'indicateur « always-make ».\n Il faut refabriquer la cible « leaf ».\nprintf \"%s\\n\" inferred > unexpected\n Refabrication réussie du fichier cible « leaf ».\nFin des dépendances du fichier cible « all ».\n La dépendance « leaf » est plus récente que la cible « all ».\nIl faut refabriquer la cible « all ».\nprintf \"%s\\n\" parent\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "all": 1600000002,
+        "leaf": 1600000001,
+        "base": 1600000000,
+        "input": 1600000003
+      }
     }
   ]
 }
