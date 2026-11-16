@@ -2198,6 +2198,11 @@ def stock_primary_load_models() -> list[HeldModel]:
                                         results.extend(stock_primary_three_final_touch_profiles(
                                             middle, True, extend_named=False,
                                             job_cases=(('-j2', '2-slots'), ('-j4', '4-slots'))))
+                                    if optional:
+                                        both = stock_primary_two_optional_touches(query)
+                                        results.extend(stock_primary_three_final_touch_profiles(
+                                            both, True, extend_named=False,
+                                            job_cases=(('-j2', '2-slots'), ('-j4', '4-slots'))))
     return results
 
 
@@ -2499,7 +2504,9 @@ def stock_primary_three_optional_final_touch(held: HeldModel, modes: str) -> Hel
     model = stock_primary_three_modes(held.model, modes)
     goals = model.args[model.args.index('-t') + 1:-1]
     touches = tuple(f'touch {goal}\n'.encode() for goal in goals)
-    optional_end = goals.index('child.mk') + 1
+    read_lines = set(model.files['Makefile'].splitlines())
+    optional_end = next(index for index, goal in enumerate(goals, 1)
+                        if f'-include {goal}'.encode() in read_lines)
     through_optional = b''.join(touches[:optional_end])
     after_optional = b''.join(touches[optional_end:])
     has_followers = bool(after_optional)
@@ -2621,6 +2628,16 @@ def stock_primary_insert_optional_middle(held: HeldModel) -> HeldModel:
     args = (*model.args[:index], 'child.mk', 'tail.mk', *model.args[index + 2:])
     identifier = model.id.replace('last-adjacent-reversed', 'last-adjacent-optional-middle')
     return replace(held, model=replace(model, id=identifier, files=files, args=args))
+
+
+def stock_primary_two_optional_touches(held: HeldModel) -> HeldModel:
+    model = held.model
+    files = dict(model.files)
+    for name in ('Makefile', 'Makefile.sh'):
+        assert files[name].count(b'include extra.mk\n') == 1
+        files[name] = files[name].replace(b'include extra.mk\n', b'-include extra.mk\n')
+    identifier = model.id.replace('stock-primary-optional-', 'stock-primary-both-optional-')
+    return replace(held, model=replace(model, id=identifier, files=files))
 
 
 def stock_primary_three_prefix_model(held: HeldModel, optional: bool, named_count: int,

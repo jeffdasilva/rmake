@@ -173,6 +173,8 @@ four slots, including exact order, primary mode, and file effects.
 One optional include can also appear anywhere among the named sources.
 The 144 additional cases cover all three optional positions in a
 three-name tail and the pass boundary before a later required visit.
+Ninety-six further cases make both named sources optional and confirm
+the same touch policy through the first optional completion.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an

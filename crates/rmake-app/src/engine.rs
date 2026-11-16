@@ -3339,7 +3339,7 @@ impl Engine {
                 && self.options.jobs.is_some_and(|slots| slots >= 4);
             let final_named_touch = modes.touch
                 && !final_named_sources.is_empty()
-                && optional_named_sources <= 1
+                && (optional_named_sources <= 1 || final_named_sources.len() == 2)
                 && !debug_before_remake.has(Mask::MAKEFILES)
                 && self.options.jobs.is_some_and(|slots| slots >= 2);
             let unruled_primary = ordinary_mode
