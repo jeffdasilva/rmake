@@ -2175,8 +2175,17 @@ def stock_primary_load_models() -> list[HeldModel]:
                                     args = tuple('-j4' if arg == '-j3' else arg for arg in dry.model.args)
                                     results.append(replace(dry, model=replace(
                                         dry.model, id=f'{dry.model.id}-four-slots', args=args)))
-                                    results.extend(stock_primary_three_final_touch(query, modes, slots)
-                                                   for modes in ('t', 'qt', 'nt', 'nqt') for slots in (3, 4))
+                                    touches = [stock_primary_three_final_touch(query, modes, slots)
+                                               for modes in ('t', 'qt', 'nt', 'nqt') for slots in (3, 4)]
+                                    results.extend(touches)
+                                    if query.load.at_release == LOAD_LOW:
+                                        for touch in touches:
+                                            model = touch.model
+                                            args = tuple(arg for arg in model.args if arg != '-l2')
+                                            model = replace(model, id=model.id.replace('-low-', '-no-load-'),
+                                                            args=args)
+                                            results.append(replace(touch, model=model,
+                                                                   load=replace(touch.load, trace=b'')))
     return results
 
 

@@ -3303,31 +3303,35 @@ impl Engine {
             } else {
                 None
             };
-            let unruled_primary = ordinary_mode
-                && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
-            let named_load_files = &read_files[usize::from(unruled_primary)..];
             let named_include = |file: &Makefile| {
                 self.is_makefile_goal(
                     rmake_core::filenames::without_dot_prefix(&file.name),
                     named_sources.as_ref(),
                 )
             };
-            let final_named_load = self.options.load_limit.is_some()
+            let limited_load = self.options.load_limit.is_some();
+            let final_named_sources = ordinary_mode
                 && matches!(
-                    named_load_files,
-                    [(first, false), (middle, false), (last, false)]
+                    read_files.as_slice(),
+                    [(_, false), (first, false), (middle, false), (last, false)]
                         if !named_include(first)
                             && named_include(middle)
                             && named_include(last)
                             && !(first.optional || middle.optional || last.optional)
                 );
-            let final_named_dry = final_named_load
+            let final_named_dry = limited_load
+                && final_named_sources
                 && modes.dry_run
                 && !(modes.question || modes.touch)
                 && self.options.jobs.is_some_and(|slots| slots >= 4);
-            let final_named_touch = final_named_load
+            let final_named_touch = final_named_sources
                 && modes.touch
+                && !debug_before_remake.has(Mask::MAKEFILES)
                 && self.options.jobs.is_some_and(|slots| slots >= 3);
+            let unruled_primary = ordinary_mode
+                && (limited_load || final_named_touch)
+                && self.unruled_primary_before_named_includes(&read_files, named_sources.as_ref());
+            let named_load_files = &read_files[usize::from(unruled_primary)..];
             let mixed_named_overlap = unruled_primary
                 && match named_load_files {
                     [(_, false), (_, false)] => {
@@ -4694,7 +4698,7 @@ impl Engine {
                             && (self.options.load_limit.is_none()
                                 || *load_sources_without_fallback.get_or_insert_with(|| {
                                     let start =
-                                        usize::from(self.unruled_primary_before_named_load(
+                                        usize::from(self.unruled_primary_before_named_includes(
                                             read_files,
                                             named_sources,
                                         ));
@@ -4960,7 +4964,7 @@ impl Engine {
             && !self.database.rules.contains_key(b".DEFAULT".as_slice())
     }
 
-    fn unruled_primary_before_named_load(
+    fn unruled_primary_before_named_includes(
         &self,
         read_files: &[(Makefile, bool)],
         named_sources: Option<&HashSet<&[u8]>>,
@@ -4971,8 +4975,7 @@ impl Engine {
             return false;
         };
         let name = without_dot_prefix(&primary.name);
-        self.options.load_limit.is_some()
-            && !self.no_remake_recipe_fallback()
+        !self.no_remake_recipe_fallback()
             && !self.options.check_symlink_times
             && self.assumptions.is_none()
             && primary.location.is_none()
