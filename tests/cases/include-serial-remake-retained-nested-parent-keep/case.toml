@@ -1,0 +1,12 @@
+id = "include-serial-remake-retained-nested-parent-keep"
+requirement = "includes.remake"
+candidate = "required"
+description = "A later required read diagnoses the failed nested prerequisite and its immediate parent under keep-going."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:\n"
+stderr = "make: *** No rule to make target 'worker.mk', needed by 'middle'.\nMakefile:5: Failed to remake makefile 'worker.mk'.\n"
