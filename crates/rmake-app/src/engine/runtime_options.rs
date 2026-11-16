@@ -102,6 +102,16 @@ impl State {
         retained.temp_stdin_file = options.temp_stdin_file;
     }
 
+    /// A temporary warning change participates in live decoding. Publish
+    /// options only if the expansion itself changed them.
+    pub(super) fn replace_scoped_warning_policy(&self, enabled: bool) -> bool {
+        let previous = self.warn_undefined.replace(enabled);
+        if previous != enabled {
+            self.options.borrow_mut().warn_undefined = enabled;
+        }
+        previous
+    }
+
     pub(super) fn take(&self) -> Option<Options> {
         if !self.dirty.get() {
             return None;

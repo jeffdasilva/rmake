@@ -1859,6 +1859,18 @@ impl Engine {
         bytes: &[u8],
         location: Option<&Location>,
     ) -> Result<Vec<u8>, ExpandError> {
+        self.with_scoped_expansion(location, false, |database, context| {
+            database.expand_in(variables, bytes, context)
+        })
+    }
+
+    fn with_scoped_expansion<T>(
+        &mut self,
+        location: Option<&Location>,
+        mute_undefined: bool,
+        operation: impl FnOnce(&mut Database, ExpansionContext<'_>) -> T,
+    ) -> T {
+        let warnings = mute_undefined.then(|| self.flag_state.replace_scoped_warning_policy(false));
         let mut target_reads = TargetReads {
             parents: &self.scope_parents,
             retained_parents: &self.retained_scope_parents,
@@ -1867,32 +1879,33 @@ impl Engine {
             recipes: &mut self.database_contexts,
             branches: &self.database_branch_contexts,
         };
-        let result = self.database.expand_in(
-            variables,
-            bytes,
-            runtime_context(
-                location,
-                &mut RuntimeOutput::new(
-                    &self.output,
-                    &self.program,
-                    &self.flag_state.warn_undefined,
-                ),
+        let mut output =
+            RuntimeOutput::new(&self.output, &self.program, &self.flag_state.warn_undefined);
+        let mut flags = self.flag_state.receiver();
+        let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
+            self.filesystem.borrow_mut().execute(effect)
+        };
+        let shell = |request: rmake_core::diagnostic::ShellRequest<'_>| {
+            crate::shell::run(
+                request,
+                &self.program,
+                self.makelevel,
+                &self.output,
+                self.jobserver.as_ref(),
+                || self.filesystem.borrow_mut().child_completed(),
             )
-            .with_makeflags(&mut self.flag_state.receiver())
+        };
+        let mut include = |name: &[u8]| self.include_search.borrow().read(name);
+        let context = runtime_context(location, &mut output)
+            .with_makeflags(&mut flags)
             .with_target_reads(&mut target_reads)
-            .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-            .with_shell(&|request| {
-                crate::shell::run(
-                    request,
-                    &self.program,
-                    self.makelevel,
-                    &self.output,
-                    self.jobserver.as_ref(),
-                    || self.filesystem.borrow_mut().child_completed(),
-                )
-            })
-            .with_includes(&mut |name| self.include_search.borrow().read(name)),
-        );
+            .with_filesystem(&mut filesystem)
+            .with_shell(&shell)
+            .with_includes(&mut include);
+        let result = operation(&mut self.database, context);
+        if let Some(warnings) = warnings {
+            self.flag_state.replace_scoped_warning_policy(warnings);
+        }
         if let Some(options) = self.flag_state.take() {
             self.options = options;
         }
@@ -3288,8 +3301,9 @@ impl Engine {
                 && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
             let standalone_touch = modes.touch && !modes.dry_run && !modes.question;
-            let mixed_named_overlap = matches!(named_load_files, [(_, false), (_, false)])
-                && !debug_before_remake.has(Mask::MAKEFILES)
+            let mixed_named_overlap = unruled_primary
+                && matches!(named_load_files, [(_, false), (_, false)])
+                && (!debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug)
                 && (!modes.touch || standalone_touch)
                 && named_load_files.iter().any(|(file, _)| {
                     !self.is_makefile_goal(
@@ -3356,7 +3370,7 @@ impl Engine {
             let optional_named_load = ordinary_mode
                 && self.options.load_limit.is_some()
                 && (!debug_before_remake.has(Mask::MAKEFILES)
-                    || (qualified_remake_debug && verbose_load_trace))
+                    || (qualified_remake_debug && (verbose_load_trace || mixed_named_overlap)))
                 && read_files.iter().any(|(file, skip)| {
                     !*skip
                         && file.optional
@@ -3913,7 +3927,17 @@ impl Engine {
                 let previous_progress = if verbose_mode_remakes {
                     None
                 } else {
-                    first_effect_generation.or(Some(pass_reaps))
+                    // An optional source can finish an earlier pass while
+                    // the primary is running. Resume after that pass.
+                    first_effect_generation
+                        .map(|initial| {
+                            if mixed_named_overlap && verbose_load_trace {
+                                pass_progress
+                            } else {
+                                initial
+                            }
+                        })
+                        .or(Some(pass_reaps))
                 };
                 let question_or_failure = remake_question || failed || optional_remake_failed;
                 // A mixed touch pass restores the unnamed root's mode
@@ -9508,12 +9532,28 @@ impl Engine {
             {
                 traced_optional_failure = true;
             }
+            let cached_remake_parent = if self.remaking
+                && !self.parallel_makefile_remakes
+                && parent.is_none()
+                && self
+                    .done
+                    .get(target)
+                    .is_some_and(|outcome| outcome.failed && !outcome.fatal)
+            {
+                self.scope_parents
+                    .get(target)
+                    .and_then(Option::as_ref)
+                    .map(|parent| self.aliases.resolve(&parent.target).to_vec())
+            } else {
+                None
+            };
             if !traced_optional_failure
                 && self.remaking
                 && ((self.parallel_makefile_remakes && parent.is_none())
                     || (!self.parallel_makefile_remakes
                         && self.options.keep_going
-                        && parent.is_some()))
+                        && parent.is_some())
+                    || cached_remake_parent.is_some())
                 && self
                     .done
                     .get(target)
@@ -9528,7 +9568,10 @@ impl Engine {
                 emit(&self.output, Event::RecentlyFailed(target, depth + 1));
                 traced_optional_failure = true;
             }
-            self.show_retained_optional_failure(target, parent.map(|parent| parent.target), cause);
+            let diagnostic_parent = parent
+                .map(|parent| parent.target)
+                .or(cached_remake_parent.as_deref());
+            self.show_retained_optional_failure(target, diagnostic_parent, cause);
             if let Some(outcome) = query
                 && !self.options.keep_going
             {
@@ -11812,12 +11855,17 @@ impl Engine {
             && !self.parallel_graph()
             && !outcome.question_outdated
             && !outcome.fatal;
-        let track_read_peers = self.remaking
-            && !self.parallel_makefile_remakes
-            && !group.implicit
+        let serial_explicit_remake =
+            self.remaking && !self.parallel_makefile_remakes && !group.implicit;
+        let track_read_peers = serial_explicit_remake
             && !outcome.failed
             && outcome.ran
             && outcome.completion == CompletionTime::Refresh;
+        let trace_failed_read_peers = serial_explicit_remake
+            && self.optional_remake()
+            && outcome.failed
+            && outcome.ran
+            && !outcome.fatal;
         for (peer, before, phony) in group.members.into_iter().rev() {
             let database_result =
                 if observe_dry_group && !phony && (!group.implicit || peer != target) {
@@ -11854,7 +11902,8 @@ impl Engine {
             let mut completed = cached;
             completed.database_result = database_result;
             completed.debug_serial_group_peer = debug_serial_group_peer
-                || (track_read_peers && self.makefile_names.contains(&peer));
+                || ((track_read_peers || trace_failed_read_peers)
+                    && self.makefile_names.contains(&peer));
             completed.optional_group_peer_failure =
                 self.optional_remake() && outcome.failed && !outcome.fatal;
             completed.search_after_update = false;
@@ -12477,13 +12526,43 @@ impl Engine {
             // all recipe bodies have expanded. A nonempty expansion consisting
             // only of blanks/modifiers still reaches configuration; a zero-byte
             // expansion does not. Only the unforced touch shortcut skips expansion.
-            let selected_shell = if variables.get(b"SHELL").is_some() {
-                self.expand(variables, b"$(SHELL)", Some(&recipe.location))
-            } else {
-                Ok(Vec::new())
-            };
-            let shell = match selected_shell {
-                Ok(shell) => shell,
+            // A live MAKEFLAGS assignment can enable warnings inside configuration.
+            // Restore the original policy before the next command or target.
+            let configuration = self.with_scoped_expansion(
+                Some(&recipe.location),
+                true,
+                |database, mut context| {
+                    let shell = if variables.get(b"SHELL").is_some() {
+                        database.expand_in(variables, b"$(SHELL)", context.reborrow())?
+                    } else {
+                        Vec::new()
+                    };
+                    // GNU rescans raw flag text even for a simple binding.
+                    let flag_text = variables.database_lookup(b".SHELLFLAGS").map_or_else(
+                        Vec::new,
+                        |variable| {
+                            if database.posix && variable.origin() == Origin::Default {
+                                if command_noerror {
+                                    b"-c".to_vec()
+                                } else {
+                                    b"-ec".to_vec()
+                                }
+                            } else {
+                                variable.raw_value().to_vec()
+                            }
+                        },
+                    );
+                    let flags = database.expand_in(variables, &flag_text, context.reborrow())?;
+                    let ifs = if variables.database_lookup(b"IFS").is_some() {
+                        Some(database.expand_in(variables, b"$(IFS)", context.reborrow())?)
+                    } else {
+                        None
+                    };
+                    Ok((shell, flags, ifs))
+                },
+            );
+            let (shell, flags, ifs) = match configuration {
+                Ok(configuration) => configuration,
                 Err(err) => {
                     self.recipe_expansion_error(
                         target,
@@ -12498,56 +12577,6 @@ impl Engine {
                 }
             };
             let shell = shell.as_slice();
-            // GNU rescans the raw flag text even for a simple binding and
-            // attributes direct errors to the recipe, not .SHELLFLAGS itself.
-            let flag_text =
-                variables
-                    .database_lookup(b".SHELLFLAGS")
-                    .map_or_else(Vec::new, |variable| {
-                        if self.database.posix && variable.origin() == Origin::Default {
-                            if command_noerror {
-                                b"-c".to_vec()
-                            } else {
-                                b"-ec".to_vec()
-                            }
-                        } else {
-                            variable.raw_value().to_vec()
-                        }
-                    });
-            let flags = match self.expand(variables, &flag_text, Some(&recipe.location)) {
-                Ok(flags) => flags,
-                Err(err) => {
-                    self.recipe_expansion_error(
-                        target,
-                        &recipe.location,
-                        &err,
-                        &flow,
-                        ignore,
-                        output.as_ref(),
-                    );
-                    self.retain_configuration_abort(&mut owner.permit, &err);
-                    return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
-                }
-            };
-            let ifs = if variables.database_lookup(b"IFS").is_some() {
-                match self.expand(variables, b"$(IFS)", Some(&recipe.location)) {
-                    Ok(value) => Some(value),
-                    Err(err) => {
-                        self.recipe_expansion_error(
-                            target,
-                            &recipe.location,
-                            &err,
-                            &flow,
-                            ignore,
-                            output.as_ref(),
-                        );
-                        self.retain_configuration_abort(&mut owner.permit, &err);
-                        return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
-                    }
-                }
-            } else {
-                None
-            };
             if command.is_empty() {
                 continue;
             }

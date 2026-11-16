@@ -1,0 +1,15 @@
+id = "ordinary-recipe-config-warning-target"
+requirement = "recipes.shell"
+candidate = "required"
+description = "Undefined warning policy during recipe shell configuration."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "--warn-undefined-variables", "all"]
+timeout_seconds = 5
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout_hex = "66697273740a7365636f6e640a"
+stderr_hex = "4d616b6566696c653a31303a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353494e475f424f4459270a4d616b6566696c653a31313a207761726e696e673a20756e646566696e6564207661726961626c6520274d495353494e475f4146544552270a"

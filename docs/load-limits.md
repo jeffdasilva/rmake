@@ -116,8 +116,11 @@ and query modes. They verify real include contents and the primary file's mode
 after the pass. Sixteen further held profiles cover standalone touch in both
 include orders. A later named touch runs before the queued unnamed include
 can resume in its mode. At the pass boundary the scheduler restores the
-unnamed include's mode before refilling the load queue. Mixed-source debug
-and combined build modes remain open.
+unnamed include's mode before refilling the load queue. The 40 mixed-source
+debug profiles cover basic and verbose remake traces, both load levels, and
+both include orders for standalone touch. After an optional source ends a
+verbose pass, the next wait uses the progress recorded at that boundary.
+Combined build modes and other debug masks remain open.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an

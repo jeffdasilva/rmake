@@ -214,3 +214,12 @@ after the cached head trace and before the later declaration traces. A
 directly failed head has one full revisit, followed by prunes for further
 cached goal entries. A later required declaration or makefile can also report
 the cached failure of a prerequisite first visited under the optional policy.
+
+When a required serial remake first fails as a prerequisite of an optional
+source, its later root visit uses the original dependency edge in the
+diagnostic. Verbose output reports the cached failure before the diagnostic,
+including when the source was blocked by its own missing prerequisite.
+An explicit grouped recipe that fails under the optional policy also records
+its read peers as recently failed for their subsequent verbose visits. Six
+fixtures cover direct and nested edges, keep-going, and required and optional
+grouped peers.

@@ -42,6 +42,15 @@ dry-run/query/touch modes do not launch a shell; forced recipes exercise the
 normal launch boundary. Permanent fixtures cover those distinctions and mixed
 protected shell bytes with interpreted flags.
 
+## Undefined-variable warnings
+
+Recipe bodies expand under the active warning policy. The later shell
+configuration starts with undefined-variable warnings disabled and expands
+`SHELL`, `.SHELLFLAGS`, then `IFS` in that order. Explicit warnings and errors
+still appear at the recipe location. A live `MAKEFLAGS` assignment can enable
+undefined-variable warnings within configuration. After configuration, the
+next command or target uses the saved policy.
+
 ## Shell functions in one-shell mode
 
 A Bourne shell function call preserves prefix bytes in direct arguments. If
