@@ -3287,11 +3287,9 @@ impl Engine {
             let unruled_primary = ordinary_mode
                 && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
-            let standalone_touch = modes.touch && !modes.dry_run && !modes.question;
             let mixed_named_overlap = unruled_primary
                 && matches!(named_load_files, [(_, false), (_, false)])
                 && (!debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug)
-                && (!modes.touch || standalone_touch)
                 && named_load_files.iter().any(|(file, _)| {
                     !self.is_makefile_goal(
                         rmake_core::filenames::without_dot_prefix(&file.name),
@@ -3661,7 +3659,7 @@ impl Engine {
                 // A later named touch runs before the queued unnamed
                 // predecessor is allowed to use its active touch mode.
                 let build_visit = if mixed_named_overlap
-                    && standalone_touch
+                    && modes.touch
                     && self.parallel_makefile_remakes
                     && source_index == 2
                     && named_source
@@ -12591,7 +12589,14 @@ impl Engine {
                 ordinary_invocation = Some(invocation);
             }
             if self.options.question && !force {
-                if self.remaking || !self.optional_remake() {
+                // Touch can still satisfy all ordinary goals after a
+                // queried remake continuation has stopped.
+                let record_question = if self.remaking {
+                    !self.options.touch
+                } else {
+                    !self.optional_remake()
+                };
+                if record_question {
                     self.would_build = true;
                 }
                 return Execution::question(ran, flow.continuation_cleanup())
