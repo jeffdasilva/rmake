@@ -3302,16 +3302,23 @@ impl Engine {
                         let named_first = named_include(first);
                         let named_last = named_include(last);
                         let early_named = named_first || (!named_last && named_include(middle));
-                        let all_required = !(first.optional || middle.optional || last.optional);
+                        let required_ends = !(first.optional || last.optional);
+                        let all_required = required_ends && !middle.optional;
                         let required_touch = !named_last
                             && all_required
                             && modes.touch
                             && (!modes.dry_run || !modes.question);
+                        let optional_middle_touch = !(named_first || named_last)
+                            && required_ends
+                            && middle.optional
+                            && modes.touch;
                         !debug_before_remake.has(Mask::MAKEFILES)
                             && ((modes.question && !modes.touch)
                                 || (named_first && !named_last)
                                 || (early_named
-                                    && ((modes.dry_run && !modes.touch) || required_touch)))
+                                    && ((modes.dry_run && !modes.touch)
+                                        || required_touch
+                                        || optional_middle_touch)))
                     }
                     _ => false,
                 }
@@ -3622,7 +3629,7 @@ impl Engine {
                         {
                             // A settled repeat can end the next pass too.
                             (pass_reaps, pass_progress) =
-                                self.settle_optional_remake_pass(pass_progress);
+                                self.settle_optional_remake_pass(pass_progress, false);
                         }
                         continue;
                     }
@@ -3862,8 +3869,17 @@ impl Engine {
                         if visit_modes.touch && physically_changed {
                             touched_optional_remakes.insert(name);
                         }
+                        // Keep the optional mode through the primary continuation.
+                        // Admit the earlier unnamed job after restoring ordinary mode.
+                        let defer_load_refill = mixed_named_overlap
+                            && read_files.len() == 4
+                            && source_index == 2
+                            && visit_modes.touch
+                            && pending.iter().any(|request| {
+                                request.file.location.is_some() && !request.modes.active()
+                            });
                         (pass_reaps, pass_progress) =
-                            self.settle_optional_remake_pass(pass_progress);
+                            self.settle_optional_remake_pass(pass_progress, defer_load_refill);
                         if optional_named_load
                             && verbose_load_trace
                             && self.shutdown.get() == Shutdown::Running
@@ -5922,21 +5938,38 @@ impl Engine {
                 || !(self.options.dry_run || self.options.question || self.options.touch))
     }
 
-    fn settle_optional_remake_pass(&mut self, previous_progress: u64) -> (u64, u64) {
-        self.poll_jobs();
+    fn settle_optional_remake_pass(
+        &mut self,
+        previous_progress: u64,
+        defer_load_refill: bool,
+    ) -> (u64, u64) {
+        let poll = |engine: &mut Self| {
+            if defer_load_refill {
+                engine.observe_interrupt();
+                engine.poll_child_events(false);
+            } else {
+                engine.poll_jobs();
+            }
+        };
+        let can_reap = |engine: &Self| {
+            engine
+                .parallel_jobs
+                .values()
+                .any(|job| !defer_load_refill || !job.waiting_load)
+        };
+        poll(self);
         // Directory generation counts make-function effects and all
         // completed children, including a synchronous shell expansion.
-        if self.filesystem.borrow().generation() == previous_progress
-            && !self.parallel_jobs.is_empty()
-        {
+        if self.filesystem.borrow().generation() == previous_progress && can_reap(self) {
             let previous_jobs = self.parallel_jobs.len();
             while self.parallel_jobs.len() >= previous_jobs
                 && self.shutdown.get() == Shutdown::Running
                 && self.graph_abort.is_none()
+                && can_reap(self)
             {
                 self.reap_job();
             }
-            self.poll_jobs();
+            poll(self);
         }
         self.advance_debug_pass();
         (self.recipe_reaps, self.filesystem.borrow().generation())

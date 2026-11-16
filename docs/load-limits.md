@@ -127,20 +127,22 @@ Fourteen held combined-mode debug profiles cover an optional named source
 followed by a required unnamed source. The verbose pass prunes a completed
 primary immediately when its query verdict ended the recipe. Other debug
 masks and the number of visits during unheld high-load races remain open.
-The 140 held query profiles cover three direct includes, one or two named
+The 128 held query profiles cover three direct includes, one or two named
 goals, every read order, and the stock primary worker under three job slots.
 They exercise `-q` alone and with `-n`. An optional source read after the
-first include can end the pass before the later includes run. The high-load
-case with a required named include followed by an optional named include
-showed two different sets of generated files under identical held releases.
-That schedule remains outside the exact gate. Eighty further held profiles
+first include can end the pass before the later includes run. High-load
+queries with an optional named include and a final unnamed include showed
+different sets of generated files under identical held primary releases.
+Those schedules remain outside the exact gate. Eighty further held profiles
 place named goals first and exercise quiet dry-run, touch, and mixed flags.
 Twenty-four standalone dry-run profiles interleave named and unnamed roots.
 They verify which recipes leave files and which print commands across rereads.
 Twelve required-source profiles place one named include in the middle
 under `-t`, `-n -t`, and `-q -t`. They compare the named touch before
 unnamed load reservations, the primary's mode, and actual file effects.
-Additional optional and final-adjacent mode schedules remain open.
+Sixteen optional-source profiles put the optional named include between two
+required unnamed includes. The earlier unnamed job waits for ordinary mode
+after the optional pass. Additional final-adjacent modes remain open.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
