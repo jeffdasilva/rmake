@@ -1,0 +1,15 @@
+id = "oneshell-live-touch-ifs-modifier-query"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "Touch completion during one-shell recipe preparation."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-j1", "--jobserver-style=pipe", "-q", "target"]
+timeout_seconds = 5
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout_hex = "746f756368207461726765740a746f756368207461726765740a"
+stderr_hex = ""

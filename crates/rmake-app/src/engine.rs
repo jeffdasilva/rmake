@@ -13143,11 +13143,7 @@ impl Engine {
         if !self.options.touch || phony || !flow.has_ordinary() {
             return Execution::success(ran).with_recursion(!flow.has_ordinary());
         }
-        let passes = if one_shell {
-            1
-        } else {
-            flow.completion_passes()
-        };
+        let passes = flow.completion_passes();
         for pass in 0..passes {
             if pass + 1 == passes
                 && let Some(buffer) = &output
