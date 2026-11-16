@@ -1,0 +1,388 @@
+{
+  "classification": "Original touch open failures with exact C and localized catalog punctuation and independent libc errno bytes.",
+  "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
+  "fixture_sha256": {},
+  "rows": [
+    {
+      "id": "nls-touch-fr-default-eisdir-cli",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-t",
+        "target"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "GNUMAKEFLAGS": ""
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20666f7263650a666f7263653a0a7461726765743a20666f7263650a0940242866696c65203e3e7365656e2c626f6479297072696e746620666f7262696464656e203e206368696c640a",
+        "seen": "616e63686f720a",
+        "target/held": "68656c640a"
+      },
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "EISDIR",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "746f756368207461726765740a",
+        "stderr_hex": "6d616b653a20746f7563683a206f70656e3a20746172676574203a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-touch-fr-default-eisdir-live",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "target"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "GNUMAKEFLAGS": ""
+      },
+      "files": {
+        "Makefile": "2e4f4e455348454c4c3a0a5348454c4c203d20242866696c65203e3e7365656e2c636f6e66696775726174696f6e2924286576616c204d414b45464c414753202b3d202d74292f62696e2f73680a2e50484f4e593a20666f7263650a666f7263653a0a7461726765743a20666f7263650a0940242866696c65203e3e7365656e2c626f6479297072696e746620666f7262696464656e203e206368696c640a",
+        "seen": "616e63686f720a",
+        "target/held": "68656c640a"
+      },
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "EISDIR",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "746f756368207461726765740a",
+        "stderr_hex": "6d616b653a20746f7563683a206f70656e3a20746172676574203a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a626f64790a636f6e66696775726174696f6e0a"
+      }
+    },
+    {
+      "id": "nls-touch-fr-default-enoent-cli",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-t",
+        "missing/target"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "GNUMAKEFLAGS": ""
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20666f7263650a666f7263653a0a6d697373696e672f7461726765743a20666f7263650a0940242866696c65203e3e7365656e2c626f6479297072696e746620666f7262696464656e203e206368696c640a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "ENOENT",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "746f756368206d697373696e672f7461726765740a",
+        "stderr_hex": "6d616b653a20746f7563683a206f70656e3a206d697373696e672f746172676574203a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-touch-fr-default-enoent-live",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "missing/target"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "GNUMAKEFLAGS": ""
+      },
+      "files": {
+        "Makefile": "2e4f4e455348454c4c3a0a5348454c4c203d20242866696c65203e3e7365656e2c636f6e66696775726174696f6e2924286576616c204d414b45464c414753202b3d202d74292f62696e2f73680a2e50484f4e593a20666f7263650a666f7263653a0a6d697373696e672f7461726765743a20666f7263650a0940242866696c65203e3e7365656e2c626f6479297072696e746620666f7262696464656e203e206368696c640a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "ENOENT",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "746f756368206d697373696e672f7461726765740a",
+        "stderr_hex": "6d616b653a20746f7563683a206f70656e3a206d697373696e672f746172676574203a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a626f64790a636f6e66696775726174696f6e0a"
+      }
+    },
+    {
+      "id": "nls-touch-fr-default-enotdir-cli",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-t",
+        "block/target"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "GNUMAKEFLAGS": ""
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20666f7263650a666f7263653a0a626c6f636b2f7461726765743a20666f7263650a0940242866696c65203e3e7365656e2c626f6479297072696e746620666f7262696464656e203e206368696c640a",
+        "seen": "616e63686f720a",
+        "block": "66696c650a"
+      },
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "ENOTDIR",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "746f75636820626c6f636b2f7461726765740a",
+        "stderr_hex": "6d616b653a20746f7563683a206f70656e3a20626c6f636b2f746172676574203a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-touch-fr-default-enotdir-live",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "block/target"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "GNUMAKEFLAGS": ""
+      },
+      "files": {
+        "Makefile": "2e4f4e455348454c4c3a0a5348454c4c203d20242866696c65203e3e7365656e2c636f6e66696775726174696f6e2924286576616c204d414b45464c414753202b3d202d74292f62696e2f73680a2e50484f4e593a20666f7263650a666f7263653a0a626c6f636b2f7461726765743a20666f7263650a0940242866696c65203e3e7365656e2c626f6479297072696e746620666f7262696464656e203e206368696c640a",
+        "seen": "616e63686f720a",
+        "block": "66696c650a"
+      },
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "ENOTDIR",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "746f75636820626c6f636b2f7461726765740a",
+        "stderr_hex": "6d616b653a20746f7563683a206f70656e3a20626c6f636b2f746172676574203a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a626f64790a636f6e66696775726174696f6e0a"
+      }
+    },
+    {
+      "id": "nls-touch-cutf8-eisdir-cli",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-t",
+        "target"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "GNUMAKEFLAGS": "",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20666f7263650a666f7263653a0a7461726765743a20666f7263650a0940242866696c65203e3e7365656e2c626f6479297072696e746620666f7262696464656e203e206368696c640a",
+        "seen": "616e63686f720a",
+        "target/held": "68656c640a"
+      },
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "EISDIR",
+        "C.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "746f756368207461726765740a",
+        "stderr_hex": "6d616b653a20746f7563683a206f70656e3a207461726765743a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-touch-cutf8-enoent-cli",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-t",
+        "missing/target"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "GNUMAKEFLAGS": "",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20666f7263650a666f7263653a0a6d697373696e672f7461726765743a20666f7263650a0940242866696c65203e3e7365656e2c626f6479297072696e746620666f7262696464656e203e206368696c640a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "ENOENT",
+        "C.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "746f756368206d697373696e672f7461726765740a",
+        "stderr_hex": "6d616b653a20746f7563683a206f70656e3a206d697373696e672f7461726765743a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-touch-cutf8-enotdir-cli",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-t",
+        "block/target"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "GNUMAKEFLAGS": "",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20666f7263650a666f7263653a0a626c6f636b2f7461726765743a20666f7263650a0940242866696c65203e3e7365656e2c626f6479297072696e746620666f7262696464656e203e206368696c640a",
+        "seen": "616e63686f720a",
+        "block": "66696c650a"
+      },
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "ENOTDIR",
+        "C.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "746f75636820626c6f636b2f7461726765740a",
+        "stderr_hex": "6d616b653a20746f7563683a206f70656e3a20626c6f636b2f7461726765743a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-touch-de-eisdir-live",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "target"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "GNUMAKEFLAGS": "",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "2e4f4e455348454c4c3a0a5348454c4c203d20242866696c65203e3e7365656e2c636f6e66696775726174696f6e2924286576616c204d414b45464c414753202b3d202d74292f62696e2f73680a2e50484f4e593a20666f7263650a666f7263653a0a7461726765743a20666f7263650a0940242866696c65203e3e7365656e2c626f6479297072696e746620666f7262696464656e203e206368696c640a",
+        "seen": "616e63686f720a",
+        "target/held": "68656c640a"
+      },
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "EISDIR",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "746f756368207461726765740a",
+        "stderr_hex": "6d616b653a20746f7563683a206f70656e3a207461726765743a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a626f64790a636f6e66696775726174696f6e0a"
+      }
+    },
+    {
+      "id": "nls-touch-unavailable-fallback-enotdir-cli",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-t",
+        "block/target"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "GNUMAKEFLAGS": "",
+        "LANGUAGE": "zz_ZZ:fr"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20666f7263650a666f7263653a0a626c6f636b2f7461726765743a20666f7263650a0940242866696c65203e3e7365656e2c626f6479297072696e746620666f7262696464656e203e206368696c640a",
+        "seen": "616e63686f720a",
+        "block": "66696c650a"
+      },
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "ENOTDIR",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "746f75636820626c6f636b2f7461726765740a",
+        "stderr_hex": "6d616b653a20746f7563683a206f70656e3a20626c6f636b2f746172676574203a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-touch-partial-fallback-enoent-live",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "missing/target"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "GNUMAKEFLAGS": "",
+        "LANGUAGE": "be:fr"
+      },
+      "files": {
+        "Makefile": "2e4f4e455348454c4c3a0a5348454c4c203d20242866696c65203e3e7365656e2c636f6e66696775726174696f6e2924286576616c204d414b45464c414753202b3d202d74292f62696e2f73680a2e50484f4e593a20666f7263650a666f7263653a0a6d697373696e672f7461726765743a20666f7263650a0940242866696c65203e3e7365656e2c626f6479297072696e746620666f7262696464656e203e206368696c640a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {},
+      "modules": [],
+      "errno_fact": [
+        "ENOENT",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "746f756368206d697373696e672f7461726765740a",
+        "stderr_hex": "6d616b653a20746f7563683a206f70656e3a206d697373696e672f7461726765743a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a626f64790a636f6e66696775726174696f6e0a"
+      }
+    }
+  ]
+}

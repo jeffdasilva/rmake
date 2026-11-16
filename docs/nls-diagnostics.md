@@ -192,3 +192,12 @@ intermediate can report a prerequisite error during inspection. In
 keep-going mode the later required read can report the cached failure too.
 The ordered cases distinguish those publications and confirm the early
 exit when keep-going mode is disabled.
+
+## Touch open failures
+
+Ordinary touch and one-shell recipes that enter touch mode while preparing
+commands use the active catalog's OS error template. Twelve profiles cover
+directory targets, missing parents and non-directory parents. They compare
+French and C diagnostics, language fallbacks, exact paths, the libc errno
+text and the files left after failure. The initial expanded recipe and
+configuration effects remain visible in the live-mode cases.

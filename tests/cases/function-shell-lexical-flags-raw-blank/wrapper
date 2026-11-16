@@ -1,0 +1,8 @@
+#!/bin/sh
+{
+    printf 'argc=[%s]
+' "$#"
+    for item do printf 'arg=[%s]
+' "$item"; done
+} >> invoked
+exec /bin/sh "$@"

@@ -223,3 +223,23 @@ An explicit grouped recipe that fails under the optional policy also records
 its read peers as recently failed for their subsequent verbose visits. Six
 fixtures cover direct and nested edges, keep-going, and required and optional
 grouped peers.
+
+Under keep-going, a required explicit grouped recipe can fail after
+rewriting an existing include peer. The later serial root reports the
+cached failure and compares the peer's physical timestamp with its
+pre-recipe observation before deciding whether to reread the makefiles.
+Four fixtures cover ordinary execution, query mode, and the recently
+failed trace for a changed or unchanged peer.
+
+When the grouped owner is missing, its freshness check can skip the other
+group members. A failed required group under keep-going can still compare an
+existing peer's saved serial read timestamp with its final physical time.
+Four fixtures cover forward and backward timestamp changes, a same-time
+rewrite, and a removed peer.
+
+A successful missing grouped owner can also remove an existing peer.
+The saved read timestamp and the peer's now-missing observation establish
+the change before the reread. One fixture uses the removed peer's presence
+to enable the original group, so deletion itself ends that remake path.
+Other fixtures cover required failure on reread, query mode and the
+existing case where a missing peer appears.

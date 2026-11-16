@@ -1,0 +1,12 @@
+id = "static-immediate-input-dot-empty-stem"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "An empty stem erases a raw dot-prefixed percent prerequisite."
+provenance = "Original Makefile and exact pinned GNU 4.4.1 observations; no upstream material copied."
+args = ["-rR", "--no-print-directory", ".o"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b5d5b6f6c645d5b6f6c645d5b6f6c645d5b7461696c5d0a"
+stderr_hex = ""

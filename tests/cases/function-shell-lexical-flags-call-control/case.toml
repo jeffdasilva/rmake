@@ -1,0 +1,11 @@
+id = "function-shell-lexical-flags-call-control"
+requirement = "functions.shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--warn-undefined-variables", "all"]
+timeout_seconds = 3
+description = "A global flags value may still read the current call argument."
+
+[expected]
+exit_code = 0
+stdout = "result=[called]\nmake: Nothing to be done for 'all'.\n"
+stderr = "Makefile:9: warning: undefined variable 'MISSING_AFTER'\nmake: warning: undefined variable 'GNUMAKEFLAGS'\n"

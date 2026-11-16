@@ -3300,17 +3300,27 @@ impl Engine {
             let unruled_primary = ordinary_mode
                 && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
-            let standalone_touch = modes.touch && !modes.dry_run && !modes.question;
+            let named_include = |file: &Makefile| {
+                self.is_makefile_goal(
+                    rmake_core::filenames::without_dot_prefix(&file.name),
+                    named_sources.as_ref(),
+                )
+            };
             let mixed_named_overlap = unruled_primary
-                && matches!(named_load_files, [(_, false), (_, false)])
-                && (!debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug)
-                && (!modes.touch || standalone_touch)
-                && named_load_files.iter().any(|(file, _)| {
-                    !self.is_makefile_goal(
-                        rmake_core::filenames::without_dot_prefix(&file.name),
-                        named_sources.as_ref(),
-                    )
-                });
+                && match named_load_files {
+                    [(_, false), (_, false)] => {
+                        !debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug
+                    }
+                    [(first, false), (_, false), (last, false)] => {
+                        !debug_before_remake.has(Mask::MAKEFILES)
+                            && ((modes.question && !modes.dry_run && !modes.touch)
+                                || (named_include(first) && !named_include(last)))
+                    }
+                    _ => false,
+                }
+                && named_load_files
+                    .iter()
+                    .any(|(file, _)| !named_include(file));
             let overlap_primary_recipe = unruled_primary
                 && named_load_files.iter().all(|(file, skip)| {
                     *skip
@@ -3674,7 +3684,7 @@ impl Engine {
                 // A later named touch runs before the queued unnamed
                 // predecessor is allowed to use its active touch mode.
                 let build_visit = if mixed_named_overlap
-                    && standalone_touch
+                    && modes.touch
                     && self.parallel_makefile_remakes
                     && source_index == 2
                     && named_source
@@ -3863,12 +3873,17 @@ impl Engine {
                         {
                             for request in pending.iter_mut().filter(|request| request.active) {
                                 let prior = self.aliases.resolve(&request.file.name);
+                                let queried_primary = mixed_named_overlap
+                                    && visit_modes.touch
+                                    && visit_modes.question
+                                    && std::ptr::eq(request.file, &read_files[0].0);
                                 if !self.pending(prior)
                                     && self.done.get(prior).is_some_and(|outcome| {
-                                        !outcome.failed && !outcome.question_outdated
+                                        !outcome.failed
+                                            && (!outcome.question_outdated || queried_primary)
                                     })
                                 {
-                                    // A successful earlier source is pruned
+                                    // A settled earlier source is pruned
                                     // before the first unvisited root starts.
                                     crate::debug::emit(
                                         &self.output,
@@ -11857,12 +11872,22 @@ impl Engine {
             && !outcome.fatal;
         let serial_explicit_remake =
             self.remaking && !self.parallel_makefile_remakes && !group.implicit;
+        let failed_required_remake = outcome.failed
+            && self.options.keep_going
+            && !self.optional_remake()
+            && !outcome.blocked
+            && !outcome.fatal;
         let track_read_peers = serial_explicit_remake
-            && !outcome.failed
             && outcome.ran
-            && outcome.completion == CompletionTime::Refresh;
+            && outcome.completion == CompletionTime::Refresh
+            && (!outcome.failed || failed_required_remake);
+        let use_saved_peer_time = track_read_peers
+            && group.before.is_none()
+            && self.assumptions.is_none()
+            && !self.options.check_symlink_times
+            && self.makefile_names.contains(target);
         let trace_failed_read_peers = serial_explicit_remake
-            && self.optional_remake()
+            && (self.optional_remake() || self.options.keep_going)
             && outcome.failed
             && outcome.ran
             && !outcome.fatal;
@@ -11902,7 +11927,7 @@ impl Engine {
             let mut completed = cached;
             completed.database_result = database_result;
             completed.debug_serial_group_peer = debug_serial_group_peer
-                || ((track_read_peers || trace_failed_read_peers)
+                || (((track_read_peers && !outcome.failed) || trace_failed_read_peers)
                     && self.makefile_names.contains(&peer));
             completed.optional_group_peer_failure =
                 self.optional_remake() && outcome.failed && !outcome.fatal;
@@ -11914,15 +11939,26 @@ impl Engine {
             } else {
                 self.modified(&peer)
             };
-            if track_read_peers
-                && !phony
-                && let Some(time) = before
-                && completed.time != before
-                && self.makefile_names.contains(&peer)
-            {
-                self.serial_remake_peer_times
-                    .entry(peer.clone())
-                    .or_insert(time);
+            if track_read_peers && !phony && self.makefile_names.contains(&peer) {
+                // A missing owner skips peer freshness checks. The serial read
+                // pass can still prove that a successful recipe removed a peer.
+                let before = before.or_else(|| {
+                    if use_saved_peer_time
+                        && (failed_required_remake || completed.time.is_none())
+                        && let Some(Some((None, Some(time)))) = self.path_observations.get(&peer)
+                    {
+                        Some(*time)
+                    } else {
+                        None
+                    }
+                });
+                if let Some(time) = before
+                    && completed.time != before
+                {
+                    self.serial_remake_peer_times
+                        .entry(peer.clone())
+                        .or_insert(time);
+                }
             }
             if warn_missing && completed.time.is_none() {
                 emit_output(
@@ -12501,21 +12537,13 @@ impl Engine {
             }
             let mut command = trim_leading(&bytes);
             let raw_flags = crate::oneshell::prefixes(&recipe.bytes).1;
-            let mut quiet = self.globally_silent()
-                || self.special(b".SILENT", target, false)
-                || raw_flags.quiet;
+            let mut quiet = self.special(b".SILENT", target, false) || raw_flags.quiet;
             let mut command_noerror = raw_flags.ignore_errors;
-            let mut ignore = self.options.ignore_errors
-                || self.special(b".IGNORE", target, true)
-                || raw_flags.ignore_errors;
             let mut force = flow.recursive(index);
             while let Some(prefix) = command.first() {
                 match prefix {
                     b'@' => quiet = true,
-                    b'-' => {
-                        ignore = true;
-                        command_noerror = true;
-                    }
+                    b'-' => command_noerror = true,
                     b'+' => force = true,
                     _ => break,
                 }
@@ -12561,6 +12589,10 @@ impl Engine {
                     Ok((shell, flags, ifs))
                 },
             );
+            // MAKEFLAGS effects in configuration apply to this command.
+            let ignore = self.options.ignore_errors
+                || command_noerror
+                || self.special(b".IGNORE", target, true);
             let (shell, flags, ifs) = match configuration {
                 Ok(configuration) => configuration,
                 Err(err) => {
@@ -12609,7 +12641,14 @@ impl Engine {
                 ordinary_invocation = Some(invocation);
             }
             if self.options.question && !force {
-                if self.remaking || !self.optional_remake() {
+                // Touch can still satisfy all ordinary goals after a
+                // queried remake continuation has stopped.
+                let record_question = if self.remaking {
+                    !self.options.touch
+                } else {
+                    !self.optional_remake()
+                };
+                if record_question {
                     self.would_build = true;
                 }
                 return Execution::question(ran, flow.continuation_cleanup())
@@ -12656,7 +12695,7 @@ impl Engine {
             }
             if self.options.dry_run
                 || self.output.debug_mask().has(crate::debug::Mask::PRINT)
-                || !quiet
+                || !(quiet || self.globally_silent())
             {
                 self.stdout(echo);
             }
@@ -13180,14 +13219,17 @@ impl Engine {
                 return Execution::fatal(ran);
             }
         }
-        if !self.options.touch || phony || !flow.has_ordinary() {
-            return Execution::success(ran).with_recursion(!flow.has_ordinary());
-        }
-        let passes = if one_shell {
-            1
+        // An expanded one-shell prefix forces execution, including queued
+        // script tails. A touch completion uses the declared recursion.
+        let all_recursive = if one_shell && self.options.touch {
+            flow.has_declared_recursion()
         } else {
-            flow.completion_passes()
+            !flow.has_ordinary()
         };
+        if !self.options.touch || phony || all_recursive {
+            return Execution::success(ran).with_recursion(all_recursive);
+        }
+        let passes = flow.completion_passes();
         for pass in 0..passes {
             if pass + 1 == passes
                 && let Some(buffer) = &output
@@ -13206,7 +13248,7 @@ impl Engine {
                 return touched;
             }
         }
-        Execution::success(ran).with_recursion(!flow.has_ordinary())
+        Execution::success(ran).with_recursion(all_recursive)
     }
 
     fn touch_target(&mut self, target: &[u8]) -> Execution {
@@ -13238,15 +13280,12 @@ impl Engine {
         {
             Ok(file) => file,
             Err(error) => {
-                self.stderr(
-                    &[
-                        b"touch: open: ".as_slice(),
-                        target,
-                        b": ",
-                        os_error(&error).as_bytes(),
-                    ]
-                    .concat(),
-                );
+                let detail = rmake_linux::filesystem::source_error_detail(&error);
+                self.stderr(&crate::messages::system(Message::OsError {
+                    action: b"touch: open: ",
+                    path: target,
+                    detail: &detail,
+                }));
                 return Execution::failure(true, Cleanup::None);
             }
         };

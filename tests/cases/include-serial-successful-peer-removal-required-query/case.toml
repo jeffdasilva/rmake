@@ -1,0 +1,12 @@
+id = "include-serial-successful-peer-removal-required-query"
+requirement = "includes.remake"
+candidate = "required"
+description = "Report the missing makefiles on reread before the ordinary query verdict."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-kq", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:\nREAD:1\n"
+stderr = "Makefile:4: payload.mk: No such file or directory\nmake: *** No rule to make target 'payload.mk'.\nMakefile:5: worker.mk: No such file or directory\nmake: *** No rule to make target 'worker.mk'.\nMakefile:4: Failed to remake makefile 'payload.mk'.\nMakefile:5: Failed to remake makefile 'worker.mk'.\n"

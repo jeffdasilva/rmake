@@ -1,0 +1,12 @@
+id = "duplicate-rule-recipe-prerequisite-order-recipe-free"
+requirement = "rules.declaration-recording"
+candidate = "required"
+description = "Duplicate declarations without a recipe append their two prerequisite blocks."
+provenance = "Original Makefile and exact pinned GNU 4.4.1 observations; no upstream material copied."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b616c6c5d5b6f6c645d5b6f6c64206669727374207365636f6e645d5b6f6c64206669727374207365636f6e64206669727374207365636f6e645d5b7461696c206f726465725d0a"
+stderr_hex = ""

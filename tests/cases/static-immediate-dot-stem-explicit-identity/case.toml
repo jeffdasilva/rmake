@@ -1,0 +1,12 @@
+id = "static-immediate-dot-stem-explicit-identity"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "A stem-generated dotted prerequisite keeps its own missing-rule identity."
+provenance = "Original Makefile and exact pinned GNU 4.4.1 observations; no upstream material copied."
+args = ["-rR", "--no-print-directory", "obj/./a.o"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420272e2f612e696e272c206e656564656420627920276f626a2f2e2f612e6f272e202053746f702e0a"

@@ -1,0 +1,15 @@
+id = "recipe-live-ifs-configuration-silent-forced-query"
+requirement = "recipes.shell"
+candidate = "required"
+description = "Live silent or ignore policy applied during recipe shell configuration."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-j1", "--jobserver-style=pipe", "-q", "all"]
+timeout_seconds = 5
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 1
+stdout_hex = ""
+stderr_hex = ""

@@ -51,6 +51,10 @@ still appear at the recipe location. A live `MAKEFLAGS` assignment can enable
 undefined-variable warnings within configuration. After configuration, the
 next command or target uses the saved policy.
 
+A silent or ignore-errors option enabled by configuration applies to the
+current command. Dry-run and trace output retain their ordinary precedence.
+Local recipe modifiers and the corresponding special targets still apply.
+
 ## Shell functions in one-shell mode
 
 A Bourne shell function call preserves prefix bytes in direct arguments. If
@@ -195,5 +199,8 @@ and command bytes remaining after the first newline are still passed.
 Shell capture expands the command argument before expanding `SHELL`,
 `.SHELLFLAGS`, and `IFS`, in that order. Configuration expansion suppresses
 undefined-variable warnings and restores the caller's policy afterward.
+It reads the raw `.SHELLFLAGS` from the active expansion scope and rescans
+that value. A local binding from `let` or `foreach` can supply flags to a
+nested capture, including when that capture runs while configuring a recipe.
 A command that is empty or contains only spaces and tabs returns empty
 after configuration. It preserves `.SHELLSTATUS` and skips child exports.

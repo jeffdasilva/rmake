@@ -1,0 +1,11 @@
+id = "function-shell-lexical-flags-foreach"
+requirement = "functions.shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--warn-undefined-variables", "all"]
+timeout_seconds = 3
+description = "A foreach binding supplies different flags to successive capture launches."
+
+[expected]
+exit_code = 0
+stdout = "result=[captured captured]\n"
+stderr = "make: warning: undefined variable 'GNUMAKEFLAGS'\nMakefile:13: warning: undefined variable 'MISSING_AFTER'\n"
