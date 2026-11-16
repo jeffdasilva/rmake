@@ -1310,8 +1310,13 @@ impl VariableStore {
     }
 
     pub(crate) fn has_local_binding(&self, name: &[u8]) -> bool {
+        self.local_binding(name).is_some()
+    }
+
+    pub(crate) fn local_binding(&self, name: &[u8]) -> Option<&Variable> {
         self.lookup_from(name, 0)
-            .is_some_and(|(layer, _)| !self.global_layer(layer))
+            .filter(|(layer, _)| !self.global_layer(*layer))
+            .map(|(_, variable)| variable)
     }
 
     pub fn remove(&mut self, name: &[u8]) -> Option<Variable> {
@@ -2399,6 +2404,17 @@ impl VariableStore {
         origin: Origin,
         location: &Location,
     ) -> Result<(), ExpandError> {
+        self.append_literal_from_at(name, value, origin, location, None)
+    }
+
+    pub(crate) fn append_literal_from_at(
+        &mut self,
+        name: &[u8],
+        value: &[u8],
+        origin: Origin,
+        location: &Location,
+        current: Option<&Variable>,
+    ) -> Result<(), ExpandError> {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
@@ -2407,7 +2423,7 @@ impl VariableStore {
         if self.get(name).is_some_and(|old| old.origin > origin) {
             return Ok(());
         }
-        let (mut combined, flavor) = self.get(name).map_or_else(
+        let (mut combined, flavor) = current.or_else(|| self.get(name)).map_or_else(
             || (Vec::new(), Flavor::Recursive),
             |old| (old.value.clone(), old.flavor),
         );
