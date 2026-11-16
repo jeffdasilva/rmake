@@ -201,3 +201,11 @@ directory targets, missing parents and non-directory parents. They compare
 French and C diagnostics, language fallbacks, exact paths, the libc errno
 text and the files left after failure. The initial expanded recipe and
 configuration effects remain visible in the live-mode cases.
+
+## Recipe cleanup
+
+Recipe cleanup renders removal and archive-member warnings through the active
+catalog, including grouped peers. File names and group owners remain raw byte
+arguments. Twelve profiles cover serial recipes, both jobservers with target
+output sync, non-UTF-8 names, retained archive members, precious siblings, and
+ignored failures. The full diagnostic gate now runs 193 profiles.

@@ -21,6 +21,10 @@ pub enum MessageId {
     NoRuleNeeded,
     TargetNotRemade,
     RecipeError,
+    DeleteTarget,
+    DeletePeer,
+    RetainArchiveMember,
+    RetainPeerArchiveMember,
     Ignored,
     NoTargets,
     NoMakefile,
@@ -75,7 +79,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 65] = [
+    pub const ALL: [Self; 69] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -90,6 +94,10 @@ impl MessageId {
         Self::NoRuleNeeded,
         Self::TargetNotRemade,
         Self::RecipeError,
+        Self::DeleteTarget,
+        Self::DeletePeer,
+        Self::RetainArchiveMember,
+        Self::RetainPeerArchiveMember,
         Self::Ignored,
         Self::NoTargets,
         Self::NoMakefile,
@@ -176,6 +184,18 @@ impl MessageId {
                 code: 7,
                 ignored: b"",
                 suffix: b"",
+            },
+            Self::DeleteTarget
+            | Self::DeletePeer
+            | Self::RetainArchiveMember
+            | Self::RetainPeerArchiveMember => Message::RecipeCleanup {
+                target: b"target",
+                owner: matches!(self, Self::DeletePeer | Self::RetainPeerArchiveMember)
+                    .then_some(b"owner"),
+                archive: matches!(
+                    self,
+                    Self::RetainArchiveMember | Self::RetainPeerArchiveMember
+                ),
             },
             Self::Ignored => Message::Ignored,
             Self::NoTargets | Self::NoMakefile => Message::NoTargets {
@@ -310,6 +330,12 @@ impl MessageId {
             Self::NoRuleNeeded => c"%sNo rule to make target '%s', needed by '%s'%s",
             Self::TargetNotRemade => c"Target '%s' not remade because of errors.",
             Self::RecipeError => c"%s[%s: %s] Error %d%s%s",
+            Self::DeleteTarget => c"*** Deleting file '%s'",
+            Self::DeletePeer => c"*** [%s] Deleting file '%s'",
+            Self::RetainArchiveMember => c"*** Archive member '%s' may be bogus; not deleted",
+            Self::RetainPeerArchiveMember => {
+                c"*** [%s] Archive member '%s' may be bogus; not deleted"
+            }
             Self::Ignored => c" (ignored)",
             Self::NoTargets => c"No targets",
             Self::NoMakefile => c"No targets specified and no makefile found",
@@ -450,6 +476,11 @@ pub enum Message<'a> {
         ignored: &'a [u8],
         suffix: &'a [u8],
     },
+    RecipeCleanup {
+        target: &'a [u8],
+        owner: Option<&'a [u8]>,
+        archive: bool,
+    },
     Ignored,
     NoTargets {
         makefile_found: bool,
@@ -558,6 +589,12 @@ impl<'a> Message<'a> {
             } => MessageId::NoRuleNeeded,
             Self::TargetNotRemade(_) => MessageId::TargetNotRemade,
             Self::RecipeError { .. } => MessageId::RecipeError,
+            Self::RecipeCleanup { owner, archive, .. } => match (owner.is_some(), archive) {
+                (false, false) => MessageId::DeleteTarget,
+                (true, false) => MessageId::DeletePeer,
+                (false, true) => MessageId::RetainArchiveMember,
+                (true, true) => MessageId::RetainPeerArchiveMember,
+            },
             Self::Ignored => MessageId::Ignored,
             Self::NoTargets {
                 makefile_found: true,
@@ -750,6 +787,12 @@ impl<'a> Message<'a> {
                 push(Argument::Bytes(suffix));
             }
             Self::TargetNotRemade(target) => push(Argument::Bytes(target)),
+            Self::RecipeCleanup { target, owner, .. } => {
+                if let Some(owner) = owner {
+                    push(Argument::Bytes(owner));
+                }
+                push(Argument::Bytes(target));
+            }
             Self::RecipeError {
                 prefix,
                 source,
