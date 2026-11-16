@@ -2151,21 +2151,25 @@ def stock_primary_load_models() -> list[HeldModel]:
                                  'last', 'last-adjacent', 'last-adjacent-reversed')),
                         ):
                             for position in positions:
-                                if optional and position == 'first-reversed' and held.load.at_release == LOAD_HIGH:
-                                    # GNU can remake the later required includes on either side
-                                    # of the same held optional visit at this load.
-                                    continue
                                 query = stock_primary_three_query_model(held, optional, position, count)
-                                results.append(query)
-                                results.append(replace(query, model=stock_primary_three_modes(query.model, 'nq')))
+                                ends_unnamed = position in ('first', 'first-reversed', 'middle')
+                                # A held primary alone cannot order all later
+                                # required jobs in these high-load queries.
+                                if not (optional and ends_unnamed and held.load.at_release == LOAD_HIGH):
+                                    results.append(query)
+                                    results.append(replace(query, model=stock_primary_three_modes(query.model, 'nq')))
                                 if position == 'first':
                                     results.extend(stock_primary_three_prefix_model(query, optional, count, modes)
                                                    for modes in ('n', 't', 'nt', 'qt', 'nqt'))
                                 elif position in ('middle', 'alternating') or (position == 'last' and count == 2):
                                     results.append(stock_primary_three_interleaved_dry_run(query, optional, position))
-                                    if position == 'middle' and not optional:
-                                        results.extend(stock_primary_three_prefix_model(query, False, count, modes)
-                                                       for modes in ('t', 'nt', 'qt'))
+                                    if position == 'middle':
+                                        if optional:
+                                            results.extend(stock_primary_three_optional_middle_touch(query, modes)
+                                                           for modes in ('t', 'nt', 'qt', 'nqt'))
+                                        else:
+                                            results.extend(stock_primary_three_prefix_model(query, False, count, modes)
+                                                           for modes in ('t', 'nt', 'qt'))
     return results
 
 
@@ -2439,6 +2443,39 @@ def stock_primary_three_prefix_model(held: HeldModel, optional: bool, named_coun
     model = replace(model, expected=expected, updates=updates)
     return replace(held, model=model, before_first_stdout=release, load=load,
                    stock_primary_mode=primary_mode)
+
+
+def stock_primary_three_optional_middle_touch(held: HeldModel, modes: str) -> HeldModel:
+    model = stock_primary_three_modes(held.model, modes)
+    high = held.load.at_release == LOAD_HIGH
+    dry_run = 'n' in modes
+    question = 'q' in modes
+    release = held.before_first_stdout + b'touch child.mk\n'
+    if not high:
+        release += b'touch extra.mk\n'
+    stdout, stderr = release, b''
+    updates = {**model.updates, 'extra.mk': b'EXTRA := loaded\n', 'leaf.mk': b'LEAF := loaded\n'}
+    primary_mode = 0o644 if high else 0o755
+    primary_removed = high and question
+    if primary_removed:
+        primary_mode = None
+        updates.pop('Makefile')
+        stderr = b"make: *** Deleting file 'Makefile'\n"
+    else:
+        stdout += b'touch Makefile\n' * 2 if high else b'chmod a+x Makefile\n'
+    if dry_run:
+        updates.pop('child.mk', None)
+        if not primary_removed:
+            stdout += b'touch child.mk\n'
+    else:
+        updates.update({'child.mk': b'', 'all': b''})
+    if not question:
+        stdout += b"make: 'child.mk' is up to date.\n"
+    stdout += b'touch all\n'
+    expected = {'exit_code': 0, 'stdout_template_hex': stdout.hex(),
+                'stderr_template_hex': stderr.hex()}
+    model = replace(model, expected=expected, updates=updates)
+    return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode)
 
 
 def stock_primary_combined_touch_model(held: HeldModel, modes: str) -> HeldModel:
