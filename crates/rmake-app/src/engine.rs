@@ -6203,7 +6203,9 @@ impl Engine {
 
     fn notice_waiting_for_jobs(&self) {
         if !self.waiting_reported.replace(true) {
-            self.stderr(b"*** Waiting for unfinished jobs....");
+            self.stderr(&crate::messages::system(
+                rmake_core::messages::Message::WaitForJobs,
+            ));
         }
     }
 
@@ -6493,12 +6495,18 @@ impl Engine {
         let program = &self.program;
         self.load.high(limit, |event| {
             if let crate::load::Observation::AverageFailure(error) = event {
+                use rmake_core::messages::Message;
+
                 let body = if error.raw_os_error() == Some(0) {
-                    "cannot enforce load limits on this operating system".to_owned()
+                    crate::messages::system(Message::LoadLimitUnsupported)
                 } else {
-                    format!("cannot enforce load limit: getloadavg: {}", os_error(error))
+                    crate::messages::system(Message::OsError {
+                        action: &crate::messages::system(Message::LoadLimitErrorPrefix),
+                        path: b"getloadavg",
+                        detail: &rmake_linux::filesystem::source_error_detail(error),
+                    })
                 };
-                output.write_parts(true, &[program, b": ", body.as_bytes(), b"\n"]);
+                output.write_parts(true, &[program, b": ", &body, b"\n"]);
             } else if debug {
                 crate::debug::load(event, limit, running);
             }
