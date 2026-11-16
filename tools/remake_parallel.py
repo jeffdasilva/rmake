@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, replace
 import json
 import os
@@ -2171,25 +2171,13 @@ def stock_primary_load_models() -> list[HeldModel]:
                                         else:
                                             results.extend(stock_primary_three_prefix_model(query, False, count, modes)
                                                            for modes in ('t', 'nt', 'qt'))
-                                elif optional and position.startswith('last-adjacent'):
-                                    results.extend(stock_primary_three_optional_final_touch(query, modes, slots)
-                                                   for modes in ('t', 'qt', 'nt', 'nqt') for slots in (3, 4))
                                 elif position.startswith('last-adjacent'):
-                                    dry = stock_primary_three_interleaved_dry_run(query, False, position)
-                                    args = tuple('-j4' if arg == '-j3' else arg for arg in dry.model.args)
-                                    results.append(replace(dry, model=replace(
-                                        dry.model, id=f'{dry.model.id}-four-slots', args=args)))
-                                    touches = [stock_primary_three_final_touch(query, modes, slots)
-                                               for modes in ('t', 'qt', 'nt', 'nqt') for slots in (3, 4)]
-                                    results.extend(touches)
-                                    if query.load.at_release == LOAD_LOW:
-                                        for touch in touches:
-                                            model = touch.model
-                                            args = tuple(arg for arg in model.args if arg != '-l2')
-                                            model = replace(model, id=model.id.replace('-low-', '-no-load-'),
-                                                            args=args)
-                                            results.append(replace(touch, model=model,
-                                                                   load=replace(touch.load, trace=b'')))
+                                    if not optional:
+                                        dry = stock_primary_three_interleaved_dry_run(query, False, position)
+                                        args = tuple('-j4' if arg == '-j3' else arg for arg in dry.model.args)
+                                        results.append(replace(dry, model=replace(
+                                            dry.model, id=f'{dry.model.id}-four-slots', args=args)))
+                                    results.extend(stock_primary_three_final_touch_profiles(query, optional))
     return results
 
 
@@ -2513,6 +2501,20 @@ def stock_primary_three_optional_final_touch(held: HeldModel, modes: str, slots:
     model = replace(model, id=f'{model.id}-{slots}-slots', args=args,
                     expected=expected, updates=updates)
     return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode)
+
+
+def stock_primary_three_final_touch_profiles(held: HeldModel, optional: bool) -> Iterator[HeldModel]:
+    make_profile = (stock_primary_three_optional_final_touch if optional
+                    else stock_primary_three_final_touch)
+    for slots in (2, 3, 4):
+        for modes in ('t', 'qt', 'nt', 'nqt'):
+            touch = make_profile(held, modes, slots)
+            yield touch
+            if held.load.at_release == LOAD_LOW:
+                model = touch.model
+                args = tuple(arg for arg in model.args if arg != '-l2')
+                model = replace(model, id=model.id.replace('-low-', '-no-load-'), args=args)
+                yield replace(touch, model=model, load=replace(touch.load, trace=b''))
 
 
 def stock_primary_three_prefix_model(held: HeldModel, optional: bool, named_count: int,

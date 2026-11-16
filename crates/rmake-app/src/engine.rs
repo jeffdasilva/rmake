@@ -3332,11 +3332,10 @@ impl Engine {
                 && modes.dry_run
                 && !(modes.question || modes.touch)
                 && self.options.jobs.is_some_and(|slots| slots >= 4);
-            let final_named_touch = final_named_required
-                .is_some_and(|required| required || limited_load)
+            let final_named_touch = final_named_required.is_some()
                 && modes.touch
                 && !debug_before_remake.has(Mask::MAKEFILES)
-                && self.options.jobs.is_some_and(|slots| slots >= 3);
+                && self.options.jobs.is_some_and(|slots| slots >= 2);
             let unruled_primary = ordinary_mode
                 && (limited_load || final_named_touch)
                 && self.unruled_primary_before_named_includes(&read_files, named_sources.as_ref());
