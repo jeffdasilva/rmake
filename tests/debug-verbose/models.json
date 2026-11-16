@@ -2082,6 +2082,140 @@
         "Makefile": 1600000000,
         "all": 1600000002
       }
+    },
+    {
+      "id": "assumed-new-double-synthetic-resolution-failure",
+      "makefile": "all: leaf\n\t@printf parent >> effects\nleaf::\n",
+      "initial_file_offsets": {
+        "all": 2,
+        "leaf": 1
+      },
+      "args": [
+        "--debug=v",
+        "-n",
+        "-W",
+        "leaf",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'leaf'.\n Finished prerequisites of target file 'leaf'.\n Target 'leaf' is double-colon and has no prerequisites.\n Must remake target 'leaf'.\n Successfully remade target file 'leaf'.\n Considering target file 'leaf'.\n Finished prerequisites of target file 'leaf'.\n Target 'leaf' is double-colon and has no prerequisites.\n Must remake target 'leaf'.\n",
+          "stderr": "make: *** No rule to make target 'leaf'.  Stop.\n",
+          "returncode": 2
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « leaf ».\n Fin des dépendances du fichier cible « leaf ».\n La cible « leaf » a un deux-points double et n'a pas de dépendance.\n Il faut refabriquer la cible « leaf ».\n Refabrication réussie du fichier cible « leaf ».\n Étude du fichier cible « leaf ».\n Fin des dépendances du fichier cible « leaf ».\n La cible « leaf » a un deux-points double et n'a pas de dépendance.\n Il faut refabriquer la cible « leaf ».\n",
+          "stderr": "make: *** Aucune règle pour fabriquer la cible « leaf ». Arrêt.\n",
+          "returncode": 2
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "all": 1600000002,
+        "leaf": 1600000001
+      }
+    },
+    {
+      "id": "assumed-new-double-synthetic-resolution-after-current",
+      "makefile": "all: leaf\n\t@printf parent >> effects\nleaf:: input\n",
+      "initial_file_offsets": {
+        "all": 2,
+        "leaf": 1,
+        "input": 0
+      },
+      "args": [
+        "--debug=v",
+        "-n",
+        "-W",
+        "leaf",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'leaf'.\n  Considering target file 'input'.\n  Finished prerequisites of target file 'input'.\n  No need to remake target 'input'.\n Finished prerequisites of target file 'leaf'.\n  Prerequisite 'input' is older than target 'leaf'.\n No recipe for 'leaf' and no prerequisites actually changed.\n No need to remake target 'leaf'.\n Considering target file 'leaf'.\n Finished prerequisites of target file 'leaf'.\n Target 'leaf' is double-colon and has no prerequisites.\n Must remake target 'leaf'.\n",
+          "stderr": "make: *** No rule to make target 'leaf'.  Stop.\n",
+          "returncode": 2
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « leaf ».\n  Étude du fichier cible « input ».\n  Fin des dépendances du fichier cible « input ».\n  Inutile de refabriquer la cible « input ».\n Fin des dépendances du fichier cible « leaf ».\n  La dépendance « input » est plus ancienne que la cible « leaf ».\n Pas de recette pour « leaf » et aucune dépendance n'a changé.\n Inutile de refabriquer la cible « leaf ».\n Étude du fichier cible « leaf ».\n Fin des dépendances du fichier cible « leaf ».\n La cible « leaf » a un deux-points double et n'a pas de dépendance.\n Il faut refabriquer la cible « leaf ».\n",
+          "stderr": "make: *** Aucune règle pour fabriquer la cible « leaf ». Arrêt.\n",
+          "returncode": 2
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "all": 1600000002,
+        "leaf": 1600000001,
+        "input": 1600000000
+      }
+    },
+    {
+      "id": "assumed-new-double-synthetic-resolution-parallel",
+      "makefile": "all: leaf\n\t@printf parent >> effects\nleaf::\nleaf::\n",
+      "initial_file_offsets": {
+        "all": 2,
+        "leaf": 1
+      },
+      "args": [
+        "-j2",
+        "--jobserver-style=pipe",
+        "--debug=v",
+        "-n",
+        "-W",
+        "leaf",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUsing jobserver controller 3,4\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'leaf'.\n Finished prerequisites of target file 'leaf'.\n Target 'leaf' is double-colon and has no prerequisites.\n Must remake target 'leaf'.\n Successfully remade target file 'leaf'.\n Considering target file 'leaf'.\n Finished prerequisites of target file 'leaf'.\n Target 'leaf' is double-colon and has no prerequisites.\n Must remake target 'leaf'.\n Successfully remade target file 'leaf'.\n Considering target file 'leaf'.\n Finished prerequisites of target file 'leaf'.\n Target 'leaf' is double-colon and has no prerequisites.\n Must remake target 'leaf'.\n",
+          "stderr": "make: *** No rule to make target 'leaf'.  Stop.\n",
+          "returncode": 2
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nUsing jobserver controller 3,4\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « leaf ».\n Fin des dépendances du fichier cible « leaf ».\n La cible « leaf » a un deux-points double et n'a pas de dépendance.\n Il faut refabriquer la cible « leaf ».\n Refabrication réussie du fichier cible « leaf ».\n Étude du fichier cible « leaf ».\n Fin des dépendances du fichier cible « leaf ».\n La cible « leaf » a un deux-points double et n'a pas de dépendance.\n Il faut refabriquer la cible « leaf ».\n Refabrication réussie du fichier cible « leaf ».\n Étude du fichier cible « leaf ».\n Fin des dépendances du fichier cible « leaf ».\n La cible « leaf » a un deux-points double et n'a pas de dépendance.\n Il faut refabriquer la cible « leaf ».\n",
+          "stderr": "make: *** Aucune règle pour fabriquer la cible « leaf ». Arrêt.\n",
+          "returncode": 2
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "all": 1600000002,
+        "leaf": 1600000001
+      }
+    },
+    {
+      "id": "assumed-new-double-synthetic-resolution-default",
+      "makefile": "all: leaf\n\t@printf parent >> effects\nleaf:: input\n.DEFAULT:\n\t@printf default >> effects\n",
+      "initial_file_offsets": {
+        "all": 2,
+        "leaf": 1,
+        "input": 0
+      },
+      "args": [
+        "--debug=v",
+        "-n",
+        "-W",
+        "leaf",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'leaf'.\n  Considering target file 'input'.\n  Finished prerequisites of target file 'input'.\n  No need to remake target 'input'.\n Finished prerequisites of target file 'leaf'.\n  Prerequisite 'input' is older than target 'leaf'.\n No recipe for 'leaf' and no prerequisites actually changed.\n No need to remake target 'leaf'.\n Considering target file 'leaf'.\n Finished prerequisites of target file 'leaf'.\n Target 'leaf' is double-colon and has no prerequisites.\n Must remake target 'leaf'.\nprintf default >> effects\n Successfully remade target file 'leaf'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'leaf' is newer than target 'all'.\nMust remake target 'all'.\nprintf parent >> effects\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « leaf ».\n  Étude du fichier cible « input ».\n  Fin des dépendances du fichier cible « input ».\n  Inutile de refabriquer la cible « input ».\n Fin des dépendances du fichier cible « leaf ».\n  La dépendance « input » est plus ancienne que la cible « leaf ».\n Pas de recette pour « leaf » et aucune dépendance n'a changé.\n Inutile de refabriquer la cible « leaf ».\n Étude du fichier cible « leaf ».\n Fin des dépendances du fichier cible « leaf ».\n La cible « leaf » a un deux-points double et n'a pas de dépendance.\n Il faut refabriquer la cible « leaf ».\nprintf default >> effects\n Refabrication réussie du fichier cible « leaf ».\nFin des dépendances du fichier cible « all ».\n La dépendance « leaf » est plus récente que la cible « all ».\nIl faut refabriquer la cible « all ».\nprintf parent >> effects\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "all": 1600000002,
+        "leaf": 1600000001,
+        "input": 1600000000
+      }
     }
   ]
 }
