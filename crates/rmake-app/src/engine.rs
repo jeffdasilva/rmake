@@ -9532,12 +9532,28 @@ impl Engine {
             {
                 traced_optional_failure = true;
             }
+            let cached_remake_parent = if self.remaking
+                && !self.parallel_makefile_remakes
+                && parent.is_none()
+                && self
+                    .done
+                    .get(target)
+                    .is_some_and(|outcome| outcome.failed && !outcome.fatal)
+            {
+                self.scope_parents
+                    .get(target)
+                    .and_then(Option::as_ref)
+                    .map(|parent| self.aliases.resolve(&parent.target).to_vec())
+            } else {
+                None
+            };
             if !traced_optional_failure
                 && self.remaking
                 && ((self.parallel_makefile_remakes && parent.is_none())
                     || (!self.parallel_makefile_remakes
                         && self.options.keep_going
-                        && parent.is_some()))
+                        && parent.is_some())
+                    || cached_remake_parent.is_some())
                 && self
                     .done
                     .get(target)
@@ -9552,7 +9568,10 @@ impl Engine {
                 emit(&self.output, Event::RecentlyFailed(target, depth + 1));
                 traced_optional_failure = true;
             }
-            self.show_retained_optional_failure(target, parent.map(|parent| parent.target), cause);
+            let diagnostic_parent = parent
+                .map(|parent| parent.target)
+                .or(cached_remake_parent.as_deref());
+            self.show_retained_optional_failure(target, diagnostic_parent, cause);
             if let Some(outcome) = query
                 && !self.options.keep_going
             {
@@ -11836,12 +11855,17 @@ impl Engine {
             && !self.parallel_graph()
             && !outcome.question_outdated
             && !outcome.fatal;
-        let track_read_peers = self.remaking
-            && !self.parallel_makefile_remakes
-            && !group.implicit
+        let serial_explicit_remake =
+            self.remaking && !self.parallel_makefile_remakes && !group.implicit;
+        let track_read_peers = serial_explicit_remake
             && !outcome.failed
             && outcome.ran
             && outcome.completion == CompletionTime::Refresh;
+        let trace_failed_read_peers = serial_explicit_remake
+            && self.optional_remake()
+            && outcome.failed
+            && outcome.ran
+            && !outcome.fatal;
         for (peer, before, phony) in group.members.into_iter().rev() {
             let database_result =
                 if observe_dry_group && !phony && (!group.implicit || peer != target) {
@@ -11878,7 +11902,8 @@ impl Engine {
             let mut completed = cached;
             completed.database_result = database_result;
             completed.debug_serial_group_peer = debug_serial_group_peer
-                || (track_read_peers && self.makefile_names.contains(&peer));
+                || ((track_read_peers || trace_failed_read_peers)
+                    && self.makefile_names.contains(&peer));
             completed.optional_group_peer_failure =
                 self.optional_remake() && outcome.failed && !outcome.fatal;
             completed.search_after_update = false;
