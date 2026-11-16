@@ -216,4 +216,10 @@ The notice emitted while a failed build drains its remaining recipes uses the
 active catalog. Eight profiles hold a sibling until the failure and wait
 notice are captured. They compare both streams and the released worker's
 files in C and French, with both jobservers and with target output sync.
-The diagnostic gate runs 201 profiles.
+
+## Intermediate-file policy
+
+Conflicting intermediate-file declarations use the active catalog for
+global policies and named targets. Twelve profiles check the German,
+Japanese, and Polish messages, C and French fallback, raw target bytes,
+and a nonconflicting control. The diagnostic gate runs 213 profiles.

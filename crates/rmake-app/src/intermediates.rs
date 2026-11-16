@@ -3,6 +3,7 @@
 
 //! Intermediate-file policy fixed after each complete Makefile read.
 
+use rmake_core::messages::Message;
 use rmake_core::parser::{Database, Rule};
 use std::collections::HashSet;
 
@@ -57,12 +58,12 @@ impl Policy {
                 .flat_map(|rule| &rule.dependencies)
             {
                 if policy.not_intermediate.contains(&dependency.name) {
-                    return Err([
-                        dependency.name.as_slice(),
-                        b" cannot be both .NOTINTERMEDIATE and ",
-                        name,
-                    ]
-                    .concat());
+                    return Err(crate::messages::system(
+                        Message::IntermediateTargetConflict {
+                            target: &dependency.name,
+                            secondary: name == b".SECONDARY",
+                        },
+                    ));
                 }
                 if name == b".INTERMEDIATE" {
                     policy.intermediate.insert(dependency.name.clone());
@@ -72,7 +73,7 @@ impl Policy {
             }
         }
         if policy.all_secondary && policy.no_intermediates {
-            return Err(b".NOTINTERMEDIATE and .SECONDARY are mutually exclusive".to_vec());
+            return Err(crate::messages::system(Message::IntermediatePolicyConflict));
         }
         policy.capture_files(database);
         Ok(policy)
