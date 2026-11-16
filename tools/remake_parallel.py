@@ -2175,6 +2175,8 @@ def stock_primary_load_models() -> list[HeldModel]:
                                     args = tuple('-j4' if arg == '-j3' else arg for arg in dry.model.args)
                                     results.append(replace(dry, model=replace(
                                         dry.model, id=f'{dry.model.id}-four-slots', args=args)))
+                                    results.extend(stock_primary_three_final_touch(query, modes, slots)
+                                                   for modes in ('t', 'qt', 'nt', 'nqt') for slots in (3, 4))
     return results
 
 
@@ -2401,6 +2403,43 @@ def stock_primary_three_interleaved_dry_run(held: HeldModel, optional: bool,
     model = replace(model, files=files, expected=expected, updates=updates)
     return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode,
                    before_second_stdout=leaf_release_stdout)
+
+
+def stock_primary_three_final_touch(held: HeldModel, modes: str, slots: int) -> HeldModel:
+    model = stock_primary_three_modes(held.model, modes)
+    args = tuple(f'-j{slots}' if arg == '-j3' else arg for arg in model.args)
+    goals = model.args[-3:-1]
+    named_touches = b''.join(f'touch {goal}\n'.encode() for goal in goals)
+    high = held.load.at_release == LOAD_HIGH
+    dry_run = 'n' in modes
+    question = 'q' in modes
+    removed = high and question
+    release = held.before_first_stdout + named_touches
+    if not high:
+        release += b'touch leaf.mk\n'
+    stdout = release
+    stderr = b''
+    updates = {name: data for name, data in model.updates.items() if name.startswith('primary.')}
+    updates['leaf.mk'] = b'LEAF := loaded\n'
+    primary_mode = None
+    if removed:
+        stderr = b"make: *** Deleting file 'Makefile'\n"
+    else:
+        primary_mode = 0o644 if high else 0o755
+        stdout += b'touch Makefile\n' * 2 if high else b'chmod a+x Makefile\n'
+        updates['Makefile'] = model.files['Makefile.sh']
+        if dry_run:
+            stdout += named_touches
+    if not question:
+        stdout += b''.join(f"make: '{goal}' is up to date.\n".encode() for goal in goals)
+    stdout += b'touch all\n'
+    if not dry_run:
+        updates.update(dict.fromkeys((*goals, 'all'), b''))
+    expected = {'exit_code': 0, 'stdout_template_hex': stdout.hex(),
+                'stderr_template_hex': stderr.hex()}
+    model = replace(model, id=f'{model.id}-{slots}-slots', args=args,
+                    expected=expected, updates=updates)
+    return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode)
 
 
 def stock_primary_three_prefix_model(held: HeldModel, optional: bool, named_count: int,

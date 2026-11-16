@@ -3312,10 +3312,7 @@ impl Engine {
                     named_sources.as_ref(),
                 )
             };
-            let final_named_dry = modes.dry_run
-                && !(modes.question || modes.touch)
-                && self.options.load_limit.is_some()
-                && self.options.jobs.is_some_and(|slots| slots >= 4)
+            let final_named_load = self.options.load_limit.is_some()
                 && matches!(
                     named_load_files,
                     [(first, false), (middle, false), (last, false)]
@@ -3324,6 +3321,13 @@ impl Engine {
                             && named_include(last)
                             && !(first.optional || middle.optional || last.optional)
                 );
+            let final_named_dry = final_named_load
+                && modes.dry_run
+                && !(modes.question || modes.touch)
+                && self.options.jobs.is_some_and(|slots| slots >= 4);
+            let final_named_touch = final_named_load
+                && modes.touch
+                && self.options.jobs.is_some_and(|slots| slots >= 3);
             let mixed_named_overlap = unruled_primary
                 && match named_load_files {
                     [(_, false), (_, false)] => {
@@ -3347,6 +3351,7 @@ impl Engine {
                             && ((modes.question && !modes.touch)
                                 || (named_first && !named_last)
                                 || final_named_dry
+                                || final_named_touch
                                 || (early_named
                                     && ((modes.dry_run && !modes.touch)
                                         || required_touch
@@ -3723,6 +3728,7 @@ impl Engine {
                     && self.parallel_makefile_remakes
                     && named_source
                     && (final_named_dry
+                        || final_named_touch
                         || (modes.touch
                             && source_index == 2
                             && self.pending(&read_files[1].0.name)))
