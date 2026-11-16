@@ -25,6 +25,7 @@ WITNESS = FIXED + 40_125_000_000
 CLOCK = re.compile(rb'(?m)^# (Make data base, printed on|Finished Make data base on) ([^\n]{24})$')
 COMMAND = '#  Command line target.'
 IMPLICIT = '#  Implicit rule search has not been done.'
+IMPLICIT_DONE = '#  Implicit rule search has been done.'
 STEM = "#  Implicit/static pattern stem: ''"
 SECONDARY = '#  File is secondary (prerequisite of .SECONDARY).'
 NOT_INTERMEDIATE = '#  File is a prerequisite of .NOTINTERMEDIATE.'
@@ -46,11 +47,15 @@ class Model:
     declaration: str = ''
     special: str = ''
     late: bool = False
+    pattern_tail: bool = False
 
     @property
     def makefile(self):
-        return (self.declaration + ''.join(f'all:: {name} | gate ; {recipe(name)}\n' for name in ('n', 'z'))
-                + self.special + ('MAKEFLAGS += -p\n' if self.late else ''))
+        head = f'all:: n | gate ; {recipe("n")}\n'
+        tail = (f'all:: z | gate\nal%: n ; {recipe("z")}\n' if self.pattern_tail
+                else f'all:: z | gate ; {recipe("z")}\n')
+        return (self.declaration + head + tail + self.special
+                + ('MAKEFLAGS += -p\n' if self.late else ''))
 
     @property
     def flags(self):
@@ -58,10 +63,12 @@ class Model:
                 *(('all',) if self.goal else ()))
 
     def expected_record(self, ordinal, name):
-        active = name in self.newer
-        metadata = ((COMMAND,) if self.goal and ordinal == 0 else ()) + (IMPLICIT,)
+        inferred = self.pattern_tail and name == 'z'
+        active = name in self.newer or inferred
+        metadata = ((COMMAND,) if self.goal and ordinal == 0 else ())
+        metadata += (IMPLICIT_DONE if inferred else IMPLICIT,)
         if active:
-            metadata += (STEM,)
+            metadata += ("#  Implicit/static pattern stem: 'l'" if inferred else STEM,)
         if self.special == '.NOTINTERMEDIATE: all\n':
             metadata += (NOT_INTERMEDIATE,)
         elif not active or self.special == '.SECONDARY: all\n':
@@ -72,7 +79,7 @@ class Model:
         if active:
             occupied = 9 if local else 8
             probes = 19 if local else 17
-            if ordinal == 0 and 'z' in self.newer:
+            if ordinal == 0 and ('z' in self.newer or self.pattern_tail):
                 probes += 4
             stats = f'# Load={occupied}/32={28 if local else 25}%, Rehash=0, Collisions=2/{probes}={(200 + probes // 2) // probes}%'
         elif ordinal == 0 and (self.newer or local):
@@ -80,12 +87,16 @@ class Model:
         else:
             stats = None
         declaration = ("# makefile (from 'Makefile', line 1)", 'all: LOCAL = scope') if local else ()
-        automatic = (('@', 'all'), ('*', ''), ('<', name), ('+', name), ('%', ''),
-                     ('^', name), ('?', name), ('|', 'gate')) if active else ()
+        prerequisites = 'n z' if inferred else name
+        first = 'n' if inferred else name
+        stem = 'l' if inferred else ''
+        automatic = (('@', 'all'), ('*', stem), ('<', first), ('+', prerequisites), ('%', ''),
+                     ('^', prerequisites), ('?', first), ('|', 'gate')) if active else ()
+        recipe_line = ordinal + 1 + bool(self.declaration) + inferred
         return {
-            'rule': f'all:: {name} | gate', 'metadata': metadata + COMPLETE,
+            'rule': f'all:: {prerequisites} | gate', 'metadata': metadata + COMPLETE,
             'stats': stats, 'declaration': declaration, 'automatic': automatic,
-            'recipe': (f"#  recipe to execute (from 'Makefile', line {ordinal + 1 + bool(self.declaration)}):",
+            'recipe': (f"#  recipe to execute (from 'Makefile', line {recipe_line}):",
                        '\t ' + recipe(name)),
         }
 
@@ -100,13 +111,19 @@ def models():
     yield Model('notintermediate-both-branches', ('n',), special='.NOTINTERMEDIATE: all\n')
     yield Model('active-head-local', ('n',), declaration=TARGET_SOURCE)
     yield Model('inactive-head-local', ('z',), declaration=TARGET_SOURCE)
+    yield Model('active-tail-pattern-recipe', ('n',), pattern_tail=True)
 
 
 def describe(model):
+    local = 'scope' if model.declaration else ''
+    witnesses = {f'seen-{name}': f'values[{name}][{name}][{name}][{name}][gate][{local}]\n'
+                 for name in model.newer}
+    if model.pattern_tail:
+        witnesses['seen-z'] = f'values[n][n z][n z][n][gate][{local}]\n'
     return {**asdict(model), 'makefile': model.makefile, 'flags': model.flags,
             'records': [model.expected_record(ordinal, name) for ordinal, name in enumerate(('n', 'z'))],
             'input_mtimes': {'Makefile': FIXED, **{name: CURRENT if name == 'all' else NEW if name in model.newer else FIXED for name in FILE_INPUTS}},
-            'witnesses': {f'seen-{name}': f'values[{name}][{name}][{name}][{name}][gate][{"scope" if model.declaration else ""}]\n' for name in model.newer}}
+            'witnesses': witnesses}
 
 
 def fixture(model, path):
@@ -117,13 +134,21 @@ def fixture(model, path):
     return h.Case(path, model.id, 'database.double-colon-branch-metadata', 'required', model.flags, 15, {}, {})
 
 
-def check_stdout(plan, output, start, end):
+def check_stdout(plan, output, start, end, directory):
     fields = list(CLOCK.finditer(output))
     if [field[1] for field in fields] != [b'Make data base, printed on', b'Finished Make data base on']:
         raise h.HarnessError('expected a complete database dump')
     a, b = (db.parse_clock(field[2]) for field in fields)
-    if not start <= a <= b <= end or b'(device ' in output:
-        raise h.HarnessError('unexpected positioned clock or physical directory fields')
+    if not start <= a <= b <= end:
+        raise h.HarnessError('unexpected positioned clock fields')
+    if plan['pattern_tail']:
+        device, inode = directory
+        identity = f'# . (device {device}, inode {inode}):'.encode()
+        if output.count(identity) != 1 or output.count(b'(device ') != 1:
+            raise h.HarnessError('implicit search directory differs from independent stat')
+        output = output.replace(identity, b'# . <checked identity>:', 1)
+    elif b'(device ' in output:
+        raise h.HarnessError('unexpected physical directory fields')
     header, footer = b'\n# Files\n\n', b'\n# files hash-table stats:\n'
     if output.count(header) != 1 or output.count(footer) != 1 or output.index(header) > output.index(footer):
         raise h.HarnessError('invalid file database section')
@@ -166,6 +191,7 @@ def run(plan, case, runtime, engine):
                                    'sha256': hashlib.sha256(content).hexdigest(), 'content': base64.b64encode(content).decode()}
         expected_times[name] = WITNESS
     argv = [str(runtime / 'bin/make'), *case.args]
+    directory_before = work.stat()
     start = db.libc_time()
     out, err, status, limit, leftovers = h.capture(argv, work, h.clean_environment(runtime), case.timeout)
     end = db.libc_time()
@@ -177,7 +203,12 @@ def run(plan, case, runtime, engine):
     try:
         if (status, err, limit, leftovers, filesystem, times) != (0, b'', None, False, expected, expected_times):
             raise h.HarnessError('unexpected status, stderr, process bound or physical file effect')
-        result['comparison_sha256'] = hashlib.sha256(check_stdout(plan, out, start, end)).hexdigest()
+        directory_after = work.stat()
+        identity = directory_before.st_dev, directory_before.st_ino
+        if identity != (directory_after.st_dev, directory_after.st_ino):
+            raise h.HarnessError('workspace directory changed during database capture')
+        result['workspace_identity'] = identity
+        result['comparison_sha256'] = hashlib.sha256(check_stdout(plan, out, start, end, identity)).hexdigest()
     except (h.HarnessError, ValueError) as error:
         result['error'] = str(error)
     return result

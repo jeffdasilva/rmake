@@ -145,9 +145,14 @@ required unnamed includes. The earlier unnamed job waits for ordinary mode
 after the optional pass. Eight required-source dry-run profiles place
 two named includes last, with a slot for every source. They verify the
 load queue order in both restarted images. The high-load profiles hold
-the unnamed recipe until its restarted parent waits for it. Lower slot
-counts and unbounded dry runs remain open. Sixty-four required-source
-profiles cover final-adjacent touches with three or four slots under
+the unnamed recipe until its restarted parent waits for it. Lower slot counts and unbounded dry runs under controlled load remain open.
+Thirty-two related profiles omit the load option. The held cases release
+the primary or earlier unnamed recipe first at a verified parent wait with
+two, three, and four slots. They compare both raw release prefixes and
+whether the primary recipe's chmod actually changes the file mode. Eight
+fast unnamed-recipe controls cover both transports with three and four slots.
+Sixty-four required-source profiles cover final-adjacent touches with three
+or four slots under
 `-t`, `-q -t`, `-n -t`, and `-n -q -t`. They check touch order,
 primary removal under high-load query, and the earlier unnamed recipe's
 file contents.
@@ -156,6 +161,12 @@ named visits and earlier recipe complete in the same order with no load probe.
 Sixty-four held profiles also cover an optional include in either of the
 final two named positions, including its effect on the active primary
 continuation, the queued earlier include, and a later required visit.
+The same required and optional touch sequences run with two slots.
+The no-load cases also cover an optional named source with two, three,
+and four slots. These 128 additional profiles verify the same bytes,
+primary mode and file effects across the tested job counts.
+Ninety-six further touch profiles exercise unbounded `-j` with and
+without a load option, including both optional-source positions.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an

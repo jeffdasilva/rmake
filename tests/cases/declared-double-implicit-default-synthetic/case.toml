@@ -1,0 +1,11 @@
+id = "declared-double-implicit-default-synthetic"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+provenance = "Original rmake differential fixture for a declared double-colon implicit pattern."
+args = ["-rR", "--no-print-directory", "-j1", "-W", "leaf", "all"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout = "default[leaf][leaf]\nparent\n"
+stderr = ""

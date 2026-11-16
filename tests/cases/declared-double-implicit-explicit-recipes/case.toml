@@ -1,0 +1,11 @@
+id = "declared-double-implicit-explicit-recipes"
+requirement = "rules.implicit"
+candidate = "required"
+provenance = "Original rmake differential fixture for a declared double-colon implicit pattern."
+args = ["-rR", "--no-print-directory", "-j1", "-B", "all"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout = "named[leaf][base]\npattern[leaf][input][input base][af]\nparent\n"
+stderr = ""

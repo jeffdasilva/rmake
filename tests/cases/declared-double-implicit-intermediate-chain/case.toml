@@ -1,0 +1,11 @@
+id = "declared-double-implicit-intermediate-chain"
+requirement = "rules.implicit"
+candidate = "required"
+provenance = "Original rmake differential fixture for a declared double-colon implicit pattern."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout = "chain[input-af][material][af]\npattern[leaf][input-af][input-af base][af]\nparent\nrm input-af\n"
+stderr = ""

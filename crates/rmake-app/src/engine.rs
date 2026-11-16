@@ -1161,6 +1161,7 @@ pub struct Engine {
     database_branch_contexts: HashMap<(Vec<u8>, usize), VariableStore>,
     database_expanded_prerequisites: Option<Box<database_output::ExpandedPrerequisites>>,
     database_branch_outcomes: HashMap<(Vec<u8>, usize), Outcome>,
+    database_branch_implicit: HashSet<(Vec<u8>, usize)>,
     database_branch_secondary: BTreeSet<(Vec<u8>, usize)>,
     database_group_peer_times: HashMap<Vec<u8>, Vec<GroupPeerTime>>,
     database_unchecked_times: RefCell<HashSet<Vec<u8>>>,
@@ -1744,6 +1745,7 @@ impl Engine {
             database_branch_contexts: HashMap::new(),
             database_expanded_prerequisites: None,
             database_branch_outcomes: HashMap::new(),
+            database_branch_implicit: HashSet::new(),
             database_branch_secondary: BTreeSet::new(),
             database_group_peer_times: HashMap::new(),
             database_unchecked_times: RefCell::new(HashSet::new()),
@@ -3325,18 +3327,26 @@ impl Engine {
                 }
                 _ => None,
             };
-            let final_named_dry = limited_load
-                && final_named_required == Some(true)
+            let final_required_dry = final_named_required == Some(true)
                 && modes.dry_run
-                && !(modes.question || modes.touch)
+                && !(modes.question || modes.touch);
+            let final_named_dry = limited_load
+                && final_required_dry
                 && self.options.jobs.is_some_and(|slots| slots >= 4);
-            let final_named_touch = final_named_required
-                .is_some_and(|required| required || limited_load)
+            let final_named_touch = final_named_required.is_some()
                 && modes.touch
                 && !debug_before_remake.has(Mask::MAKEFILES)
-                && self.options.jobs.is_some_and(|slots| slots >= 3);
+                && self.options.jobs.is_some_and(|slots| slots >= 2);
             let unruled_primary = ordinary_mode
                 && (limited_load || final_named_touch)
+                && self.unruled_primary_before_named_includes(&read_files, named_sources.as_ref());
+            let no_load_primary_dry = !limited_load
+                && final_required_dry
+                && !debug_before_remake.has(Mask::MAKEFILES)
+                && self
+                    .options
+                    .jobs
+                    .is_some_and(|slots| (3..usize::MAX).contains(&slots))
                 && self.unruled_primary_before_named_includes(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
             let mixed_named_overlap = unruled_primary
@@ -3987,10 +3997,19 @@ impl Engine {
             if !stopped && !pending.is_empty() {
                 // Reaping before the next source visit retains the last
                 // named mode for a still-running implicit primary or named recipe.
-                let active_primary = overlap_primary_recipe
-                    && pending
-                        .first()
-                        .is_some_and(|remake| std::ptr::eq(remake.file, &read_files[0].0));
+                // Without a load limit, keep this only while the earlier unnamed
+                // include and the primary both have running recipe children.
+                let active_primary = pending
+                    .first()
+                    .is_some_and(|remake| std::ptr::eq(remake.file, &read_files[0].0))
+                    && (overlap_primary_recipe
+                        || (no_load_primary_dry
+                            && read_files[..2].iter().all(|(file, _)| {
+                                self.parallel_jobs
+                                    .primary
+                                    .get(self.aliases.resolve(&file.name))
+                                    .is_some_and(|job| job.child.is_some())
+                            })));
                 if MakefileModes::from_options(&self.options).active()
                     && !active_primary
                     && !pending.last().is_some_and(|remake| remake.modes.active())
@@ -7279,6 +7298,12 @@ impl Engine {
                     .or_insert(outcome);
             }
         }
+        let implicit_keys: Vec<_> = self
+            .database_branch_implicit
+            .extract_if(|(name, _)| name.as_slice() == from)
+            .map(|(_, ordinal)| (to.to_vec(), ordinal))
+            .collect();
+        self.database_branch_implicit.extend(implicit_keys);
         let secondary_keys: Vec<_> = self
             .database_branch_secondary
             .iter()
@@ -10300,7 +10325,7 @@ impl Engine {
                     crate::debug::Event::Considering(target, state.depth),
                 );
             }
-            let branch = if let Some(branch) = entry {
+            let mut branch = if let Some(branch) = entry {
                 branch
             } else {
                 if state.synthetic_tail.is_none()
@@ -10396,6 +10421,53 @@ impl Engine {
             }
             let before = assumed_time.or(branch_before);
             let comparison = self.comparison_time(target, before);
+            if declared
+                && assumed_time.is_none()
+                && !self.remaking
+                && self.active_makefile_remake.is_none()
+                && !state.phony
+                && branch.recipes.is_none()
+                && branch.group.is_none()
+                && branch.secondary.is_none()
+                && !self.shuffle.enabled()
+                && !self.terminal_prerequisites.contains(target)
+                && self
+                    .database_branch_implicit
+                    .insert((target.to_vec(), ordinal))
+            {
+                let Ok(plan) = self.plan_implicit_update(target, state.depth, false) else {
+                    state.combined.failed = true;
+                    state.combined.fatal = true;
+                    state.branches.clear();
+                    continue;
+                };
+                // Each declared branch retains its own prerequisites and
+                // resolves a pattern recipe before visiting them.
+                if let Some(plan) = plan
+                    && plan
+                        .last()
+                        .is_some_and(|root| root.name == target && root.rule.group.is_none())
+                    && let Some(mut selected) = self.install_implicit_plan(target, plan, true)
+                {
+                    if let Some(history) = self.database.database_history()
+                        && let Some(stem) = &selected.stem
+                    {
+                        history.intern(stem);
+                    }
+                    selected.append_prerequisites(&branch);
+                    selected.prerequisite_location = branch.prerequisite_location;
+                    if let Some(stored) = self
+                        .database
+                        .rules
+                        .get_mut(target)
+                        .and_then(|root| root.double_colon.as_mut())
+                        .and_then(|branches| branches.get_mut(ordinal))
+                    {
+                        *stored = selected.clone();
+                    }
+                    branch = selected;
+                }
+            }
             let visit = |engine: &mut Self| {
                 engine.build_rule(
                     target,
