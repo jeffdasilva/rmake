@@ -3311,10 +3311,14 @@ impl Engine {
                     [(_, false), (_, false)] => {
                         !debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug
                     }
-                    [(first, false), (_, false), (last, false)] => {
+                    [(first, false), (middle, false), (last, false)] => {
                         !debug_before_remake.has(Mask::MAKEFILES)
-                            && ((modes.question && !modes.dry_run && !modes.touch)
-                                || (named_include(first) && !named_include(last)))
+                            && ((modes.question && !modes.touch)
+                                || (named_include(first) && !named_include(last))
+                                || (modes.dry_run
+                                    && !modes.touch
+                                    && (named_include(first)
+                                        || (named_include(middle) && !named_include(last)))))
                     }
                     _ => false,
                 }
@@ -11882,7 +11886,7 @@ impl Engine {
             && outcome.completion == CompletionTime::Refresh
             && (!outcome.failed || failed_required_remake);
         let use_saved_peer_time = track_read_peers
-            && group.before.is_none()
+            && (!outcome.failed || group.before.is_none())
             && self.assumptions.is_none()
             && !self.options.check_symlink_times
             && self.makefile_names.contains(target);
@@ -11940,8 +11944,8 @@ impl Engine {
                 self.modified(&peer)
             };
             if track_read_peers && !phony && self.makefile_names.contains(&peer) {
-                // A missing owner skips peer freshness checks. The serial read
-                // pass can still prove that a successful recipe removed a peer.
+                // A missing group member can stop peer freshness checks.
+                // The serial read pass can still prove a peer was removed.
                 let before = before.or_else(|| {
                     if use_saved_peer_time
                         && (failed_required_remake || completed.time.is_none())

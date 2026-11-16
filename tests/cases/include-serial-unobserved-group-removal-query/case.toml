@@ -1,0 +1,12 @@
+id = "include-serial-unobserved-group-removal-query"
+requirement = "includes.remake"
+candidate = "required"
+description = "Report the required include missing on reread before answering a separate ordinary query."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-q", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:\nREAD:1\n"
+stderr = "Makefile:5: payload.mk: No such file or directory\nmake: *** No rule to make target 'payload.mk'.  Stop.\n"

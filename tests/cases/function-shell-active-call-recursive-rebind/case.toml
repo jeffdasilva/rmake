@@ -1,0 +1,14 @@
+id = "function-shell-active-call-recursive-rebind"
+requirement = "functions.shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--warn-undefined-variables", "all"]
+timeout_seconds = 3
+description = "An in-place recursive replacement retains the active call export fallback."
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout = "[[|value]]\nmake: Nothing to be done for 'all'.\n"
+stderr = ""

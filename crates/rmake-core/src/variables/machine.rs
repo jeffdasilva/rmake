@@ -1029,25 +1029,58 @@ impl Expansion<'_, '_> {
         for index in expanded.len()..slots {
             frame.insert(index.to_string().into_bytes(), local(Vec::new()));
         }
+        let positional = name.first().is_some_and(u8::is_ascii_digit) && frame.contains_key(name);
+        let computed = name.iter().any(|&byte| matches!(byte, b'$' | b')'));
+        let substitution = name
+            .iter()
+            .position(|&byte| byte == b':')
+            .is_some_and(|colon| name[colon + 1..].contains(&b'='));
+        // Named calls may recurse with different arguments. Their selected
+        // ownership matters separately during recursive shell exports.
+        if let Some(layer) = layer
+            && variable.flavor == Flavor::Recursive
+            && !positional
+            && !computed
+            && !substitution
+            && self.context.has_shell()
+        {
+            if self.context.preparing_shell_environment
+                && self
+                    .active_keys()
+                    .any(|(active, owner)| active == name && owner == Some(layer))
+            {
+                m.values.push(self.recursive_binding(name, &variable)?);
+                return Ok(());
+            }
+            frame.call_owner = Some(InheritedActiveBinding {
+                key: (name.to_vec(), Some(layer)),
+                table: self.store.history_for_layer(layer).cloned(),
+            });
+        }
+        let owner_bytes = frame
+            .call_owner
+            .as_ref()
+            .map_or(0, |binding| binding.key.0.capacity() + 64);
         let start = self.bindings.len();
         self.bindings.push(frame);
         let location = variable.definition.clone().or_else(|| nearest.clone());
         m.job(
-            Kind::ScopeEnd(start, scope_storage(&self.bindings[start..])),
+            Kind::ScopeEnd(start, scope_storage(&self.bindings[start..]) + owner_bytes),
             depth,
             location.clone(),
         )?;
         // GNU checks the original callee, then resolves it inside the call frame.
-        if name.first().is_some_and(u8::is_ascii_digit)
-            && let Some(binding) = self.bindings[start].get(name)
-        {
+        if positional {
+            let binding = self.bindings[start]
+                .get(name)
+                .expect("selected call parameter");
             let value = if variable.raw_value().is_empty() {
                 Vec::new()
             } else {
                 binding.raw_value().to_vec()
             };
             m.values.push(value);
-        } else if name.iter().any(|&byte| matches!(byte, b'$' | b')')) {
+        } else if computed {
             if variable.raw_value().is_empty() {
                 m.values.push(Vec::new());
             } else {
@@ -1060,11 +1093,7 @@ impl Expansion<'_, '_> {
                 let expression = m.owned(expression, depth)?;
                 m.read(expression, depth, nearest)?;
             }
-        } else if name
-            .iter()
-            .position(|&byte| byte == b':')
-            .is_some_and(|colon| name[colon + 1..].contains(&b'='))
-        {
+        } else if substitution {
             // The generated reference can select a substitution in this frame.
             if variable.raw_value().is_empty() {
                 m.values.push(Vec::new());

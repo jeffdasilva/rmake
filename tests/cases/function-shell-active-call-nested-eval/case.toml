@@ -1,0 +1,14 @@
+id = "function-shell-active-call-nested-eval"
+requirement = "functions.shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--warn-undefined-variables", "all"]
+timeout_seconds = 3
+description = "An evaluated assignment inherits the active named call when it captures a shell."
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout = "[expanded]\n"
+stderr = ""

@@ -1,0 +1,14 @@
+id = "function-shell-active-call-target-indirect"
+requirement = "functions.shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--warn-undefined-variables", "all"]
+timeout_seconds = 3
+description = "An exported alias in a capture observes the selected active target callee."
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout = "[[absent|value]]\n"
+stderr = ""

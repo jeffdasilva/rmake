@@ -1,0 +1,14 @@
+id = "function-shell-active-call-explicit"
+requirement = "functions.shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--warn-undefined-variables", "all"]
+timeout_seconds = 3
+description = "A named call preparing a capture keeps its own exported value from being expanded again."
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout = "[[|value]]\nmake: Nothing to be done for 'all'.\n"
+stderr = ""

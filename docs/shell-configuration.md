@@ -204,3 +204,8 @@ that value. A local binding from `let` or `foreach` can supply flags to a
 nested capture, including when that capture runs while configuring a recipe.
 A command that is empty or contains only spaces and tabs returns empty
 after configuration. It preserves `.SHELLSTATUS` and skips child exports.
+
+Shell environment preparation uses the original environment value when it
+encounters a recursive export of a variable whose named `call` body is
+still active. An exported alias can encounter the same fallback through either
+a direct reference or a named call. Call arguments still expand first.

@@ -1,0 +1,14 @@
+id = "function-shell-active-call-completed"
+requirement = "functions.shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--warn-undefined-variables", "all"]
+timeout_seconds = 3
+description = "A completed call leaves its exported value eligible for the next capture."
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout = "[outer [|value]]\n"
+stderr = "Makefile:7: warning: undefined variable '1'\nMakefile:7: warning: undefined variable '1'\n"

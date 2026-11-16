@@ -3031,6 +3031,7 @@ struct LocalBinding {
 pub(crate) struct LocalFrame {
     values: BTreeMap<Vec<u8>, LocalBinding>,
     call_arguments: Option<usize>,
+    call_owner: Option<InheritedActiveBinding>,
 }
 
 impl LocalFrame {
@@ -3038,6 +3039,7 @@ impl LocalFrame {
         Self {
             values: BTreeMap::new(),
             call_arguments,
+            call_owner: None,
         }
     }
 
@@ -3476,24 +3478,55 @@ impl Expansion<'_, '_> {
         .flat_map(|node| node.keys.iter())
     }
 
+    fn active_call_bindings(&self) -> impl Iterator<Item = &InheritedActiveBinding> {
+        self.bindings
+            .iter()
+            .filter_map(|frame| frame.call_owner.as_ref())
+    }
+
+    fn active_binding_key<'a>(
+        &'a self,
+        binding: &'a InheritedActiveBinding,
+    ) -> Option<(&'a [u8], Option<usize>)> {
+        let (name, layer) = &binding.key;
+        let layer = if let (Some(layer), Some(table)) = (*layer, &binding.table) {
+            // A destination reader can give the caller's table a
+            // different layer or omit it from its scope entirely.
+            Some(self.store.layer_for_binding_table(name, table, layer)?)
+        } else {
+            *layer
+        };
+        Some((name, layer))
+    }
+
     fn active_keys(&self) -> impl Iterator<Item = (&[u8], Option<usize>)> {
         self.active
             .iter()
             .map(|(name, layer)| (name.as_slice(), *layer))
-            .chain(self.inherited_active_bindings().filter_map(|binding| {
-                let (name, layer) = &binding.key;
-                let layer = if let (Some(layer), Some(table)) = (*layer, &binding.table) {
-                    // A destination reader can give the caller's table a
-                    // different layer or omit it from its scope entirely.
-                    Some(self.store.layer_for_binding_table(name, table, layer)?)
-                } else {
-                    *layer
-                };
-                Some((name.as_slice(), layer))
-            }))
+            .chain(
+                self.inherited_active_bindings()
+                    .filter_map(|binding| self.active_binding_key(binding)),
+            )
+            .chain(
+                self.context
+                    .preparing_shell_environment
+                    .then_some(())
+                    .into_iter()
+                    .flat_map(|()| self.active_call_bindings())
+                    .filter_map(|binding| self.active_binding_key(binding)),
+            )
     }
-    fn active_count(&self) -> usize {
+    fn regular_active_count(&self) -> usize {
         self.active.len() + self.inherited_active.as_ref().map_or(0, |node| node.count)
+    }
+
+    fn active_count(&self) -> usize {
+        self.regular_active_count()
+            + if self.context.preparing_shell_environment {
+                self.active_call_bindings().count()
+            } else {
+                0
+            }
     }
     fn snapshot_active(&self) -> Option<Arc<ActiveContext>> {
         if self.active.is_empty() {
@@ -3512,7 +3545,7 @@ impl Expansion<'_, '_> {
                     })
                     .collect(),
                 parent: self.inherited_active.clone(),
-                count: self.active_count(),
+                count: self.regular_active_count(),
             }))
         }
     }
@@ -3981,6 +4014,8 @@ impl Expansion<'_, '_> {
                             .zip(table)
                             .is_some_and(|(active, selected)| active.same_table(selected))
                 })
+        }) || self.active_call_bindings().any(|active| {
+            active.key.0 == name && self.active_binding_key(active) == Some((name, Some(layer)))
         }) || self.inherited_active_bindings().any(|active| {
             // A nested reader can give the same logical table a different
             // layer number. Keep the conservative fallback for stores whose
