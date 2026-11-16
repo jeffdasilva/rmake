@@ -2192,7 +2192,12 @@ def stock_primary_load_models() -> list[HeldModel]:
                                                                        load=replace(dry.load, trace=b'')))
                                     results.extend(stock_primary_three_final_touch_profiles(
                                         query, optional,
-                                        extend_required=not optional and position == 'last-adjacent'))
+                                        extend_named=optional or position == 'last-adjacent'))
+                                    if optional and position == 'last-adjacent-reversed':
+                                        middle = stock_primary_insert_optional_middle(query)
+                                        results.extend(stock_primary_three_final_touch_profiles(
+                                            middle, True, extend_named=False,
+                                            job_cases=(('-j2', '2-slots'), ('-j4', '4-slots'))))
     return results
 
 
@@ -2492,21 +2497,21 @@ def stock_primary_three_final_touch(held: HeldModel, modes: str) -> HeldModel:
 
 def stock_primary_three_optional_final_touch(held: HeldModel, modes: str) -> HeldModel:
     model = stock_primary_three_modes(held.model, modes)
-    goals = model.args[-3:-1]
-    first, last = (f'touch {goal}\n'.encode() for goal in goals)
+    goals = model.args[model.args.index('-t') + 1:-1]
+    touches = tuple(f'touch {goal}\n'.encode() for goal in goals)
+    optional_end = goals.index('child.mk') + 1
+    through_optional = b''.join(touches[:optional_end])
+    after_optional = b''.join(touches[optional_end:])
+    has_followers = bool(after_optional)
     leaf_touch = b'touch leaf.mk\n'
     high = held.load.at_release == LOAD_HIGH
-    optional_first = goals[0] == 'child.mk'
-    interrupts_pass = optional_first and high
+    interrupts_pass = has_followers and high
     dry_run = 'n' in modes
     question = 'q' in modes
-    removed = question and (high or optional_first)
-    release = held.before_first_stdout + first
-    if not interrupts_pass:
-        if optional_first:
-            release += leaf_touch + last
-        else:
-            release += last if high else last + leaf_touch
+    removed = question and (high or has_followers)
+    release = held.before_first_stdout + through_optional
+    if not high:
+        release += leaf_touch + after_optional
     stdout = release
     stderr = b''
     updates = {name: data for name, data in model.updates.items() if name.startswith('primary.')}
@@ -2516,18 +2521,18 @@ def stock_primary_three_optional_final_touch(held: HeldModel, modes: str) -> Hel
     if removed:
         stderr = b"make: *** Deleting file 'Makefile'\n"
         if interrupts_pass:
-            stdout += last
+            stdout += after_optional
     else:
-        touched_primary = high or optional_first
+        touched_primary = high or has_followers
         primary_mode = 0o644 if touched_primary else 0o755
         stdout += b'touch Makefile\n' * 2 if touched_primary else b'chmod a+x Makefile\n'
         updates['Makefile'] = model.files['Makefile.sh']
         if interrupts_pass:
-            stdout += last + leaf_touch * 2
+            stdout += after_optional + leaf_touch * 2
             if dry_run:
-                stdout += first + leaf_touch + last
+                stdout += through_optional + leaf_touch + after_optional
         if dry_run:
-            stdout += first + last
+            stdout += through_optional + after_optional
     if not question:
         stdout += b''.join(f"make: '{goal}' is up to date.\n".encode() for goal in goals)
     stdout += b'touch all\n'
@@ -2539,13 +2544,21 @@ def stock_primary_three_optional_final_touch(held: HeldModel, modes: str) -> Hel
     return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode)
 
 
-def stock_primary_three_final_touch_profiles(held: HeldModel, optional: bool,
-                                             *, extend_required: bool) -> Iterator[HeldModel]:
+def stock_primary_three_final_touch_profiles(
+    held: HeldModel,
+    optional: bool,
+    *,
+    extend_named: bool,
+    job_cases: tuple[tuple[str, str], ...] = (
+        ('-j2', '2-slots'), ('-j3', '3-slots'), ('-j4', '4-slots'), ('-j', 'unbounded'),
+    ),
+) -> Iterator[HeldModel]:
     make_profile = (stock_primary_three_optional_final_touch if optional
                     else stock_primary_three_final_touch)
+    extra_counts = (3,) if optional else (3, 8)
     for modes in ('t', 'qt', 'nt', 'nqt'):
         base = make_profile(held, modes)
-        for jobs, label in (('-j2', '2-slots'), ('-j3', '3-slots'), ('-j4', '4-slots'), ('-j', 'unbounded')):
+        for jobs, label in job_cases:
             args = tuple(jobs if arg == '-j3' else arg for arg in base.model.args)
             model = replace(base.model, id=f'{base.model.id}-{label}', args=args)
             profiles = [replace(base, model=model)]
@@ -2555,9 +2568,9 @@ def stock_primary_three_final_touch_profiles(held: HeldModel, optional: bool,
                 profiles.append(replace(base, model=model, load=replace(base.load, trace=b'')))
             for profile in profiles:
                 yield profile
-                if extend_required and jobs in ('-j2', '-j4'):
-                    yield stock_primary_add_named_touch_sources(profile, 3)
-                    yield stock_primary_add_named_touch_sources(profile, 8)
+                if extend_named and jobs in ('-j2', '-j4'):
+                    for count in extra_counts:
+                        yield stock_primary_add_named_touch_sources(profile, count)
 
 
 def stock_primary_add_named_touch_sources(held: HeldModel, named_count: int) -> HeldModel:
@@ -2586,11 +2599,28 @@ def stock_primary_add_named_touch_sources(held: HeldModel, named_count: int) -> 
               .replace(last_touch, last_touch + touches)
               .replace(last_summary, last_summary + summaries))
     expected = {**model.expected, 'stdout_template_hex': stdout.hex()}
-    model = replace(model, id=f'{model.id}-{named_count}-named',
-                    args=(*model.args[:-1], *sources, model.args[-1]),
+    insert_after = model.args.index('extra.mk') + 1
+    args = (*model.args[:insert_after], *sources, *model.args[insert_after:])
+    model = replace(model, id=f'{model.id}-{named_count}-named', args=args,
                     files=files, expected=expected, updates=updates)
     return replace(held, model=model,
                    before_first_stdout=held.before_first_stdout.replace(last_touch, last_touch + touches))
+
+
+def stock_primary_insert_optional_middle(held: HeldModel) -> HeldModel:
+    extended = stock_primary_add_named_touch_sources(held, 3)
+    model = extended.model
+    files = dict(model.files)
+    before = b'include tail.mk\n-include child.mk\n'
+    after = b'-include child.mk\ninclude tail.mk\n'
+    for name in ('Makefile', 'Makefile.sh'):
+        assert files[name].count(before) == 1
+        files[name] = files[name].replace(before, after)
+    index = model.args.index('tail.mk')
+    assert model.args[index + 1] == 'child.mk'
+    args = (*model.args[:index], 'child.mk', 'tail.mk', *model.args[index + 2:])
+    identifier = model.id.replace('last-adjacent-reversed', 'last-adjacent-optional-middle')
+    return replace(held, model=replace(model, id=identifier, files=files, args=args))
 
 
 def stock_primary_three_prefix_model(held: HeldModel, optional: bool, named_count: int,
