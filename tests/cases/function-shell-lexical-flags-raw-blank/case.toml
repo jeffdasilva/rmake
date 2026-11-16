@@ -1,0 +1,11 @@
+id = "function-shell-lexical-flags-raw-blank"
+requirement = "functions.shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--warn-undefined-variables", "all"]
+timeout_seconds = 3
+description = "Deferred local flags expand with warnings suppressed before a blank return."
+
+[expected]
+exit_code = 0
+stdout = "result=[]\nmake: Nothing to be done for 'all'.\n"
+stderr = "Makefile:13: warning: undefined variable 'MISSING_COMMAND'\nMakefile:13: warning: undefined variable 'MISSING_AFTER'\nmake: warning: undefined variable 'GNUMAKEFLAGS'\n"

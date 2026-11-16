@@ -199,5 +199,8 @@ and command bytes remaining after the first newline are still passed.
 Shell capture expands the command argument before expanding `SHELL`,
 `.SHELLFLAGS`, and `IFS`, in that order. Configuration expansion suppresses
 undefined-variable warnings and restores the caller's policy afterward.
+It reads the raw `.SHELLFLAGS` from the active expansion scope and rescans
+that value. A local binding from `let` or `foreach` can supply flags to a
+nested capture, including when that capture runs while configuring a recipe.
 A command that is empty or contains only spaces and tabs returns empty
 after configuration. It preserves `.SHELLSTATUS` and skips child exports.

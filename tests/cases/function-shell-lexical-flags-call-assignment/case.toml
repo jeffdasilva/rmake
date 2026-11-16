@@ -1,0 +1,11 @@
+id = "function-shell-lexical-flags-call-assignment"
+requirement = "functions.shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--warn-undefined-variables", "all"]
+timeout_seconds = 3
+description = "A call argument supplies local flags to a nested capture during a shell assignment."
+
+[expected]
+exit_code = 0
+stdout = "result=[captured]\nmake: Nothing to be done for 'all'.\n"
+stderr = "Makefile:14: warning: undefined variable 'MISSING_AFTER'\nmake: warning: undefined variable 'GNUMAKEFLAGS'\n"

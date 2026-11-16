@@ -1,0 +1,11 @@
+id = "function-shell-lexical-flags-precomputed-guard"
+requirement = "functions.shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--warn-undefined-variables", "all"]
+timeout_seconds = 3
+description = "Rescanning deferred local flags lets a finite guard resolve before recursive expansion."
+
+[expected]
+exit_code = 0
+stdout = "result=[result]\nmake: Nothing to be done for 'all'.\n"
+stderr = "Makefile:9: warning: undefined variable 'MISSING_AFTER'\nmake: warning: undefined variable 'GNUMAKEFLAGS'\n"
