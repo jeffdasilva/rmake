@@ -1,0 +1,12 @@
+id = "include-serial-unobserved-group-rewrite-forward"
+requirement = "includes.remake"
+candidate = "required"
+description = "Reread a required include after its timestamp advanced beyond an absent grouped member."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:\nREAD:1\nALL:new\n"
+stderr = ""

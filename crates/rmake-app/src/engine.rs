@@ -11902,10 +11902,10 @@ impl Engine {
             };
             if track_read_peers && !phony && self.makefile_names.contains(&peer) {
                 // A missing group member can stop peer freshness checks.
-                // The serial read pass can still prove a peer was removed.
+                // The serial read pass can still establish the peer's time
+                // before a successful recipe changed or removed it.
                 let before = before.or_else(|| {
                     if use_saved_peer_time
-                        && (failed_required_remake || completed.time.is_none())
                         && let Some(Some((None, Some(time)))) = self.path_observations.get(&peer)
                     {
                         Some(*time)
