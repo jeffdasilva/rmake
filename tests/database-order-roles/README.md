@@ -27,3 +27,10 @@ filename string-cache entry. The cases compare the complete database,
 automatic-variable bytes, and filesystem for active and up-to-date rules,
 double-colon branches, secondary expansion, reverse shuffle, late `-p`,
 and question mode with hidden extra prerequisites.
+
+Nine static-pattern cases record the declaration pattern and per-target
+stems when the rule is read. A prepared static stem, including an empty
+stem, bypasses the recipe's suffix fallback. The cases cover unvisited
+targets, shared and substituted prerequisites, secondary file effects,
+question mode with hidden prerequisites, and a late request for the full
+database.
