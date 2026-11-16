@@ -3338,9 +3338,8 @@ impl Engine {
             let final_named_dry = limited_load
                 && final_required_dry
                 && self.options.jobs.is_some_and(|slots| slots >= 4);
-            let final_named_touch_debug = debug_before_remake.bits() == remake_debug_bits
-                && final_named_sources.len() == 2
-                && self.options.jobs == Some(2);
+            let final_named_touch_debug =
+                debug_before_remake.bits() == remake_debug_bits && final_named_sources.len() == 2;
             let final_named_touch = modes.touch
                 && !final_named_sources.is_empty()
                 && (optional_named_sources <= 1 || final_named_sources.len() == 2)

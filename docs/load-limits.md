@@ -203,12 +203,12 @@ skipped-source restart decision),
 transitions, owned descriptor adapter, fault helper and fixtures are original;
 no GNU implementation or test material was copied or translated.
 
-Basic makefile diagnostics (`--debug=b,m`) retain the two-slot final named
-touch schedule. Sixteen held profiles cover required names under a load
+Basic makefile diagnostics (`--debug=b,m`) retain the parallel final named
+touch schedule. Twenty-eight held profiles cover required names under a load
 limit and one optional name without a limit, through both pipe and FIFO
-jobservers. They check the primary-worker release, Makefile mode or
-deletion, restart output, and final goal effects across touch, question,
-and dry-run combinations.
+jobservers with two, three, four, and unbounded job settings. They check the
+primary-worker release, Makefile mode or deletion, restart output, and final
+goal effects across touch, question, and dry-run combinations.
 
 ## Performance observation
 
