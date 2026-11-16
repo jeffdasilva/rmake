@@ -5433,6 +5433,8 @@ impl Database {
             declaration.grouped_double_id = Some(self.next_group_id);
             self.next_group_id += 1;
         }
+        let single_target = declaration.targets.len() == 1;
+        let has_recipes = !declaration.recipes.is_empty();
         let mut recipe_targets = HashSet::new();
         for (ordinal, target) in declaration.targets.iter().enumerate() {
             // The targets share prerequisite spellings. Static patterns
@@ -5542,12 +5544,19 @@ impl Database {
             if let Some(stem) = &stem {
                 rule.stem = Some(stem.clone());
             }
-            if unmatched {
-                declaration
-                    .offsets
-                    .entry(target.clone())
-                    .or_insert(rule.dependencies.len());
+            if !unmatched && !secondary && target == b".SUFFIXES" && empty_dependencies {
+                // Clearing suffix metadata retains its recipe and location.
+                rule.dependencies.clear();
+                rule.secondary = None;
             }
+            let offset = rule.dependencies.len();
+            let offset = if has_recipes && !single_target {
+                // Repeated target spellings share the original offset, recorded
+                // after any suffix reset and before appending prerequisites.
+                *declaration.offsets.entry(target.clone()).or_insert(offset)
+            } else {
+                offset
+            };
             if !unmatched {
                 if secondary {
                     rule.secondary.get_or_insert_with(Default::default).push(
@@ -5566,22 +5575,7 @@ impl Database {
                         order_only: false,
                         hidden: false,
                     });
-                    declaration
-                        .offsets
-                        .entry(target.clone())
-                        .or_insert(rule.dependencies.len() - 1);
                 } else {
-                    if target == b".SUFFIXES" && empty_dependencies {
-                        // Clearing suffix metadata retains its recipe and location.
-                        // Record offsets only after clearing, including repeated
-                        // target names in the same declaration.
-                        rule.dependencies.clear();
-                        rule.secondary = None;
-                    }
-                    declaration
-                        .offsets
-                        .entry(target.clone())
-                        .or_insert(rule.dependencies.len());
                     let observed_prereqs = prerequisite_names.is_some();
                     let names = prerequisite_names
                         .as_ref()
@@ -5655,11 +5649,12 @@ impl Database {
                 }
                 self.file_records.insert(target);
             }
-            let duplicate = !declaration.recipes.is_empty()
+            let duplicate = has_recipes
+                && !single_target
                 && !double_colon
                 && !implicit
                 && !recipe_targets.insert(target.as_slice());
-            if duplicate && !declaration.recipes.is_empty() {
+            if duplicate {
                 declaration.warnings.push((
                     location.clone(),
                     [
@@ -5670,18 +5665,13 @@ impl Database {
                     .concat()
                     .into(),
                 ));
-            } else {
-                let offset = declaration.offsets[target];
-                for (index, recipe) in declaration.recipes.iter().enumerate() {
-                    Self::attach_recipe(
-                        rule,
-                        target,
-                        offset,
-                        index != 0,
-                        &mut declaration.warnings,
-                        recipe,
-                    );
-                }
+            } else if has_recipes {
+                let recipes = if single_target {
+                    std::mem::take(&mut declaration.recipes)
+                } else {
+                    declaration.recipes.clone()
+                };
+                Self::attach_recipes(rule, target, offset, &mut declaration.warnings, recipes);
             }
             if target == b".WAIT" {
                 for (mask, present, message) in [
@@ -5708,7 +5698,7 @@ impl Database {
         drop(prerequisite_names);
         prerequisite_text.clear();
         declaration.prerequisites = prerequisite_text;
-        declaration.recipe_started = !declaration.recipes.is_empty();
+        declaration.recipe_started = has_recipes;
         declaration.recipes.clear();
         Ok(())
     }
@@ -5779,47 +5769,41 @@ impl Database {
         declaration.recipes.push(recipe);
     }
 
-    fn attach_recipe(
+    fn attach_recipes(
         rule: &mut Rule,
         target: &[u8],
         offset: usize,
-        recipe_started: bool,
         warnings: &mut Vec<(Location, Diagnostic)>,
-        recipe: &Recipe,
+        recipes: Vec<Recipe>,
     ) {
-        if !recipe_started {
-            let count = rule.dependencies.len() - offset;
-            rule.dependencies.rotate_right(count);
-            if let Some(secondary) = &mut rule.secondary {
-                let length = rule.dependencies.len();
-                for clause in secondary.iter_mut() {
-                    clause.index = (clause.index + count) % length;
-                }
-                secondary.sort_by_key(|clause| clause.index);
+        let count = rule.dependencies.len() - offset;
+        rule.dependencies.rotate_right(count);
+        if let Some(secondary) = &mut rule.secondary {
+            let length = rule.dependencies.len();
+            for clause in secondary.iter_mut() {
+                clause.index = (clause.index + count) % length;
             }
-            if let Some(previous) = &rule.recipe_location {
-                warnings.push((
-                    recipe.location.clone(),
-                    Diagnostic::system(Message::DuplicateRecipe {
-                        ignoring_previous: false,
-                        target,
-                    }),
-                ));
-                warnings.push((
-                    previous.clone(),
-                    Diagnostic::system(Message::DuplicateRecipe {
-                        ignoring_previous: true,
-                        target,
-                    }),
-                ));
-            }
-            rule.recipes = Some(Vec::new());
-            rule.recipe_location = Some(recipe.location.clone());
+            secondary.sort_by_key(|clause| clause.index);
         }
-        rule.recipes
-            .as_mut()
-            .expect("recipe initialized")
-            .push(recipe.clone());
+        let location = &recipes[0].location;
+        if let Some(previous) = &rule.recipe_location {
+            warnings.push((
+                location.clone(),
+                Diagnostic::system(Message::DuplicateRecipe {
+                    ignoring_previous: false,
+                    target,
+                }),
+            ));
+            warnings.push((
+                previous.clone(),
+                Diagnostic::system(Message::DuplicateRecipe {
+                    ignoring_previous: true,
+                    target,
+                }),
+            ));
+        }
+        rule.recipe_location = Some(location.clone());
+        rule.recipes = Some(recipes);
     }
 }
 
