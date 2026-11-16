@@ -3861,12 +3861,17 @@ impl Engine {
                         {
                             for request in pending.iter_mut().filter(|request| request.active) {
                                 let prior = self.aliases.resolve(&request.file.name);
+                                let queried_primary = mixed_named_overlap
+                                    && visit_modes.touch
+                                    && visit_modes.question
+                                    && std::ptr::eq(request.file, &read_files[0].0);
                                 if !self.pending(prior)
                                     && self.done.get(prior).is_some_and(|outcome| {
-                                        !outcome.failed && !outcome.question_outdated
+                                        !outcome.failed
+                                            && (!outcome.question_outdated || queried_primary)
                                     })
                                 {
-                                    // A successful earlier source is pruned
+                                    // A settled earlier source is pruned
                                     // before the first unvisited root starts.
                                     crate::debug::emit(
                                         &self.output,
