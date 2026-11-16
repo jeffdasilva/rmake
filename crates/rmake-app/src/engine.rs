@@ -1161,6 +1161,7 @@ pub struct Engine {
     database_branch_contexts: HashMap<(Vec<u8>, usize), VariableStore>,
     database_expanded_prerequisites: Option<Box<database_output::ExpandedPrerequisites>>,
     database_branch_outcomes: HashMap<(Vec<u8>, usize), Outcome>,
+    database_branch_implicit: HashSet<(Vec<u8>, usize)>,
     database_branch_secondary: BTreeSet<(Vec<u8>, usize)>,
     database_group_peer_times: HashMap<Vec<u8>, Vec<GroupPeerTime>>,
     database_unchecked_times: RefCell<HashSet<Vec<u8>>>,
@@ -1744,6 +1745,7 @@ impl Engine {
             database_branch_contexts: HashMap::new(),
             database_expanded_prerequisites: None,
             database_branch_outcomes: HashMap::new(),
+            database_branch_implicit: HashSet::new(),
             database_branch_secondary: BTreeSet::new(),
             database_group_peer_times: HashMap::new(),
             database_unchecked_times: RefCell::new(HashSet::new()),
@@ -7236,6 +7238,12 @@ impl Engine {
                     .or_insert(outcome);
             }
         }
+        let implicit_keys: Vec<_> = self
+            .database_branch_implicit
+            .extract_if(|(name, _)| name.as_slice() == from)
+            .map(|(_, ordinal)| (to.to_vec(), ordinal))
+            .collect();
+        self.database_branch_implicit.extend(implicit_keys);
         let secondary_keys: Vec<_> = self
             .database_branch_secondary
             .iter()
@@ -10257,7 +10265,7 @@ impl Engine {
                     crate::debug::Event::Considering(target, state.depth),
                 );
             }
-            let branch = if let Some(branch) = entry {
+            let mut branch = if let Some(branch) = entry {
                 branch
             } else {
                 if state.synthetic_tail.is_none()
@@ -10353,6 +10361,53 @@ impl Engine {
             }
             let before = assumed_time.or(branch_before);
             let comparison = self.comparison_time(target, before);
+            if declared
+                && assumed_time.is_none()
+                && !self.remaking
+                && self.active_makefile_remake.is_none()
+                && !state.phony
+                && branch.recipes.is_none()
+                && branch.group.is_none()
+                && branch.secondary.is_none()
+                && !self.shuffle.enabled()
+                && !self.terminal_prerequisites.contains(target)
+                && self
+                    .database_branch_implicit
+                    .insert((target.to_vec(), ordinal))
+            {
+                let Ok(plan) = self.plan_implicit_update(target, state.depth, false) else {
+                    state.combined.failed = true;
+                    state.combined.fatal = true;
+                    state.branches.clear();
+                    continue;
+                };
+                // Each declared branch retains its own prerequisites and
+                // resolves a pattern recipe before visiting them.
+                if let Some(plan) = plan
+                    && plan
+                        .last()
+                        .is_some_and(|root| root.name == target && root.rule.group.is_none())
+                    && let Some(mut selected) = self.install_implicit_plan(target, plan, true)
+                {
+                    if let Some(history) = self.database.database_history()
+                        && let Some(stem) = &selected.stem
+                    {
+                        history.intern(stem);
+                    }
+                    selected.append_prerequisites(&branch);
+                    selected.prerequisite_location = branch.prerequisite_location;
+                    if let Some(stored) = self
+                        .database
+                        .rules
+                        .get_mut(target)
+                        .and_then(|root| root.double_colon.as_mut())
+                        .and_then(|branches| branches.get_mut(ordinal))
+                    {
+                        *stored = selected.clone();
+                    }
+                    branch = selected;
+                }
+            }
             let visit = |engine: &mut Self| {
                 engine.build_rule(
                     target,
