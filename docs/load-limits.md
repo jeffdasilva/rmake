@@ -129,7 +129,10 @@ primary immediately when its query verdict ended the recipe. Other debug
 masks and the number of visits during unheld high-load races remain open.
 Thirty-two additional held query profiles cover three direct includes, one
 or two named goals, and the stock primary worker under three job slots.
-Dry-run and touch schedules with additional sources remain open.
+Ninety-six further held profiles place the named goals before all unnamed
+includes and exercise quiet dry-run, touch, and mixed flags. The held release
+records the first optional touch before later named goals are traversed.
+Other include orders under those modes remain open.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an

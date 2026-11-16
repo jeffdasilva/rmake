@@ -3287,20 +3287,27 @@ impl Engine {
             let unruled_primary = ordinary_mode
                 && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
+            let named_include = |file: &Makefile| {
+                self.is_makefile_goal(
+                    rmake_core::filenames::without_dot_prefix(&file.name),
+                    named_sources.as_ref(),
+                )
+            };
             let mixed_named_overlap = unruled_primary
-                && (matches!(named_load_files, [(_, false), (_, false)])
-                    || (modes.question
-                        && !modes.dry_run
-                        && !modes.touch
-                        && !debug_before_remake.has(Mask::MAKEFILES)
-                        && matches!(named_load_files, [(_, false), (_, false), (_, false)])))
-                && (!debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug)
-                && named_load_files.iter().any(|(file, _)| {
-                    !self.is_makefile_goal(
-                        rmake_core::filenames::without_dot_prefix(&file.name),
-                        named_sources.as_ref(),
-                    )
-                });
+                && match named_load_files {
+                    [(_, false), (_, false)] => {
+                        !debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug
+                    }
+                    [(first, false), (_, false), (last, false)] => {
+                        !debug_before_remake.has(Mask::MAKEFILES)
+                            && ((modes.question && !modes.dry_run && !modes.touch)
+                                || (named_include(first) && !named_include(last)))
+                    }
+                    _ => false,
+                }
+                && named_load_files
+                    .iter()
+                    .any(|(file, _)| !named_include(file));
             let overlap_primary_recipe = unruled_primary
                 && named_load_files.iter().all(|(file, skip)| {
                     *skip

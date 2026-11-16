@@ -2137,8 +2137,13 @@ def stock_primary_load_models() -> list[HeldModel]:
                 else:
                     results.append(stock_primary_mixed_model(held, optional))
                     if mode == 'q':
-                        results.extend(stock_primary_three_query_model(held, optional, first, count)
-                                       for first in (True, False) for count in (1, 2))
+                        for first in (True, False):
+                            for count in (1, 2):
+                                query = stock_primary_three_query_model(held, optional, first, count)
+                                results.append(query)
+                                if first:
+                                    results.extend(stock_primary_three_prefix_model(query, optional, count, modes)
+                                                   for modes in ('n', 't', 'nq', 'nt', 'qt', 'nqt'))
     return results
 
 
@@ -2288,6 +2293,75 @@ def stock_primary_three_query_model(held: HeldModel, optional: bool,
     name = model.id.replace('-two-named-', f'-three-mixed-{position}-{named_count}-')
     model = replace(model, id=name, files=files, args=args, updates=updates, expected=expected)
     return replace(held, model=model, stock_primary_mode=None if primary_removed else 0o755)
+
+
+def stock_primary_three_prefix_model(held: HeldModel, optional: bool, named_count: int,
+                                     modes: str) -> HeldModel:
+    model = held.model
+    index = model.args.index('-q')
+    args = (*model.args[:index], *(f'-{mode}' for mode in modes), *model.args[index + 1:])
+    name = model.id.replace('-q-', f'-{modes}-', 1)
+    model = replace(model, id=name, args=args)
+    if modes == 'nq':
+        return replace(held, model=model)
+
+    high = held.load.at_release == LOAD_HIGH
+    dry_run = 'n' in modes
+    question = 'q' in modes
+    names = ('child.mk', 'extra.mk')[:named_count]
+    release = held.before_first_stdout
+    chmod = b'chmod a+x Makefile\n'
+    summaries = b''.join(f"make: '{name}' is up to date.\n".encode() for name in names)
+    updates = {**model.updates, 'Makefile': model.files['Makefile.sh']}
+    if modes == 'n':
+        printed = [f"printf '%s\\n' '{name[:-3].upper()} := loaded' > {name}\n".encode()
+                   for name in names]
+        if not high:
+            release += printed[0] if optional else b''.join(printed)
+            for name in names:
+                updates.pop(name, None)
+        stdout = release + chmod
+        if not high:
+            if optional:
+                stdout += b''.join(printed[1:])
+            stdout += b''.join(printed)
+        value = 'loaded loaded loaded' if high else ' ' * named_count + ' '.join(['loaded'] * (3 - named_count))
+        stdout += summaries + f'printf \'%s\\n\' "suffix {value}"\n'.encode()
+        primary_mode = 0o644 if optional and not high else 0o755
+        stderr = b''
+        load = held.load
+    else:
+        touched = [f'touch {name}\n'.encode() for name in names]
+        release += touched[0] if optional else b''.join(touched)
+        load = replace(held.load, trace=b'' if optional else b'proc\n')
+        if optional and question:
+            updates.pop('Makefile')
+            primary_mode = None
+            stderr = b"make: *** Deleting file 'Makefile'\n"
+            stdout = release + b''.join(touched[1:])
+        else:
+            primary_mode = 0o644 if optional else 0o755
+            stdout = release + (b'touch Makefile\n' * 2 if optional else chmod)
+            if optional:
+                stdout += b''.join(touched[1:])
+            if dry_run:
+                stdout += b''.join(touched)
+            stderr = b''
+        if not question:
+            stdout += summaries
+        stdout += b'touch all\n'
+        for name in names:
+            if dry_run:
+                updates.pop(name, None)
+            else:
+                updates[name] = b''
+        if not dry_run:
+            updates['all'] = b''
+    expected = {'exit_code': 0, 'stdout_template_hex': stdout.hex(),
+                'stderr_template_hex': stderr.hex()}
+    model = replace(model, expected=expected, updates=updates)
+    return replace(held, model=model, before_first_stdout=release, load=load,
+                   stock_primary_mode=primary_mode)
 
 
 def stock_primary_combined_touch_model(held: HeldModel, modes: str) -> HeldModel:
