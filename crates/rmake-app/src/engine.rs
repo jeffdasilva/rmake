@@ -13194,15 +13194,12 @@ impl Engine {
         {
             Ok(file) => file,
             Err(error) => {
-                self.stderr(
-                    &[
-                        b"touch: open: ".as_slice(),
-                        target,
-                        b": ",
-                        os_error(&error).as_bytes(),
-                    ]
-                    .concat(),
-                );
+                let detail = rmake_linux::filesystem::source_error_detail(&error);
+                self.stderr(&crate::messages::system(Message::OsError {
+                    action: b"touch: open: ",
+                    path: target,
+                    detail: &detail,
+                }));
                 return Execution::failure(true, Cleanup::None);
             }
         };
