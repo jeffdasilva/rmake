@@ -90,8 +90,10 @@ def cases(selection):
     repeat = json.loads((DATA / "repeat.json").read_bytes())
     replay = json.loads((DATA / "optional-replay.json").read_bytes())
     low_resolution = json.loads((DATA / "low-resolution.json").read_bytes())
-    suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 18, 15, 20, 14, 13, 18, 16):
+    touch_open = json.loads((DATA / "touch-open.json").read_bytes())
+    suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution,
+              touch_open)
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 18, 15, 20, 14, 13, 18, 16, 12):
         raise h.HarnessError("unexpected NLS model inventory")
     rows = [row for suite in suites for row in suite["rows"]]
     if len({row["id"] for row in rows}) != len(rows):
@@ -119,8 +121,8 @@ def cases(selection):
     fixtures["include_errno.c"] = include_fixtures["include_errno.c"]
     if remake["fixture_sha256"] != {"nls_control.c": fixtures["nls_control.c"]}:
         raise h.HarnessError("remake fixture inventory or shared source identity differs")
-    if any(suite["fixture_sha256"] for suite in (repeat, replay, low_resolution)):
-        raise h.HarnessError("unexpected source fixtures for repeat, replay or timestamp cases")
+    if any(suite["fixture_sha256"] for suite in (repeat, replay, low_resolution, touch_open)):
+        raise h.HarnessError("unexpected source fixtures for repeat, replay, timestamp or touch cases")
     for name, expected in fixtures.items():
         if h.sha256_file(DATA / name) != expected:
             raise h.HarnessError("NLS fixture source hash differs: " + name)
@@ -197,6 +199,7 @@ def main(argv=None):
               "repeat_sha256": h.sha256_file(DATA / "repeat.json"),
               "optional_replay_sha256": h.sha256_file(DATA / "optional-replay.json"),
               "low_resolution_sha256": h.sha256_file(DATA / "low-resolution.json"),
+              "touch_open_sha256": h.sha256_file(DATA / "touch-open.json"),
               "tool_sha256": h.sha256_file(Path(__file__)), "locale_profile": profile,
               "oracle": h.executable_identity(oracle, oracle=True), "oracle_profile_id": oracle_profile["profile_id"], "candidate": h.executable_identity(args.candidate) if args.candidate else None,
               "reference_catalog": {"path": str(catalog), "sha256": h.sha256_file(catalog)},
