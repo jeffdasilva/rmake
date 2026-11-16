@@ -1,0 +1,12 @@
+id = "include-serial-missing-group-owner-same-time"
+requirement = "includes.remake"
+candidate = "required"
+description = "Preserve the failure when a grouped recipe rewrites content but restores the existing peer timestamp."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:\n"
+stderr = "Makefile:4: payload.mk: No such file or directory\nmake: *** [Makefile:8: payload.mk] Error 4\nMakefile:4: Failed to remake makefile 'payload.mk'.\nMakefile:5: Failed to remake makefile 'worker.mk'.\n"
