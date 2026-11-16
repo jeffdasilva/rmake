@@ -1,0 +1,12 @@
+id = "static-immediate-dot-stem-physical-file"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "Preserve the stem-generated leading dot on an existing physical file."
+provenance = "Original Makefile and exact pinned GNU 4.4.1 observations; no upstream material copied."
+args = ["-rR", "--no-print-directory", "obj/./a.o"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b2e2f615d5b2e2f612e696e5d5b2e2f612e696e5d5b5d0a"
+stderr_hex = ""

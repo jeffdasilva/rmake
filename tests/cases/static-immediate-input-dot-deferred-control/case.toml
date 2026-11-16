@@ -1,0 +1,12 @@
+id = "static-immediate-input-dot-deferred-control"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "Deferred static prerequisites keep their established normalization phase."
+provenance = "Original Makefile and exact pinned GNU 4.4.1 observations; no upstream material copied."
+args = ["-rR", "--no-print-directory", "obj/./a.o"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b2e2f615d5b612e696e5d5b612e696e5d5b612e696e5d5b612e6f726465725d0a"
+stderr_hex = ""
