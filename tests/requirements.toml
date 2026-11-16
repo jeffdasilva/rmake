@@ -250,10 +250,10 @@ id = "recipes.shell"
 title = "Shell lifetime and oneshell behavior"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 2
+candidate_required = 12
 reference = "https://www.gnu.org/software/make/manual/html_node/Execution.html"
-fixture_count = 2
-cases = ["recipe-oneshell-state", "recipe-independent-shells"]
+fixture_count = 12
+cases = ["recipe-oneshell-state", "recipe-independent-shells", "ordinary-recipe-config-warning-body", "ordinary-recipe-config-warning-oneshell", "ordinary-recipe-config-warning-dry", "ordinary-recipe-config-warning-query", "ordinary-recipe-config-warning-forced-touch", "ordinary-recipe-config-warning-target", "ordinary-recipe-config-warning-simple-flags", "ordinary-recipe-config-warning-explicit", "ordinary-recipe-config-warning-live-restore", "ordinary-recipe-config-warning-fatal"]
 
 [[requirements]]
 id = "recursion.environment"
