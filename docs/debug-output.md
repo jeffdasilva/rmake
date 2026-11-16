@@ -223,3 +223,10 @@ An explicit grouped recipe that fails under the optional policy also records
 its read peers as recently failed for their subsequent verbose visits. Six
 fixtures cover direct and nested edges, keep-going, and required and optional
 grouped peers.
+
+Under keep-going, a required explicit grouped recipe can fail after
+rewriting an existing include peer. The later serial root reports the
+cached failure and compares the peer's physical timestamp with its
+pre-recipe observation before deciding whether to reread the makefiles.
+Four fixtures cover ordinary execution, query mode, and the recently
+failed trace for a changed or unchanged peer.

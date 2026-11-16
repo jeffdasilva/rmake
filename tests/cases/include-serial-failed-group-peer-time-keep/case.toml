@@ -1,0 +1,12 @@
+id = "include-serial-failed-group-peer-time-keep"
+requirement = "includes.remake"
+candidate = "required"
+description = "Reread a required grouped peer rewritten by a failed recipe while keeping going."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:\nREAD:1\nALL:new:initial\n"
+stderr = "make: *** [Makefile:8: worker.mk] Error 4\nMakefile:4: Failed to remake makefile 'worker.mk'.\nMakefile:5: Failed to remake makefile 'payload.mk'.\n"
