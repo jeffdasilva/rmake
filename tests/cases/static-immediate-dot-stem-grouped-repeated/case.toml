@@ -1,0 +1,12 @@
+id = "static-immediate-dot-stem-grouped-repeated"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "Repeated grouped declarations preserve stem-generated prerequisite spelling and order."
+provenance = "Original Makefile and exact pinned GNU 4.4.1 observations; no upstream material copied."
+args = ["-rR", "--no-print-directory", "-n", "obj/./a.o"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7072696e7466202725735c6e2720275b2e2f615d5b2e2f612e696e5d5b2e2f612e696e206f6c6465725d5b2e2f612e696e202e2f612e696e206f6c6465725d5b2e2f612e6f72646572207461696c5d270a"
+stderr_hex = "4d616b6566696c653a333a2074617267657420276f626a2f2e2f612e6f2720676976656e206d6f7265207468616e206f6e636520696e207468652073616d652072756c650a4d616b6566696c653a343a207761726e696e673a206f766572726964696e672067726f7570206d656d6265727368697020666f722074617267657420276f626a2f2e2f612e6f270a"

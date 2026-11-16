@@ -1,0 +1,12 @@
+id = "static-immediate-input-dot-multiword-stem"
+requirement = "rules.filename-sequences"
+candidate = "required"
+description = "Normalize a raw leading dot before replacing each word of a static stem."
+provenance = "Original Makefile and exact pinned GNU 4.4.1 observations; no upstream material copied."
+args = ["-rR", "--no-print-directory", "a b.o"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "5b6120625d5b612e696e20622e696e5d5b612e696e20622e696e5d5b612e696e20622e696e5d5b612e6f7264657220622e6f726465725d0a"
+stderr_hex = ""

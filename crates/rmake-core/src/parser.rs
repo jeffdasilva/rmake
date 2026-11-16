@@ -5609,12 +5609,20 @@ impl Database {
                         );
                     let mut pending_wait = None;
                     for (name, order_only) in names {
+                        // Normalize the parsed name before a static stem can
+                        // introduce leading dot components of its own.
+                        let normalized = (!observed_prereqs && name.starts_with(b"./"))
+                            .then(|| crate::filenames::without_dot_prefix(&name));
                         let name = if let Some(stem) = &stem {
-                            static_prerequisite(&name, stem).map_err(|error| ParseError {
-                                unlocated: false,
-                                location: location.clone(),
-                                message: error.diagnostic(),
-                            })?
+                            static_prerequisite(normalized.unwrap_or(&name), stem).map_err(
+                                |error| ParseError {
+                                    unlocated: false,
+                                    location: location.clone(),
+                                    message: error.diagnostic(),
+                                },
+                            )?
+                        } else if let Some(normalized) = normalized {
+                            normalized.to_vec()
                         } else {
                             name.into_owned()
                         };
@@ -5622,11 +5630,6 @@ impl Database {
                         if name.is_empty() {
                             continue;
                         }
-                        let name = if !observed_prereqs && name.starts_with(b"./") {
-                            crate::filenames::without_dot_prefix(&name).to_vec()
-                        } else {
-                            name
-                        };
                         if !declaration.patterns.contains_key(target) && stem.is_none() {
                             self.explicit_names.insert(name.clone());
                         }
