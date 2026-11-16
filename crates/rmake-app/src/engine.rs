@@ -3311,10 +3311,14 @@ impl Engine {
                     [(_, false), (_, false)] => {
                         !debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug
                     }
-                    [(first, false), (_, false), (last, false)] => {
+                    [(first, false), (middle, false), (last, false)] => {
                         !debug_before_remake.has(Mask::MAKEFILES)
                             && ((modes.question && !modes.touch)
-                                || (named_include(first) && !named_include(last)))
+                                || (named_include(first) && !named_include(last))
+                                || (modes.dry_run
+                                    && !modes.touch
+                                    && (named_include(first)
+                                        || (named_include(middle) && !named_include(last)))))
                     }
                     _ => false,
                 }
