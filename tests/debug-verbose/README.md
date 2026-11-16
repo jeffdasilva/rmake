@@ -1,6 +1,6 @@
 # Verbose debug decisions
 
-These 69 original Makefiles exercise VPATH and GPATH spelling, observed
+These 73 original Makefiles exercise VPATH and GPATH spelling, observed
 prerequisite timestamp changes, serial pruning, declaration order-only
 roles, always-make, empty double-colon branches, existing targets without
 recipes, stopping and keep-going prerequisite failures, and missing and
@@ -31,6 +31,8 @@ normal inputs, missing normal inputs, newer order-only inputs, and an
 explicitly newest recipe-less target. Assumed-new phony cases cover
 repeated visits, normal and order-only inputs, and equal newest times
 when a missing prerequisite requires updating the phony target.
+Synthetic assumed-new double-colon cases cover consideration before
+failed resolution in serial and parallel and a successful default recipe.
 
 Run from a checkout with the pinned oracle and locale data.
 

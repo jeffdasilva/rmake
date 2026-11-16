@@ -10245,6 +10245,18 @@ impl Engine {
                 return state.combined;
             };
             let declared = entry.is_some();
+            let assumed_time = state
+                .synthetic_tail
+                .as_ref()
+                .and_then(|tail| tail.assumed_time);
+            if ordinal != 0 && !declared && !self.remaking && assumed_time.is_none() {
+                // A fresh synthetic branch announces its visit before
+                // implicit search, even when no recipe can be found.
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::Considering(target, state.depth),
+                );
+            }
             let branch = if let Some(branch) = entry {
                 branch
             } else {
@@ -10310,10 +10322,6 @@ impl Engine {
                 }
             }
             // The target visit announced the first declaration.
-            let assumed_time = state
-                .synthetic_tail
-                .as_ref()
-                .and_then(|tail| tail.assumed_time);
             let mut branch_before = state.before;
             if serial_remake_root
                 && declared
@@ -10327,7 +10335,8 @@ impl Engine {
                 branch_before = self.modified(target);
             }
             if ordinal != 0
-                && (!self.remaking || (serial_remake_root && declared))
+                && declared
+                && (!self.remaking || serial_remake_root)
                 && assumed_time.is_none()
             {
                 let depth = state.depth + usize::from(self.remaking);
@@ -10335,7 +10344,7 @@ impl Engine {
                     &self.output,
                     crate::debug::Event::Considering(target, depth),
                 );
-                if declared && branch_before.is_none() {
+                if branch_before.is_none() {
                     crate::debug::emit(
                         &self.output,
                         crate::debug::Event::Missing(target, depth + 1),
