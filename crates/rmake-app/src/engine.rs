@@ -11856,11 +11856,15 @@ impl Engine {
         let serial_explicit_remake =
             self.remaking && !self.parallel_makefile_remakes && !group.implicit;
         let track_read_peers = serial_explicit_remake
-            && !outcome.failed
             && outcome.ran
-            && outcome.completion == CompletionTime::Refresh;
+            && outcome.completion == CompletionTime::Refresh
+            && (!outcome.failed
+                || (self.options.keep_going
+                    && !self.optional_remake()
+                    && !outcome.blocked
+                    && !outcome.fatal));
         let trace_failed_read_peers = serial_explicit_remake
-            && self.optional_remake()
+            && (self.optional_remake() || self.options.keep_going)
             && outcome.failed
             && outcome.ran
             && !outcome.fatal;
@@ -11900,7 +11904,7 @@ impl Engine {
             let mut completed = cached;
             completed.database_result = database_result;
             completed.debug_serial_group_peer = debug_serial_group_peer
-                || ((track_read_peers || trace_failed_read_peers)
+                || (((track_read_peers && !outcome.failed) || trace_failed_read_peers)
                     && self.makefile_names.contains(&peer));
             completed.optional_group_peer_failure =
                 self.optional_remake() && outcome.failed && !outcome.fatal;
