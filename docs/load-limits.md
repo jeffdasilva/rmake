@@ -151,6 +151,8 @@ profiles cover final-adjacent touches with three or four slots under
 `-t`, `-q -t`, `-n -t`, and `-n -q -t`. They check touch order,
 primary removal under high-load query, and the earlier unnamed recipe's
 file contents.
+Thirty-two related touch profiles omit the load option and verify the
+named visits and earlier recipe complete in the same order with no load probe.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
