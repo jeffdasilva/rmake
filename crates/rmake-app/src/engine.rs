@@ -11532,7 +11532,7 @@ impl Engine {
             && rule.recipes.is_none()
             && !self.options.always
             && !dependencies_changed;
-        let forced_current_leaf = self.options.always
+        let forced_current_target = self.options.always
             && mask.has(crate::debug::Mask::BASIC)
             && !self.remaking
             && branch.is_none()
@@ -11541,9 +11541,10 @@ impl Engine {
             && !phony
             && !rule.record_only
             && rule.recipes.is_none()
-            && rule.dependencies.is_empty();
-        // GNU's always-make option adds no work to an existing leaf without a recipe.
-        let report_remake = debug_remake && !no_recipe_no_changes && !forced_current_leaf;
+            && !natural_remake;
+        // Always-make leaves a target without a recipe current when its
+        // ordinary prerequisites do not require updating it.
+        let report_remake = debug_remake && !no_recipe_no_changes && !forced_current_target;
         if debug_remake && double_without_prerequisites {
             crate::debug::emit(
                 &self.output,

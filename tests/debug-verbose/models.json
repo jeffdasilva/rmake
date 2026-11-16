@@ -1720,6 +1720,204 @@
         "all": 1600000002,
         "leaf": 1600000001
       }
+    },
+    {
+      "id": "always-recipe-less-older-normal-input",
+      "makefile": "all: leaf\n\t@printf parent > all\nleaf: input\n",
+      "initial_file_offsets": {
+        "all": 2,
+        "leaf": 1,
+        "input": 0
+      },
+      "args": [
+        "--debug=v",
+        "-n",
+        "-B",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'leaf'.\n  Considering target file 'input'.\n  Finished prerequisites of target file 'input'.\n  No need to remake target 'input'.\n Finished prerequisites of target file 'leaf'.\n  Prerequisite 'input' is older than target 'leaf'.\n No need to remake target 'leaf'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'leaf' is older than target 'all'.\nMaking 'all' due to always-make flag.\nMust remake target 'all'.\nprintf parent > all\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « leaf ».\n  Étude du fichier cible « input ».\n  Fin des dépendances du fichier cible « input ».\n  Inutile de refabriquer la cible « input ».\n Fin des dépendances du fichier cible « leaf ».\n  La dépendance « input » est plus ancienne que la cible « leaf ».\n Inutile de refabriquer la cible « leaf ».\nFin des dépendances du fichier cible « all ».\n La dépendance « leaf » est plus ancienne que la cible « all ».\nFabrication de « all » à cause de l'indicateur « always-make ».\nIl faut refabriquer la cible « all ».\nprintf parent > all\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "all": 1600000002,
+        "leaf": 1600000001,
+        "input": 1600000000
+      }
+    },
+    {
+      "id": "always-recipe-less-newer-order-only-input",
+      "makefile": "all: leaf\n\t@printf parent > all\nleaf: | input\n",
+      "initial_file_offsets": {
+        "all": 2,
+        "leaf": 1,
+        "input": 3
+      },
+      "args": [
+        "--debug=v",
+        "-n",
+        "-B",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'leaf'.\n  Considering target file 'input'.\n  Finished prerequisites of target file 'input'.\n  No need to remake target 'input'.\n Finished prerequisites of target file 'leaf'.\n  Prerequisite 'input' is order-only for target 'leaf'.\n No need to remake target 'leaf'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'leaf' is older than target 'all'.\nMaking 'all' due to always-make flag.\nMust remake target 'all'.\nprintf parent > all\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « leaf ».\n  Étude du fichier cible « input ».\n  Fin des dépendances du fichier cible « input ».\n  Inutile de refabriquer la cible « input ».\n Fin des dépendances du fichier cible « leaf ».\n  La dépendance « input » ne commande que la cible « leaf ».\n Inutile de refabriquer la cible « leaf ».\nFin des dépendances du fichier cible « all ».\n La dépendance « leaf » est plus ancienne que la cible « all ».\nFabrication de « all » à cause de l'indicateur « always-make ».\nIl faut refabriquer la cible « all ».\nprintf parent > all\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "all": 1600000002,
+        "leaf": 1600000001,
+        "input": 1600000003
+      }
+    },
+    {
+      "id": "always-recipe-less-newer-normal-input",
+      "makefile": "all: leaf\n\t@printf parent > all\nleaf: input\n",
+      "initial_file_offsets": {
+        "all": 2,
+        "leaf": 1,
+        "input": 3
+      },
+      "args": [
+        "--debug=v",
+        "-n",
+        "-B",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'leaf'.\n  Considering target file 'input'.\n  Finished prerequisites of target file 'input'.\n  No need to remake target 'input'.\n Finished prerequisites of target file 'leaf'.\n  Prerequisite 'input' is newer than target 'leaf'.\n Must remake target 'leaf'.\n Successfully remade target file 'leaf'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'leaf' is older than target 'all'.\nMaking 'all' due to always-make flag.\nMust remake target 'all'.\nprintf parent > all\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « leaf ».\n  Étude du fichier cible « input ».\n  Fin des dépendances du fichier cible « input ».\n  Inutile de refabriquer la cible « input ».\n Fin des dépendances du fichier cible « leaf ».\n  La dépendance « input » est plus récente que la cible « leaf ».\n Il faut refabriquer la cible « leaf ».\n Refabrication réussie du fichier cible « leaf ».\nFin des dépendances du fichier cible « all ».\n La dépendance « leaf » est plus ancienne que la cible « all ».\nFabrication de « all » à cause de l'indicateur « always-make ».\nIl faut refabriquer la cible « all ».\nprintf parent > all\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "all": 1600000002,
+        "leaf": 1600000001,
+        "input": 1600000003
+      }
+    },
+    {
+      "id": "always-recipe-less-missing-normal-input",
+      "makefile": "all: leaf\n\t@printf parent > all\nleaf: input\ninput:\n",
+      "initial_file_offsets": {
+        "all": 2,
+        "leaf": 1
+      },
+      "args": [
+        "--debug=v",
+        "-n",
+        "-B",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'leaf'.\n  Considering target file 'input'.\n   File 'input' does not exist.\n  Finished prerequisites of target file 'input'.\n  Must remake target 'input'.\n  Successfully remade target file 'input'.\n Finished prerequisites of target file 'leaf'.\n  Prerequisite 'input' of target 'leaf' does not exist.\n Must remake target 'leaf'.\n Successfully remade target file 'leaf'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'leaf' is older than target 'all'.\nMaking 'all' due to always-make flag.\nMust remake target 'all'.\nprintf parent > all\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « leaf ».\n  Étude du fichier cible « input ».\n   Le fichier « input » n'existe pas.\n  Fin des dépendances du fichier cible « input ».\n  Il faut refabriquer la cible « input ».\n  Refabrication réussie du fichier cible « input ».\n Fin des dépendances du fichier cible « leaf ».\n  La dépendance « input » de la cible « leaf » n'existe pas.\n Il faut refabriquer la cible « leaf ».\n Refabrication réussie du fichier cible « leaf ».\nFin des dépendances du fichier cible « all ».\n La dépendance « leaf » est plus ancienne que la cible « all ».\nFabrication de « all » à cause de l'indicateur « always-make ».\nIl faut refabriquer la cible « all ».\nprintf parent > all\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "all": 1600000002,
+        "leaf": 1600000001
+      }
+    },
+    {
+      "id": "always-recipe-less-assumed-new-target",
+      "makefile": "all: leaf\n\t@printf parent > all\nleaf: input\n",
+      "initial_file_offsets": {
+        "all": 2,
+        "leaf": 1,
+        "input": 3
+      },
+      "args": [
+        "--debug=v",
+        "-n",
+        "-B",
+        "-W",
+        "leaf",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n Considering target file 'leaf'.\n  Considering target file 'input'.\n  Finished prerequisites of target file 'input'.\n  No need to remake target 'input'.\n Finished prerequisites of target file 'leaf'.\n  Prerequisite 'input' is older than target 'leaf'.\n No need to remake target 'leaf'.\nFinished prerequisites of target file 'all'.\n Prerequisite 'leaf' is newer than target 'all'.\nMust remake target 'all'.\nprintf parent > all\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nLecture du makefile « Makefile »...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nÉtude du fichier cible « all ».\n Étude du fichier cible « leaf ».\n  Étude du fichier cible « input ».\n  Fin des dépendances du fichier cible « input ».\n  Inutile de refabriquer la cible « input ».\n Fin des dépendances du fichier cible « leaf ».\n  La dépendance « input » est plus ancienne que la cible « leaf ».\n Inutile de refabriquer la cible « leaf ».\nFin des dépendances du fichier cible « all ».\n La dépendance « leaf » est plus récente que la cible « all ».\nIl faut refabriquer la cible « all ».\nprintf parent > all\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "all": 1600000002,
+        "leaf": 1600000001,
+        "input": 1600000003
+      }
+    },
+    {
+      "id": "always-recipe-less-current-under-basic-debug",
+      "makefile": "all: leaf\n\t@printf parent > all\nleaf: | input\n",
+      "initial_file_offsets": {
+        "all": 2,
+        "leaf": 1,
+        "input": 3
+      },
+      "args": [
+        "--debug=b",
+        "-n",
+        "-B",
+        "all"
+      ],
+      "expected": {
+        "C": {
+          "stdout": "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nUpdating makefiles....\nUpdating goal targets....\nMust remake target 'all'.\nprintf parent > all\nSuccessfully remade target file 'all'.\n",
+          "stderr": "",
+          "returncode": 0
+        },
+        "fr_FR.UTF-8": {
+          "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nMise à jour des makefiles....\nMise à jour des objectifs cibles....\nIl faut refabriquer la cible « all ».\nprintf parent > all\nRefabrication réussie du fichier cible « all ».\n",
+          "stderr": "",
+          "returncode": 0
+        }
+      },
+      "mtime_seconds": {
+        "Makefile": 1600000000,
+        "all": 1600000002,
+        "leaf": 1600000001,
+        "input": 1600000003
+      }
     }
   ]
 }
