@@ -13410,18 +13410,13 @@ impl Engine {
                 }
             };
             if cleanup == Cleanup::ExistingAfterContinuation || date != before {
-                let context =
-                    owner.map_or_else(Vec::new, |owner| [b"[".as_slice(), owner, b"] "].concat());
-                self.stderr(
-                    &[
-                        b"*** ".as_slice(),
-                        &context,
-                        b"Archive member '",
+                self.stderr(&crate::messages::system(
+                    rmake_core::messages::Message::RecipeCleanup {
                         target,
-                        b"' may be bogus; not deleted",
-                    ]
-                    .concat(),
-                );
+                        owner,
+                        archive: true,
+                    },
+                ));
             }
             return false;
         }
@@ -13436,17 +13431,13 @@ impl Engine {
         {
             return false;
         }
-        let context = owner.map_or_else(Vec::new, |owner| [b"[".as_slice(), owner, b"] "].concat());
-        self.stderr(
-            &[
-                b"*** ".as_slice(),
-                &context,
-                b"Deleting file '",
+        self.stderr(&crate::messages::system(
+            rmake_core::messages::Message::RecipeCleanup {
                 target,
-                b"'",
-            ]
-            .concat(),
-        );
+                owner,
+                archive: false,
+            },
+        ));
         if let Err(error) = fs::remove_file(os(target))
             && error.kind() != io::ErrorKind::NotFound
         {
