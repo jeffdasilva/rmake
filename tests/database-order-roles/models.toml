@@ -100,6 +100,87 @@ seen_hex = "616c6c0a"
 flags = ["-p"]
 
 [[case]]
+id = "wait-follows-promoted-occurrence"
+makefile = '''
+all: z | n .WAIT z ; @$(file >>seen,$@:$<:$^:$+:$|:$*):
+'''
+records = ["all: z .WAIT z | n"]
+seen_hex = "616c6c3a7a3a7a3a7a3a6e3a0a"
+flags = ["-p"]
+
+[[case]]
+id = "wait-keeps-unprepared-occurrence"
+makefile = '''
+all: z | n .WAIT z ; @$(file >>seen,$@:$<:$^:$+:$|:$*):
+'''
+records = ["all: z | n .WAIT z"]
+flags = ["-p"]
+existing = true
+
+[[case]]
+id = "wait-keeps-normal-barrier-and-duplicate"
+makefile = '''
+all: n .WAIT z | n gate ; @$(file >>seen,$@:$<:$^:$+:$|:$*):
+'''
+records = ["all: n .WAIT z n | gate"]
+seen_hex = "616c6c3a6e3a6e207a3a6e207a3a676174653a0a"
+flags = ["-p"]
+
+[[case]]
+id = "wait-promotion-double-colon"
+makefile = '''
+all:: n | gate ; @$(file >>seen,first:$^/$|):
+all:: z | n .WAIT z ; @$(file >>seen,$@:$<:$^:$+:$|:$*):
+'''
+records = ["all:: n | gate", "all:: z .WAIT z | n"]
+seen_hex = "66697273743a6e2f676174650a616c6c3a7a3a7a3a7a3a6e3a0a"
+flags = ["-p"]
+
+[[case]]
+id = "wait-promotion-question-with-hidden-inputs"
+makefile = '''
+all: .EXTRA_PREREQS := gate n
+all: z | n .WAIT z ; @$(file >>seen,$@:$<:$^:$+:$|:$*):
+'''
+records = ["all: .EXTRA_PREREQS := gate n", "all: z .WAIT z gate n | n"]
+seen_hex = "616c6c3a7a3a7a3a7a3a6e3a0a"
+flags = ["-p", "-q"]
+status = 1
+
+[[case]]
+id = "wait-promotion-secondary-reverse-shuffle"
+makefile = '''
+.SECONDEXPANSION:
+MORE := z | n .WAIT z
+all: $$(MORE) ; @$(file >>seen,$@:$<:$^:$+:$|:$*):
+'''
+records = ["all: z .WAIT z | n"]
+seen_hex = "616c6c3a7a3a7a3a7a3a6e3a0a"
+flags = ["-p", "--shuffle=reverse", "-j1"]
+
+[[case]]
+id = "wait-promotion-secondary-late-option"
+makefile = '''
+.SECONDEXPANSION:
+MORE := z | n .WAIT z
+all: $$(MORE) ; @$(eval MAKEFLAGS += -p)$(file >>seen,$@:$<:$^:$+:$|:$*):
+'''
+records = ["all: MFLAGS = -prRs --no-print-directory", "all: MAKEFLAGS = prRs --no-print-directory", "all: z .WAIT z | n"]
+seen_hex = "616c6c3a7a3a7a3a7a3a6e3a0a"
+
+[[case]]
+id = "wait-promotion-secondary-double-colon"
+makefile = '''
+.SECONDEXPANSION:
+MORE := z | n .WAIT z
+all:: n | gate ; @$(file >>seen,first:$^/$|):
+all:: $$(MORE) ; @$(file >>seen,$@:$<:$^:$+:$|:$*):
+'''
+records = ["all:: n | gate", "all:: z .WAIT z | n"]
+seen_hex = "66697273743a6e2f676174650a616c6c3a7a3a7a3a7a3a6e3a0a"
+flags = ["-p"]
+
+[[case]]
 id = "secondary-wait"
 makefile = '''
 .SECONDEXPANSION:

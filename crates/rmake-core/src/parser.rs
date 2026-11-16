@@ -5609,6 +5609,7 @@ impl Database {
                         );
                     let mut pending_wait = None;
                     for (name, order_only) in names {
+                        let wait_marker = name.as_ref() == b".WAIT";
                         // Normalize the parsed name before a static stem can
                         // introduce leading dot components of its own.
                         let normalized = (!observed_prereqs && name.starts_with(b"./"))
@@ -5637,6 +5638,7 @@ impl Database {
                         }
                         if bind_prerequisites
                             && !observed_prereqs
+                            && !wait_marker
                             && let Some(history) = &self.database_history
                         {
                             history.intern(&name);

@@ -19,3 +19,11 @@ database. The active rule prints the realized names and its retained
 `.WAIT` and order-only partitions. An unvisited target or double-colon
 branch still prints its deferred text. Controls cover multiple deferred
 clauses, late `-p`, reverse shuffle, question, dry-run and touch.
+
+Eight further cases keep a `.WAIT` attached to the following prerequisite
+when duplicate-role preparation moves that occurrence into the normal
+partition. A bare marker in a simple immediate prerequisite list adds no
+filename string-cache entry. The cases compare the complete database,
+automatic-variable bytes, and filesystem for active and up-to-date rules,
+double-colon branches, secondary expansion, reverse shuffle, late `-p`,
+and question mode with hidden extra prerequisites.

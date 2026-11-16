@@ -175,6 +175,12 @@ fn promote_order_only_duplicates(dependencies: &mut [Dependency], ready: impl Fn
     }
     for index in promotions {
         dependencies[index].order_only = false;
+        if let Some(wait) = dependencies[..index].last_mut()
+            && wait.name == b".WAIT"
+        {
+            // GNU keeps the barrier on the occurrence whose role changed.
+            wait.order_only = false;
+        }
     }
 }
 
