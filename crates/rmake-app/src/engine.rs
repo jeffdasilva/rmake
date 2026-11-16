@@ -3338,10 +3338,13 @@ impl Engine {
             let final_named_dry = limited_load
                 && final_required_dry
                 && self.options.jobs.is_some_and(|slots| slots >= 4);
+            let final_named_touch_debug = debug_before_remake.bits() == remake_debug_bits
+                && final_named_sources.len() == 2
+                && self.options.jobs == Some(2);
             let final_named_touch = modes.touch
                 && !final_named_sources.is_empty()
                 && (optional_named_sources <= 1 || final_named_sources.len() == 2)
-                && !debug_before_remake.has(Mask::MAKEFILES)
+                && (!debug_before_remake.has(Mask::MAKEFILES) || final_named_touch_debug)
                 && self.options.jobs.is_some_and(|slots| slots >= 2);
             let unruled_primary = ordinary_mode
                 && (limited_load || final_named_touch)
@@ -3485,6 +3488,7 @@ impl Engine {
                         || optional_named_load));
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
+                    || (final_named_touch && final_named_touch_debug)
                     || named_load_debug
                     || optional_named_load
                     || (((debug_before_remake.bits() == remake_debug_bits && !basic_load_debug)

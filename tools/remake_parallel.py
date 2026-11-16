@@ -3059,7 +3059,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         held = by_id.get(name)
         if (held is None or (name, flag) in seen or not isinstance(requires_load, bool)
                 or (held.load is not None) != requires_load
-                or flag not in ('m', 'm,v') or not isinstance(fifo, bool)
+                or flag not in ('b,m', 'm', 'm,v') or not isinstance(fifo, bool)
                 or not isinstance(hold_named, bool)
                 or (hold_named and (flag != 'm,v' or not requires_load or trace_transports))
                 or (fifo and flag != 'm,v')
