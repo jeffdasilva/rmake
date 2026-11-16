@@ -2143,12 +2143,18 @@ def stock_primary_load_models() -> list[HeldModel]:
                                  'last', 'last-adjacent', 'last-adjacent-reversed')),
                         ):
                             for position in positions:
+                                if optional and position == 'first-reversed' and held.load.at_release == LOAD_HIGH:
+                                    # GNU can remake the later required includes on either side
+                                    # of the same held optional visit at this load.
+                                    continue
                                 query = stock_primary_three_query_model(held, optional, position, count)
                                 results.append(query)
                                 results.append(replace(query, model=stock_primary_three_modes(query.model, 'nq')))
                                 if position == 'first':
                                     results.extend(stock_primary_three_prefix_model(query, optional, count, modes)
                                                    for modes in ('n', 't', 'nt', 'qt', 'nqt'))
+                                elif position in ('middle', 'alternating') or (position == 'last' and count == 2):
+                                    results.append(stock_primary_three_interleaved_dry_run(query, optional, position))
     return results
 
 
@@ -2317,6 +2323,49 @@ def stock_primary_three_modes(model: debug.Model, modes: str) -> debug.Model:
     args = (*model.args[:index], *(f'-{mode}' for mode in modes), *model.args[index + 1:])
     name = model.id.replace('-q-', f'-{modes}-', 1)
     return replace(model, id=name, args=args)
+
+
+def stock_primary_three_interleaved_dry_run(held: HeldModel, optional: bool,
+                                           position: str) -> HeldModel:
+    model = stock_primary_three_modes(held.model, 'n')
+    start = model.args.index('-n') + 1
+    goals = model.args[start:-1]
+    sources = ('child.mk', 'extra.mk', 'leaf.mk')
+    assignments = {name: f'{name[:-3].upper()} := loaded'.encode() for name in sources}
+    recipes = {name: b"printf '%s\\n' '" + value + b"' > " + name.encode() + b'\n'
+               for name, value in assignments.items()}
+    commands = b''.join(recipes[name] for name in goals)
+    release = held.before_first_stdout
+    chmod = b'chmod a+x Makefile\n'
+    high = held.load.at_release == LOAD_HIGH
+    primary_mode = 0o755
+    if high and position == 'middle':
+        written = sources
+        stdout = release + chmod
+        if optional:
+            stdout += recipes['leaf.mk'] + recipes['extra.mk']
+    elif high:
+        written = ('leaf.mk',)
+        primary_mode = 0o644
+        stdout = release + chmod + recipes['leaf.mk'] + commands * 3
+    else:
+        first_optional = optional and position == 'alternating'
+        release += recipes[goals[0]] if first_optional else commands
+        stdout = release + chmod
+        if first_optional:
+            primary_mode = 0o644
+            stdout += recipes[goals[1]]
+        stdout += commands
+        written = tuple(name for name in sources if name not in goals)
+    stdout += b''.join(f"make: '{name}' is up to date.\n".encode() for name in goals)
+    values = b' '.join(b'loaded' if name in written else b'' for name in sources)
+    stdout += b"printf '%s\\n' \"suffix " + values + b'\"\n'
+    updates = {name: data for name, data in model.updates.items() if name not in sources}
+    updates['Makefile'] = model.files['Makefile.sh']
+    updates.update({name: assignments[name] + b'\n' for name in written})
+    expected = {'exit_code': 0, 'stdout_template_hex': stdout.hex(), 'stderr_template_hex': ''}
+    model = replace(model, expected=expected, updates=updates)
+    return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode)
 
 
 def stock_primary_three_prefix_model(held: HeldModel, optional: bool, named_count: int,

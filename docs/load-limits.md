@@ -127,14 +127,17 @@ Fourteen held combined-mode debug profiles cover an optional named source
 followed by a required unnamed source. The verbose pass prunes a completed
 primary immediately when its query verdict ended the recipe. Other debug
 masks and the number of visits during unheld high-load races remain open.
-The 144 held query profiles cover three direct includes, one or two named
+The 140 held query profiles cover three direct includes, one or two named
 goals, every read order, and the stock primary worker under three job slots.
 They exercise `-q` alone and with `-n`. An optional source read after the
-first include can end the pass before the later includes run. Eighty further
-held profiles place the named goals before the unnamed includes and exercise
-quiet dry-run, touch, and mixed flags. The held release records the first
-optional touch before later named goals are traversed. Other include orders
-under those modes remain open.
+first include can end the pass before the later includes run. The high-load
+case with a required named include followed by an optional named include
+showed two different sets of generated files under identical held releases.
+That schedule remains outside the exact gate. Eighty further held profiles
+place named goals first and exercise quiet dry-run, touch, and mixed flags.
+Twenty-four standalone dry-run profiles interleave named and unnamed roots.
+They verify which recipes leave files and which print commands across rereads.
+Other touch and final-adjacent dry-run schedules remain open.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
