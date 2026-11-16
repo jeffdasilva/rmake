@@ -59,6 +59,9 @@ pub enum MessageId {
     LowResolutionTime,
     FutureFileTime,
     ClockSkew,
+    IntermediatePolicyConflict,
+    IntermediateTargetConflict,
+    SecondaryTargetConflict,
     CircularDependency,
     MissingTargetPattern,
     MultipleTargetPatterns,
@@ -82,7 +85,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 72] = [
+    pub const ALL: [Self; 75] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -135,6 +138,9 @@ impl MessageId {
         Self::LowResolutionTime,
         Self::FutureFileTime,
         Self::ClockSkew,
+        Self::IntermediatePolicyConflict,
+        Self::IntermediateTargetConflict,
+        Self::SecondaryTargetConflict,
         Self::CircularDependency,
         Self::MissingTargetPattern,
         Self::MultipleTargetPatterns,
@@ -278,6 +284,13 @@ impl MessageId {
                 seconds: b"1.5",
             },
             Self::ClockSkew => Message::ClockSkew,
+            Self::IntermediatePolicyConflict => Message::IntermediatePolicyConflict,
+            Self::IntermediateTargetConflict | Self::SecondaryTargetConflict => {
+                Message::IntermediateTargetConflict {
+                    target: b"target",
+                    secondary: self == Self::SecondaryTargetConflict,
+                }
+            }
             Self::CircularDependency => Message::CircularDependency {
                 target: b"target",
                 prerequisite: b"input",
@@ -381,6 +394,13 @@ impl MessageId {
             }
             Self::FutureFileTime => c"Warning: File '%s' has modification time %s s in the future",
             Self::ClockSkew => c"warning:  Clock skew detected.  Your build may be incomplete.",
+            Self::IntermediatePolicyConflict => {
+                c".NOTINTERMEDIATE and .SECONDARY are mutually exclusive"
+            }
+            Self::IntermediateTargetConflict => {
+                c"%s cannot be both .NOTINTERMEDIATE and .INTERMEDIATE"
+            }
+            Self::SecondaryTargetConflict => c"%s cannot be both .NOTINTERMEDIATE and .SECONDARY",
             Self::CircularDependency => c"Circular %s <- %s dependency dropped.",
             Self::MissingTargetPattern => c"missing target pattern",
             Self::MultipleTargetPatterns => c"multiple target patterns",
@@ -538,6 +558,11 @@ pub enum Message<'a> {
         seconds: &'a [u8],
     },
     ClockSkew,
+    IntermediatePolicyConflict,
+    IntermediateTargetConflict {
+        target: &'a [u8],
+        secondary: bool,
+    },
     CircularDependency {
         target: &'a [u8],
         prerequisite: &'a [u8],
@@ -661,6 +686,14 @@ impl<'a> Message<'a> {
             Self::LowResolutionTime(_) => MessageId::LowResolutionTime,
             Self::FutureFileTime { .. } => MessageId::FutureFileTime,
             Self::ClockSkew => MessageId::ClockSkew,
+            Self::IntermediatePolicyConflict => MessageId::IntermediatePolicyConflict,
+            Self::IntermediateTargetConflict { secondary, .. } => {
+                if secondary {
+                    MessageId::SecondaryTargetConflict
+                } else {
+                    MessageId::IntermediateTargetConflict
+                }
+            }
             Self::CircularDependency { .. } => MessageId::CircularDependency,
             Self::MissingTargetPattern => MessageId::MissingTargetPattern,
             Self::MultipleTargetPatterns => MessageId::MultipleTargetPatterns,
@@ -708,6 +741,7 @@ impl<'a> Message<'a> {
             | Self::LoadLimitErrorPrefix
             | Self::WaitForJobs
             | Self::ClockSkew
+            | Self::IntermediatePolicyConflict
             | Self::MissingTargetPattern
             | Self::MultipleTargetPatterns
             | Self::TargetPatternWithoutPercent
@@ -719,6 +753,7 @@ impl<'a> Message<'a> {
             | Self::EmptyNativeFunction => {}
             Self::RecursiveVariable(name)
             | Self::DuplicateRecipe { target: name, .. }
+            | Self::IntermediateTargetConflict { target: name, .. }
             | Self::NothingToBeDone(name)
             | Self::UpToDate(name)
             | Self::LowResolutionTime(name)

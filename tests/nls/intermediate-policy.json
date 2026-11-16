@@ -1,0 +1,285 @@
+{
+  "classification": "Original intermediate-policy diagnostics in independently selected catalogs.",
+  "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
+  "fixture_sha256": {},
+  "rows": [
+    {
+      "id": "nls-intermediate-policy-de-global",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "2e4e4f54494e5445524d4544494154453a0a2e5345434f4e444152593a0a2e50484f4e593a20616c6c0a616c6c3a203b20407072696e746620276f6b5c6e270a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a202e4e4f54494e5445524d45444941544520756e64202e5345434f4e44415259207363686c6965c39f656e207369636820676567656e736569746967206175732e20205363686c7573732e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-intermediate-policy-de-intermediate",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "2e4e4f54494e5445524d4544494154453a207261775fff0a2e494e5445524d4544494154453a207261775fff0a2e50484f4e593a20616c6c0a616c6c3a203b20407072696e746620276f6b5c6e270a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a207261775fff206b616e6e206e6963687420676c656963687a6569746967202e4e4f54494e5445524d45444941544520756e64202e494e5445524d454449415445207365696e2e20205363686c7573732e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-intermediate-policy-de-secondary",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-n"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "2e5345434f4e444152593a206e616d650a2e4e4f54494e5445524d4544494154453a206e616d650a2e50484f4e593a20616c6c0a616c6c3a203b20407072696e746620276f6b5c6e270a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a206e616d65206b616e6e206e6963687420676c656963687a6569746967202e4e4f54494e5445524d45444941544520756e64202e5345434f4e44415259207365696e2e20205363686c7573732e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-intermediate-policy-ja-global",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "2e4e4f54494e5445524d4544494154453a0a2e5345434f4e444152593a0a2e50484f4e593a20616c6c0a616c6c3a203b20407072696e746620276f6b5c6e270a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a202e4e4f54494e5445524d45444941544520e381a8202e5345434f4e4441525920e381afe79bb8e4ba92e381abe68e92e4bb96e79a84e381a7e381992e2020e4b8ade6ada22e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-intermediate-policy-ja-intermediate",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "2e4e4f54494e5445524d4544494154453a207261775fff0a2e494e5445524d4544494154453a207261775fff0a2e50484f4e593a20616c6c0a616c6c3a203b20407072696e746620276f6b5c6e270a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a207261775fff20e381af202e4e4f54494e5445524d45444941544520e381a8202e494e5445524d45444941544520e381aee4b8a1e696b9e381abe381afe381aae3828ce381bee3819be382932e2020e4b8ade6ada22e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-intermediate-policy-ja-secondary",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-n"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "2e5345434f4e444152593a206e616d650a2e4e4f54494e5445524d4544494154453a206e616d650a2e50484f4e593a20616c6c0a616c6c3a203b20407072696e746620276f6b5c6e270a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a206e616d6520e381af202e4e4f54494e5445524d45444941544520e381a8202e5345434f4e4441525920e381aee4b8a1e696b9e381abe381afe381aae3828ce381bee3819be382932e2020e4b8ade6ada22e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-intermediate-policy-pl-global",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "files": {
+        "Makefile": "2e4e4f54494e5445524d4544494154453a0a2e5345434f4e444152593a0a2e50484f4e593a20616c6c0a616c6c3a203b20407072696e746620276f6b5c6e270a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a202e4e4f54494e5445524d4544494154452069202e5345434f4e444152592077796b6c75637a616ac485207369c49920777a616a656d6e69652e2053746f702e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-intermediate-policy-pl-intermediate",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "files": {
+        "Makefile": "2e4e4f54494e5445524d4544494154453a207261775fff0a2e494e5445524d4544494154453a207261775fff0a2e50484f4e593a20616c6c0a616c6c3a203b20407072696e746620276f6b5c6e270a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a207261775fff206e6965206d6fc5bc65206279c487206a65646e6f637a65c59b6e6965202e4e4f54494e5445524d4544494154452069202e494e5445524d4544494154452e2053746f702e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-intermediate-policy-pl-secondary",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-n"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "files": {
+        "Makefile": "2e5345434f4e444152593a206e616d650a2e4e4f54494e5445524d4544494154453a206e616d650a2e50484f4e593a20616c6c0a616c6c3a203b20407072696e746620276f6b5c6e270a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a206e616d65206e6965206d6fc5bc65206279c487206a65646e6f637a65c59b6e6965202e4e4f54494e5445524d4544494154452069202e5345434f4e444152592e2053746f702e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-intermediate-policy-c-global",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "files": {
+        "Makefile": "2e4e4f54494e5445524d4544494154453a0a2e5345434f4e444152593a0a2e50484f4e593a20616c6c0a616c6c3a203b20407072696e746620276f6b5c6e270a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a202e4e4f54494e5445524d45444941544520616e64202e5345434f4e4441525920617265206d757475616c6c79206578636c75736976652e202053746f702e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-intermediate-policy-fr-global",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "2e4e4f54494e5445524d4544494154453a0a2e5345434f4e444152593a0a2e50484f4e593a20616c6c0a616c6c3a203b20407072696e746620276f6b5c6e270a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a202e4e4f54494e5445524d45444941544520616e64202e5345434f4e4441525920617265206d757475616c6c79206578636c75736976652e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-intermediate-policy-de-nonconflicting",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "2e4e4f54494e5445524d4544494154453a206c6566740a2e5345434f4e444152593a2072696768740a2e50484f4e593a20616c6c0a616c6c3a203b20407072696e746620276f6b5c6e270a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "6f6b0a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a"
+      }
+    }
+  ]
+}
