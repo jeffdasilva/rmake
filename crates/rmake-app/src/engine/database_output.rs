@@ -294,7 +294,10 @@ impl Engine {
             .database
             .database_history()
             .is_some_and(|history| history.is_builtin_file(name));
-        view.implicit_tried = self.database_implicit.contains(name);
+        view.implicit_tried = self.database_implicit.contains(name)
+            || branch_key
+                .as_ref()
+                .is_some_and(|key| self.database_branch_implicit.contains(key));
         view.stem = rule.and_then(|rule| rule.stem.as_deref()).or_else(|| {
             variables
                 .and_then(|variables| variables.get(b"*"))
