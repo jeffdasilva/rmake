@@ -3300,7 +3300,7 @@ impl Engine {
                     }
                     [(first, false), (_, false), (last, false)] => {
                         !debug_before_remake.has(Mask::MAKEFILES)
-                            && ((modes.question && !modes.dry_run && !modes.touch)
+                            && ((modes.question && !modes.touch)
                                 || (named_include(first) && !named_include(last)))
                     }
                     _ => false,
