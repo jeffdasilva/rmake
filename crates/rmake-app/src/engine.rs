@@ -1001,7 +1001,7 @@ impl RuleState {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum BuildVisit {
     Ordinary,
-    NamedTouchRemake,
+    NamedRemakeWithoutPoll,
     GoalPassStart,
     RevisitPrerequisite,
     PrerequisiteAfterRecipe,
@@ -3312,6 +3312,18 @@ impl Engine {
                     named_sources.as_ref(),
                 )
             };
+            let final_named_dry = modes.dry_run
+                && !(modes.question || modes.touch)
+                && self.options.load_limit.is_some()
+                && self.options.jobs.is_some_and(|slots| slots >= 4)
+                && matches!(
+                    named_load_files,
+                    [(first, false), (middle, false), (last, false)]
+                        if !named_include(first)
+                            && named_include(middle)
+                            && named_include(last)
+                            && !(first.optional || middle.optional || last.optional)
+                );
             let mixed_named_overlap = unruled_primary
                 && match named_load_files {
                     [(_, false), (_, false)] => {
@@ -3334,6 +3346,7 @@ impl Engine {
                         !debug_before_remake.has(Mask::MAKEFILES)
                             && ((modes.question && !modes.touch)
                                 || (named_first && !named_last)
+                                || final_named_dry
                                 || (early_named
                                     && ((modes.dry_run && !modes.touch)
                                         || required_touch
@@ -3704,16 +3717,17 @@ impl Engine {
                         .and_then(|remake| remake.open_error.clone());
                     self.graph_epoch = self.graph_epoch.wrapping_add(1);
                 }
-                // A later named touch runs before the queued unnamed
-                // predecessor is allowed to use its active touch mode.
+                // A named visit can precede the next reap when an earlier
+                // unnamed recipe could change the order of its load decision.
                 let build_visit = if mixed_named_overlap
-                    && modes.touch
                     && self.parallel_makefile_remakes
-                    && source_index == 2
                     && named_source
-                    && self.pending(&read_files[1].0.name)
+                    && (final_named_dry
+                        || (modes.touch
+                            && source_index == 2
+                            && self.pending(&read_files[1].0.name)))
                 {
-                    BuildVisit::NamedTouchRemake
+                    BuildVisit::NamedRemakeWithoutPoll
                 } else {
                     BuildVisit::Ordinary
                 };
@@ -3992,6 +4006,7 @@ impl Engine {
                 let wait = if optional_named_load
                     || (named_load_debug && verbose_load_trace)
                     || (active_primary && mixed_named_overlap && modes.touch)
+                    || (mixed_named_overlap && final_named_dry)
                 {
                     RemakeWait::LoadPass
                 } else if optional_dependency_load_debug {
@@ -9486,7 +9501,7 @@ impl Engine {
         if cached_wait {
             self.observe_interrupt();
         }
-        if visit == BuildVisit::NamedTouchRemake {
+        if visit == BuildVisit::NamedRemakeWithoutPoll {
             self.observe_interrupt();
         } else if !cached_wait || self.shutdown.get() != Shutdown::Running {
             self.poll_jobs();

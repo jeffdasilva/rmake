@@ -2170,6 +2170,11 @@ def stock_primary_load_models() -> list[HeldModel]:
                                         else:
                                             results.extend(stock_primary_three_prefix_model(query, False, count, modes)
                                                            for modes in ('t', 'nt', 'qt'))
+                                elif not optional and position.startswith('last-adjacent'):
+                                    dry = stock_primary_three_interleaved_dry_run(query, False, position)
+                                    args = tuple('-j4' if arg == '-j3' else arg for arg in dry.model.args)
+                                    results.append(replace(dry, model=replace(
+                                        dry.model, id=f'{dry.model.id}-four-slots', args=args)))
     return results
 
 
@@ -2353,6 +2358,9 @@ def stock_primary_three_interleaved_dry_run(held: HeldModel, optional: bool,
     release = held.before_first_stdout
     chmod = b'chmod a+x Makefile\n'
     high = held.load.at_release == LOAD_HIGH
+    files = dict(model.files)
+    markers = {}
+    leaf_release_stdout = None
     primary_mode = 0o755
     if high and position == 'middle':
         written = sources
@@ -2362,7 +2370,17 @@ def stock_primary_three_interleaved_dry_run(held: HeldModel, optional: bool,
     elif high:
         written = ('leaf.mk',)
         primary_mode = 0o644
-        stdout = release + chmod + recipes['leaf.mk'] + commands * 3
+        if position.startswith('last-adjacent'):
+            queued = b''.join(recipes[name] for name in reversed(goals))
+            worker = b'./stock-primary-cat.py --leaf\n'
+            rule = b'leaf.mk: ; @' + recipes['leaf.mk'].replace(b'> leaf.mk\n', b'> $@\n')
+            for name in ('Makefile', 'Makefile.sh'):
+                files[name] = files[name].replace(rule, b'leaf.mk: ; @' + worker)
+            markers = {'leaf.started': b'ready\n', 'leaf.release': b'yes\n', 'leaf.done': b'done\n'}
+            leaf_release_stdout = release + chmod + queued + worker
+            stdout = leaf_release_stdout + queued + commands
+        else:
+            stdout = release + chmod + recipes['leaf.mk'] + commands * 3
     else:
         first_optional = optional and position == 'alternating'
         release += recipes[goals[0]] if first_optional else commands
@@ -2376,11 +2394,13 @@ def stock_primary_three_interleaved_dry_run(held: HeldModel, optional: bool,
     values = b' '.join(b'loaded' if name in written else b'' for name in sources)
     stdout += b"printf '%s\\n' \"suffix " + values + b'\"\n'
     updates = {name: data for name, data in model.updates.items() if name not in sources}
-    updates['Makefile'] = model.files['Makefile.sh']
+    updates['Makefile'] = files['Makefile.sh']
     updates.update({name: assignments[name] + b'\n' for name in written})
+    updates.update(markers)
     expected = {'exit_code': 0, 'stdout_template_hex': stdout.hex(), 'stderr_template_hex': ''}
-    model = replace(model, expected=expected, updates=updates)
-    return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode)
+    model = replace(model, files=files, expected=expected, updates=updates)
+    return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode,
+                   before_second_stdout=leaf_release_stdout)
 
 
 def stock_primary_three_prefix_model(held: HeldModel, optional: bool, named_count: int,
@@ -3081,7 +3101,8 @@ def execute_stock_primary(case: h.Case, runtime: Path, binary: Path, held: HeldM
     release_stdout = debug.render(held.before_first_stdout, runtime)
 
     def observe(parent: int, stdout: bytes) -> None:
-        if releases:
+        second_stdout = held.before_second_stdout
+        if len(releases) > 1 or (releases and second_stdout is None):
             return
         proc = Path('/proc', str(parent))
         try:
@@ -3091,6 +3112,31 @@ def execute_stock_primary(case: h.Case, runtime: Path, binary: Path, held: HeldM
             if channel not in WAIT_CHANNELS and not poll_wait(proc, channel)[1]:
                 return
             children = (proc / 'task' / str(parent) / 'children').read_bytes().split()
+            if releases:
+                if len(children) != 1 or (work / 'primary.done').read_bytes() != b'done\n':
+                    return
+                pid = int(children[0])
+                command = Path('/proc', str(pid), 'cmdline').read_bytes().split(b'\0')
+                if command != [b'/usr/bin/python3', b'./stock-primary-cat.py', b'--leaf', b'']:
+                    return
+                if (work / 'leaf.started').read_bytes() != b'ready\n':
+                    return
+                owner, started = proc_identity(pid)
+                if (owner != parent or started <= 0 or os.getpgid(pid) != os.getpgid(parent)
+                        or (work / 'leaf.done').exists() or (work / 'leaf.release').exists()):
+                    raise h.HarnessError('invalid restarted stock primary leaf identity')
+                expected = debug.render(second_stdout, runtime)
+                if len(stdout) < len(expected) and expected.startswith(stdout):
+                    return
+                load_trace = trace.read_bytes() if trace.exists() else b''
+                temporary = work / 'leaf.release.tmp'
+                temporary.write_bytes(b'yes\n')
+                temporary.chmod(0o644)
+                temporary.rename(work / 'leaf.release')
+                releases.append({'name': 'leaf', 'parent': parent, 'pid': pid, 'started': started,
+                                 'stdout_hex': stdout.hex(), 'load_trace_hex': load_trace.hex(),
+                                 'load_hex': (work / 'load.input').read_bytes().hex(), 'wchan': channel})
+                return
             for child in map(int, children):
                 child_proc = Path('/proc', str(child))
                 shell_argv = child_proc.joinpath('cmdline').read_bytes().split(b'\0')
@@ -3164,15 +3210,24 @@ def bind_fifo_controller(observation: h.Observation, releases: list[dict], runti
 
 def release_errors(held: HeldModel, releases: list[dict], runtime: Path) -> list[str]:
     if held.stock_primary:
-        if len(releases) != 1:
+        second_stdout = held.before_second_stdout
+        expected = ['primary', 'leaf'] if second_stdout is not None else ['primary']
+        if [release['name'] for release in releases] != expected:
             return ['live stock primary release']
-        (release,) = releases
+        release = releases[0]
         errors = []
         if release['stdout_hex'] != debug.render(held.before_first_stdout, runtime).hex():
             errors.append('stock primary release stdout')
         if (release['load_hex'] != held.load.at_release.hex()
                 or release['load_trace_hex'] != held.load.trace.hex()):
             errors.append('stock primary release load observation')
+        if second_stdout is not None:
+            leaf = releases[1]
+            if leaf['stdout_hex'] != debug.render(second_stdout, runtime).hex():
+                errors.append('restarted stock primary leaf release stdout')
+            if (leaf['load_hex'] != held.load.at_release.hex()
+                    or leaf['load_trace_hex'] != (held.load.trace * 2).hex()):
+                errors.append('restarted stock primary leaf release load observation')
         return errors
     order = list(held.release_order[:1] if held.before_second is None else held.release_order)
     wanted = ['primary', *order] if held.before_primary is not None else order
