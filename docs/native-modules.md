@@ -17,6 +17,9 @@ lexical, call, target and automatic context; a NULL eval location inherits its
 active caller. Successful setup appends raw module names to `.LOADED` with normal
 origin precedence. Optional setup failure retains registrations and file records;
 a missing optional library remains a required remake goal after reading.
+When evaluation loads a module from a lexical or target scope, the active raw
+`.LOADED` binding seeds the global append. The local binding keeps its own value
+and a higher-priority global binding still controls publication.
 
 ## Foreign calls and error ownership
 
@@ -52,7 +55,7 @@ for an optional object that could not be opened.
 
 ## Acceptance and remaining work
 
-`make test-native-modules` checks 226 original models. It compiles original C
+`make test-native-modules` checks 266 original models. It compiles original C
 modules into disposable inputs and checks two GNU runs and the candidate against independently written byte streams,
 exit status, ordered file witnesses and full filesystem snapshots. It rejects
 leftover children, compiler failures and reached limits. `NATIVE_CASE` selects a

@@ -142,7 +142,11 @@ under `-t`, `-n -t`, and `-q -t`. They compare the named touch before
 unnamed load reservations, the primary's mode, and actual file effects.
 Sixteen optional-source profiles put the optional named include between two
 required unnamed includes. The earlier unnamed job waits for ordinary mode
-after the optional pass. Additional final-adjacent modes remain open.
+after the optional pass. Eight required-source dry-run profiles place
+two named includes last, with a slot for every source. They verify the
+load queue order in both restarted images. The high-load profiles hold
+the unnamed recipe until its restarted parent waits for it. Lower slot
+counts, unbounded jobs and other final-adjacent modes remain open.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an

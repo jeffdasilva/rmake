@@ -1,0 +1,312 @@
+{
+  "classification": "Borrowed output lock failure and active locale, with independent errno witness.",
+  "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
+  "fixture_sha256": {
+    "lock_errno.c": "b5444f7091a2f2a96c71bf0dabceae783a127751f953ec5ebcd259b054fe587a"
+  },
+  "rows": [
+    {
+      "id": "nls-output-lock-ja-line-j2",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Oline",
+        "--jobserver-style=pipe",
+        "--sync-mutex=fnm:mutex"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LD_PRELOAD": "./lock_errno.so",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e7466202762756666657265645c6e270a",
+        "seen": "616e63686f720a",
+        "mutex": "626f72726f7765642062797465730a"
+      },
+      "modules": [
+        {
+          "source": "lock_errno.c",
+          "filename": "lock_errno.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "62756666657265640a",
+        "stderr_hex": "66636e746c28293a20404f535f44455441494c400a6d616b653a20e8ada6e5918a3a20e587bae58a9be383ade38383e382afe38292e58f96e5be97e381a7e3818de381aae38184e381aee381a7e38081e587bae58a9be5908ce69c9fe38292e784a1e58ab9e381abe38197e381bee38199e380820a",
+        "seen_hex": "616e63686f720a"
+      },
+      "errno_fact": [
+        "ENOLCK",
+        "fr_FR.UTF-8"
+      ]
+    },
+    {
+      "id": "nls-output-lock-ja-target-j2",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Otarget",
+        "--jobserver-style=fifo",
+        "--sync-mutex=fnm:mutex"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LD_PRELOAD": "./lock_errno.so",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e7466202762756666657265645c6e270a",
+        "seen": "616e63686f720a",
+        "mutex": "626f72726f7765642062797465730a"
+      },
+      "modules": [
+        {
+          "source": "lock_errno.c",
+          "filename": "lock_errno.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "62756666657265640a",
+        "stderr_hex": "66636e746c28293a20404f535f44455441494c400a6d616b653a20e8ada6e5918a3a20e587bae58a9be383ade38383e382afe38292e58f96e5be97e381a7e3818de381aae38184e381aee381a7e38081e587bae58a9be5908ce69c9fe38292e784a1e58ab9e381abe38197e381bee38199e380820a",
+        "seen_hex": "616e63686f720a"
+      },
+      "errno_fact": [
+        "ENOLCK",
+        "fr_FR.UTF-8"
+      ]
+    },
+    {
+      "id": "nls-output-lock-ja-recurse-j1",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-Orecurse",
+        "--jobserver-style=pipe",
+        "--sync-mutex=fnm:mutex"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LD_PRELOAD": "./lock_errno.so",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e7466202762756666657265645c6e270a",
+        "seen": "616e63686f720a",
+        "mutex": "626f72726f7765642062797465730a"
+      },
+      "modules": [
+        {
+          "source": "lock_errno.c",
+          "filename": "lock_errno.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "62756666657265640a",
+        "stderr_hex": "66636e746c28293a20404f535f44455441494c400a6d616b653a20e8ada6e5918a3a20e587bae58a9be383ade38383e382afe38292e58f96e5be97e381a7e3818de381aae38184e381aee381a7e38081e587bae58a9be5908ce69c9fe38292e784a1e58ab9e381abe38197e381bee38199e380820a",
+        "seen_hex": "616e63686f720a"
+      },
+      "errno_fact": [
+        "ENOLCK",
+        "fr_FR.UTF-8"
+      ]
+    },
+    {
+      "id": "nls-output-lock-ja-recurse-j2",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Orecurse",
+        "--jobserver-style=fifo",
+        "--sync-mutex=fnm:mutex"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LD_PRELOAD": "./lock_errno.so",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e7466202762756666657265645c6e270a",
+        "seen": "616e63686f720a",
+        "mutex": "626f72726f7765642062797465730a"
+      },
+      "modules": [
+        {
+          "source": "lock_errno.c",
+          "filename": "lock_errno.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "62756666657265640a",
+        "stderr_hex": "66636e746c28293a20404f535f44455441494c400a6d616b653a20e8ada6e5918a3a20e587bae58a9be383ade38383e382afe38292e58f96e5be97e381a7e3818de381aae38184e381aee381a7e38081e587bae58a9be5908ce69c9fe38292e784a1e58ab9e381abe38197e381bee38199e380820a",
+        "seen_hex": "616e63686f720a"
+      },
+      "errno_fact": [
+        "ENOLCK",
+        "fr_FR.UTF-8"
+      ]
+    },
+    {
+      "id": "nls-output-lock-ja-line-j1",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-Oline",
+        "--jobserver-style=pipe",
+        "--sync-mutex=fnm:mutex"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LD_PRELOAD": "./lock_errno.so",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e7466202762756666657265645c6e270a",
+        "seen": "616e63686f720a",
+        "mutex": "626f72726f7765642062797465730a"
+      },
+      "modules": [
+        {
+          "source": "lock_errno.c",
+          "filename": "lock_errno.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "62756666657265640a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-output-lock-ja-target-j1",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-Otarget",
+        "--jobserver-style=fifo",
+        "--sync-mutex=fnm:mutex"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LD_PRELOAD": "./lock_errno.so",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e7466202762756666657265645c6e270a",
+        "seen": "616e63686f720a",
+        "mutex": "626f72726f7765642062797465730a"
+      },
+      "modules": [
+        {
+          "source": "lock_errno.c",
+          "filename": "lock_errno.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "62756666657265640a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-output-lock-c-target-j2",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Otarget",
+        "--jobserver-style=fifo",
+        "--sync-mutex=fnm:mutex"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "LD_PRELOAD": "./lock_errno.so"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e7466202762756666657265645c6e270a",
+        "seen": "616e63686f720a",
+        "mutex": "626f72726f7765642062797465730a"
+      },
+      "modules": [
+        {
+          "source": "lock_errno.c",
+          "filename": "lock_errno.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "62756666657265640a",
+        "stderr_hex": "66636e746c28293a20404f535f44455441494c400a6d616b653a207761726e696e673a2043616e6e6f742061637175697265206f7574707574206c6f636b2c2064697361626c696e67206f75747075742073796e632e0a",
+        "seen_hex": "616e63686f720a"
+      },
+      "errno_fact": [
+        "ENOLCK",
+        "C.UTF-8"
+      ]
+    },
+    {
+      "id": "nls-output-lock-fr-recurse-j2",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Orecurse",
+        "--jobserver-style=pipe",
+        "--sync-mutex=fnm:mutex"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LD_PRELOAD": "./lock_errno.so",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e7466202762756666657265645c6e270a",
+        "seen": "616e63686f720a",
+        "mutex": "626f72726f7765642062797465730a"
+      },
+      "modules": [
+        {
+          "source": "lock_errno.c",
+          "filename": "lock_errno.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "62756666657265640a",
+        "stderr_hex": "66636e746c28293a20404f535f44455441494c400a6d616b653a207761726e696e673a2043616e6e6f742061637175697265206f7574707574206c6f636b2c2064697361626c696e67206f75747075742073796e632e0a",
+        "seen_hex": "616e63686f720a"
+      },
+      "errno_fact": [
+        "ENOLCK",
+        "fr_FR.UTF-8"
+      ]
+    }
+  ]
+}

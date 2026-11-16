@@ -384,11 +384,13 @@ impl Controller {
             &[self.0.program.borrow().as_slice(), b": ", bytes, b"\n"].concat(),
         );
     }
-    fn warn_spool_unavailable(&self) {
-        let key = c"cannot open output-sync lock file, suppressing output-sync.";
+    fn warning_from_catalog(&self, key: &'static std::ffi::CStr) {
         let message =
             rmake_linux::messages::lookup_static(key).unwrap_or_else(|_| key.to_bytes().to_vec());
         self.warning(&message);
+    }
+    fn warn_spool_unavailable(&self) {
+        self.warning_from_catalog(c"cannot open output-sync lock file, suppressing output-sync.");
     }
     fn disable(&self) {
         self.0.mode.set(Mode::None);
@@ -564,12 +566,11 @@ impl Buffer {
                 return;
             }
             if rmake_linux::signals::pending().is_none() {
-                plain(
-                    true,
-                    format!("fcntl(): {}\n", crate::engine::os_error(&error)).as_bytes(),
+                let detail = rmake_linux::filesystem::source_error_detail(&error);
+                plain(true, &[b"fcntl(): ".as_slice(), &detail, b"\n"].concat());
+                self.controller.warning_from_catalog(
+                    c"warning: Cannot acquire output lock, disabling output sync.",
                 );
-                self.controller
-                    .warning(b"warning: Cannot acquire output lock, disabling output sync.");
             }
             self.controller.clear();
             if let Some(spool) = self.spool.borrow().as_ref() {

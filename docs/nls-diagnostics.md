@@ -229,5 +229,12 @@ and a nonconflicting control.
 Failures in `$(file ...)` select the active open, read, write, or close
 template. The path and libc error remain raw byte arguments. Twelve
 profiles verify reader and recipe expansion, raw file names, buffered
-write and close failures, and effects completed before the failure. The
-diagnostic gate runs 225 profiles.
+write and close failures, and effects completed before the failure.
+
+## Output lock failures
+
+If a borrowed output lock fails during a spool flush, the warning uses
+the active catalog and the preceding error uses libc's errno text. Eight
+profiles verify Japanese, C, and French fallback, continued recipe output,
+and preservation of the caller's mutex. The diagnostic gate runs 233
+profiles.

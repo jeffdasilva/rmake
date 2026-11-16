@@ -1001,7 +1001,7 @@ impl RuleState {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum BuildVisit {
     Ordinary,
-    NamedTouchRemake,
+    NamedRemakeWithoutPoll,
     GoalPassStart,
     RevisitPrerequisite,
     PrerequisiteAfterRecipe,
@@ -3312,6 +3312,18 @@ impl Engine {
                     named_sources.as_ref(),
                 )
             };
+            let final_named_dry = modes.dry_run
+                && !(modes.question || modes.touch)
+                && self.options.load_limit.is_some()
+                && self.options.jobs.is_some_and(|slots| slots >= 4)
+                && matches!(
+                    named_load_files,
+                    [(first, false), (middle, false), (last, false)]
+                        if !named_include(first)
+                            && named_include(middle)
+                            && named_include(last)
+                            && !(first.optional || middle.optional || last.optional)
+                );
             let mixed_named_overlap = unruled_primary
                 && match named_load_files {
                     [(_, false), (_, false)] => {
@@ -3334,6 +3346,7 @@ impl Engine {
                         !debug_before_remake.has(Mask::MAKEFILES)
                             && ((modes.question && !modes.touch)
                                 || (named_first && !named_last)
+                                || final_named_dry
                                 || (early_named
                                     && ((modes.dry_run && !modes.touch)
                                         || required_touch
@@ -3704,16 +3717,17 @@ impl Engine {
                         .and_then(|remake| remake.open_error.clone());
                     self.graph_epoch = self.graph_epoch.wrapping_add(1);
                 }
-                // A later named touch runs before the queued unnamed
-                // predecessor is allowed to use its active touch mode.
+                // A named visit can precede the next reap when an earlier
+                // unnamed recipe could change the order of its load decision.
                 let build_visit = if mixed_named_overlap
-                    && modes.touch
                     && self.parallel_makefile_remakes
-                    && source_index == 2
                     && named_source
-                    && self.pending(&read_files[1].0.name)
+                    && (final_named_dry
+                        || (modes.touch
+                            && source_index == 2
+                            && self.pending(&read_files[1].0.name)))
                 {
-                    BuildVisit::NamedTouchRemake
+                    BuildVisit::NamedRemakeWithoutPoll
                 } else {
                     BuildVisit::Ordinary
                 };
@@ -3992,6 +4006,7 @@ impl Engine {
                 let wait = if optional_named_load
                     || (named_load_debug && verbose_load_trace)
                     || (active_primary && mixed_named_overlap && modes.touch)
+                    || (mixed_named_overlap && final_named_dry)
                 {
                     RemakeWait::LoadPass
                 } else if optional_dependency_load_debug {
@@ -9486,7 +9501,7 @@ impl Engine {
         if cached_wait {
             self.observe_interrupt();
         }
-        if visit == BuildVisit::NamedTouchRemake {
+        if visit == BuildVisit::NamedRemakeWithoutPoll {
             self.observe_interrupt();
         } else if !cached_wait || self.shutdown.get() != Shutdown::Running {
             self.poll_jobs();
@@ -11532,6 +11547,18 @@ impl Engine {
             && rule.recipes.is_none()
             && !self.options.always
             && !dependencies_changed;
+        let forced_current_leaf = self.options.always
+            && mask.has(crate::debug::Mask::BASIC)
+            && !self.remaking
+            && branch.is_none()
+            && group.is_none()
+            && before.is_some()
+            && !phony
+            && !rule.record_only
+            && rule.recipes.is_none()
+            && rule.dependencies.is_empty();
+        // GNU's always-make option adds no work to an existing leaf without a recipe.
+        let report_remake = debug_remake && !no_recipe_no_changes && !forced_current_leaf;
         if debug_remake && double_without_prerequisites {
             crate::debug::emit(
                 &self.output,
@@ -11549,7 +11576,7 @@ impl Engine {
             );
         }
         if debug_remake {
-            if !no_recipe_no_changes {
+            if report_remake {
                 crate::debug::emit(
                     &self.output,
                     crate::debug::Event::MustRemake(target, debug_depth),
@@ -11809,7 +11836,7 @@ impl Engine {
                 if branch.is_some() && debug_depth == 0 && outcome.failed && outcome.blocked {
                     self.report_blocked_goal(target);
                 }
-            } else if debug_remake && !no_recipe_no_changes {
+            } else if report_remake {
                 crate::debug::emit(
                     &self.output,
                     if outcome.failed {
@@ -11827,9 +11854,10 @@ impl Engine {
         self.visiting.remove(target);
         self.done.insert(target.to_vec(), outcome);
         if !self.parallel_jobs.contains_key(target) {
-            self.finish_group(target, outcome);
+            self.finish_group(target, outcome)
+        } else {
+            outcome
         }
-        outcome
     }
 
     fn note_group_recipe_failure(&mut self, target: &[u8], location: &Location) {
@@ -11841,9 +11869,9 @@ impl Engine {
         }
     }
 
-    fn finish_group(&mut self, target: &[u8], outcome: Outcome) {
+    fn finish_group(&mut self, target: &[u8], mut outcome: Outcome) -> Outcome {
         let Some(group) = self.running_groups.remove(target) else {
-            return;
+            return outcome;
         };
         let cached = self.cached_recipe_outcome(outcome);
         // A query can inspect an expanded recipe without starting it. Only
@@ -11942,7 +11970,7 @@ impl Engine {
                     }
                 }
             }
-            return;
+            return outcome;
         }
         let warn_missing = group.implicit
             && !outcome.completion.preserves()
@@ -11954,6 +11982,12 @@ impl Engine {
             && !self.options.touch
             && !outcome.failed
             && outcome.completion.preserves();
+        let retain_explicit_dry_time = group.ordinary
+            && !group.implicit
+            && observe_dry_group
+            && outcome.completion == CompletionTime::AssumeNew;
+        let retain_debug_time =
+            retain_explicit_dry_time && self.output.debug_mask().has(crate::debug::Mask::BASIC);
         let debug_serial_group_peer = !self.remaking
             && self.active_makefile_remake.is_none()
             && !self.parallel_graph()
@@ -11981,21 +12015,34 @@ impl Engine {
             && outcome.ran
             && !outcome.fatal;
         for (peer, before, phony) in group.members.into_iter().rev() {
-            let database_result =
-                if observe_dry_group && !phony && (!group.implicit || peer != target) {
+            let observation = (observe_dry_group && !phony && (!group.implicit || peer != target))
+                .then(|| {
                     // Only explicit groups include the owner in the physical
                     // refresh. Implicit owners keep their simulated timestamp.
-                    self.modified(&peer);
+                    if retain_explicit_dry_time {
+                        // The grouped observation replaces a newest assumption.
+                        self.release_assumed_new(&peer);
+                    }
+                    let time = self.modified(&peer);
                     self.database_unchecked_times.borrow_mut().remove(&peer);
-                    DatabaseResult::ObservedGroup
-                } else {
-                    DatabaseResult::Outcome
-                };
+                    time
+                });
+            let database_result = if observation.is_some() {
+                DatabaseResult::ObservedGroup
+            } else {
+                DatabaseResult::Outcome
+            };
             if peer == target {
-                if database_result == DatabaseResult::ObservedGroup
+                if let Some(time) = observation
                     && let Some(owner) = self.done.get_mut(target)
                 {
                     owner.database_result = database_result;
+                    if retain_explicit_dry_time {
+                        owner.completion = CompletionTime::Preserve;
+                        owner.debug_time_changed |= retain_debug_time && owner.time != time;
+                        owner.time = time;
+                        outcome = *owner;
+                    }
                 }
                 continue;
             }
@@ -12028,6 +12075,11 @@ impl Engine {
             } else {
                 self.modified(&peer)
             };
+            if retain_explicit_dry_time && let Some(time) = observation {
+                completed.completion = CompletionTime::Preserve;
+                completed.debug_time_changed |= retain_debug_time && completed.time != time;
+                completed.time = time;
+            }
             if track_read_peers && !phony && self.makefile_names.contains(&peer) {
                 // A missing group member can stop peer freshness checks.
                 // The serial read pass can still establish the peer's time
@@ -12066,6 +12118,7 @@ impl Engine {
             }
             self.done.insert(peer, completed);
         }
+        outcome
     }
 
     /// Initialize each target once, from its first parent outwards. Pattern
