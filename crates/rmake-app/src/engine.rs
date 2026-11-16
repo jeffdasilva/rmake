@@ -11833,14 +11833,20 @@ impl Engine {
             && !outcome.fatal;
         let serial_explicit_remake =
             self.remaking && !self.parallel_makefile_remakes && !group.implicit;
+        let failed_required_remake = outcome.failed
+            && self.options.keep_going
+            && !self.optional_remake()
+            && !outcome.blocked
+            && !outcome.fatal;
         let track_read_peers = serial_explicit_remake
             && outcome.ran
             && outcome.completion == CompletionTime::Refresh
-            && (!outcome.failed
-                || (self.options.keep_going
-                    && !self.optional_remake()
-                    && !outcome.blocked
-                    && !outcome.fatal));
+            && (!outcome.failed || failed_required_remake);
+        let use_saved_peer_time = failed_required_remake
+            && group.before.is_none()
+            && self.assumptions.is_none()
+            && !self.options.check_symlink_times
+            && self.makefile_names.contains(target);
         let trace_failed_read_peers = serial_explicit_remake
             && (self.optional_remake() || self.options.keep_going)
             && outcome.failed
@@ -11894,15 +11900,25 @@ impl Engine {
             } else {
                 self.modified(&peer)
             };
-            if track_read_peers
-                && !phony
-                && let Some(time) = before
-                && completed.time != before
-                && self.makefile_names.contains(&peer)
-            {
-                self.serial_remake_peer_times
-                    .entry(peer.clone())
-                    .or_insert(time);
+            if track_read_peers && !phony && self.makefile_names.contains(&peer) {
+                // A missing owner skips peer freshness checks. The serial read
+                // pass can still supply the earlier physical time of a peer.
+                let before = before.or_else(|| {
+                    if use_saved_peer_time
+                        && let Some(Some((None, Some(time)))) = self.path_observations.get(&peer)
+                    {
+                        Some(*time)
+                    } else {
+                        None
+                    }
+                });
+                if let Some(time) = before
+                    && completed.time != before
+                {
+                    self.serial_remake_peer_times
+                        .entry(peer.clone())
+                        .or_insert(time);
+                }
             }
             if warn_missing && completed.time.is_none() {
                 emit_output(

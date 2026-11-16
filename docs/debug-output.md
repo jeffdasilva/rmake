@@ -230,3 +230,9 @@ cached failure and compares the peer's physical timestamp with its
 pre-recipe observation before deciding whether to reread the makefiles.
 Four fixtures cover ordinary execution, query mode, and the recently
 failed trace for a changed or unchanged peer.
+
+When the grouped owner is missing, its freshness check can skip the other
+group members. A failed required group under keep-going can still compare an
+existing peer's saved serial read timestamp with its final physical time.
+Four fixtures cover forward and backward timestamp changes, a same-time
+rewrite, and a removed peer.
