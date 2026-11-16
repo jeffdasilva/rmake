@@ -11462,12 +11462,23 @@ impl Engine {
                 crate::debug::Event::Finished(target, debug_depth),
             );
         }
+        // A phony target normally has no timestamp. An explicit newest
+        // assumption survives a recipe-less update.
+        let assumed_phony = phony
+            && !self.remaking
+            && branch.is_none()
+            && group.is_none()
+            && rule.recipes.is_none()
+            && self
+                .assumptions
+                .as_ref()
+                .is_some_and(|files| files.is_new_time(before));
         let mask = self.output.debug_mask();
         let mut natural_remake = comparison.is_none();
         let mut dependencies_changed = false;
         if mask.has(crate::debug::Mask::BASIC)
             && before.is_some()
-            && !phony
+            && (!phony || assumed_phony)
             && !outcome.failed
             && !outcome.question_outdated
         {
@@ -11548,7 +11559,7 @@ impl Engine {
             && !outcome.question_outdated
             && !double_without_prerequisites
             && before.is_some()
-            && !phony
+            && (!phony || (assumed_phony && !stale))
             && !rule.record_only
             && rule.recipes.is_none()
             && !self.options.always
@@ -11559,7 +11570,7 @@ impl Engine {
             && branch.is_none()
             && group.is_none()
             && before.is_some()
-            && !phony
+            && (!phony || assumed_phony)
             && !rule.record_only
             && rule.recipes.is_none()
             && !natural_remake;
@@ -11798,7 +11809,7 @@ impl Engine {
             {
                 self.release_assumed_new(target);
             }
-            outcome.time = if phony {
+            outcome.time = if phony && !assumed_phony {
                 None
             } else if rule.recipes.is_some()
                 && !outcome.completion.preserves()
