@@ -112,6 +112,9 @@ expansion. If the prepared script ends in a scan without launching a child,
 both completion passes can touch the target. Plain touch selected before
 preparation takes the direct shortcut. The live-transition fixtures verify
 both paths, including dry run, phony targets and output synchronization.
+A plus introduced by expansion forces the one-shell script and any retained
+tail to run. Touch completion still uses the script's declared recursion,
+so the target can be touched after the forced child succeeds.
 
 The 195 probes comprised 168 cleanup/protection combinations and 27 child-boundary
 cases. Some early restoration probes used local-time `touch -t`; exact restored

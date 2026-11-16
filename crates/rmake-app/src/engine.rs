@@ -13190,8 +13190,15 @@ impl Engine {
                 return Execution::fatal(ran);
             }
         }
-        if !self.options.touch || phony || !flow.has_ordinary() {
-            return Execution::success(ran).with_recursion(!flow.has_ordinary());
+        // An expanded one-shell prefix forces execution, including queued
+        // script tails. A touch completion uses the declared recursion.
+        let all_recursive = if one_shell && self.options.touch {
+            flow.has_declared_recursion()
+        } else {
+            !flow.has_ordinary()
+        };
+        if !self.options.touch || phony || all_recursive {
+            return Execution::success(ran).with_recursion(all_recursive);
         }
         let passes = flow.completion_passes();
         for pass in 0..passes {
@@ -13212,7 +13219,7 @@ impl Engine {
                 return touched;
             }
         }
-        Execution::success(ran).with_recursion(!flow.has_ordinary())
+        Execution::success(ran).with_recursion(all_recursive)
     }
 
     fn touch_target(&mut self, target: &[u8]) -> Execution {

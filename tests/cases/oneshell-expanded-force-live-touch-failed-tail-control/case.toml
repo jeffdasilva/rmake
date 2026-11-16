@@ -1,0 +1,15 @@
+id = "oneshell-expanded-force-live-touch-failed-tail-control"
+requirement = "recipes.oneshell"
+candidate = "required"
+description = "Dispatch and touch completion after one-shell recipe prefix expansion."
+provenance = "Original Makefile with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-j1", "--jobserver-style=pipe", "target"]
+timeout_seconds = 5
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 2
+stdout_hex = "7365636f6e6427203e206368696c640a"
+stderr_hex = "2f62696e2f73683a20323a2053796e746178206572726f723a20556e7465726d696e617465642071756f74656420737472696e670a6d616b653a202a2a2a205b4d616b6566696c653a31333a207461726765745d204572726f7220320a"
