@@ -64,7 +64,7 @@ os.write(1, function(getattr(errno, sys.argv[1])))
 
 def errno_witness(case, runtime, fact):
     name, locale = fact
-    assert name in {"ENOENT", "ENOTDIR", "EISDIR"}
+    assert name in {"ENOENT", "ENOTDIR", "EISDIR", "ENOSPC"}
     assert locale in {"fr_FR.UTF-8", "C.UTF-8"}
     environment = h.clean_environment(runtime, {**case.environment, "LC_ALL": locale, "LANG": locale})
     out, err, status, limit, leftovers = h.capture(
@@ -94,9 +94,10 @@ def cases(selection):
     cleanup = json.loads((DATA / "cleanup.json").read_bytes())
     wait_notice = json.loads((DATA / "wait-notice.json").read_bytes())
     intermediate = json.loads((DATA / "intermediate-policy.json").read_bytes())
+    file_io = json.loads((DATA / "file-io.json").read_bytes())
     suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution,
-              touch_open, cleanup, wait_notice, intermediate)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 18, 15, 20, 14, 13, 18, 16, 12, 12, 8, 12):
+              touch_open, cleanup, wait_notice, intermediate, file_io)
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 18, 15, 20, 14, 13, 18, 16, 12, 12, 8, 12, 12):
         raise h.HarnessError("unexpected NLS model inventory")
     rows = [row for suite in suites for row in suite["rows"]]
     if len({row["id"] for row in rows}) != len(rows):
@@ -125,7 +126,7 @@ def cases(selection):
     if remake["fixture_sha256"] != {"nls_control.c": fixtures["nls_control.c"]}:
         raise h.HarnessError("remake fixture inventory or shared source identity differs")
     if any(suite["fixture_sha256"] for suite in (repeat, replay, low_resolution, touch_open, cleanup,
-                                                wait_notice, intermediate)):
+                                                wait_notice, intermediate, file_io)):
         raise h.HarnessError("unexpected source fixtures for later diagnostic cases")
     for name, expected in fixtures.items():
         if h.sha256_file(DATA / name) != expected:
@@ -224,6 +225,7 @@ def main(argv=None):
               "cleanup_sha256": h.sha256_file(DATA / "cleanup.json"),
               "wait_notice_sha256": h.sha256_file(DATA / "wait-notice.json"),
               "intermediate_policy_sha256": h.sha256_file(DATA / "intermediate-policy.json"),
+              "file_io_sha256": h.sha256_file(DATA / "file-io.json"),
               "tool_sha256": h.sha256_file(Path(__file__)), "locale_profile": profile,
               "oracle": h.executable_identity(oracle, oracle=True), "oracle_profile_id": oracle_profile["profile_id"], "candidate": h.executable_identity(args.candidate) if args.candidate else None,
               "reference_catalog": {"path": str(catalog), "sha256": h.sha256_file(catalog)},
