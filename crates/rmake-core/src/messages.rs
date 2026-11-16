@@ -50,6 +50,8 @@ pub enum MessageId {
     LeaveUnknownDirectoryAtDepth,
     OsError,
     SourceError,
+    LoadLimitUnsupported,
+    LoadLimitErrorPrefix,
     FailedMakefileRemake,
     NothingToBeDone,
     UpToDate,
@@ -79,7 +81,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 69] = [
+    pub const ALL: [Self; 71] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -123,6 +125,8 @@ impl MessageId {
         Self::LeaveUnknownDirectoryAtDepth,
         Self::OsError,
         Self::SourceError,
+        Self::LoadLimitUnsupported,
+        Self::LoadLimitErrorPrefix,
         Self::FailedMakefileRemake,
         Self::NothingToBeDone,
         Self::UpToDate,
@@ -260,6 +264,8 @@ impl MessageId {
                 path: b"Makefile",
                 detail: b"I/O error",
             },
+            Self::LoadLimitUnsupported => Message::LoadLimitUnsupported,
+            Self::LoadLimitErrorPrefix => Message::LoadLimitErrorPrefix,
             Self::FailedMakefileRemake => Message::FailedMakefileRemake(b"Makefile"),
             Self::NothingToBeDone => Message::NothingToBeDone(b"target"),
             Self::UpToDate => Message::UpToDate(b"target"),
@@ -361,6 +367,8 @@ impl MessageId {
             Self::LeaveUnknownDirectoryAtDepth => c"%s[%u]: Leaving an unknown directory\n",
             Self::OsError => c"%s%s: %s",
             Self::SourceError => c"%s: %s",
+            Self::LoadLimitUnsupported => c"cannot enforce load limits on this operating system",
+            Self::LoadLimitErrorPrefix => c"cannot enforce load limit: ",
             Self::FailedMakefileRemake => c"Failed to remake makefile '%s'.",
             Self::NothingToBeDone => c"Nothing to be done for '%s'.",
             Self::UpToDate => c"'%s' is up to date.",
@@ -514,6 +522,8 @@ pub enum Message<'a> {
         path: &'a [u8],
         detail: &'a [u8],
     },
+    LoadLimitUnsupported,
+    LoadLimitErrorPrefix,
     FailedMakefileRemake(&'a [u8]),
     NothingToBeDone(&'a [u8]),
     UpToDate(&'a [u8]),
@@ -637,6 +647,8 @@ impl<'a> Message<'a> {
             },
             Self::OsError { .. } => MessageId::OsError,
             Self::SourceError { .. } => MessageId::SourceError,
+            Self::LoadLimitUnsupported => MessageId::LoadLimitUnsupported,
+            Self::LoadLimitErrorPrefix => MessageId::LoadLimitErrorPrefix,
             Self::FailedMakefileRemake(_) => MessageId::FailedMakefileRemake,
             Self::NothingToBeDone(_) => MessageId::NothingToBeDone,
             Self::UpToDate(_) => MessageId::UpToDate,
@@ -686,6 +698,8 @@ impl<'a> Message<'a> {
             | Self::EmptyVariableName
             | Self::MissingEndef
             | Self::UnterminatedReference
+            | Self::LoadLimitUnsupported
+            | Self::LoadLimitErrorPrefix
             | Self::ClockSkew
             | Self::MissingTargetPattern
             | Self::MultipleTargetPatterns
