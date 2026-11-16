@@ -19,10 +19,11 @@ def wait_for_release(name):
 if sys.argv[1:] == ['Makefile.sh']:
     wait_for_release('primary')
     Path('primary.done').write_bytes(b'done\n')
-elif sys.argv[1:] == ['--leaf']:
-    wait_for_release('leaf')
-    Path('leaf.mk').write_bytes(b'LEAF := loaded\n')
-    Path('leaf.done').write_bytes(b'done\n')
+elif sys.argv[1:] in (['--child'], ['--leaf']):
+    name = sys.argv[1][2:]
+    wait_for_release(name)
+    Path(f'{name}.mk').write_bytes(f'{name.upper()} := loaded\n'.encode())
+    Path(f'{name}.done').write_bytes(b'done\n')
     raise SystemExit(0)
 
 os.execv('/bin/cat', sys.argv)

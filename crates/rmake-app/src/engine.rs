@@ -3303,27 +3303,42 @@ impl Engine {
             } else {
                 None
             };
-            let unruled_primary = ordinary_mode
-                && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
-            let named_load_files = &read_files[usize::from(unruled_primary)..];
             let named_include = |file: &Makefile| {
                 self.is_makefile_goal(
                     rmake_core::filenames::without_dot_prefix(&file.name),
                     named_sources.as_ref(),
                 )
             };
-            let final_named_dry = modes.dry_run
+            let limited_load = self.options.load_limit.is_some();
+            let final_named_required = match read_files.as_slice() {
+                [(_, false), (first, false), (middle, false), (last, false)]
+                    if ordinary_mode
+                        && !named_include(first)
+                        && named_include(middle)
+                        && named_include(last) =>
+                {
+                    match (first.optional, middle.optional, last.optional) {
+                        (false, false, false) => Some(true),
+                        (false, true, false) | (false, false, true) => Some(false),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
+            let final_named_dry = limited_load
+                && final_named_required == Some(true)
+                && modes.dry_run
                 && !(modes.question || modes.touch)
-                && self.options.load_limit.is_some()
-                && self.options.jobs.is_some_and(|slots| slots >= 4)
-                && matches!(
-                    named_load_files,
-                    [(first, false), (middle, false), (last, false)]
-                        if !named_include(first)
-                            && named_include(middle)
-                            && named_include(last)
-                            && !(first.optional || middle.optional || last.optional)
-                );
+                && self.options.jobs.is_some_and(|slots| slots >= 4);
+            let final_named_touch = final_named_required
+                .is_some_and(|required| required || limited_load)
+                && modes.touch
+                && !debug_before_remake.has(Mask::MAKEFILES)
+                && self.options.jobs.is_some_and(|slots| slots >= 3);
+            let unruled_primary = ordinary_mode
+                && (limited_load || final_named_touch)
+                && self.unruled_primary_before_named_includes(&read_files, named_sources.as_ref());
+            let named_load_files = &read_files[usize::from(unruled_primary)..];
             let mixed_named_overlap = unruled_primary
                 && match named_load_files {
                     [(_, false), (_, false)] => {
@@ -3347,6 +3362,7 @@ impl Engine {
                             && ((modes.question && !modes.touch)
                                 || (named_first && !named_last)
                                 || final_named_dry
+                                || final_named_touch
                                 || (early_named
                                     && ((modes.dry_run && !modes.touch)
                                         || required_touch
@@ -3723,6 +3739,7 @@ impl Engine {
                     && self.parallel_makefile_remakes
                     && named_source
                     && (final_named_dry
+                        || final_named_touch
                         || (modes.touch
                             && source_index == 2
                             && self.pending(&read_files[1].0.name)))
@@ -3985,7 +4002,19 @@ impl Engine {
                         .and_then(|remake| remake.context.open_error.clone());
                     MakefileModes::default().apply(&mut self.options);
                 }
-                let previous_progress = if verbose_mode_remakes {
+                let primary_after_optional_pass = active_primary
+                    && final_named_touch
+                    && pass_reaps != initial_reaps
+                    && self.pending(&read_files[0].0.name);
+                let previous_progress = if primary_after_optional_pass {
+                    // The optional pass already reaped an earlier include.
+                    // Keep the trailing named mode until the primary finishes.
+                    Some(if track_remake_effects {
+                        self.filesystem.borrow().generation()
+                    } else {
+                        self.recipe_reaps
+                    })
+                } else if verbose_mode_remakes {
                     None
                 } else {
                     // An optional source can finish an earlier pass while
@@ -4688,7 +4717,7 @@ impl Engine {
                             && (self.options.load_limit.is_none()
                                 || *load_sources_without_fallback.get_or_insert_with(|| {
                                     let start =
-                                        usize::from(self.unruled_primary_before_named_load(
+                                        usize::from(self.unruled_primary_before_named_includes(
                                             read_files,
                                             named_sources,
                                         ));
@@ -4954,7 +4983,7 @@ impl Engine {
             && !self.database.rules.contains_key(b".DEFAULT".as_slice())
     }
 
-    fn unruled_primary_before_named_load(
+    fn unruled_primary_before_named_includes(
         &self,
         read_files: &[(Makefile, bool)],
         named_sources: Option<&HashSet<&[u8]>>,
@@ -4965,8 +4994,7 @@ impl Engine {
             return false;
         };
         let name = without_dot_prefix(&primary.name);
-        self.options.load_limit.is_some()
-            && !self.no_remake_recipe_fallback()
+        !self.no_remake_recipe_fallback()
             && !self.options.check_symlink_times
             && self.assumptions.is_none()
             && primary.location.is_none()
@@ -10260,6 +10288,18 @@ impl Engine {
                 return state.combined;
             };
             let declared = entry.is_some();
+            let assumed_time = state
+                .synthetic_tail
+                .as_ref()
+                .and_then(|tail| tail.assumed_time);
+            if ordinal != 0 && !declared && !self.remaking && assumed_time.is_none() {
+                // A fresh synthetic branch announces its visit before
+                // implicit search, even when no recipe can be found.
+                crate::debug::emit(
+                    &self.output,
+                    crate::debug::Event::Considering(target, state.depth),
+                );
+            }
             let branch = if let Some(branch) = entry {
                 branch
             } else {
@@ -10325,10 +10365,6 @@ impl Engine {
                 }
             }
             // The target visit announced the first declaration.
-            let assumed_time = state
-                .synthetic_tail
-                .as_ref()
-                .and_then(|tail| tail.assumed_time);
             let mut branch_before = state.before;
             if serial_remake_root
                 && declared
@@ -10342,7 +10378,8 @@ impl Engine {
                 branch_before = self.modified(target);
             }
             if ordinal != 0
-                && (!self.remaking || (serial_remake_root && declared))
+                && declared
+                && (!self.remaking || serial_remake_root)
                 && assumed_time.is_none()
             {
                 let depth = state.depth + usize::from(self.remaking);
@@ -10350,7 +10387,7 @@ impl Engine {
                     &self.output,
                     crate::debug::Event::Considering(target, depth),
                 );
-                if declared && branch_before.is_none() {
+                if branch_before.is_none() {
                     crate::debug::emit(
                         &self.output,
                         crate::debug::Event::Missing(target, depth + 1),
@@ -11456,12 +11493,23 @@ impl Engine {
                 crate::debug::Event::Finished(target, debug_depth),
             );
         }
+        // A phony target normally has no timestamp. An explicit newest
+        // assumption survives a recipe-less update.
+        let assumed_phony = phony
+            && !self.remaking
+            && branch.is_none()
+            && group.is_none()
+            && rule.recipes.is_none()
+            && self
+                .assumptions
+                .as_ref()
+                .is_some_and(|files| files.is_new_time(before));
         let mask = self.output.debug_mask();
         let mut natural_remake = comparison.is_none();
         let mut dependencies_changed = false;
         if mask.has(crate::debug::Mask::BASIC)
             && before.is_some()
-            && !phony
+            && (!phony || assumed_phony)
             && !outcome.failed
             && !outcome.question_outdated
         {
@@ -11542,23 +11590,24 @@ impl Engine {
             && !outcome.question_outdated
             && !double_without_prerequisites
             && before.is_some()
-            && !phony
+            && (!phony || (assumed_phony && !stale))
             && !rule.record_only
             && rule.recipes.is_none()
             && !self.options.always
             && !dependencies_changed;
-        let forced_current_leaf = self.options.always
+        let forced_current_target = self.options.always
             && mask.has(crate::debug::Mask::BASIC)
             && !self.remaking
             && branch.is_none()
             && group.is_none()
             && before.is_some()
-            && !phony
+            && (!phony || assumed_phony)
             && !rule.record_only
             && rule.recipes.is_none()
-            && rule.dependencies.is_empty();
-        // GNU's always-make option adds no work to an existing leaf without a recipe.
-        let report_remake = debug_remake && !no_recipe_no_changes && !forced_current_leaf;
+            && !natural_remake;
+        // Always-make leaves a target without a recipe current when its
+        // ordinary prerequisites do not require updating it.
+        let report_remake = debug_remake && !no_recipe_no_changes && !forced_current_target;
         if debug_remake && double_without_prerequisites {
             crate::debug::emit(
                 &self.output,
@@ -11791,7 +11840,7 @@ impl Engine {
             {
                 self.release_assumed_new(target);
             }
-            outcome.time = if phony {
+            outcome.time = if phony && !assumed_phony {
                 None
             } else if rule.recipes.is_some()
                 && !outcome.completion.preserves()

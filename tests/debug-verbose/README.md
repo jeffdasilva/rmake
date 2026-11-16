@@ -1,6 +1,6 @@
 # Verbose debug decisions
 
-These 58 original Makefiles exercise VPATH and GPATH spelling, observed
+These 73 original Makefiles exercise VPATH and GPATH spelling, observed
 prerequisite timestamp changes, serial pruning, declaration order-only
 roles, always-make, empty double-colon branches, existing targets without
 recipes, stopping and keep-going prerequisite failures, and missing and
@@ -26,7 +26,13 @@ prerequisites. Repeated dry-run prerequisites also exercise both jobservers.
 Explicit grouped dry-run cases check physical owner and peer ages, a missing
 prerequisite of a newest parent, and physical rechecks of a newest peer.
 Always-make fixtures distinguish an existing recipe-less leaf from missing,
-phony, and double-colon targets.
+phony, and double-colon targets. Prerequisite controls cover older and newer
+normal inputs, missing normal inputs, newer order-only inputs, and an
+explicitly newest recipe-less target. Assumed-new phony cases cover
+repeated visits, normal and order-only inputs, and equal newest times
+when a missing prerequisite requires updating the phony target.
+Synthetic assumed-new double-colon cases cover consideration before
+failed resolution in serial and parallel and a successful default recipe.
 
 Run from a checkout with the pinned oracle and locale data.
 

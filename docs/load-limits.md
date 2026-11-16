@@ -146,7 +146,16 @@ after the optional pass. Eight required-source dry-run profiles place
 two named includes last, with a slot for every source. They verify the
 load queue order in both restarted images. The high-load profiles hold
 the unnamed recipe until its restarted parent waits for it. Lower slot
-counts, unbounded jobs and other final-adjacent modes remain open.
+counts and unbounded dry runs remain open. Sixty-four required-source
+profiles cover final-adjacent touches with three or four slots under
+`-t`, `-q -t`, `-n -t`, and `-n -q -t`. They check touch order,
+primary removal under high-load query, and the earlier unnamed recipe's
+file contents.
+Thirty-two related touch profiles omit the load option and verify the
+named visits and earlier recipe complete in the same order with no load probe.
+Sixty-four held profiles also cover an optional include in either of the
+final two named positions, including its effect on the active primary
+continuation, the queued earlier include, and a later required visit.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
