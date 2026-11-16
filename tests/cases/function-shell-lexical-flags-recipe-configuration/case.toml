@@ -1,0 +1,11 @@
+id = "function-shell-lexical-flags-recipe-configuration"
+requirement = "functions.shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 3
+description = "A shell capture inside recipe flag expansion uses its local flags and completes once."
+
+[expected]
+exit_code = 0
+stdout = "echo \"first old$WATCH\"; :\nfirst oldyes\nsecond yes\n"
+stderr = ""

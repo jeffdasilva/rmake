@@ -1,0 +1,11 @@
+id = "function-shell-lexical-flags-recursive-guard"
+requirement = "functions.shell"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "--warn-undefined-variables", "all"]
+timeout_seconds = 3
+description = "Deferred local flags preserve detection of recursive flag definitions."
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: warning: undefined variable 'GNUMAKEFLAGS'\nMakefile:6: *** Recursive variable 'RAW' references itself (eventually).  Stop.\n"
