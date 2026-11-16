@@ -243,3 +243,9 @@ the change before the reread. One fixture uses the removed peer's presence
 to enable the original group, so deletion itself ends that remake path.
 Other fixtures cover required failure on reread, query mode and the
 existing case where a missing peer appears.
+
+A present grouped owner can stop scanning peers at a missing third member.
+If the successful recipe removes a previously read peer beyond that point,
+the saved read timestamp also establishes the change. Four fixtures cover
+physical removal with required and optional reads, query mode and the
+reverse declaration order where the ordinary scan already sees the peer.
