@@ -160,6 +160,8 @@ The same required and optional touch sequences run with two slots.
 The no-load cases also cover an optional named source with two, three,
 and four slots. These 128 additional profiles verify the same bytes,
 primary mode and file effects across the tested job counts.
+Ninety-six further touch profiles exercise unbounded `-j` with and
+without a load option, including both optional-source positions.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an

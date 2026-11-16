@@ -2415,9 +2415,8 @@ def stock_primary_three_interleaved_dry_run(held: HeldModel, optional: bool,
                    before_second_stdout=second_stdout, load=load, stock_second_worker=second_worker)
 
 
-def stock_primary_three_final_touch(held: HeldModel, modes: str, slots: int) -> HeldModel:
+def stock_primary_three_final_touch(held: HeldModel, modes: str) -> HeldModel:
     model = stock_primary_three_modes(held.model, modes)
-    args = tuple(f'-j{slots}' if arg == '-j3' else arg for arg in model.args)
     goals = model.args[-3:-1]
     named_touches = b''.join(f'touch {goal}\n'.encode() for goal in goals)
     high = held.load.at_release == LOAD_HIGH
@@ -2447,14 +2446,12 @@ def stock_primary_three_final_touch(held: HeldModel, modes: str, slots: int) -> 
         updates.update(dict.fromkeys((*goals, 'all'), b''))
     expected = {'exit_code': 0, 'stdout_template_hex': stdout.hex(),
                 'stderr_template_hex': stderr.hex()}
-    model = replace(model, id=f'{model.id}-{slots}-slots', args=args,
-                    expected=expected, updates=updates)
+    model = replace(model, expected=expected, updates=updates)
     return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode)
 
 
-def stock_primary_three_optional_final_touch(held: HeldModel, modes: str, slots: int) -> HeldModel:
+def stock_primary_three_optional_final_touch(held: HeldModel, modes: str) -> HeldModel:
     model = stock_primary_three_modes(held.model, modes)
-    args = tuple(f'-j{slots}' if arg == '-j3' else arg for arg in model.args)
     goals = model.args[-3:-1]
     first, last = (f'touch {goal}\n'.encode() for goal in goals)
     leaf_touch = b'touch leaf.mk\n'
@@ -2498,20 +2495,21 @@ def stock_primary_three_optional_final_touch(held: HeldModel, modes: str, slots:
         updates.update(dict.fromkeys((*goals, 'all'), b''))
     expected = {'exit_code': 0, 'stdout_template_hex': stdout.hex(),
                 'stderr_template_hex': stderr.hex()}
-    model = replace(model, id=f'{model.id}-{slots}-slots', args=args,
-                    expected=expected, updates=updates)
+    model = replace(model, expected=expected, updates=updates)
     return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode)
 
 
 def stock_primary_three_final_touch_profiles(held: HeldModel, optional: bool) -> Iterator[HeldModel]:
     make_profile = (stock_primary_three_optional_final_touch if optional
                     else stock_primary_three_final_touch)
-    for slots in (2, 3, 4):
-        for modes in ('t', 'qt', 'nt', 'nqt'):
-            touch = make_profile(held, modes, slots)
+    for modes in ('t', 'qt', 'nt', 'nqt'):
+        base = make_profile(held, modes)
+        for jobs, label in (('-j2', '2-slots'), ('-j3', '3-slots'), ('-j4', '4-slots'), ('-j', 'unbounded')):
+            args = tuple(jobs if arg == '-j3' else arg for arg in base.model.args)
+            model = replace(base.model, id=f'{base.model.id}-{label}', args=args)
+            touch = replace(base, model=model)
             yield touch
             if held.load.at_release == LOAD_LOW:
-                model = touch.model
                 args = tuple(arg for arg in model.args if arg != '-l2')
                 model = replace(model, id=model.id.replace('-low-', '-no-load-'), args=args)
                 yield replace(touch, model=model, load=replace(touch.load, trace=b''))
