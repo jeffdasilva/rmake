@@ -3312,29 +3312,34 @@ impl Engine {
                 )
             };
             let limited_load = self.options.load_limit.is_some();
-            let final_named_required = match read_files.as_slice() {
-                [(_, false), (first, false), (middle, false), (last, false)]
-                    if ordinary_mode
-                        && !named_include(first)
-                        && named_include(middle)
-                        && named_include(last) =>
+            let final_named_sources = match read_files.as_slice() {
+                [(_, false), (first, false), named @ ..]
+                    if named.len() >= 2
+                        && (modes.touch || modes.dry_run)
+                        && !(first.optional || named_include(first))
+                        && named
+                            .iter()
+                            .all(|(file, skip)| !skip && named_include(file)) =>
                 {
-                    match (first.optional, middle.optional, last.optional) {
-                        (false, false, false) => Some(true),
-                        (false, true, false) | (false, false, true) => Some(false),
-                        _ => None,
-                    }
+                    named
                 }
-                _ => None,
+                _ => &[],
             };
-            let final_required_dry = final_named_required == Some(true)
+            let optional_named_sources = final_named_sources
+                .iter()
+                .filter(|(file, _)| file.optional)
+                .count();
+            let final_required_dry = final_named_sources.len() == 2
+                && optional_named_sources == 0
                 && modes.dry_run
                 && !(modes.question || modes.touch);
             let final_named_dry = limited_load
                 && final_required_dry
                 && self.options.jobs.is_some_and(|slots| slots >= 4);
-            let final_named_touch = final_named_required.is_some()
-                && modes.touch
+            let final_named_touch = modes.touch
+                && !final_named_sources.is_empty()
+                && (optional_named_sources == 0
+                    || (final_named_sources.len() == 2 && optional_named_sources == 1))
                 && !debug_before_remake.has(Mask::MAKEFILES)
                 && self.options.jobs.is_some_and(|slots| slots >= 2);
             let unruled_primary = ordinary_mode
@@ -3350,36 +3355,36 @@ impl Engine {
                 && self.unruled_primary_before_named_includes(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
             let mixed_named_overlap = unruled_primary
-                && match named_load_files {
-                    [(_, false), (_, false)] => {
-                        !debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug
-                    }
-                    [(first, false), (middle, false), (last, false)] => {
-                        let named_first = named_include(first);
-                        let named_last = named_include(last);
-                        let early_named = named_first || (!named_last && named_include(middle));
-                        let required_ends = !(first.optional || last.optional);
-                        let all_required = required_ends && !middle.optional;
-                        let required_touch = !named_last
-                            && all_required
-                            && modes.touch
-                            && (!modes.dry_run || !modes.question);
-                        let optional_middle_touch = !(named_first || named_last)
-                            && required_ends
-                            && middle.optional
-                            && modes.touch;
-                        !debug_before_remake.has(Mask::MAKEFILES)
-                            && ((modes.question && !modes.touch)
-                                || (named_first && !named_last)
-                                || final_named_dry
-                                || final_named_touch
-                                || (early_named
-                                    && ((modes.dry_run && !modes.touch)
-                                        || required_touch
-                                        || optional_middle_touch)))
-                    }
-                    _ => false,
-                }
+                && (final_named_touch
+                    || match named_load_files {
+                        [(_, false), (_, false)] => {
+                            !debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug
+                        }
+                        [(first, false), (middle, false), (last, false)] => {
+                            let named_first = named_include(first);
+                            let named_last = named_include(last);
+                            let early_named = named_first || (!named_last && named_include(middle));
+                            let required_ends = !(first.optional || last.optional);
+                            let all_required = required_ends && !middle.optional;
+                            let required_touch = !named_last
+                                && all_required
+                                && modes.touch
+                                && (!modes.dry_run || !modes.question);
+                            let optional_middle_touch = !(named_first || named_last)
+                                && required_ends
+                                && middle.optional
+                                && modes.touch;
+                            !debug_before_remake.has(Mask::MAKEFILES)
+                                && ((modes.question && !modes.touch)
+                                    || (named_first && !named_last)
+                                    || final_named_dry
+                                    || (early_named
+                                        && ((modes.dry_run && !modes.touch)
+                                            || required_touch
+                                            || optional_middle_touch)))
+                        }
+                        _ => false,
+                    })
                 && named_load_files
                     .iter()
                     .any(|(file, _)| !named_include(file));

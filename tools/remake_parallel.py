@@ -2190,7 +2190,9 @@ def stock_primary_load_models() -> list[HeldModel]:
                                                     id=dry.model.id.replace('-low', f'-no-load-{slots}-slots'))
                                                 results.append(replace(dry, model=model,
                                                                        load=replace(dry.load, trace=b'')))
-                                    results.extend(stock_primary_three_final_touch_profiles(query, optional))
+                                    results.extend(stock_primary_three_final_touch_profiles(
+                                        query, optional,
+                                        extend_required=not optional and position == 'last-adjacent'))
     return results
 
 
@@ -2537,7 +2539,8 @@ def stock_primary_three_optional_final_touch(held: HeldModel, modes: str) -> Hel
     return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode)
 
 
-def stock_primary_three_final_touch_profiles(held: HeldModel, optional: bool) -> Iterator[HeldModel]:
+def stock_primary_three_final_touch_profiles(held: HeldModel, optional: bool,
+                                             *, extend_required: bool) -> Iterator[HeldModel]:
     make_profile = (stock_primary_three_optional_final_touch if optional
                     else stock_primary_three_final_touch)
     for modes in ('t', 'qt', 'nt', 'nqt'):
@@ -2545,12 +2548,49 @@ def stock_primary_three_final_touch_profiles(held: HeldModel, optional: bool) ->
         for jobs, label in (('-j2', '2-slots'), ('-j3', '3-slots'), ('-j4', '4-slots'), ('-j', 'unbounded')):
             args = tuple(jobs if arg == '-j3' else arg for arg in base.model.args)
             model = replace(base.model, id=f'{base.model.id}-{label}', args=args)
-            touch = replace(base, model=model)
-            yield touch
+            profiles = [replace(base, model=model)]
             if held.load.at_release == LOAD_LOW:
                 args = tuple(arg for arg in model.args if arg != '-l2')
                 model = replace(model, id=model.id.replace('-low-', '-no-load-'), args=args)
-                yield replace(touch, model=model, load=replace(touch.load, trace=b''))
+                profiles.append(replace(base, model=model, load=replace(base.load, trace=b'')))
+            for profile in profiles:
+                yield profile
+                if extend_required and jobs in ('-j2', '-j4'):
+                    yield stock_primary_add_named_touch_sources(profile, 3)
+                    yield stock_primary_add_named_touch_sources(profile, 8)
+
+
+def stock_primary_add_named_touch_sources(held: HeldModel, named_count: int) -> HeldModel:
+    model = held.model
+    added = ['tail' if index == 1 else f'tail{index}' for index in range(1, named_count - 1)]
+    sources = [f'{name}.mk' for name in added]
+    includes = b''.join(f'include {source}\n'.encode() for source in sources)
+    references = b''.join(f' $({name.upper()})'.encode() for name in added)
+    rules = b''.join(f"{name}.mk: ; @printf '%s\\n' '{name.upper()} := loaded' > $@\n".encode()
+                     for name in added)
+    files = dict(model.files)
+    for name in ('Makefile', 'Makefile.sh'):
+        body = files[name]
+        files[name] = (body.replace(b'include extra.mk\n', b'include extra.mk\n' + includes)
+                       .replace(b'$(LEAF)', b'$(LEAF)' + references) + rules)
+    updates = dict(model.updates)
+    if 'Makefile' in updates:
+        updates['Makefile'] = files['Makefile.sh']
+    if 'extra.mk' in updates:
+        updates.update(dict.fromkeys(sources, updates['extra.mk']))
+    last_touch = b'touch extra.mk\n'
+    last_summary = b"make: 'extra.mk' is up to date.\n"
+    touches = b''.join(f'touch {source}\n'.encode() for source in sources)
+    summaries = b''.join(f"make: '{source}' is up to date.\n".encode() for source in sources)
+    stdout = (bytes.fromhex(model.expected['stdout_template_hex'])
+              .replace(last_touch, last_touch + touches)
+              .replace(last_summary, last_summary + summaries))
+    expected = {**model.expected, 'stdout_template_hex': stdout.hex()}
+    model = replace(model, id=f'{model.id}-{named_count}-named',
+                    args=(*model.args[:-1], *sources, model.args[-1]),
+                    files=files, expected=expected, updates=updates)
+    return replace(held, model=model,
+                   before_first_stdout=held.before_first_stdout.replace(last_touch, last_touch + touches))
 
 
 def stock_primary_three_prefix_model(held: HeldModel, optional: bool, named_count: int,
