@@ -3288,8 +3288,9 @@ impl Engine {
                 && self.unruled_primary_before_named_load(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
             let standalone_touch = modes.touch && !modes.dry_run && !modes.question;
-            let mixed_named_overlap = matches!(named_load_files, [(_, false), (_, false)])
-                && !debug_before_remake.has(Mask::MAKEFILES)
+            let mixed_named_overlap = unruled_primary
+                && matches!(named_load_files, [(_, false), (_, false)])
+                && (!debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug)
                 && (!modes.touch || standalone_touch)
                 && named_load_files.iter().any(|(file, _)| {
                     !self.is_makefile_goal(
@@ -3356,7 +3357,7 @@ impl Engine {
             let optional_named_load = ordinary_mode
                 && self.options.load_limit.is_some()
                 && (!debug_before_remake.has(Mask::MAKEFILES)
-                    || (qualified_remake_debug && verbose_load_trace))
+                    || (qualified_remake_debug && (verbose_load_trace || mixed_named_overlap)))
                 && read_files.iter().any(|(file, skip)| {
                     !*skip
                         && file.optional
@@ -3913,7 +3914,17 @@ impl Engine {
                 let previous_progress = if verbose_mode_remakes {
                     None
                 } else {
-                    first_effect_generation.or(Some(pass_reaps))
+                    // An optional source can finish an earlier pass while
+                    // the primary is running. Resume after that pass.
+                    first_effect_generation
+                        .map(|initial| {
+                            if mixed_named_overlap && verbose_load_trace {
+                                pass_progress
+                            } else {
+                                initial
+                            }
+                        })
+                        .or(Some(pass_reaps))
                 };
                 let question_or_failure = remake_question || failed || optional_remake_failed;
                 // A mixed touch pass restores the unnamed root's mode
