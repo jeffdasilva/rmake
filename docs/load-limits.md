@@ -215,6 +215,7 @@ Six further profiles cover higher and unbounded job counts under load and
 no-load runs with two or unbounded slots.
 Six more profiles place a single optional include at either end of three
 named makefiles and compare release, restart, deletion, and file modes.
+Four more profiles place the optional include in the middle.
 
 ## Performance observation
 
