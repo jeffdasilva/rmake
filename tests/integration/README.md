@@ -1,53 +1,19 @@
-# Pinned real-project integration
+# Real-project compatibility fixtures
 
-This separate required profile builds reviewed upstream projects using their
-own Makefiles. It does not count source files as conformance models or establish
-complete M3/M6 compatibility. No GNU implementation or test sources are used.
+The [integration guide](../../docs/project-integration.md) lists the current
+profile IDs, expected behavior, and commands. The [manifest](projects.json)
+pins release sources, their licenses, compiler arguments, watched build
+outputs, and expected executable results. It includes GNU Make itself as one
+external build input.
 
-`projects.json` pins xxHash v0.8.3 to commit
-`e626a72bc2321cd320e953a0ccf1584cad60f363` and pins zlib 1.3.2 and Lua 5.4.9 to their
-official release archives. Archive and license digests are checked before every fresh
-extraction. Only verified compressed source archives are cached. Builds execute
-reviewed trusted source; the harness is not a security sandbox. Nothing installs
-into the host. The source projects retain their own licenses.
+The runner uses the pinned GNU Make reference twice and then rmake at the same
+reset path. Build profiles compare exact streams, status, process limits, and
+filesystem contents. They also check that watched files remain current in a
+no-op build and become newer after an input edit. Configuration-only profiles
+check the generated files and independent digests. Runs use reviewed source
+in disposable workspaces and keep installs inside those workspaces.
 
-Each project runs GNU 4.4.1 twice and then the selected candidate at the same
-reset path. Zlib configuration runs once and becomes common frozen input,
-including its complete log. No date, PID, path, compiler, recipe, or filesystem
-output is stripped. The four observations are a fresh build, a no-op, a rebuild
-after an independently authored header mutation, and an executable smoke.
-Every observation includes complete stdout/stderr, status, bounded-process
-outcome, and the full file/type/mode/link/content snapshot. Watched output
-timestamps must stay identical for the no-op and become strictly newer after
-the header change; absolute wall-clock timestamps are not compared between
-engines. Expected archive/ELF magic and exact smoke bytes provide independent
-controls beyond GNU/candidate agreement.
-
-The xxHash and zlib profiles use `-j1`. The Lua profile uses `-j2`, a pipe
-jobserver, recursive output synchronization and silent mode across the upstream
-`linux` target and both recursive make calls. All profiles retain exact streams
-and use GCC, the C locale, deterministic archives and no linker build IDs.
-Lua watches an object, the archive and both executable outputs after changing
-one exact version fragment in its public header. Fresh and rebuilt executions
-require independently expected and different version strings.
-The `busybox-1.37.0-executable` profile uses the same pinned source as the
-BusyBox `defconfig` profile. Each engine runs `allnoconfig` and the runner
-checks the generated configuration and kernel release. It enables only the
-reviewed `BUSYBOX`, `PRINTF`, and `SHOW_USAGE` options before compiling.
-The run checks the complete no-op snapshot, an `include/platform.h` rebuild
-with newer executable and `printf.o` timestamps, and exact output from
-`./busybox printf`. Its build snapshots allow up to 8,192 entries and 48 MiB
-in total. The per-file, source fixture and subprocess limits stay shared with
-the other profiles.
-
-Broader installation and compiler profiles remain open. These functional
-checks provide no performance evidence.
-
-The top-level `bootstrap-integration` verifies or downloads the pinned sources;
-`test-integration` runs all pinned profiles. `INTEGRATION_CASE=xxhash-0.8.3` selects one
-exact ID. Reports and lossless raw records go to `artifacts/integration/`.
-Developer and optimized compatibility gates include these profiles; a selected
-top-level self-host flow also executes the integration harness.
+## Retained evidence
 
 `history/index.json` retains the original plan, source provenance, first
 prototype, both development and optimized production-harness campaigns, their

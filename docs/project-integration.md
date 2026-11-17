@@ -1,7 +1,7 @@
 # Test real-project builds
 
-The integration suite compares GNU Make 4.4.1 and rmake on **14 pinned profiles
-across eight projects**. Each profile uses the project's own Makefiles and
+The integration suite compares GNU Make 4.4.1 and rmake on **16 pinned profiles
+across nine projects**. Each profile uses the project's own Makefiles and
 checks a specific build configuration. The
 [manifest](../tests/integration/projects.json) is the authority for source
 identities, arguments, watched files and expected executable output.
@@ -58,6 +58,8 @@ All profiles use the C locale and the manifest's compiler and environment inputs
 | `zstd-1.5.7` | `zstd-release`, serial | Recursive CLI build, no-op copy behavior and version-header rebuild. |
 | `busybox-1.37.0` | `defconfig` | Configuration-only comparison with independent output digests. |
 | `busybox-1.37.0-executable` | `allnoconfig`, then `busybox`, serial | Minimal executable configuration, build, no-op, rebuild and printf result. |
+| `bzip2-1.0.8` | `bzip2`, serial | Static library and executable rebuild after editing a C source, then a compression round trip. |
+| `bzip2-1.0.8-parallel-fifo` | `bzip2`, four FIFO slots, target synchronization | The same build and file checks with parallel recipes. |
 
 ### xxHash and zlib
 
@@ -77,6 +79,14 @@ checks staged files, modes, relative symlinks and pkg-config metadata, then load
 the staged shared object for a binary compression round trip. Changing the
 version header must rebuild the outputs and change the staged library's reported
 version.
+
+### bzip2
+
+The [bzip2 1.0.8 release](https://www.sourceware.org/bzip2/downloads.html)
+builds with its original Makefile. Both profiles watch `bzlib.o`, `libbz2.a`,
+and `bzip2`. An edit to `bzlib.c` must rebuild all three, and a separate
+smoke command compresses and decompresses known text. The source archive was
+verified against the publisher key `EC3CFE88F6CA0788774F5C1D1AA44BE649DE760A`.
 
 ### Lua
 
