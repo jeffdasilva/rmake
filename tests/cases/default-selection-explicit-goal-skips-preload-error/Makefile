@@ -1,0 +1,1 @@
+other:;@printf "other\n"

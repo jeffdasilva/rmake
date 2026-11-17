@@ -21,7 +21,7 @@ use rmake_core::diagnostic::{
 };
 use rmake_core::messages::Message;
 use rmake_core::parser::{
-    Database, Dependency, Location, Makefile, Recipe, RecipeSource, Rule, trim, words,
+    Database, Dependency, Location, Makefile, Recipe, RecipeSource, Rule, words,
 };
 use rmake_core::variables::{
     Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, Variable, VariableStore,
@@ -4538,10 +4538,10 @@ impl Engine {
                 }
             };
             match goal {
-                Ok(mut goal) if !trim(&goal).is_empty() => {
+                Ok(mut goal) if !goal.is_empty() => {
                     // GNU first looks up the complete spelling. An interned
-                    // filename from a glob can contain blanks without naming
-                    // multiple default goals.
+                    // filename can contain only blanks, or contain blanks
+                    // without naming multiple default goals.
                     let lookup = rmake_core::filenames::without_dot_prefix(&goal);
                     if let Some(history) = self.database.database_history() {
                         history.record_file_lookup(lookup);
@@ -4587,7 +4587,13 @@ impl Engine {
                                 return 2;
                             }
                         };
-                        if goals.len() != 1 {
+                        if goals.is_empty() {
+                            self.fatal_system(rmake_core::messages::Message::NoTargets {
+                                makefile_found: found_makefile,
+                            });
+                            return 2;
+                        }
+                        if goals.len() > 1 {
                             self.fatal_system(rmake_core::messages::Message::MultipleDefaultGoals);
                             return 2;
                         }

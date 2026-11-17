@@ -1,0 +1,12 @@
+id = "default-selection-early-eval"
+requirement = "options.default-goal-spelling"
+candidate = "required"
+description = "Default-goal complete spelling and final expansion. early eval."
+provenance = "Original black-box GNU Make 4.4.1 observations and independently authored stream/status/filesystem anchors. No GNU implementation source or upstream tests consulted for this case."
+args = ["-rR", "--no-print-directory", "--eval=.DEFAULT_GOAL := $(subst X, ,X)"]
+timeout_seconds = 5
+
+[expected]
+stdout_hex = "73656c65637465640a"
+stderr_hex = ""
+exit_code = 0

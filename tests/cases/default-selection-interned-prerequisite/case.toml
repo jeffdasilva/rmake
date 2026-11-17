@@ -1,0 +1,12 @@
+id = "default-selection-interned-prerequisite"
+requirement = "options.default-goal-spelling"
+candidate = "required"
+description = "Default-goal complete spelling and final expansion. interned prerequisite."
+provenance = "Original black-box GNU Make 4.4.1 observations and independently authored stream/status/filesystem anchors. No GNU implementation source or upstream tests consulted for this case."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f72202720272e0a"
+stderr_hex = ""
+exit_code = 0
