@@ -36,6 +36,13 @@ read owner and peer. They require the same authenticated overlap, one restart
 for a later read peer, and unchanged timestamp checks. Their identifiers begin
 with `implicit-grouped-unchanged`; explicit and implicit coverage stay separate.
 
+Thirty-two grouped double-colon profiles exercise independent branch completion.
+Half hold the grouped recipe itself; half hold a shared prerequisite before
+both peers select a recipe. Each checks the same read-peer restart versus
+owner-only control, exact unchanged source timestamps, and authenticated
+two-worker overlap. These separate identifiers begin with
+`double-grouped-unchanged`.
+
 Run the standalone gate after bootstrapping the pinned GNU Make oracle.
 
 ```sh
@@ -82,7 +89,7 @@ required failure replay and the considered state after an early optional pass.
 Both jobserver transports are covered.
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 4,116 profiles. Leading `./` spellings share one target record and
+run all 4,148 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 

@@ -1,0 +1,12 @@
+id = "include-double-group-unchanged-peer-head-j2"
+requirement = "includes.remake"
+candidate = "required"
+description = "Completed grouped double-colon branches retain read-peer restart state and independent declaration order."
+provenance = "Original rmake fixture and GNU 4.4.1 black-box observations; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j2", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:\nREAD:1\nanchor\ngroup\npeer\nALL:1\n"
+stderr = ""

@@ -165,6 +165,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += grouped_read_peer_question_models(worker, markers)
     results += grouped_unchanged_peer_models(worker, markers)
     results += grouped_unchanged_peer_models(worker, markers, implicit=True)
+    results += grouped_double_unchanged_peer_models(worker, markers)
     results += later_primary_named_mode_models(worker, markers)
     results += forced_named_include_models(worker, markers)
     results += primary_named_implicit_models(worker, markers)
@@ -1131,6 +1132,54 @@ def grouped_unchanged_peer_models(worker: bytes, markers: dict[str, bytes], *,
                         {'GNUMAKEFLAGS': ''}, expected, seen, updates=markers.copy(),
                         mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                     results.append(HeldModel(model, True, BEFORE_SECOND))
+    return results
+
+
+def grouped_double_unchanged_peer_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    """Hold both direct group recipes and their shared prerequisite completions."""
+    results = []
+    for jobs in ('-j2', '-j3'):
+        for transport in ('pipe', 'fifo'):
+            for policy, directive in (('required', 'include'), ('optional', '-include')):
+                for read_peer in (False, True):
+                    for shared in (False, True):
+                        peer_read = ' peer.gen' if read_peer else ''
+                        group = (
+                            'left.gen peer.gen &:: prep ; @$(file >>seen,group):\n'
+                            'prep: force ; @python3 worker.py left unchanged\n'
+                        ) if shared else (
+                            'left.gen peer.gen &:: force ; @python3 worker.py left unchanged\n'
+                        )
+                        source = (
+                            '.DEFAULT_GOAL := all\n'
+                            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+                            f'{directive} left.gen{peer_read}\ninclude right.gen\n'
+                            'ifeq ($(MAKE_RESTARTS),)\n.PHONY: force\n' + group +
+                            'right.gen: force ; @python3 worker.py right unchanged\n'
+                            'endif\n'
+                            'all: ; @$(file >>seen,goal-$(MAKE_RESTARTS))python3 check-times.py\n'
+                        ).encode()
+                        check = (
+                            'import os\n'
+                            'for name in ("left.gen", "peer.gen", "right.gen"):\n'
+                            f'    assert os.stat(name).st_mtime_ns == {INPUT_TIME}\n'
+                        ).encode()
+                        files = {'Makefile': source, 'worker.py': worker, 'seen': ANCHOR,
+                                 'check-times.py': check,
+                                 **dict.fromkeys(('left.gen', 'peer.gen', 'right.gen'), b'# unchanged\n')}
+                        second = BEFORE_SECOND + (b'group\n' if shared else b'')
+                        seen = second + b'right\n'
+                        seen += b'read-1\ngoal-1\n' if read_peer else b'goal-\n'
+                        scope = 'read-peer' if read_peer else 'owner-only'
+                        path = 'shared-prerequisite' if shared else 'direct'
+                        ident = f'double-grouped-unchanged-{policy}-{scope}-{path}-{jobs[1:]}-{transport}'
+                        expected = {'exit_code': 0, 'stdout_template_hex': '', 'stderr_template_hex': ''}
+                        model = debug.Model(
+                            ident, files,
+                            ('-rR', '--no-print-directory', jobs, f'--jobserver-style={transport}', 'all'),
+                            {'GNUMAKEFLAGS': ''}, expected, seen, updates=markers.copy(),
+                            mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                        results.append(HeldModel(model, True, second))
     return results
 
 
