@@ -437,3 +437,46 @@ all: all%: n% ; @$(file >>seen,$*:$<):
 records = ["all: n"]
 seen_hex = "3a6e0a"
 flags = ["-p"]
+
+[[case]]
+id = "question-prerequisite-stops-parent"
+makefile = '''
+leaf: ; @:
+all: leaf ; @:
+'''
+records = ["all: leaf"]
+flags = ["-p", "-q"]
+status = 1
+
+[[case]]
+id = "question-secondary-group-stops-parent"
+makefile = '''
+.SECONDEXPANSION:
+N := old | .WAIT gate
+leaf peer &: $$(N) ; @:
+all: leaf ; @:
+'''
+records = ["all: leaf"]
+flags = ["-p", "-q", "-k"]
+status = 1
+
+[[case]]
+id = "question-prerequisite-stops-grouped-double-parent"
+makefile = '''
+leaf: ; @:
+all peer &:: leaf ; @:
+all peer &:: old ; @:
+'''
+records = ["all:: leaf", "all:: old"]
+flags = ["-p", "-q", "-j2", "--jobserver-style=pipe"]
+status = 1
+
+[[case]]
+id = "question-current-parent-finishes"
+makefile = '''
+old: ; @:
+all: old ; @:
+'''
+records = ["all: old"]
+flags = ["-p", "-q"]
+existing = true
