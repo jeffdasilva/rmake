@@ -1,0 +1,12 @@
+id = "eval-suspended-target-assignment"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "A sibling eval assignment is visible immediately when the suspended outer declaration resumes."
+provenance = "Original rmake fixture, independently authored against the pinned GNU Make 4.4.1 interface."
+args = ["-rR", "--no-print-directory", "all", "later"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "inner=[peer]\npeer=[peer]\ntarget=[rebound]\nresumed=[rebound]\nglobal=[global]\n"
+stderr = ""

@@ -1,0 +1,12 @@
+id = "eval-suspended-target-override"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "A sibling override reaches the suspended target while leaving its global command-line value intact."
+provenance = "Original rmake fixture, independently authored against the pinned GNU Make 4.4.1 interface."
+args = ["-rR", "--no-print-directory", "V=command", "all", "later"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "inner=[command/command line]\nresumed=[rebound/override]\npeer=[command/command line]\ntarget=[rebound/override]\nglobal=[command/command line]\n"
+stderr = ""
