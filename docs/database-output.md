@@ -8,11 +8,10 @@ recipes, and grouped and terminal implicit rules.
 
 
 GNU Make 4.4.1's `-p` output exposes execution history as well as final values.
-The selected implementation records that history before startup, then renders
-borrowed variables, rules, file records, directory observations, scope identity,
-update outcomes, timestamps and cache statistics. A late `MAKEFLAGS` selection
-retains earlier events. Formatting performs no expansion, lookup, filesystem
-search, callback or assignment.
+Recording starts during invocation. The renderer uses retained variables,
+rules, file records, directory observations, scope identity, update outcomes,
+timestamps and cache statistics. Late `MAKEFLAGS` selection can use events
+captured before the request.
 
 The first combined database/locale checkpoint passed 640 Rust and 727 tooling
 checks with strict Clippy. Frozen development and optimized builds both pass
@@ -21,6 +20,68 @@ checks with strict Clippy. Frozen development and optimized builds both pass
 profiles. These are finite functional results. Full selected-head local/CI
 acceptance and final total-cost measurements remain merge requirements; they do
 not establish complete M3/M6 or general performance parity.
+
+## Replay a database comparison
+
+Run the commands from the repository root. The comparison uses the pinned GNU
+Make 4.4.1 build. Use `make bootstrap-oracle` if the oracle is missing, then
+verify it before reproducing a case.
+
+```sh
+make oracle-verify
+make test-database-output DATABASE_CASE=database-pattern-used
+```
+
+Choose the gate that covers the difference you observed.
+
+| Difference | Target and case selector |
+| --- | --- |
+| Complete dump, including startup and builtin records | `test-database-output` with `DATABASE_CASE` |
+| Normal and order-only prerequisites, implicit stems, and late print selection | `test-database-order-roles` with `DATABASE_ORDER_ROLE_CASE` |
+| Names and metadata after VPATH or GPATH search | `test-database-search` with `DATABASE_SEARCH_CASE` |
+| Per-branch metadata for declared double-colon rules | `test-database-branch-metadata` with `DATABASE_BRANCH_CASE` |
+| Explicit grouped double-colon successes and failures | `test-database-grouped-double` runs both suites |
+
+Replay the same case against both build profiles. The order-role target writes
+the same report path on each run, so copy the first report before selecting the
+release candidate.
+
+```sh
+case_id=implicit-substituted-prerequisite-lookup
+make test-database-order-roles DATABASE_ORDER_ROLE_CASE="$case_id"
+cp artifacts/database-order-roles/development.json artifacts/database-order-roles/debug.json
+
+make release
+make test-database-order-roles DATABASE_ORDER_ROLE_CASE="$case_id" \
+  CANDIDATE="$PWD/target/release/rmake"
+cp artifacts/database-order-roles/development.json artifacts/database-order-roles/release.json
+```
+
+If you use a custom Cargo target directory, pass the actual release binary
+path as `CANDIDATE`. The report keeps the two GNU observations before the
+candidate observation. For an order-role failure, the following command
+extracts their original stdout streams for inspection.
+
+```sh
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+reports = Path("artifacts/database-order-roles")
+case = json.loads((reports / "debug.json").read_text())["results"][0]
+for name, observation in zip(("gnu-first", "gnu-second", "rmake"), case["observations"], strict=True):
+    (reports / f"{name}.stdout").write_bytes(bytes.fromhex(observation["stdout_hex"]))
+PY
+```
+
+Check both reference observations before investigating the candidate. A raw
+diff can include the actual opening and closing times and directory identity.
+Use the driver's positioned checks to distinguish those fields from literal
+output differences. Compare the observed status, stderr, and filesystem before
+tracing the first differing deterministic line. For a lookup-counter difference,
+trace the operation that should enter or look up the record. For late `-p`,
+record whether the request happened during parsing, prerequisite expansion, or
+recipe expansion.
 
 ## Recording and rendering
 
