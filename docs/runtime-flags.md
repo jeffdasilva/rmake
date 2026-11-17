@@ -1,48 +1,109 @@
-# Recursive runtime flags
+# Change build options in a Makefile
 
-GNU Make 4.4.1 interprets a global `MAKEFLAGS` assignment immediately. Changing
-`GNUMAKEFLAGS` instead takes effect during post-read option replay. rmake now
-models both phases explicitly. The reader expands the assigned value, including
-nested `eval` effects, before invoking the host option receiver. The receiver
-updates switches, include search, output mode and variable precedence without
-holding a mutable host borrow across expansion. Reborrowed expansion contexts
-preserve both this receiver and cooperative cancellation.
+Assign to global `MAKEFLAGS` to change options while rmake reads a Makefile.
+The change takes effect immediately and can affect later variable expansion,
+include search, and recipes. Recursive builds also receive options through
+`MAKEFLAGS`. See GNU Make's
+[option syntax](https://www.gnu.org/software/make/manual/html_node/Options-Summary.html)
+and [options for recursive builds](https://www.gnu.org/software/make/manual/make.html#Options_002fRecursion).
 
-Canonical `MAKEFLAGS` retains argument spelling such as `-j2`; jobserver capacity
-is a separate scheduler property. Explicit command-line job counts win during
-final replay, while immediate assignment effects remain visible during reading.
-Appending flags reconstructs `MAKEOVERRIDES` once. Recursive option data quotes
-literal dollar signs, so include paths survive subsequent expansion. Repeated
-makefile reads restore startup options before interpreting the new database.
-File-added switches cannot leak backward into a restarted reader.
+## Enable warnings after an earlier read
 
-Borrowed jobservers are joined before reader shell functions. Owned pools are
-created after reading. Inherited pipe descriptors become close-on-exec, and
-nonrecursive commands advertise unavailable pipe authentication before the
-encoded command-variable suffix. Recursive commands retain usable authentication.
-FIFO identity and pipe descriptor identity are validated by original helpers.
-Output buffers remain lazy when synchronization is disabled; runtime `eval`
-can enable a buffer during recipe or shell-configuration expansion without
-introducing a default-path spool or an automatic drop-time output flush.
+In an empty directory, save this example as `Makefile`. Start the recipe line
+with a tab. Run it without inherited make options or a definition of `UNSET`.
 
-The requirement ledger adds 168 strict original Makefiles: 84 switch cases,
-24 assignment/precedence phases, 24 recipe-eval cases, four immediate include
-search cases, eight restart cases and 24 pipe/FIFO protocol cases. Two historical
-warning-expansion pending cases are now required. Cancellation campaigns also
-interrupt shell functions inside immediate `MAKEFLAGS` interpretation and
-post-read `GNUMAKEFLAGS` replay. Raw streams, status and target-file effects stay
-under the normal exact comparator; opaque descriptor identities are validated
-by the helper rather than normalized in captured output.
+```makefile
+BEFORE := $(UNSET)
+MAKEFLAGS += --warn-undefined-variables
+AFTER := $(UNSET)
 
-This closes the M5 runtime switch tranche. [Changed flag payloads](flag-payloads.md)
-now evaluate embedded assignments through the normal database evaluator.
-Broader command-line ordering, inherited file/directory switches, special
-variable metadata and decoder safety conflicts remain M3/M6 work.
-See the [combined audit](m5-exit-audit.md).
+.PHONY: all
+all:
+	@printf 'build continues\n'
+```
+
+Run `rmake`. The first assignment expands `UNSET` silently. The assignment to
+`MAKEFLAGS` enables undefined-variable warnings, so the third line reports this
+message on stderr.
+
+```text
+Makefile:3: warning: undefined variable 'UNSET'
+```
+
+The recipe prints `build continues` on stdout and the command succeeds. Both
+`BEFORE` and `AFTER` contain an empty value. The warning changes the diagnostic,
+while the undefined variable still expands to empty.
+
+To compare, run GNU Make 4.4.1 with the same Makefile and environment. Both
+commands produce the same warning and recipe output. The `+=` assignment keeps
+existing flags while adding the warning option.
+
+## Pass options to recursive builds
+
+Use `$(MAKE)` in recursive recipes, such as `$(MAKE) -C subdir`. The child
+receives `MAKEFLAGS` through its environment. This also carries command-line
+variable definitions and the information needed to share job slots. See the
+[MAKE variable](https://www.gnu.org/software/make/manual/html_node/MAKE-Variable.html)
+and the [rmake jobserver guide](jobserver.md).
+
+A global `GNUMAKEFLAGS` assignment takes effect when options are interpreted
+again after reading the Makefiles. Replacing `MAKEFLAGS` with `GNUMAKEFLAGS` in
+the example therefore leaves the third line silent. The warning option is
+active by recipe time and is included in the flags passed to recursive builds.
+For Makefiles that require GNU-compatible behavior, use `MAKEFLAGS` directly.
+GNU's [special-variable reference](https://www.gnu.org/software/make/manual/html_node/Quick-Reference.html)
+explains the portability role of `GNUMAKEFLAGS`.
+
+## Check a runtime option change
+
+From the rmake checkout, prepare the comparison tools and run the relevant
+suites.
+
+```sh
+make bootstrap
+make test-diff test-runtime-option-values test-jobserver test-output-sync
+```
+
+The curated cases cover option changes during reading and recipe-time `eval`,
+assignment precedence, include search, restarts, and FIFO and pipe jobservers.
+`make test-runtime-effects` also checks cancellation during option expansion.
+The [requirements ledger](../tests/requirements.toml) lists the cases. See the
+[testing guide](testing.md) for reproductions and report formats.
+
+Compare raw stdout, stderr, exit status, and target-file effects. Jobserver
+helpers check descriptor and FIFO identities against the owning processes and
+keep the captured output intact. The [M5 audit](m5-exit-audit.md) records the
+accepted runtime scope. Broader option ordering and metadata combinations
+remain part of the [M3/M6 work](m3-m6-audit.md).
+
+## Preserve option timing in the implementation
+
+- Finish expanding a `MAKEFLAGS` value, including nested `eval` effects, before
+  handing it to the runtime option handler. Expansion contexts retain that
+  handler and cancellation support. Keep mutable host borrows outside the
+  expansion call.
+- Preserve option spelling such as `-j2` separately from scheduler capacity.
+  Explicit command-line job counts win during final option replay. Earlier
+  assignment effects remain visible while reading.
+- Reconstruct `MAKEOVERRIDES` once when appending flags, and quote literal dollar
+  signs in recursive option data. Restore startup options before rereading
+  Makefiles after a restart. See [assignments in flag values](flag-payloads.md).
+- Join a borrowed jobserver before reader shell functions run. Create owned
+  pools after reading. Inherited pipe descriptors are close-on-exec.
+  Nonrecursive commands advertise unavailable pipe authentication before the
+  command-variable suffix, while recursive commands keep usable authentication.
+- Create output buffers only when needed. Runtime `eval` can enable buffering
+  during recipe or shell-configuration expansion. Preserve the explicit flush
+  points described in the [output guide](output-sync.md).
+
+## Source references
 
 Reference study used `src/main.c`, `src/variable.c`, `src/read.c`, `src/job.c`,
-`src/output.c` and `src/posixos.c` from the verified GNU Make 4.4.1 archive,
-SHA-256 `dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3`.
-The Rust state model, implementation, protocol helpers and fixtures were
+`src/output.c`, and `src/posixos.c` from the verified GNU Make 4.4.1 archive.
+Its SHA-256 is
+`dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3`.
+The [oracle manifest](../oracle/manifest.json) identifies the reference build.
+
+The Rust state model, implementation, protocol helpers, and fixtures were
 independently authored. No GNU implementation or upstream test code was copied
-or translated.
+or translated. See [licensing and provenance](licensing.md).
