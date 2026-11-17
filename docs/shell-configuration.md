@@ -1,35 +1,69 @@
-# Shell configuration boundaries
+# Choose a shell for recipes
 
-GNU Make 4.4.1 treats expanded `SHELL` text differently from expanded
-`.SHELLFLAGS` when preparing ordinary recipes. Original executable probes and
-argv-reporting scripts establish the behavior below. The initial literal-shell
-slice used executable observations only. The later empty-shell assignment
-boundary is source-informed, as recorded under reference provenance below.
+On Linux, rmake uses `/bin/sh` for recipes unless you set `SHELL` in a
+Makefile or on the command line. The invoking shell's `SHELL` environment
+variable does not choose the recipe interpreter. Set `.SHELLFLAGS` to pass
+options to the shell. The default is `-c`, or `-ec` when `.POSIX` is active.
+Keep `-c` when the shell expects the recipe as a command string. See the
+[GNU Make reference for choosing a shell](https://www.gnu.org/software/make/manual/html_node/Choosing-the-Shell.html).
 
-## Protecting bytes from SHELL
+## Run recipes with Bash
 
-Before ordinary configuration parsing, protect these bytes originating in
-`SHELL`: `# ; " * ? [ ] & | < > ( ) { } $` plus backtick, `^`, `~` and `!`.
-The subsequent configuration parser retains their literal values. For example,
-`SHELL = ./capture $NAME` passes literal `$NAME` to that executable; it must not
-ask an outer shell to expand the name. Literal metacharacters in the executable's
-filename receive the same treatment.
+This example requires Bash at `/bin/bash`. In an empty directory, save it as
+`Makefile`. Start each recipe line with a tab.
 
-Protection occurs before single-quote processing. Consequently a dollar inside
-single quotes retains an inserted backslash, while double quotes originating in
-`SHELL` are literal bytes rather than grouping syntax. Existing single quotes,
-backslashes, spaces and tabs still affect tokenization. An existing backslash can
-interact with the inserted protection and require shell evaluation. A general
-literal whitespace split would therefore be incorrect.
+```makefile
+SHELL := /bin/bash
+.SHELLFLAGS := -eu -o pipefail -c
+BUILD_SYSTEM := $(shell uname -s)
 
-`.SHELLFLAGS` remains unprotected at this boundary. Its supported quoting,
-expansion and redirection behavior still uses the configuration parser and shell
-fallback. Assignment prefixes and builtin command names also retain their
-existing fallback decisions. The recipe body remains one argument during
-configuration construction, so its syntax is evaluated only by the eventual
+.PHONY: all check
+all:
+	@printf 'Building on %s\n' '$(BUILD_SYSTEM)'
+
+check:
+	@false | true; printf 'Pipeline succeeded\n'
+```
+
+1. Run `rmake`. The `all` recipe prints `Building on Linux`.
+2. Run `rmake check`. Bash treats the pipeline as failed because `false`
+   failed. The command stops and rmake reports a recipe error.
+
+`$(shell ...)` runs when the expression expands. The sample uses `:=` to run
+`uname` once each time rmake reads the Makefile. The `all` recipe runs later,
+when rmake builds that target. See the
+[GNU Make shell function reference](https://www.gnu.org/software/make/manual/html_node/Shell-Function.html).
+
+## Reproduce a shell difference
+
+From the rmake checkout, run `make bootstrap` and then
+`make test-diff test-shell-capture-lifetime`. For a small Makefile, compare both
+engines in a clean directory. Keep the exact shell assignments, recipe
+prefixes, flags, exit status, and diagnostic output. If the failure needs a
+second command or a recursive target, retain it in the reproduction. See
+[shell argument fixtures](shell-argv-replay.md) and the
+[overall testing guide](testing.md).
+
+## Quoting in `SHELL` and `.SHELLFLAGS`
+
+When preparing an ordinary recipe command, the engine protects shell
+metacharacters that come from the expanded `SHELL` value. These include
+`# ; " * ? [ ] & | < > ( ) { } $`, backtick, `^`, `~`, and `!`. For
+example, `SHELL = ./capture $$NAME` passes the literal argument `$NAME` to
+`./capture`. The same protection applies to characters in the executable name.
+
+Protection runs before single-quote processing. A dollar inside single
+quotes retains the backslash added during protection. Double quotes from
+`SHELL` are literal. Single quotes, backslashes, spaces, and tabs still affect
+where arguments split. Some combinations of backslashes and metacharacters
+require full shell evaluation.
+
+The engine interprets quoting, expansions, and redirections from
+`.SHELLFLAGS` during command construction. Assignments and shell built-ins can
+also require a shell. The recipe text stays together as one argument to the
 selected interpreter.
 
-## Launching and other modes
+## Recipe execution modes
 
 The prepared literal executable path goes through the normal launcher. Missing,
 non-executable and directory paths retain their respective diagnostics and GNU's
@@ -42,7 +76,7 @@ dry-run/query/touch modes do not launch a shell; forced recipes exercise the
 normal launch boundary. Permanent fixtures cover those distinctions and mixed
 protected shell bytes with interpreted flags.
 
-## Undefined-variable warnings
+## Warnings during command construction
 
 Recipe bodies expand under the active warning policy. The later shell
 configuration starts with undefined-variable warnings disabled and expands
@@ -98,7 +132,7 @@ identify a Bourne-compatible shell. Dry-run output preserves that transformed
 script even though no launch occurs. Execution modifiers, ignored failures,
 keep-going and touch/query modes retain their usual control-flow decisions.
 
-## Follow-up coverage and open boundaries
+## Verified cases and open behavior
 
 [Shell argv and residual execution](shell-argv-replay.md) closes the two literal
 configuration-LF cases, complex quoted one-shell flags and quoted-LF residual
@@ -119,7 +153,7 @@ The two minimal abort reproductions were rechecked and are retained in
 [the oracle research record](../tests/research/gnu-441-oneshell-flags-aborts.json),
 including exact input/output bytes and reference identities.
 
-## Reference provenance
+## Source references
 
 Empty-shell fixtures and the first implementation preceded source inspection.
 Original executable probes then exposed the assignment boundary, and a reference
@@ -138,7 +172,6 @@ GPL-3.0-or-later. The Rust implementation and fixtures are original; no upstream
 implementation or test text was copied or translated. Reference files remain
 outside this repository. Executable comparisons, including file effects and
 diagnostics, validate the resulting behavior independently of that explanation.
-
 
 ## Continuations that produce no command
 
