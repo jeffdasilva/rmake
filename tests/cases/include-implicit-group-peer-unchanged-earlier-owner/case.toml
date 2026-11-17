@@ -1,0 +1,12 @@
+id = "include-implicit-group-peer-unchanged-earlier-owner"
+requirement = "includes.remake"
+candidate = "required"
+description = "Implicit grouped source completion restarts later read peers, with visit-order and no-recipe controls."
+provenance = "Original rmake fixture and GNU 4.4.1 black-box observations; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:\nRUN\nALL:\n"
+stderr = ""

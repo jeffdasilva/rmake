@@ -149,7 +149,8 @@ Extend directory-qualified sources, expanded source identities and combinations
 of load limits, grouped remakes, build modes and debug output. Tests now cover
 serial and parallel explicit grouped rules that restart after leaving a read peer
 unchanged or missing. The serial tests include an empty recipe. Implicit grouped
-rules and grouped double-colon cases need their own checks.
+single-colon rules now have their own serial and held parallel cases. Grouped
+double-colon restarts need separate checks.
 
 Local jobserver acceptance also needs broader combinations of transports,
 recursive builds, restarts, loaded modules and resource pressure. Preserve the

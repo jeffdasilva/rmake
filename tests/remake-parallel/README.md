@@ -31,6 +31,11 @@ its recipe owner read does not. Required and optional reads run under both
 jobserver transports, and the final recipe independently checks that all three
 source timestamps retain their exact initial nanoseconds.
 
+Sixteen separate implicit grouped profiles use a shared nonempty stem for the
+read owner and peer. They require the same authenticated overlap, one restart
+for a later read peer, and unchanged timestamp checks. Their identifiers begin
+with `implicit-grouped-unchanged`; explicit and implicit coverage stay separate.
+
 Run the standalone gate after bootstrapping the pinned GNU Make oracle.
 
 ```sh
@@ -77,7 +82,7 @@ required failure replay and the considered state after an early optional pass.
 Both jobserver transports are covered.
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 4,117 profiles. Leading `./` spellings share one target record and
+run all 4,141 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 

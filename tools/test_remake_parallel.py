@@ -13,20 +13,23 @@ import remake_parallel
 
 class UnchangedGroupTests(unittest.TestCase):
     def test_source_timestamp_check_rejects_one_nanosecond_change(self):
-        model = remake_parallel.grouped_unchanged_peer_models(b'', {})[0].model
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            (root / 'check-times.py').write_bytes(model.files['check-times.py'])
-            for name in ('left.gen', 'peer.gen', 'right.gen'):
-                (root / name).write_bytes(model.files[name])
-                os.utime(root / name, ns=(remake_parallel.INPUT_TIME,) * 2)
-            command = [sys.executable, 'check-times.py']
-            good = subprocess.run(command, cwd=root, capture_output=True, timeout=5)
-            self.assertEqual((good.returncode, good.stdout, good.stderr), (0, b'', b''))
-            os.utime(root / 'peer.gen', ns=(remake_parallel.INPUT_TIME + 1,) * 2)
-            bad = subprocess.run(command, cwd=root, capture_output=True, timeout=5)
-            self.assertNotEqual(bad.returncode, 0)
-            self.assertIn(b'AssertionError', bad.stderr)
+        for implicit in (False, True):
+            model = remake_parallel.grouped_unchanged_peer_models(b'', {}, implicit=implicit)[0].model
+            with self.subTest(implicit=implicit), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                (root / 'check-times.py').write_bytes(model.files['check-times.py'])
+                sources = [name for name in model.files if name.endswith('.gen')]
+                for name in sources:
+                    (root / name).write_bytes(model.files[name])
+                    os.utime(root / name, ns=(remake_parallel.INPUT_TIME,) * 2)
+                command = [sys.executable, 'check-times.py']
+                good = subprocess.run(command, cwd=root, capture_output=True, timeout=5)
+                self.assertEqual((good.returncode, good.stdout, good.stderr), (0, b'', b''))
+                peer = next(name for name in sources if name.endswith('peer.gen'))
+                os.utime(root / peer, ns=(remake_parallel.INPUT_TIME + 1,) * 2)
+                bad = subprocess.run(command, cwd=root, capture_output=True, timeout=5)
+                self.assertNotEqual(bad.returncode, 0)
+                self.assertIn(b'AssertionError', bad.stderr)
 
 
 class PollWaitTests(unittest.TestCase):

@@ -164,6 +164,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += primary_named_group_models(worker, markers)
     results += grouped_read_peer_question_models(worker, markers)
     results += grouped_unchanged_peer_models(worker, markers)
+    results += grouped_unchanged_peer_models(worker, markers, implicit=True)
     results += later_primary_named_mode_models(worker, markers)
     results += forced_named_include_models(worker, markers)
     results += primary_named_implicit_models(worker, markers)
@@ -1088,36 +1089,41 @@ def primary_named_group_models(worker: bytes, markers: dict[str, bytes]) -> list
     return results
 
 
-def grouped_unchanged_peer_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+def grouped_unchanged_peer_models(worker: bytes, markers: dict[str, bytes], *,
+                                 implicit: bool = False) -> list[HeldModel]:
     """Authenticate overlap while neither successful recipe changes a source."""
+    owner = 'unit.left.gen' if implicit else 'left.gen'
+    peer = 'unit.peer.gen' if implicit else 'peer.gen'
+    targets = '%.left.gen %.peer.gen' if implicit else f'{owner} {peer}'
+    family = 'implicit-grouped-unchanged' if implicit else 'grouped-unchanged'
     results = []
     for jobs in ('-j2', '-j3'):
         for transport in ('pipe', 'fifo'):
             for policy, directive in (('required', 'include'), ('optional', '-include')):
                 for read_peer in (False, True):
-                    peer = ' peer.gen' if read_peer else ''
+                    peer_read = f' {peer}' if read_peer else ''
                     source = (
                         '.DEFAULT_GOAL := all\n'
                         '$(file >>seen,read-$(MAKE_RESTARTS))\n'
-                        f'{directive} left.gen{peer}\ninclude right.gen\n'
+                        f'{directive} {owner}{peer_read}\ninclude right.gen\n'
                         'ifeq ($(MAKE_RESTARTS),)\n.PHONY: force\n'
-                        'left.gen peer.gen &: force ; @python3 worker.py left unchanged\n'
+                        f'{targets} &: force ; @python3 worker.py left unchanged\n'
                         'right.gen: force ; @python3 worker.py right unchanged\n'
                         'endif\n'
                         'all: ; @$(file >>seen,goal-$(MAKE_RESTARTS))python3 check-times.py\n'
                     ).encode()
                     check = (
                         'import os\n'
-                        'for name in ("left.gen", "peer.gen", "right.gen"):\n'
+                        f'for name in ("{owner}", "{peer}", "right.gen"):\n'
                         f'    assert os.stat(name).st_mtime_ns == {INPUT_TIME}\n'
                     ).encode()
                     files = {'Makefile': source, 'worker.py': worker, 'seen': ANCHOR,
                              'check-times.py': check,
-                             **dict.fromkeys(('left.gen', 'peer.gen', 'right.gen'), b'# unchanged\n')}
+                             **dict.fromkeys((owner, peer, 'right.gen'), b'# unchanged\n')}
                     seen = BEFORE_SECOND + b'right\n'
                     seen += b'read-1\ngoal-1\n' if read_peer else b'goal-\n'
                     scope = 'read-peer' if read_peer else 'owner-only'
-                    ident = f'grouped-unchanged-{policy}-{scope}-{jobs[1:]}-{transport}'
+                    ident = f'{family}-{policy}-{scope}-{jobs[1:]}-{transport}'
                     expected = {'exit_code': 0, 'stdout_template_hex': '', 'stderr_template_hex': ''}
                     model = debug.Model(
                         ident, files,
