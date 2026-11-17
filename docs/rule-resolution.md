@@ -1,39 +1,70 @@
-# Rule resolution slice
+# How rmake chooses a build rule
 
-The database now retains pattern declarations independently of explicit rules.
-Competing prerequisites remain alternatives; a later identical declaration
-replaces or cancels its earlier recipe. Candidates are ordered by stem length
-and declaration order. The runtime accepts candidates whose prerequisites exist
-locally, through VPATH, or as explicit targets. Directory stripping and stem
-reconstruction follow target-pattern slash semantics. Pattern declarations do
-not select the default goal. No failed resolution result is persistently cached.
+rmake starts with the rules for the requested target. If those rules supply
+prerequisites but no recipe, rmake can look for an implicit rule. A pattern
+rule such as `%.txt: %.raw` describes how to build any matching target from
+an input with the same stem. For the syntax and full selection algorithm, see
+[implicit rule search in the GNU Make manual](https://www.gnu.org/software/make/manual/html_node/Implicit-Rule-Search.html).
 
-For slashless target patterns, a final slash remains part of the basename
-during implicit search. `virtual/box/` matches `b%` with basename stem `ox/`
-and full stem `virtual/ox/`. The same split supplies prerequisite substitution
-and the implicit trace. Ten exact fixtures cover those boundaries, including
-deferred percent substitution and patterns that already contain a slash.
+## Try a chain of pattern rules
 
-Static pattern rules substitute each target's stem, retain order-only inputs,
-and warn for mismatched target names without discarding their recipes.
-Double-colon branches retain separate dependency lists, recipes and source
-locations, and update independently. Mixing colon forms is an error. Unconditional
-double-colon makefile recipes are excluded from automatic remakes to avoid loops.
+In an empty directory, save this example as `Makefile`. Start each recipe line
+with a tab.
 
-SECONDEXPANSION retains deferred references until the target is considered, with
-target variables and automatic prerequisite variables. Recipe-bearing clauses
-expand after earlier clauses; their expanded inputs are then placed first for
-execution. VPATH and selective vpath declarations preserve search ordering and
-feed resolved names to prerequisite automatic variables. Rebuilt targets use the
-local name and no longer retain the searched file's timestamp.
+```makefile
+.PHONY: all
+all: report.txt
 
-Validation adds 38 original differential fixtures and promotes seven existing
-fixtures. The corpus has 1,943 cases: 1,928 required passes and 15 pending
-mismatches. The pending count is not an inventory of everything left to implement.
-Chained implicit intermediates, default built-in rules, full suffix conversion,
-grouped peers, GPATH and the complete deferred/implicit search algorithm remain
-follow-up work. This slice does not establish full GNU rule compatibility.
+%.txt: %.mid
+	@cp "$<" "$@"
 
-Subsequent [GPATH coverage](gpath.md) adds permanent filename renaming and
-selected alias/parallel interactions. Earlier corpus counts and open-work lists
-above describe this document's original slice; M4 still has broader open gates.
+%.mid: %.raw
+	@cp "$<" "$@"
+```
+
+1. Create the input and build the default goal.
+
+   ```sh
+   printf '%s\n' 'Example report' > report.raw
+   rmake -rR
+   ```
+
+   The `-rR` options keep the example focused on the rules in this Makefile.
+   The build creates `report.mid`, copies it to `report.txt`, and removes
+   `report.mid` as an intermediate file.
+
+2. Run `rmake -rR` again. The report is up to date and the recipes are skipped.
+
+To see how rmake tracks which intermediates to remove, read
+[intermediate-file cleanup](file-record-order.md).
+
+## Diagnose rule selection
+
+- When several patterns match, rmake considers the stem length and declaration
+  order. A later declaration with identical targets and prerequisites can replace
+  or cancel an earlier recipe. To see the attempts, use `rmake --debug=i`.
+- A target pattern that contains a slash matches the full path. A pattern
+  without a slash matches the filename portion. For `virtual/box/` and
+  `b%`, the filename stem is `ox/` and the reconstructed stem is
+  `virtual/ox/`. The reconstructed stem matters when substituting prerequisites.
+- With [static pattern rules](https://www.gnu.org/software/make/manual/html_node/Static-Pattern.html),
+  each target has its own stem and keeps its order-only prerequisites. If
+  a target doesn't match the pattern, rmake warns and retains the recipe.
+- [Double-colon rules](https://www.gnu.org/software/make/manual/html_node/Double_002dColon.html)
+  let multiple rules update a target independently. Leave automatic remakes of
+  Makefiles to rules that have prerequisites. An unconditional double-colon
+  Makefile recipe is skipped during remaking to avoid a restart loop.
+- [Secondary expansion](https://www.gnu.org/software/make/manual/html_node/Secondary-Expansion.html)
+  expands deferred prerequisite expressions when rmake considers the target.
+  The expansion can read target-specific and applicable automatic variables.
+  A clause with a recipe expands after earlier clauses. Its prerequisites
+  are placed first for execution.
+- `VPATH` and `vpath` add places to search for files. Search results can affect
+  names in automatic variables. A rebuilt target normally uses its local path.
+  See GNU Make's [directory search guide](https://www.gnu.org/software/make/manual/html_node/Directory-Search.html)
+  and rmake's [GPATH tests](gpath.md).
+
+Run `make test-diff` from the rmake checkout to compare the curated cases.
+Use the [M4 audit](m4-exit-audit.md) for the acceptance scope and the
+[M3/M6 audit](m3-m6-audit.md) for open combinations involving rule selection,
+options, debug output, and file observations.
