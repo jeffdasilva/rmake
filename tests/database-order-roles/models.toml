@@ -640,3 +640,26 @@ records = ["all: n | gate"]
 seen_hex = "6e3a676174653a6c0a"
 flags = ["-p"]
 directory_identity = true
+
+[[case]]
+id = "implicit-recipe-late-print"
+makefile = '''
+al%: ; @$(eval MAKEFLAGS += -p):
+'''
+records = ["all: MFLAGS = -prRs --no-print-directory", "all: MAKEFLAGS = prRs --no-print-directory", "all:"]
+
+[[case]]
+id = "implicit-prerequisite-recipe-late-print"
+makefile = '''
+al%: n ; @$(eval MAKEFLAGS += -p):
+'''
+records = ["all: MFLAGS = -prRs --no-print-directory", "all: MAKEFLAGS = prRs --no-print-directory", "all: n"]
+directory_identity = true
+
+[[case]]
+id = "late-print-after-inferred-prerequisites"
+makefile = '''
+a%: ; @:
+all: alpha atom ; @$(eval MAKEFLAGS += -p):
+'''
+records = ["all: MFLAGS = -prRs --no-print-directory", "all: MAKEFLAGS = prRs --no-print-directory", "all: alpha atom"]
