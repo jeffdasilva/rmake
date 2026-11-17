@@ -3338,20 +3338,22 @@ impl Engine {
             let final_named_dry = limited_load
                 && final_required_dry
                 && self.options.jobs.is_some_and(|slots| slots >= 4);
+            let three_named_two_optional =
+                optional_named_sources == 2 && final_named_sources.len() == 3;
             let final_named_touch_debug = debug_before_remake.bits() == remake_debug_bits
                 && (final_named_sources.len() == 2
                     || (!final_named_sources.is_empty() && optional_named_sources == 0)
-                    || (final_named_sources.len() == 3 && optional_named_sources == 1));
-            let ordinary_two_optional_touch = debug_before_remake.bits() == Mask::NONE.bits()
-                && optional_named_sources == 2
-                && final_named_sources.len() == 3;
-            let optional_pair_before_required = ordinary_two_optional_touch
+                    || (final_named_sources.len() == 3 && optional_named_sources == 1)
+                    || (limited_load && three_named_two_optional));
+            let two_optional_touch = three_named_two_optional
+                && (debug_before_remake.bits() == Mask::NONE.bits() || final_named_touch_debug);
+            let optional_pair_before_required = two_optional_touch
                 && matches!(final_named_sources, [_, _, (last, _)] if !last.optional);
             let final_named_touch = modes.touch
                 && !final_named_sources.is_empty()
                 && (optional_named_sources <= 1
                     || final_named_sources.len() == 2
-                    || ordinary_two_optional_touch)
+                    || two_optional_touch)
                 && (!debug_before_remake.has(Mask::MAKEFILES) || final_named_touch_debug)
                 && self.options.jobs.is_some_and(|slots| slots >= 2);
             let unruled_primary = ordinary_mode
