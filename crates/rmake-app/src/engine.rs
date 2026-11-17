@@ -350,7 +350,7 @@ struct Outcome {
     deferred_spawn_failure: bool,
     // An optional grouped recipe already supplied this peer's failure.
     optional_group_peer_failure: bool,
-    // A successful serial grouped remake invalidates each other read peer,
+    // A successful explicit grouped remake invalidates each other read peer,
     // including one whose physical timestamp did not change.
     remake_group_peer_updated: bool,
     // The cached declared head can remain successful after the tail fails.
@@ -4135,7 +4135,8 @@ impl Engine {
                                 && result.ran
                                 && result.completion == CompletionTime::AssumeNew;
                             if remake.modes.check_update(result) || completed_in_other_mode {
-                                changed |= self.modified(name) != before;
+                                changed |= self.modified(name) != before
+                                    || result.remake_group_peer_updated;
                             }
                         }
                     }
@@ -12259,7 +12260,8 @@ impl Engine {
                     && self.makefile_names.contains(&peer));
             completed.optional_group_peer_failure =
                 self.optional_remake() && outcome.failed && !outcome.fatal;
-            completed.remake_group_peer_updated = serial_explicit_remake
+            completed.remake_group_peer_updated = self.remaking
+                && !group.implicit
                 && outcome.completion == CompletionTime::Refresh
                 && !outcome.failed
                 && !phony

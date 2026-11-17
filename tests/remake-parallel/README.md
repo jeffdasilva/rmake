@@ -24,6 +24,13 @@ required frame's diagnostic after its completion. Separate, implicit grouped,
 explicit grouped, and grouped double-colon targets all exercise this path.
 Each parallel profile runs with the pipe and FIFO jobserver.
 
+Sixteen unchanged grouped-source profiles authenticate two overlapping remake
+children with two or three job slots. Both recipes succeed without changing
+their source files. A read grouped peer causes one restart; a group with only
+its recipe owner read does not. Required and optional reads run under both
+jobserver transports, and the final recipe independently checks that all three
+source timestamps retain their exact initial nanoseconds.
+
 Run the standalone gate after bootstrapping the pinned GNU Make oracle.
 
 ```sh
@@ -70,7 +77,7 @@ required failure replay and the considered state after an early optional pass.
 Both jobserver transports are covered.
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 4,084 profiles. Leading `./` spellings share one target record and
+run all 4,100 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
