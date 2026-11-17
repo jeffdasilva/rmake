@@ -6,6 +6,14 @@ rule such as `%.txt: %.raw` describes how to build any matching target from
 an input with the same stem. For the syntax and full selection algorithm, see
 [implicit rule search in the GNU Make manual](https://www.gnu.org/software/make/manual/html_node/Implicit-Rule-Search.html).
 
+## Choose the default goal
+
+When you run `rmake` without a goal, it starts with the Makefile's default
+goal. Usually this is the first eligible target. Set `.DEFAULT_GOAL := all` to
+name it explicitly, or pass a goal on the command line to select a different
+target. Pattern rules such as `%.txt: %.raw` never select the default goal.
+See [special variables in GNU Make](https://www.gnu.org/software/make/manual/html_node/Special-Variables.html).
+
 ## Try a chain of pattern rules
 
 In an empty directory, save this example as `Makefile`. Start each recipe line
