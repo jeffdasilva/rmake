@@ -113,10 +113,10 @@ visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 
-The 896 debug profiles check the entire debug trace and the exact trace prefix
+The 983 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging.
-The 287 authenticated FIFO traces check the controller path against the
+The 303 authenticated FIFO traces check the controller path against the
 observed make PID and retain the raw trace before comparing the remaining
 bytes. The FIFO coverage includes named primary, direct, normal remake and
 duplicate-read profiles.
@@ -142,7 +142,7 @@ is checked under dry-run, question and touch with both transports.
 
 The standard developer gates include these profiles. The selector runs
 the debug profiles that do not require the load shim. Add `--include-load`
-to include 190 basic and 298 verbose makefile traces with controlled load
+to include 281 basic and 426 verbose makefile traces with controlled load
 and held workers. Thirty-six basic and thirty-six verbose traces cover named
 includes under load. Four verbose profiles hold the named recipe until both
 active roots emit their pending traces.
