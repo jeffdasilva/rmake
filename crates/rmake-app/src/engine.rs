@@ -8252,6 +8252,10 @@ impl Engine {
             .collect();
         for selection in &plan {
             let group = selection.rule.group.as_ref();
+            // Detached double-colon roots prepare their own history.
+            // A database dump needs the attached root's inputs and stem.
+            let retain_history = group.is_some()
+                || (!detach_root && selection.name == target && self.output.database_requested());
             for dependency in selection.rule.dependencies.iter().rev() {
                 if let Some(child) = inferred.get(dependency.name.as_slice()) {
                     self.database.file_records.insert(&dependency.name);
@@ -8259,7 +8263,7 @@ impl Engine {
                         self.database.file_records.insert(&input.name);
                     }
                 } else if selection.name == target && dependency.name != b".WAIT" {
-                    if group.is_some() {
+                    if retain_history {
                         if let Some(history) = self.database.database_history() {
                             history.intern(&dependency.name);
                         }
@@ -8271,12 +8275,7 @@ impl Engine {
                     }
                 }
             }
-            // Detached double-colon roots prepare their own history.
-            // A database dump also needs the attached root's selected stem.
-            if (group.is_some()
-                || (!detach_root && selection.name == target && self.output.database_requested()))
-                && let Some(history) = self.database.database_history()
-            {
+            if retain_history && let Some(history) = self.database.database_history() {
                 if let Some(stem) = &selection.rule.stem {
                     history.intern(stem);
                 }
