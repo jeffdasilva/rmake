@@ -1,246 +1,115 @@
-# Linux load limits and child stdin leases
+# Limit parallel jobs by system load
 
-The M5 runtime implements `-l`, `--load-average` and `--max-load`, including
-recursive propagation, explicit child overrides, bare-option reset, C floating
-prefix parsing and `%g` flag spelling. Negative values disable gating without
-losing their spelling (except the default -1); NaN also disables the comparison.
-These observations are invocation-local, never persisted or used as graph facts.
+Use `-l` together with `-j` to cap how much work a build starts at once.
+For example, allow up to eight jobs and wait to start additional jobs while
+the measured load exceeds four.
 
-The interpreter expands all recipe bodies before waiting for a local slot or
-jobserver token. Shell configuration and exports remain deferred until dispatch.
-A load-delayed recipe retains its token and expanded continuation, but owns no
-process or stdin lease. Delayed recipes resume in LIFO order on scheduling
-activity or child completion. The first active command always runs, allowing
-progress even with a zero limit. Ordinary abort discards queued work and returns
-its permits; keep-going and ignored errors let that work continue. Running recipes
-retain their existing ordinary-failure continuation policy.
+```sh
+rmake -j8 -l4
+```
 
-On Linux the primary observation is the instantaneous runnable count in
-`/proc/loadavg`, compared strictly greater than the limit. The cached descriptor
-is rewound and reread for each observation. Interrupted operations retry; invalid
-or failed observations select libc's load average with recent-launch pressure.
-Repeated fallback errors report once per error number. No load observation is
-reused after a child or scheduling decision as a supposedly permanent fact.
-Load changes alone do not wake an ordinary child wait. A blocked jobserver wait
-with load-delayed recipes has GNU's one-second retry; token arrival still wakes
-immediately. A controlled wait-entry load transition proves this retry rather
-than relying on a host load change or a completion sleep.
+The first active command can start even at a zero limit. A bare `-l` clears an
+inherited limit. Recursive builds inherit the setting through `MAKEFLAGS` and
+can override it. See GNU Make's
+[parallel execution guide](https://www.gnu.org/software/make/manual/html_node/Parallel.html)
+for `-j` and its [option summary](https://www.gnu.org/software/make/manual/html_node/Options-Summary.html)
+for `-l`, `--load-average`, and `--max-load`.
 
-Stdin belongs to one child command at a time. On completion another target's
-continuation can acquire it. Other commands receive an owned read pipe with its
-writer closed, preserving both EOF and the FIFO descriptor type. Descriptor
-creation is atomically close-on-exec, including concurrent worker launches.
+## Job startup and standard input
+
+rmake expands the recipe before waiting for a slot or a jobserver token. A
+recipe delayed by load holds its token and expanded commands. It starts its
+shell and acquires standard input when the scheduler dispatches the job.
+Queued work resumes in last-in, first-out order after relevant scheduling
+events. In a blocked jobserver wait with load-delayed work, the scheduler also
+retries after one second.
+
+On Linux, rmake rereads the instantaneous runnable count from `/proc/loadavg`.
+If the read fails or its contents are invalid, rmake uses libc's load average
+and accounts for recent launches. A repeated fallback error is reported once
+per error number. Load observations apply to the current scheduling decision.
+
+One active command owns standard input. Other commands receive the read end
+of a pipe whose writer is closed, so reads return EOF. The next command may
+use standard input when the owner finishes. Read how recursive jobs
+[share slots](jobserver.md) for process and token ownership.
 
 ## Evidence
 
-33 original required fixtures cover numeric/recursive flags, serial load queues,
-expansion-before-token acquisition, stdin handoff, EOF and descriptor type.
-The four stdin fixtures passed 20 repeated oracle and candidate executions each;
-the previous release fails the handoff/type observation. Load fixtures use bounded
-expansion barriers rather than a completion sleep.
+Run the load and Makefile-remake comparisons from the repository root.
 
-`make test-load` runs 21 native controlled profiles three times against both GNU
-and rmake: above/equal/below load, integer boundaries, disabled limits, load changes
-after a peer completion, EINTR, malformed/read/open fallbacks, unsupported/error
-sampling, and queued ordinary/ignored/keep-going failures. A test-only original
-LD_PRELOAD helper supplies system observations, never Make behavior. Explicit
-concurrency/zero-active-worker, exact stream/status, queue/membership and journal
-anchors reject two engines agreeing on an incorrect result. Only the inherently
-unordered parallel completion journal uses a named membership validator; its raw
-order is retained. All other file observations remain exact. Four tooling tests
-exercise these anchors with deliberately corrupted results.
+```sh
+make test-load
+make test-remake-parallel
+```
 
-The campaign is in development CI and the optimized regression flow. The
-[M5 exit audit](m5-exit-audit.md) combines it with signal/cancellation, output
-synchronization, synthetic completion and mixed-tree runtime acceptance.
+`test-load` tests 21 controlled load profiles, replayed three times under
+both engines, along with the localized fallback cases. The runner uses an
+original test-only shim to supply load observations, including failed,
+interrupted and malformed reads. The tests check actual recipe overlap,
+queue order, exit status, output, token behavior, and filesystem effects.
+When parallel completion order is inherently variable, a specific membership
+check compares that journal and the report retains its original order.
+
+The tracked load and stdin Makefiles also cover numeric option spellings,
+recursive overrides, expansion before token acquisition, stdin handoff, EOF,
+and the descriptor type. The stdin fixtures require the next real command to
+receive the input after the first command finishes. See the
+[M5 execution audit](m5-exit-audit.md) for how these checks fit with cancellation,
+output synchronization and recursive runs.
 
 ## Verbose named includes
 
-During a verbose remake pass for required named includes, eligible load-delayed
-recipes start before exited children are collected. A simulated recipe can finish
-without reaping a child. Its completion still starts a new pass for the debug
-visit set. The `-q` path reports a completed cached question result when another
-pending source causes the graph to revisit it.
+When a Makefile is also a command-line goal, dry-run, question, and touch can
+affect its remake visit. The [held remake gate](../tests/remake-parallel/README.md)
+starts real workers, waits for the specified Make process state, and compares
+the exact output visible before each release. It also checks final output,
+status, file contents, mode and deletion.
 
-The 36 held profiles cover `-n`, `-q` and `-t`, each named-source position,
-high and low load, and both pipe and FIFO jobservers. Two high-load shapes hold
-the short named recipe until both pending sources appear in the captured trace.
-The observer checks the actual child identity and retains exact release streams,
-final streams and filesystem effects. These profiles cover required, direct
-sources with bounded nonrecursive recipes.
+| Inputs | What the cases check |
+| --- | --- |
+| Required, optional, and directory-qualified includes | Which source is visited first, which recipe runs in the requested mode, and when a completed pass can restart. |
+| High, low, falling, and absent load limits | When a queued source can start, whether an active primary worker can complete, and where an ordinary goal observes the result. |
+| Built-in rules and stock primary Makefiles | Explicit source recipes, a primary with an empty recipe, a primary whose implicit search settles unchanged, and qualified implicit primary recipes. |
+| Named tails and unnamed earlier sources | Required and optional positions, several named-source counts, pipe and FIFO transport, and two, three, four, or unbounded job counts. |
+| Basic and verbose debug | The first and later visit, cached results, current worker identity, release order and restart output. |
+| Phony or unconditional double-colon sources | When a missing required source prevents a restart and when another physically changed include still causes a reread. |
 
-Direct optional named sources use the same load-pass boundary. An optional
-update can finish the pass while a required sibling is queued. Dry run can
-simulate the sibling before re-reading the sources, and question mode can
-finish without starting it. Verbose output prunes completed earlier sources
-before visiting a later root. An additional 72 held profiles cover these
-optional sources with and without verbose tracing across both transports and
-all three build modes. More complex named sources remain part of the M3/M6 audit.
-
-The load-limited remake path also accepts a directly named include in a simple
-relative directory. The 180 directory profiles cover required and optional
-sources, quiet execution, and basic and verbose debug output. Each trace uses
-the directory-qualified target and the actual child that writes it.
-
-Named load remakes can run with the stock built-in rules enabled when every
-source has an explicit direct recipe. An empty explicit recipe on the primary
-makefile also qualifies. The 180 stock-rule profiles exercise the same quiet,
-basic and verbose schedules through both jobserver transports. Sources that
-need an implicit recipe still require separate remake scheduling coverage.
-
-An existing first makefile without an explicit rule can also complete its normal
-stock implicit search before the named includes overlap. Parallel admission
-requires the primary to settle unchanged without selecting a recipe. Another
-180 profiles verify this case, including the primary search's directory-cache
-diagnostic in verbose traces. The rule selection and visit run once in the
-normal graph.
-
-With a single required named include, a stock implicit primary recipe can
-overlap that include. The last named build mode stays in effect while the
-primary's running command advances, including when the include's recipe has
-already simulated completion. Twelve held shell-suffix profiles verify
-the recipe's live child and load sample, dry-run command order and file mode,
-question-mode cleanup, and touch-mode restarts.
-
-Twelve additional held profiles cover a single optional named include. When
-its query finishes in the load queue, the cached outcome retains the later
-required-goal diagnostic, just as for a query that settled during its visit.
-
-When every remaining makefile source is directly named, the stock primary can
-also overlap more than one include. Twenty-four additional held profiles cover
-two direct includes, including an optional first include that completes its
-pass while the second waits. The profiles compare the live release, command
-order, query cleanup, touched files and final mode. Sixteen further held
-profiles combine a named source and a required unnamed source in quiet dry-run
-and query modes. They verify real include contents and the primary file's mode
-after the pass. Sixteen further held profiles cover standalone touch in both
-include orders. A later named touch runs before the queued unnamed include
-can resume in its mode. At the pass boundary the scheduler restores the
-unnamed include's mode before refilling the load queue. The 40 mixed-source
-debug profiles cover basic and verbose remake traces, both load levels, and
-both include orders for standalone touch. After an optional source ends a
-verbose pass, the next wait uses the progress recorded at that boundary.
-The 48 quiet combined-mode profiles check touch with dry run, question,
-or both. A query can stop the active primary continuation and remove the
-file while a successful ordinary touch still determines the final status.
-Fourteen held combined-mode debug profiles cover an optional named source
-followed by a required unnamed source. The verbose pass prunes a completed
-primary immediately when its query verdict ended the recipe. Other debug
-masks and the number of visits during unheld high-load races remain open.
-The 128 held query profiles cover three direct includes, one or two named
-goals, every read order, and the stock primary worker under three job slots.
-They exercise `-q` alone and with `-n`. An optional source read after the
-first include can end the pass before the later includes run. High-load
-queries with an optional named include and a final unnamed include showed
-different sets of generated files under identical held primary releases.
-Those schedules remain outside the exact gate. Eighty further held profiles
-place named goals first and exercise quiet dry-run, touch, and mixed flags.
-Twenty-four standalone dry-run profiles interleave named and unnamed roots.
-They verify which recipes leave files and which print commands across rereads.
-Twelve required-source profiles place one named include in the middle
-under `-t`, `-n -t`, and `-q -t`. They compare the named touch before
-unnamed load reservations, the primary's mode, and actual file effects.
-Sixteen optional-source profiles put the optional named include between two
-required unnamed includes. The earlier unnamed job waits for ordinary mode
-after the optional pass. Eight required-source dry-run profiles place
-two named includes last, with a slot for every source. They verify the
-load queue order in both restarted images. The high-load profiles hold
-the unnamed recipe until its restarted parent waits for it. Lower slot counts and unbounded dry runs under controlled load remain open.
-Thirty-two related profiles omit the load option. The held cases release
-the primary or earlier unnamed recipe first at a verified parent wait with
-two, three, and four slots. They compare both raw release prefixes and
-whether the primary recipe's chmod actually changes the file mode. Eight
-fast unnamed-recipe controls cover both transports with three and four slots.
-Sixty-four required-source profiles cover final-adjacent touches with three
-or four slots under
-`-t`, `-q -t`, `-n -t`, and `-n -q -t`. They check touch order,
-primary removal under high-load query, and the earlier unnamed recipe's
-file contents.
-Thirty-two related touch profiles omit the load option and verify the
-named visits and earlier recipe complete in the same order with no load probe.
-Sixty-four held profiles also cover an optional include in either of the
-final two named positions, including its effect on the active primary
-continuation, the queued earlier include, and a later required visit.
-The same required and optional touch sequences run with two slots.
-The no-load cases also cover an optional named source with two, three,
-and four slots. These 128 additional profiles verify the same bytes,
-primary mode and file effects across the tested job counts.
-Ninety-six further touch profiles exercise unbounded `-j` with and
-without a load option, including both optional-source positions.
-The required named sources can also extend beyond the final pair.
-Ninety-six more cases check three or eight named includes with two or
-four slots, including exact order, primary mode, and file effects.
-One optional include can also appear anywhere among the named sources.
-The 144 additional cases cover all three optional positions in a
-three-name tail and the pass boundary before a later required visit.
-Ninety-six further cases make both named sources optional and confirm
-the same touch policy through the first optional completion.
-Four cases also cover three named includes with two optional ones, where the
-required include comes first or in the middle. They check normal output and
-primary mode or deletion with and without a load limit.
-Four more cases put both optional includes before the required include.
-The high-load touch cases check that the earlier queued include resumes
-at the second optional pass, before the final named include.
-
-If a missing required include is skipped because it is phony or has an
-unconditional double-colon recipe, the failed read prevents a restart after an
-otherwise successful remake. A separate remake failure still lets physically
-updated peers trigger a reread. The eight serial Makefiles cover both rule
-forms, an existing or optional skipped file, and a failing optional peer.
-Thirty-six held profiles cover the missing phony source among two successfully
-remade peers under `-n`, `-q` and `-t` with both jobserver transports.
+A simulated recipe can finish without reaping a child. A later pass then has
+a new set of considered files, and a cached question result can surface again.
+An optional source can complete its pass before a queued sibling starts.
+The [M3/M6 audit](m3-m6-audit.md) tracks broader scheduling and debug
+combinations. One open group includes unheld high-load races where GNU's
+final files varied across runs with the same primary release.
 
 ## Fallback diagnostics
 
-A failed load-average probe renders the active catalog's warning. The
-reported operating-system error uses the active libc message locale.
-Four French profiles cover an unsupported probe and an I/O error with
-both jobservers. They retain the verified probe order, queue order, and
-byte-for-byte streams alongside the existing C controls.
+The load probe warns using the active message catalog and libc error text.
+Four French profiles cover an unsupported probe and an I/O error through the
+pipe and FIFO jobservers. The checks retain exact probe and queue order, and
+compare the full streams against the C and French expectations.
 
 ## Reference study
 
-Consulted the verified GNU Make 4.4.1 source archive, SHA-256
-`dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3`:
-`src/job.c` (`new_job`, `start_waiting_job`, `start_waiting_jobs`, `reap_children`,
-`load_too_high`), `src/main.c` (floating option parsing, flag rendering and the
-skipped-source restart decision),
-`src/misc.c` (`make_toui`) and `src/posixos.c` (`get_bad_stdin`). The Rust state
-transitions, owned descriptor adapter, fault helper and fixtures are original;
-no GNU implementation or test material was copied or translated.
-
-Basic makefile diagnostics (`--debug=b,m`) retain the parallel final named
-touch schedule. Twenty-eight held profiles cover required names under a load
-limit and one optional name without a limit, through both pipe and FIFO
-jobservers with two, three, four, and unbounded job settings. They check the
-primary-worker release, Makefile mode or deletion, restart output, and final
-goal effects across touch, question, and dry-run combinations.
-Five more held profiles test three or eight required names with `-j2`
-and a load limit. They verify the same release and completion effects.
-Six further profiles cover higher and unbounded job counts under load and
-no-load runs with two or unbounded slots.
-Six more profiles place a single optional include at either end of three
-named makefiles and compare release, restart, deletion, and file modes.
-Four more profiles place the optional include in the middle.
-Six more profiles cover two optional includes among three named sources
-under a load limit. They check all three positions for the required source.
-Four further cases omit the load limit and check touch or deletion when
-the required source comes first or in the middle. Their held release
-includes the earlier unnamed include’s touch output.
-Four more profiles place the optional include first or last among four
-named sources under a load limit.
-Three no-load profiles place both optional includes before the required
-include. They check that the first optional visit precedes the unnamed
-include’s completion trace.
+The reference is the verified GNU Make 4.4.1 archive, SHA-256
+`dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3`.
+Source references include `src/job.c` for job dispatch, reaping and load
+checks, `src/main.c` for option parsing and skipped-source restarts,
+`src/misc.c` for integer conversion, and `src/posixos.c` for the EOF
+descriptor. The Rust implementation, shim and fixtures are original.
 
 ## Performance observation
 
-Paired, alternating optimized runs used two warmups, 101 core samples and 31
-parallel-branch samples per engine. No other local functional gate ran during
-measurement. Median milliseconds (GNU / current / prior main): tiny no-op
-0.677 / 0.805 / 0.804; 10,000 no-op rules 11.567 / 32.329 / 31.737; expansion
-2.930 / 4.414 / 4.466; parallel depth one 88.187 / 89.582 / 89.575; depth four
-88.310 / 89.395 / 89.341. These selected observations show roughly unchanged
-runtime cost, not general parity or an acceleration claim. There was no CPU
-isolation or CPU/RSS/I/O acceptance threshold. Raw observations and executable
-identities remain in ignored `artifacts/bench/m5-load-{core-101,parallel-31}.json`.
+The original load change used alternating optimized runs with two warmups,
+101 samples per core workload, and 31 per parallel workload.
+
+| Workload | GNU Make median (ms) | rmake with change (ms) | Previous rmake (ms) |
+| --- | ---: | ---: | ---: |
+| Tiny no-op | 0.677 | 0.805 | 0.804 |
+| 10,000 no-op rules | 11.567 | 32.329 | 31.737 |
+| Expansion | 2.930 | 4.414 | 4.466 |
+| Parallel branches, depth 1 | 88.187 | 89.582 | 89.575 |
+| Parallel branches, depth 4 | 88.310 | 89.395 | 89.341 |
+
+These are historical wall times on a shared host. See the
+[benchmark guide](benchmarks/README.md) to repeat a workload.
