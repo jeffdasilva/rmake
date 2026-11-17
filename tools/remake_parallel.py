@@ -163,6 +163,8 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += primary_named_mode_models(worker, markers)
     results += primary_named_group_models(worker, markers)
     results += grouped_read_peer_question_models(worker, markers)
+    results += grouped_unchanged_peer_models(worker, markers)
+    results += grouped_unchanged_peer_models(worker, markers, implicit=True)
     results += later_primary_named_mode_models(worker, markers)
     results += forced_named_include_models(worker, markers)
     results += primary_named_implicit_models(worker, markers)
@@ -1084,6 +1086,51 @@ def primary_named_group_models(worker: bytes, markers: dict[str, bytes]) -> list
                         results.append(replace(held, model=secondary,
                                                before_first=record_expansions(first),
                                                before_second=record_expansions(second)))
+    return results
+
+
+def grouped_unchanged_peer_models(worker: bytes, markers: dict[str, bytes], *,
+                                 implicit: bool = False) -> list[HeldModel]:
+    """Authenticate overlap while neither successful recipe changes a source."""
+    owner = 'unit.left.gen' if implicit else 'left.gen'
+    peer = 'unit.peer.gen' if implicit else 'peer.gen'
+    targets = '%.left.gen %.peer.gen' if implicit else f'{owner} {peer}'
+    family = 'implicit-grouped-unchanged' if implicit else 'grouped-unchanged'
+    results = []
+    for jobs in ('-j2', '-j3'):
+        for transport in ('pipe', 'fifo'):
+            for policy, directive in (('required', 'include'), ('optional', '-include')):
+                for read_peer in (False, True):
+                    peer_read = f' {peer}' if read_peer else ''
+                    source = (
+                        '.DEFAULT_GOAL := all\n'
+                        '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+                        f'{directive} {owner}{peer_read}\ninclude right.gen\n'
+                        'ifeq ($(MAKE_RESTARTS),)\n.PHONY: force\n'
+                        f'{targets} &: force ; @python3 worker.py left unchanged\n'
+                        'right.gen: force ; @python3 worker.py right unchanged\n'
+                        'endif\n'
+                        'all: ; @$(file >>seen,goal-$(MAKE_RESTARTS))python3 check-times.py\n'
+                    ).encode()
+                    check = (
+                        'import os\n'
+                        f'for name in ("{owner}", "{peer}", "right.gen"):\n'
+                        f'    assert os.stat(name).st_mtime_ns == {INPUT_TIME}\n'
+                    ).encode()
+                    files = {'Makefile': source, 'worker.py': worker, 'seen': ANCHOR,
+                             'check-times.py': check,
+                             **dict.fromkeys((owner, peer, 'right.gen'), b'# unchanged\n')}
+                    seen = BEFORE_SECOND + b'right\n'
+                    seen += b'read-1\ngoal-1\n' if read_peer else b'goal-\n'
+                    scope = 'read-peer' if read_peer else 'owner-only'
+                    ident = f'{family}-{policy}-{scope}-{jobs[1:]}-{transport}'
+                    expected = {'exit_code': 0, 'stdout_template_hex': '', 'stderr_template_hex': ''}
+                    model = debug.Model(
+                        ident, files,
+                        ('-rR', '--no-print-directory', jobs, f'--jobserver-style={transport}', 'all'),
+                        {'GNUMAKEFLAGS': ''}, expected, seen, updates=markers.copy(),
+                        mtimes_ns=dict.fromkeys(files, INPUT_TIME))
+                    results.append(HeldModel(model, True, BEFORE_SECOND))
     return results
 
 
@@ -2205,6 +2252,7 @@ def stock_primary_load_models() -> list[HeldModel]:
                                         results.extend(stock_primary_three_final_touch_profiles(
                                             both, True, extend_named=False,
                                             job_cases=(('-j2', '2-slots'), ('-j4', '4-slots'))))
+    results.extend(stock_primary_three_named_two_optional_cases(results))
     return results
 
 
@@ -2642,6 +2690,59 @@ def stock_primary_two_optional_touches(held: HeldModel) -> HeldModel:
     return replace(held, model=replace(model, id=identifier, files=files))
 
 
+def stock_primary_three_named_two_optional_cases(held_models: list[HeldModel]) -> Iterator[HeldModel]:
+    by_id = {held.model.id: held for held in held_models}
+    base_id = 'load-stock-primary-both-optional-three-mixed-last-adjacent-reversed-2-'
+    samples = (('t-pipe-high-2-slots', False), ('qt-fifo-high-4-slots', True),
+               ('t-pipe-low-4-slots', True), ('qt-fifo-no-load-2-slots', False))
+    for sample, required_first in samples:
+        held = stock_primary_add_named_touch_sources(by_id[base_id + sample], 3)
+        model = held.model
+        files = dict(model.files)
+        args = model.args
+        identifier = model.id
+        if required_first:
+            previous = b'-include extra.mk\ninclude tail.mk\n-include child.mk\n'
+            reordered = b'include tail.mk\n-include extra.mk\n-include child.mk\n'
+            for name in ('Makefile', 'Makefile.sh'):
+                assert files[name].count(previous) == 1
+                files[name] = files[name].replace(previous, reordered)
+            index = args.index('extra.mk')
+            args = (*args[:index], 'tail.mk', 'extra.mk', *args[index + 2:])
+            identifier = identifier.replace('-last-adjacent-reversed-', '-last-adjacent-required-first-')
+        goals = args[-4:-1]
+        touches = tuple(f'touch {goal}\n'.encode() for goal in goals)
+        boundary = 2 if required_first else 1
+        through_optional = touches[:boundary]
+        queued = touches[boundary:]
+        high = held.load.at_release == LOAD_HIGH
+        question = '-q' in args
+        release = b'cat Makefile.sh >Makefile \n' + b''.join(through_optional)
+        updates = {name: content for name, content in model.updates.items() if name.startswith('primary.')}
+        updates.update(dict.fromkeys((*goals, 'all'), b''))
+        if not high:
+            release += b'touch leaf.mk\n' + b''.join(queued)
+            updates['leaf.mk'] = b'LEAF := loaded\n'
+        stdout = release
+        if question:
+            if high:
+                stdout += b''.join(queued)
+            stderr = b"make: *** Deleting file 'Makefile'\n"
+        else:
+            stdout += b'touch Makefile\n' * 2
+            if high:
+                stdout += b''.join(queued) + b'touch leaf.mk\n' * 2
+                updates['leaf.mk'] = b''
+            stdout += b''.join(f"make: '{goal}' is up to date.\n".encode() for goal in goals)
+            updates['Makefile'] = files['Makefile.sh']
+            stderr = b''
+        expected = {'exit_code': 0, 'stdout_template_hex': (stdout + b'touch all\n').hex(),
+                    'stderr_template_hex': stderr.hex()}
+        model = replace(model, id=identifier, files=files, args=args, expected=expected, updates=updates)
+        yield replace(held, model=model, before_first_stdout=release,
+                      stock_primary_mode=None if question else 0o644)
+
+
 def stock_primary_three_prefix_model(held: HeldModel, optional: bool, named_count: int,
                                      modes: str) -> HeldModel:
     model = stock_primary_three_modes(held.model, modes)
@@ -3034,6 +3135,24 @@ def builtin_load_model(held: HeldModel, *, explicit: bool = False) -> HeldModel:
                    before_second_stdout=builtin_stdout(second) if second is not None else None)
 
 
+def hold_stock_primary_child(held: HeldModel) -> HeldModel:
+    if (not held.stock_primary or held.load is None or held.overlap
+            or held.stock_second_worker is not None or '-n' not in held.model.args):
+        raise h.HarnessError('invalid held stock primary child fixture')
+    model = held.model
+    files = dict(model.files)
+    old = b"child.mk: ; @printf '%s\\n' 'CHILD := loaded' > $@\n"
+    recipe = b'child.mk: ; @./stock-primary-cat.py --child\n'
+    for name in ('Makefile', 'Makefile.sh'):
+        if files[name].count(old) != 1:
+            raise h.HarnessError('invalid stock primary child recipe')
+        files[name] = files[name].replace(old, recipe)
+    updates = {**model.updates, 'Makefile': files['Makefile.sh'], 'child.started': b'ready\n',
+               'child.release': b'yes\n', 'child.done': b'done\n'}
+    return replace(held, model=replace(model, files=files, updates=updates),
+                   stock_second_worker='child', load=replace(held.load, second_trace=held.load.trace))
+
+
 def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     data = tomllib.loads((SOURCES / 'debug-models.toml').read_text())
     if data.get('schema_version') != 1:
@@ -3053,6 +3172,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         tail_barrier = row.get('tail_stdout_barrier')
         second_barrier = row.get('second_stdout_barrier')
         hold_named = row.get('hold_named', False)
+        hold_stock_child = row.get('hold_stock_child', False)
         requires_load = row.get('requires_load', False)
         if requires_load is True and not has_load_profiles:
             continue
@@ -3069,6 +3189,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                 or (held.load is not None) != requires_load
                 or flag not in ('b,m', 'm', 'm,v') or not isinstance(fifo, bool)
                 or not isinstance(hold_named, bool)
+                or not isinstance(hold_stock_child, bool)
                 or (hold_named and (flag != 'm,v' or not requires_load or trace_transports))
                 or (fifo and flag != 'm,v')
                 or not isinstance(trace_transports, list)
@@ -3082,10 +3203,13 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                 or (flag == 'm,v' and '--jobserver-style=pipe' not in held.model.args)):
             raise h.HarnessError('invalid remake debug model')
         seen.add((name, flag))
+        if hold_stock_child:
+            held = hold_stock_primary_child(held)
         stdout = row['stdout'].replace('@SPACE@', ' ').encode()
         prefixes = row['release_prefixes']
         primary = held.before_primary is not None
-        count = 1 + int(held.before_second is not None) + int(primary)
+        has_second_release = held.before_second is not None or held.stock_second_worker is not None
+        count = 1 + int(has_second_release) + int(primary)
         if (len(prefixes) != count or prefixes != sorted(prefixes)
                 or not 0 < prefixes[0] <= prefixes[-1] <= len(stdout)):
             raise h.HarnessError('invalid remake debug release prefixes')
@@ -3093,7 +3217,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                            for end, barrier in zip(prefixes, PRIMARY_BARRIERS, strict=True)):
             raise h.HarnessError('invalid named primary debug release barrier')
         first = prefixes[int(primary)]
-        second = prefixes[-1] if held.before_second is not None else None
+        second = prefixes[-1] if has_second_release else None
         second_trace = stdout[first:second] if second is not None else b''
         if trace_transports and (not second_trace or b'@BIN@' in second_trace
                                  or b'Using jobserver controller ' in second_trace):

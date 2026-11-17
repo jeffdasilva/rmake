@@ -123,6 +123,7 @@
       ],
       "smoke_stdout_hex": "3235350a677a697020696e746567726174696f6e207769746e6573730a",
       "source_url": "https://ftp.gnu.org/gnu/gzip/gzip-1.14.tar.gz",
+      "fallback_url": "https://mirrors.kernel.org/gnu/gzip/gzip-1.14.tar.gz",
       "archive_sha256": "613d6ea44f1248d7370c7ccdeee0dd0017a09e6c39de894b3c6f03f981191c6b",
       "topdir": "gzip-1.14",
       "license_file": "COPYING",
@@ -284,6 +285,39 @@
       "license_sha256": "bbfc9843646d483c334664f651c208b9839626891d8f17604db2146962f43548",
       "source_ref": "1_37_0",
       "license_note": "The upstream LICENSE is pinned by digest."
+    },
+    {
+      "id": "bzip2-1.0.8",
+      "source_url": "https://www.sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz",
+      "source_ref": "Signed bzip2 1.0.8 release, publisher key EC3CFE88F6CA0788774F5C1D1AA44BE649DE760A",
+      "archive_sha256": "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269",
+      "topdir": "bzip2-1.0.8",
+      "license_file": "LICENSE",
+      "license_sha256": "c6dbbf828498be844a89eaa3b84adbab3199e342eb5cb2ed2f0d4ba7ec0f38a3",
+      "license_note": "The upstream bzip2 LICENSE applies to the downloaded release sources.",
+      "args": [
+        "-j1",
+        "-rR",
+        "--no-print-directory",
+        "CC=/usr/bin/cc",
+        "CFLAGS=-O1 -g0 -D_FILE_OFFSET_BITS=64",
+        "LDFLAGS=-Wl,--build-id=none",
+        "AR=/usr/bin/ar",
+        "RANLIB=/usr/bin/ranlib"
+      ],
+      "target": "bzip2",
+      "header": "bzlib.c",
+      "watched": [
+        "bzlib.o",
+        "libbz2.a",
+        "bzip2"
+      ],
+      "smoke": [
+        "/bin/sh",
+        "-c",
+        "set -e\nprintf '%s\\n' 'bzip2 round trip from the rmake integration suite' > rmake-smoke.input\n./bzip2 -c rmake-smoke.input > rmake-smoke.bz2\n./bzip2 -dc rmake-smoke.bz2"
+      ],
+      "smoke_stdout_hex": "627a69703220726f756e6420747269702066726f6d2074686520726d616b6520696e746567726174696f6e2073756974650a"
     }
   ],
   "profiles": [
@@ -444,6 +478,23 @@
         "max_files": 8192,
         "max_total_bytes": 50331648
       }
+    },
+    {
+      "id": "bzip2-1.0.8-parallel-fifo",
+      "project": "bzip2-1.0.8",
+      "args": [
+        "-j4",
+        "--jobserver-style=fifo",
+        "-Otarget",
+        "-s",
+        "-rR",
+        "--no-print-directory",
+        "CC=/usr/bin/cc",
+        "CFLAGS=-O1 -g0 -D_FILE_OFFSET_BITS=64",
+        "LDFLAGS=-Wl,--build-id=none",
+        "AR=/usr/bin/ar",
+        "RANLIB=/usr/bin/ranlib"
+      ]
     }
   ],
   "phases": [

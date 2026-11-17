@@ -175,6 +175,9 @@ The 144 additional cases cover all three optional positions in a
 three-name tail and the pass boundary before a later required visit.
 Ninety-six further cases make both named sources optional and confirm
 the same touch policy through the first optional completion.
+Four cases also cover three named includes with two optional ones, where the
+required include comes first or in the middle. They check normal output and
+primary mode or deletion with and without a load limit.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
@@ -213,6 +216,9 @@ Five more held profiles test three or eight required names with `-j2`
 and a load limit. They verify the same release and completion effects.
 Six further profiles cover higher and unbounded job counts under load and
 no-load runs with two or unbounded slots.
+Six more profiles place a single optional include at either end of three
+named makefiles and compare release, restart, deletion, and file modes.
+Four more profiles place the optional include in the middle.
 
 ## Performance observation
 

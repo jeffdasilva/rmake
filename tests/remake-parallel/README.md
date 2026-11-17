@@ -24,6 +24,18 @@ required frame's diagnostic after its completion. Separate, implicit grouped,
 explicit grouped, and grouped double-colon targets all exercise this path.
 Each parallel profile runs with the pipe and FIFO jobserver.
 
+Sixteen unchanged grouped-source profiles authenticate two overlapping remake
+children with two or three job slots. Both recipes succeed without changing
+their source files. A read grouped peer causes one restart; a group with only
+its recipe owner read does not. Required and optional reads run under both
+jobserver transports, and the final recipe independently checks that all three
+source timestamps retain their exact initial nanoseconds.
+
+Sixteen separate implicit grouped profiles use a shared nonempty stem for the
+read owner and peer. They require the same authenticated overlap, one restart
+for a later read peer, and unchanged timestamp checks. Their identifiers begin
+with `implicit-grouped-unchanged`; explicit and implicit coverage stay separate.
+
 Run the standalone gate after bootstrapping the pinned GNU Make oracle.
 
 ```sh
@@ -70,7 +82,7 @@ required failure replay and the considered state after an early optional pass.
 Both jobserver transports are covered.
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 4,084 profiles. Leading `./` spellings share one target record and
+run all 4,141 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -113,7 +125,7 @@ visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 
-The 989 debug profiles check the entire debug trace and the exact trace prefix
+The 999 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging.
 The 303 authenticated FIFO traces check the controller path against the
@@ -142,7 +154,7 @@ is checked under dry-run, question and touch with both transports.
 
 The standard developer gates include these profiles. The selector runs
 the debug profiles that do not require the load shim. Add `--include-load`
-to include 287 basic and 426 verbose makefile traces with controlled load
+to include 297 basic and 426 verbose makefile traces with controlled load
 and held workers. Thirty-six basic and thirty-six verbose traces cover named
 includes under load. Four verbose profiles hold the named recipe until both
 active roots emit their pending traces.
