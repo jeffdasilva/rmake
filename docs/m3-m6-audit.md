@@ -153,8 +153,10 @@ single-colon rules have serial and held parallel cases. Grouped double-colon
 cases now cover read peers, real restarts, settled serial branch failures and
 the number of repeated verbose visits. Serial tests now also cover a failed
 grouped recipe whose read peer gets a newer timestamp, including a later recipe
-that restores the timestamp. Remaining cases include mixed optional and required
-sources without `-k`, and combinations with parallel scheduling and tracing.
+that restores the timestamp. A required peer with a single grouped declaration
+also retains the result of a failed optional makefile recipe seen earlier,
+including when `-k` is absent. More cases remain for duplicate peers, mixed
+failure policies, and parallel scheduling and tracing.
 
 Local jobserver acceptance also needs broader combinations of transports,
 recursive builds, restarts, loaded modules and resource pressure. Preserve the
