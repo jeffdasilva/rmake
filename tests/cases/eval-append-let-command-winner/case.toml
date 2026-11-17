@@ -1,0 +1,12 @@
+id = "eval-append-let-command-winner"
+requirement = "functions.eval"
+candidate = "required"
+description = "A command-line binding wins publication after the simple lexical suffix effect runs."
+provenance = "Original rmake fixture, independently authored against the pinned GNU Make 4.4.1 interface."
+args = ["-rR", "--no-print-directory", "V=command"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "outside=[command/command line/recursive]\nRHS=[local]\n"
+stderr = ""

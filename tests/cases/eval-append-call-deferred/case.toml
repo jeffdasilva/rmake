@@ -1,0 +1,12 @@
+id = "eval-append-call-deferred"
+requirement = "functions.eval"
+candidate = "required"
+description = "A deferred prerequisite expression appends from a call argument and leaves its local binding intact."
+provenance = "Original rmake fixture, independently authored against the pinned GNU Make 4.4.1 interface."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "inside=[input]\noutside=[input suffix/file/simple]\nRHS=[input]\n"
+stderr = ""
