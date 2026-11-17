@@ -141,8 +141,13 @@ Existing includes rewritten or removed by a successful serial grouped recipe
 are reread if their timestamp changes. Controls cover required and optional
 includes, query and dry-run, and a group whose recipe is up to date.
 Verbose serial controls check the first cached visit of a completed peer.
-GNU Make can also restart after a grouped recipe runs and leaves a read peer
-unchanged. That behavior remains open.
+A successful serial explicit grouped recipe also invalidates its other read
+peers when their files remain unchanged or missing. Fifteen original controls
+cover this restart, an explicitly empty recipe, required and optional reads,
+read order, recipe modes and verbose diagnostics. A group with only one read
+member, and an up-to-date group whose recipe is skipped, do not restart merely
+because they are grouped. This does not establish the corresponding parallel,
+implicit or grouped double-colon acceptance boundaries.
 An already loaded source retains its pre-remake file observation when an
 earlier serial recipe removes it. Controls cover unruled and explicitly ruled
 sources, empty rules, order-only and double-colon dependencies, and missing or
