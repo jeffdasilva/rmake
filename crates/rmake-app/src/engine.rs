@@ -9916,7 +9916,10 @@ impl Engine {
                         emit(&self.output, Event::RecentlyFailed(target, debug_depth));
                     } else if visit == BuildVisit::PrerequisiteAfterRecipe
                         || outcome.debug_serial_group_peer
+                        || (!self.remaking && !outcome.fatal && !outcome.question_outdated)
                     {
+                        // An ordinary visit introduces cached remake results
+                        // through the same consideration and failure policy.
                         self.debug_cached_prerequisite_visit(target, debug_depth, outcome);
                     } else {
                         let mask = self.output.debug_mask();

@@ -83,3 +83,14 @@ child cleanup.
 profiles. Forced status one stops the waiting prerequisite trace, including
 nested and double-colon parents. Controls cover `-k`, current children, and
 ordered directory reports when a sub-make reads an include.
+
+`remake-cache-phase.toml` checks twenty original cases where ordinary goals
+reuse results from the Makefile remake phase. They cover required and optional
+reads, unchanged remakes, restarts, named goals, and successful and failed
+prerequisites. Eight cases hold recipe workers at declared ordered boundaries
+across the reader and ordinary phases. The exact streams distinguish a first
+consideration from same-pass pruning and retain the failed-result diagnostic.
+Each case also checks child cleanup and the complete expected filesystem.
+
+Four controls enable verbose output during an ordinary traversal. They check
+quiet same-pass pruning alongside child execution and make-function file writes.
