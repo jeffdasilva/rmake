@@ -178,6 +178,9 @@ the same touch policy through the first optional completion.
 Four cases also cover three named includes with two optional ones, where the
 required include comes first or in the middle. They check normal output and
 primary mode or deletion with and without a load limit.
+Four more cases put both optional includes before the required include.
+The high-load touch cases check that the earlier queued include resumes
+at the second optional pass, before the final named include.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an

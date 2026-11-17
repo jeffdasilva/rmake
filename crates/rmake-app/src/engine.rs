@@ -3344,7 +3344,9 @@ impl Engine {
                     || (final_named_sources.len() == 3 && optional_named_sources == 1));
             let ordinary_two_optional_touch = debug_before_remake.bits() == Mask::NONE.bits()
                 && optional_named_sources == 2
-                && matches!(final_named_sources, [_, _, (last, _)] if last.optional);
+                && final_named_sources.len() == 3;
+            let optional_pair_before_required = ordinary_two_optional_touch
+                && matches!(final_named_sources, [_, _, (last, _)] if !last.optional);
             let final_named_touch = modes.touch
                 && !final_named_sources.is_empty()
                 && (optional_named_sources <= 1
@@ -3945,14 +3947,20 @@ impl Engine {
                         if visit_modes.touch && physically_changed {
                             touched_optional_remakes.insert(name);
                         }
-                        // Keep the optional mode through the primary continuation.
-                        // Admit the earlier unnamed job after restoring ordinary mode.
+                        // Delay the earlier unnamed include through the primary continuation.
+                        // A second optional include can refill that slot before the required
+                        // tail once the primary has finished.
                         let defer_load_refill = mixed_named_overlap
                             && (final_named_touch || (read_files.len() == 4 && source_index == 2))
                             && visit_modes.touch
                             && pending.iter().any(|request| {
                                 request.file.location.is_some() && !request.modes.active()
-                            });
+                            })
+                            && !(optional_pair_before_required
+                                && limited_load
+                                && !visit_modes.question
+                                && source_index + 2 == read_files.len()
+                                && !self.pending(&read_files[0].0.name));
                         (pass_reaps, pass_progress) =
                             self.settle_optional_remake_pass(pass_progress, defer_load_refill);
                         if optional_named_load
