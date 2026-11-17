@@ -1,7 +1,7 @@
 # Test real-project builds
 
-The integration suite compares GNU Make 4.4.1 and rmake on **16 pinned profiles
-across nine projects**. Each profile uses the project's own Makefiles and
+The integration suite compares GNU Make 4.4.1 and rmake on **18 pinned profiles
+across ten projects**. Each profile uses the project's own Makefiles and
 checks a specific build configuration. The
 [manifest](../tests/integration/projects.json) is the authority for source
 identities, arguments, watched files and expected executable output.
@@ -60,6 +60,8 @@ All profiles use the C locale and the manifest's compiler and environment inputs
 | `busybox-1.37.0-executable` | `allnoconfig`, then `busybox`, serial | Minimal executable configuration, build, no-op, rebuild and printf result. |
 | `bzip2-1.0.8` | `bzip2`, serial | Static library and executable rebuild after editing a C source, then a compression round trip. |
 | `bzip2-1.0.8-parallel-fifo` | `bzip2`, four FIFO slots, target synchronization | The same build and file checks with parallel recipes. |
+| `sed-4.10` | `all`, serial | Recursive build, generated version rebuild, and text transformation. |
+| `sed-4.10-parallel-fifo` | `all`, four FIFO slots, recursive synchronization | The same build and exact recursive announcements with parallel recipes. |
 
 ### xxHash and zlib
 
@@ -120,6 +122,18 @@ must rebuild both outputs. The fresh and rebuilt executables report their
 respective versions and execute a small original Makefile from stdin. Here the
 built GNU executable is an integration output checked by the suite. The parallel
 profile also compares the `lib`, `po` and `doc` announcements.
+
+### GNU sed
+
+[GNU sed 4.10](https://lists.gnu.org/archive/html/info-gnu/2026-04/msg00009.html)
+uses the upstream `all` target after configuration. Both profiles watch
+`sed/version.o`, `sed/libver.a`, and `sed/sed`. The no-op preserves all three
+timestamps. Changing `PACKAGE_VERSION` in the configured Makefile must
+regenerate the version source and rebuild the outputs. The fresh and rebuilt
+executables must report their expected versions and perform the same
+substitutions on an independent input. Both profiles check the build's exact
+recursive announcements. The source archive matches the published SHA-256 and
+the signature from key `155D3FC500C834486D1EEA677FD9FCCB000BEEEE`.
 
 ### Zstandard and BusyBox
 

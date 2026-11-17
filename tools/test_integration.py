@@ -29,7 +29,7 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(data['schema_version'], 1)
         self.assertEqual({p['id'] for p in data['projects']},
                          {'xxhash-0.8.3', 'zlib-1.3.2', 'lua-5.4.9', 'gzip-1.14', 'patch-2.8',
-                          'gnu-make-4.4.1', 'zstd-1.5.7', 'busybox-1.37.0', 'bzip2-1.0.8'})
+                          'gnu-make-4.4.1', 'zstd-1.5.7', 'busybox-1.37.0', 'bzip2-1.0.8', 'sed-4.10'})
         make = next(p for p in data['projects'] if p['id'] == 'gnu-make-4.4.1')
         archive = i.oracle.load_config()['archive']
         self.assertEqual((make['source_url'], make['archive_sha256'], make['topdir']),
@@ -82,6 +82,20 @@ class IntegrationTests(unittest.TestCase):
             bad = dict(plan['profiles'][0], id=name)
             with self.assertRaisesRegex(h.HarnessError, 'profile identifier'):
                 i.project_profiles(dict(plan, profiles=[bad]))
+
+    def test_sed_profiles_check_generated_version_and_fifo_build(self):
+        cases = i.project_profiles(json.loads(i.MANIFEST.read_text()))
+        serial, source = cases['sed-4.10']
+        parallel, pinned = cases['sed-4.10-parallel-fifo']
+        self.assertIs(serial, source)
+        self.assertIs(pinned, source)
+        self.assertEqual(serial['header'], 'Makefile')
+        self.assertEqual(parallel['args'][:3],
+                         ['-j4', '--jobserver-style=fifo', '--output-sync=recurse'])
+        self.assertEqual(parallel['watched'], ['sed/version.o', 'sed/libver.a', 'sed/sed'])
+        self.assertEqual(parallel['expected_build_stdout_hex'], serial['expected_build_stdout_hex'])
+        self.assertNotEqual(serial['smoke_stdout_hex'],
+                            serial['header_rebuild']['fresh_smoke_stdout_hex'])
 
     def test_shared_zlib_profile_uses_the_pinned_archive_and_safe_install(self):
         plan = json.loads(i.MANIFEST.read_text())
