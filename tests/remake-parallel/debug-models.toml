@@ -23948,3 +23948,371 @@ Must remake target 'all'.
 touch all
 Successfully remade target file 'all'.
 '''
+
+[[profiles]]
+case = "load-stock-primary-three-mixed-last-adjacent-2-t-pipe-high-3-slots"
+named_count = 3
+flag = "b,m"
+requires_load = true
+release_prefixes = [903]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+  File 'leaf.mk' does not exist.
+ Must remake target 'leaf.mk'.
+  File 'child.mk' does not exist.
+ Must remake target 'child.mk'.
+touch child.mk
+ Successfully remade target file 'child.mk'.
+  File 'extra.mk' does not exist.
+ Must remake target 'extra.mk'.
+touch extra.mk
+ Successfully remade target file 'extra.mk'.
+  File 'tail.mk' does not exist.
+ Must remake target 'tail.mk'.
+touch tail.mk
+ Successfully remade target file 'tail.mk'.
+touch Makefile
+touch Makefile
+Re-executing[1]: @BIN@ --no-print-directory -j3 -l2 --jobserver-style=pipe -t child.mk extra.mk tail.mk --debug=b,m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'child.mk' is up to date.
+make: 'extra.mk' is up to date.
+make: 'tail.mk' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-three-mixed-last-adjacent-2-qt-fifo-high-4-slots-3-named"
+flag = "b,m"
+requires_load = true
+release_prefixes = [903]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+  File 'leaf.mk' does not exist.
+ Must remake target 'leaf.mk'.
+  File 'child.mk' does not exist.
+ Must remake target 'child.mk'.
+touch child.mk
+ Successfully remade target file 'child.mk'.
+  File 'extra.mk' does not exist.
+ Must remake target 'extra.mk'.
+touch extra.mk
+ Successfully remade target file 'extra.mk'.
+  File 'tail.mk' does not exist.
+ Must remake target 'tail.mk'.
+touch tail.mk
+ Successfully remade target file 'tail.mk'.
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-three-mixed-last-adjacent-2-nt-fifo-high-unbounded"
+named_count = 8
+flag = "b,m"
+requires_load = true
+release_prefixes = [1533]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+  File 'leaf.mk' does not exist.
+ Must remake target 'leaf.mk'.
+  File 'child.mk' does not exist.
+ Must remake target 'child.mk'.
+touch child.mk
+ Successfully remade target file 'child.mk'.
+  File 'extra.mk' does not exist.
+ Must remake target 'extra.mk'.
+touch extra.mk
+ Successfully remade target file 'extra.mk'.
+  File 'tail.mk' does not exist.
+ Must remake target 'tail.mk'.
+touch tail.mk
+ Successfully remade target file 'tail.mk'.
+  File 'tail2.mk' does not exist.
+ Must remake target 'tail2.mk'.
+touch tail2.mk
+ Successfully remade target file 'tail2.mk'.
+  File 'tail3.mk' does not exist.
+ Must remake target 'tail3.mk'.
+touch tail3.mk
+ Successfully remade target file 'tail3.mk'.
+  File 'tail4.mk' does not exist.
+ Must remake target 'tail4.mk'.
+touch tail4.mk
+ Successfully remade target file 'tail4.mk'.
+  File 'tail5.mk' does not exist.
+ Must remake target 'tail5.mk'.
+touch tail5.mk
+ Successfully remade target file 'tail5.mk'.
+  File 'tail6.mk' does not exist.
+ Must remake target 'tail6.mk'.
+touch tail6.mk
+ Successfully remade target file 'tail6.mk'.
+touch Makefile
+touch Makefile
+Re-executing[1]: @BIN@ --no-print-directory -j -l2 --jobserver-style=fifo -n -t child.mk extra.mk tail.mk tail2.mk tail3.mk tail4.mk tail5.mk tail6.mk --debug=b,m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'child.mk' does not exist.
+ Must remake target 'child.mk'.
+touch child.mk
+ Successfully remade target file 'child.mk'.
+  File 'extra.mk' does not exist.
+ Must remake target 'extra.mk'.
+touch extra.mk
+ Successfully remade target file 'extra.mk'.
+  File 'tail.mk' does not exist.
+ Must remake target 'tail.mk'.
+touch tail.mk
+ Successfully remade target file 'tail.mk'.
+  File 'tail2.mk' does not exist.
+ Must remake target 'tail2.mk'.
+touch tail2.mk
+ Successfully remade target file 'tail2.mk'.
+  File 'tail3.mk' does not exist.
+ Must remake target 'tail3.mk'.
+touch tail3.mk
+ Successfully remade target file 'tail3.mk'.
+  File 'tail4.mk' does not exist.
+ Must remake target 'tail4.mk'.
+touch tail4.mk
+ Successfully remade target file 'tail4.mk'.
+  File 'tail5.mk' does not exist.
+ Must remake target 'tail5.mk'.
+touch tail5.mk
+ Successfully remade target file 'tail5.mk'.
+  File 'tail6.mk' does not exist.
+ Must remake target 'tail6.mk'.
+touch tail6.mk
+ Successfully remade target file 'tail6.mk'.
+Updating goal targets....
+make: 'child.mk' is up to date.
+make: 'extra.mk' is up to date.
+make: 'tail.mk' is up to date.
+make: 'tail2.mk' is up to date.
+make: 'tail3.mk' is up to date.
+make: 'tail4.mk' is up to date.
+make: 'tail5.mk' is up to date.
+make: 'tail6.mk' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-three-mixed-last-adjacent-2-nqt-pipe-low-unbounded"
+named_count = 3
+flag = "b,m"
+requires_load = true
+release_prefixes = [917]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+  File 'leaf.mk' does not exist.
+ Must remake target 'leaf.mk'.
+  File 'child.mk' does not exist.
+ Must remake target 'child.mk'.
+touch child.mk
+ Successfully remade target file 'child.mk'.
+  File 'extra.mk' does not exist.
+ Must remake target 'extra.mk'.
+touch extra.mk
+ Successfully remade target file 'extra.mk'.
+  File 'tail.mk' does not exist.
+ Must remake target 'tail.mk'.
+touch tail.mk
+ Successfully remade target file 'tail.mk'.
+touch leaf.mk
+chmod a+x Makefile
+Re-executing[1]: @BIN@ --no-print-directory -j -l2 --jobserver-style=pipe -n -q -t child.mk extra.mk tail.mk --debug=b,m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  File 'child.mk' does not exist.
+ Must remake target 'child.mk'.
+touch child.mk
+ Successfully remade target file 'child.mk'.
+  File 'extra.mk' does not exist.
+ Must remake target 'extra.mk'.
+touch extra.mk
+ Successfully remade target file 'extra.mk'.
+  File 'tail.mk' does not exist.
+ Must remake target 'tail.mk'.
+touch tail.mk
+ Successfully remade target file 'tail.mk'.
+Updating goal targets....
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-three-mixed-last-adjacent-2-t-pipe-no-load-2-slots-3-named"
+flag = "b,m"
+requires_load = true
+release_prefixes = [917]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+  File 'leaf.mk' does not exist.
+ Must remake target 'leaf.mk'.
+  File 'child.mk' does not exist.
+ Must remake target 'child.mk'.
+touch child.mk
+ Successfully remade target file 'child.mk'.
+  File 'extra.mk' does not exist.
+ Must remake target 'extra.mk'.
+touch extra.mk
+ Successfully remade target file 'extra.mk'.
+  File 'tail.mk' does not exist.
+ Must remake target 'tail.mk'.
+touch tail.mk
+ Successfully remade target file 'tail.mk'.
+touch leaf.mk
+chmod a+x Makefile
+Re-executing[1]: @BIN@ --no-print-directory -j2 --jobserver-style=pipe -t child.mk extra.mk tail.mk --debug=b,m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'child.mk' is up to date.
+make: 'extra.mk' is up to date.
+make: 'tail.mk' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''
+
+[[profiles]]
+case = "load-stock-primary-three-mixed-last-adjacent-2-t-fifo-no-load-unbounded"
+named_count = 3
+flag = "b,m"
+requires_load = true
+release_prefixes = [917]
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+  Prerequisite 'Makefile.sh' is newer than target 'Makefile'.
+ Must remake target 'Makefile'.
+cat Makefile.sh >Makefile@SPACE@
+  File 'leaf.mk' does not exist.
+ Must remake target 'leaf.mk'.
+  File 'child.mk' does not exist.
+ Must remake target 'child.mk'.
+touch child.mk
+ Successfully remade target file 'child.mk'.
+  File 'extra.mk' does not exist.
+ Must remake target 'extra.mk'.
+touch extra.mk
+ Successfully remade target file 'extra.mk'.
+  File 'tail.mk' does not exist.
+ Must remake target 'tail.mk'.
+touch tail.mk
+ Successfully remade target file 'tail.mk'.
+touch leaf.mk
+chmod a+x Makefile
+Re-executing[1]: @BIN@ --no-print-directory -j --jobserver-style=fifo -t child.mk extra.mk tail.mk --debug=b,m all
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Updating makefiles....
+Updating goal targets....
+make: 'child.mk' is up to date.
+make: 'extra.mk' is up to date.
+make: 'tail.mk' is up to date.
+ File 'all' does not exist.
+Must remake target 'all'.
+touch all
+Successfully remade target file 'all'.
+'''

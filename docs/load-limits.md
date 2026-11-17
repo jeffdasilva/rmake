@@ -211,6 +211,8 @@ primary-worker release, Makefile mode or deletion, restart output, and final
 goal effects across touch, question, and dry-run combinations.
 Five more held profiles test three or eight required names with `-j2`
 and a load limit. They verify the same release and completion effects.
+Six further profiles cover higher and unbounded job counts under load and
+no-load runs with two or unbounded slots.
 
 ## Performance observation
 
