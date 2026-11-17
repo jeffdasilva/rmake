@@ -92,6 +92,7 @@ BENCH_SUITE ?= core
 BENCH_REPEAT ?= 15
 BENCH_VALIDATE ?= 0
 BENCH_BASELINE ?=
+BENCH_REPORT ?=
 SEED ?= 44101
 GENERATED_CASES ?= 200
 EXPRESSIONS ?= 32
@@ -274,6 +275,7 @@ help:
 		'Whitespace replay: WHITESPACE_CASE=<case ID>.' \
 		'Word index replay: WORD_INDEX_CASE=<case ID>.' \
 		'Wildcard overrides: WILDCARD_SEED, WILDCARD_CASES, WILDCARD_EXPRESSIONS, START_INDEX.' \
+		'Set BENCH_REPORT to save benchmark JSON to a specific path.' \
 		'Benchmark suite: BENCH_SUITE=core|startup-arguments|include-operands|literal-chains|text-frames|linear-leaves|function-bodies|deep-appends|nested-evals|runtime-includes|runtime-arguments|builtin-transitions|word-spans|wildcard|bindings|implicit-search|parallel-branches|target-contexts|archives|archive-sequences|vpath-search|secondary|implicit-rejections|gpath|intermediates|lazy-records|vpath-records|directory-search|archive-names|symlink-times|rule-filenames|rule-tilde|libraries|all.' \
 		'Benchmark samples per engine: BENCH_REPEAT=15 (3-1000).' \
 		'Integer overrides: INTCMP_SEED, INTCMP_CASES, INTCMP_EXPRESSIONS, START_INDEX.' \
@@ -917,7 +919,7 @@ test-m4-release: test-resource-fd-fifo-failure-release
 ci: check test-selfhost
 
 bench: oracle-verify
-	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)$(if $(filter 1,$(BENCH_VALIDATE)), --validate-only)
+	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)$(if $(filter 1,$(BENCH_VALIDATE)), --validate-only)$(if $(BENCH_REPORT), --output "$(BENCH_REPORT)")
 
 profile-allocations:
 	+CARGO_TARGET_DIR="$(CURDIR)/artifacts/profile/target" RUSTFLAGS="-C debuginfo=1 -C force-frame-pointers=yes" $(CARGO) build --workspace --release --locked
@@ -928,7 +930,7 @@ profile-allocations-frozen:
 
 
 bench-compare: release oracle-verify
-	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)" $(if $(BENCH_BASELINE),--baseline "$(BENCH_BASELINE)") --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)$(if $(filter 1,$(BENCH_VALIDATE)), --validate-only)
+	$(PYTHON) tools/benchmark.py --oracle "$(ORACLE)" --candidate "$(BENCH_CANDIDATE)" $(if $(BENCH_BASELINE),--baseline "$(BENCH_BASELINE)") --suite "$(BENCH_SUITE)" --repeat "$(BENCH_REPEAT)" --locale "$(BENCH_LOCALE)" $(if $(BENCH_LOCPATH),--locale-path "$(BENCH_LOCPATH)") $(if $(filter 1,$(BENCH_SILENT)),--silent)$(if $(filter 1,$(BENCH_VALIDATE)), --validate-only)$(if $(BENCH_REPORT), --output "$(BENCH_REPORT)")
 
 clean:
 	+$(CARGO) clean

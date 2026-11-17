@@ -1,69 +1,69 @@
-# Linux shared jobservers
+# Share parallel jobs across recursive builds
 
-Finite `-jN` pools now create a shared jobserver, using a FIFO by default or
-`--jobserver-style=pipe`. Recursive rmake and GNU Make processes can join one
-pool in either direction. MAKEFLAGS carries `-j` and the current authentication;
-explicit child job options reset inherited mode, with GNU's warning. Unavailable
-inherited servers fall back to one job. Unlimited `-j` remains unlimited.
+Run `rmake -j4` to allow up to four concurrent jobs. When a recipe invokes
+another Make process using `$(MAKE)`, the parent and child can share that slot
+limit. rmake and GNU Make can take either role in the build.
 
-Each process has its implicit slot, inherited from its parent command. Every
-additional active target must acquire one byte from the shared server. A
-non-cloneable permit stays with the complete recipe continuation, including
-ignored failures and recursive commands. Normal completion, fatal expansion,
-launch failures and unignored errors release held permits. Token return errors
-are reported. The original acquired byte is returned, supporting external
-clients whose tokens have distinct byte values.
+```sh
+rmake -j4
+rmake -j4 --jobserver-style=pipe
+```
 
-The interpreter owns pool decisions and permits. Each command has one owned
-child and one reaper. Child readiness and token availability wake a Linux event
-loop; no waiter-thread/server-reference teardown can race final FIFO cleanup. Owned FIFOs have private
-permissions, are never created over existing files, and are unlinked only while
-the path still identifies the created FIFO. Borrowed resources are not unlinked.
-FIFO authentication rejects regular files and symlinks without writing to them.
+The FIFO jobserver is the default on Linux. Use the pipe option when a
+cooperating process expects the pipe transport. Unlimited `-j` has no slot
+limit. See [parallel execution](https://www.gnu.org/software/make/manual/html_node/Parallel.html)
+and [the POSIX jobserver protocol](https://www.gnu.org/software/make/manual/html_node/POSIX-Jobserver.html)
+in the GNU Make manual for the public options and protocol.
 
-Pipe protocol descriptors are close-on-exec except for recursive/forced commands.
-The Linux adapter retains their ownership for each configured Command's lifetime
-and makes only async-signal-safe descriptor operations in pre-exec callbacks.
-Its separate nonblocking reader uses `/proc/self/fd`, preserving the blocking
-flags shared with GNU clients. All unsafe operations remain inside the reviewed
-Linux effect adapter; the application and semantic crates keep `unsafe_code =
-forbid`. Pipe mode requires procfs. Very large requested pools can fail when token
-initialization exceeds available pipe capacity; they cannot block initialization
-indefinitely. External token availability and child completion are polled together,
-so normal token return has no fixed polling delay. Kernels without pidfd support
-retain uniquely owned children and use a bounded readiness fallback.
+## Recursive invocation
 
-`make test-jobserver` runs the original mixed-engine campaign and is part of CI.
-Three repetitions cover FIFO and pipe transports, all four GNU/rmake parent/child
-combinations, success and recursive failure with keep-going, borrowed pools and
-token restoration. A lock-protected counter spans all six worker recipes, requires
-three concurrent jobs, rejects oversubscription, and must return to zero. Separate
-file/output anchors reject matching but incorrect engines. Exact bytes, statuses
-and filesystem snapshots are compared with GNU baselines; temporary resources
-must be gone. There are 61 recorded checks, including an additional candidate
-sentinel-byte preservation probe. GNU controls use its normal `+` tokens: the
-4.4.1 executable replaces distinctive borrowed token bytes with `+`, so that
-additional preservation probe is a safety/protocol check, not a GNU-equivalence
-claim. Reports retain binary/profile identities, fixture hashes and observations.
-These are trusted fixtures with process containment, not a security sandbox.
+`MAKEFLAGS` passes job slots and authentication to children. A child with an
+explicit job count chooses its own pool and prints the GNU-compatible warning.
+If a child cannot use its inherited pool, it falls back to one job.
+With the pipe transport, Make passes the live descriptors to recursive or
+forced recipes. The GNU manual explains
+[how to invoke Make recursively](https://www.gnu.org/software/make/manual/html_node/MAKE-Variable.html)
+and [how tools share job slots](https://www.gnu.org/software/make/manual/html_node/Job-Slots.html).
 
-Fifteen additional differential fixtures exercise client access, recursive and
-ordinary pipe descriptor inheritance, recursive mode resets, unavailable-server
-fallback and diagnostics. Six Linux adapter tests cover token ownership,
-distinctive-byte restoration, resource lifetime/replacement, invalid inputs,
-symlinks, regular files and recursive descriptor lifetime; a CLI test covers
-transport/reset decoding. Three tooling tests protect independent campaign
-anchors. The corpus now has 2,116 cases: 2,103 required and 13 pending.
+## Run the jobserver tests
 
-[Signal shutdown](runtime-signals.md) now covers forwarding, changed-target
-cleanup, cancelled continuations and exit-signal identity. Borrowed FIFO/pipe
-campaigns check all original token bytes and resource identity during active,
-load-queued and token-blocked shutdown. GNU 4.4.1 loses acquired borrowed tokens
-on fatal exit; rmake deliberately returns them. Output synchronization and
-broader dynamic interruption combinations still need their full M5 gates.
+From the repository root, run the mixed-engine comparisons.
 
-Incoming pipe authentication also verifies that the reopened read and write
-ends identify the same FIFO/pipe object before changing inherited FD flags or
-using the server. Distinct valid pipes are not a valid pair; they produce the
-unavailable-server fallback without consuming or redirecting tokens. The invalid
-authentication regression now checks mismatched pairs and intact original pools.
+```sh
+make bootstrap
+make test-jobserver
+```
+
+The campaign uses both transports and all four parent and child engine pairings.
+A counter spans six recipe workers, checks that three can run together, rejects
+oversubscription, and must finish at zero. The campaign also covers recursive
+failure with keep-going, borrowing a pool, and returning tokens.
+
+The gate compares exact streams, statuses, and final filesystem observations.
+It checks child cleanup and temporary FIFO cleanup. Its 61 recorded checks
+include an independent rmake control for preserving distinctly valued tokens.
+GNU 4.4.1 returns `+` for those tokens, so the control records rmake's token
+preservation policy separately. See the [testing guide](testing.md) for
+replay and report details.
+
+## Linux resource ownership
+
+A process has one implicit slot. Additional running targets acquire one byte
+each from the shared server. The owned permit stays with a recipe through
+continuations and recursive commands. The adapter returns the acquired byte
+after completion or a handled failure. Borrowed pools keep their existing
+identity and are never unlinked. The Linux adapter creates a private FIFO
+and removes it only if the path still names that FIFO.
+
+Pipe mode uses procfs to open a nonblocking reader while preserving the blocking
+flags shared with GNU clients. It verifies that both inherited descriptors
+refer to the same pipe before using them. Child completion and token arrival
+both wake the event loop. Linux systems without pidfd support use bounded
+readiness polling, and very large pools can exceed pipe capacity during
+initialization.
+
+[Signal shutdown](runtime-signals.md) documents cancellation, changed-target
+cleanup, and token behavior on interruption. GNU 4.4.1 can lose acquired
+borrowed tokens on fatal exit. rmake returns those tokens during its handled
+shutdown path. The [compatibility audit](m3-m6-audit.md) tracks remaining
+resource and recursive jobserver combinations.
