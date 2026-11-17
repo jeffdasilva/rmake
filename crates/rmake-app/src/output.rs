@@ -201,7 +201,9 @@ impl Controller {
     fn dump_frame(&self, entering: bool, active: &mut bool) {
         if entering {
             self.start();
-            *active = self.mode().root_buffered()
+            // A retained spool still owns its frame after a live -Onone.
+            // Recurse mode alone leaves that frame to the process owner.
+            *active = self.mode() != Mode::Recurse
                 && self.0.directory_trace.get() != ProcessTrace::Closed
                 && self.should_report_directory();
         }
@@ -680,6 +682,29 @@ mod directory_tests {
         output.start();
         output.process_lifetime().finish();
         assert_eq!(output.0.directory_trace.get(), ProcessTrace::Closed);
+    }
+
+    #[test]
+    fn retained_spool_frames_survive_live_none_and_observe_current_policy() {
+        let output = Controller::new(Mode::Target, b"make");
+        output.set_directory_policy(DirectoryChoice::On, false);
+        output.set_mode(Mode::None);
+        let mut framed = false;
+        output.dump_frame(true, &mut framed);
+        assert!(framed);
+        assert_eq!(output.0.directory_trace.get(), ProcessTrace::Entered);
+        output.set_directory_policy(DirectoryChoice::Off, false);
+        output.dump_frame(false, &mut framed);
+        output.dump_frame(true, &mut framed);
+        assert!(!framed);
+        output.set_directory_policy(DirectoryChoice::On, false);
+        output.set_mode(Mode::Recurse);
+        output.dump_frame(true, &mut framed);
+        assert!(!framed);
+        output.set_mode(Mode::None);
+        output.process_lifetime().finish();
+        output.dump_frame(true, &mut framed);
+        assert!(!framed);
     }
 
     #[test]
