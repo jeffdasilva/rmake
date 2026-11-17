@@ -332,7 +332,7 @@ impl Engine {
         let outcome = if let Some(key) = &branch_key {
             self.database_branch_outcomes.get(key)
         } else {
-            self.done.get(name)
+            self.file_traversals.outcome(name)
         };
         let observed = self.path_observations.get(name);
         let times = self.database_times.borrow();
@@ -346,7 +346,7 @@ impl Engine {
                 self.database_branch_outcomes
                     .contains_key(&(name.to_vec(), branches.len() - 1))
             })
-            .and_then(|_| self.done.get(name));
+            .and_then(|_| self.file_traversals.outcome(name));
         let timestamp_outcome = shared_time.or(outcome);
         let peer_time =
             branch.and_then(|ordinal| self.database_group_peer_times.get(name)?.get(ordinal));
@@ -706,8 +706,8 @@ mod tests {
         engine
             .database_remake_started
             .insert(b"missing.mk".to_vec());
-        engine.done.insert(
-            b"missing.mk".to_vec(),
+        engine.file_traversals.set_outcome(
+            b"missing.mk",
             Outcome {
                 failed: true,
                 ..Outcome::default()

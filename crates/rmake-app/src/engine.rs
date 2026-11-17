@@ -698,8 +698,161 @@ struct FileVisit {
     quiet_consideration: Option<NonZeroU64>,
 }
 
+// Scope is established before expansion. An update result can be
+// cleared without forgetting that first visit.
+#[derive(Default)]
+struct FileTraversal {
+    visit: Option<FileVisit>,
+    outcome: Option<Outcome>,
+}
+
+enum FileTraversals {
+    // A small build can finish after processing its Makefile and one goal.
+    Inline([Option<(Vec<u8>, FileTraversal)>; 2]),
+    Map(HashMap<Vec<u8>, FileTraversal>),
+}
+
+impl Default for FileTraversals {
+    fn default() -> Self {
+        Self::Inline([None, None])
+    }
+}
+
+impl FileTraversals {
+    fn record(&self, name: &[u8]) -> Option<&FileTraversal> {
+        match self {
+            Self::Inline(entries) => entries
+                .iter()
+                .flatten()
+                .find_map(|(key, record)| (key == name).then_some(record)),
+            Self::Map(entries) => entries.get(name),
+        }
+    }
+
+    fn record_mut(&mut self, name: &[u8]) -> Option<&mut FileTraversal> {
+        match self {
+            Self::Inline(entries) => entries
+                .iter_mut()
+                .flatten()
+                .find_map(|(key, record)| (key.as_slice() == name).then_some(record)),
+            Self::Map(entries) => entries.get_mut(name),
+        }
+    }
+
+    fn record_or_insert(&mut self, name: &[u8]) -> &mut FileTraversal {
+        if let Self::Inline(entries) = &*self {
+            let position = entries
+                .iter()
+                .position(|entry| entry.as_ref().is_some_and(|(key, _)| key == name))
+                .or_else(|| entries.iter().position(Option::is_none));
+            if let Some(position) = position {
+                let Self::Inline(entries) = self else {
+                    unreachable!()
+                };
+                return &mut entries[position]
+                    .get_or_insert_with(|| (name.to_vec(), FileTraversal::default()))
+                    .1;
+            }
+            let Self::Inline(entries) = std::mem::take(self) else {
+                unreachable!()
+            };
+            *self = Self::Map(entries.into_iter().flatten().collect());
+        }
+        let Self::Map(entries) = self else {
+            unreachable!()
+        };
+        entries.entry(name.to_vec()).or_default()
+    }
+
+    fn remove_record(&mut self, name: &[u8]) {
+        match self {
+            Self::Inline(entries) => {
+                if let Some(entry) = entries
+                    .iter_mut()
+                    .find(|entry| entry.as_ref().is_some_and(|(key, _)| key == name))
+                {
+                    *entry = None;
+                }
+            }
+            Self::Map(entries) => {
+                entries.remove(name);
+            }
+        }
+    }
+
+    fn visit(&self, name: &[u8]) -> Option<&FileVisit> {
+        self.record(name)?.visit.as_ref()
+    }
+
+    fn remember_visit(
+        &mut self,
+        name: &[u8],
+        make_visit: impl FnOnce() -> FileVisit,
+    ) -> &mut FileVisit {
+        self.record_or_insert(name)
+            .visit
+            .get_or_insert_with(make_visit)
+    }
+
+    fn outcome(&self, name: &[u8]) -> Option<&Outcome> {
+        self.record(name)?.outcome.as_ref()
+    }
+
+    fn outcome_mut(&mut self, name: &[u8]) -> Option<&mut Outcome> {
+        self.record_mut(name)?.outcome.as_mut()
+    }
+
+    fn clear_recipe_activity(&mut self) {
+        let clear = |record: &mut FileTraversal| {
+            if let Some(outcome) = &mut record.outcome {
+                outcome.ran = false;
+            }
+        };
+        match self {
+            Self::Inline(entries) => entries
+                .iter_mut()
+                .flatten()
+                .for_each(|(_, record)| clear(record)),
+            Self::Map(entries) => entries.values_mut().for_each(clear),
+        }
+    }
+
+    fn has_outcome(&self, name: &[u8]) -> bool {
+        self.outcome(name).is_some()
+    }
+
+    fn set_outcome(&mut self, name: &[u8], outcome: Outcome) {
+        if let Some(record) = self.record_mut(name) {
+            record.outcome = Some(outcome);
+        } else {
+            self.record_or_insert(name).outcome = Some(outcome);
+        }
+    }
+
+    fn remove_outcome(&mut self, name: &[u8]) -> Option<Outcome> {
+        let record = self.record_mut(name)?;
+        let result = record.outcome.take();
+        if record.visit.is_none() {
+            self.remove_record(name);
+        }
+        result
+    }
+
+    fn rename_visit(&mut self, from: &[u8], to: &[u8]) {
+        let Some(record) = self.record_mut(from) else {
+            return;
+        };
+        if let Some(visit) = record.visit.take() {
+            if record.outcome.is_none() {
+                self.remove_record(from);
+            }
+            self.remember_visit(to, || visit);
+        }
+    }
+}
+
 struct TargetReads<'a> {
-    visits: &'a HashMap<Vec<u8>, FileVisit>,
+    visits: &'a FileTraversals,
     retained_parents: &'a HashMap<Vec<u8>, ScopeParent<Vec<u8>>>,
     aliases: &'a Aliases,
     base: &'a HashMap<Vec<u8>, VariableStore>,
@@ -722,7 +875,7 @@ impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
     }
 
     fn parent(&self, target: &[u8]) -> Option<Option<ScopeParent<&[u8]>>> {
-        self.visits.get(target).map(|visit| {
+        self.visits.visit(target).map(|visit| {
             visit
                 .parent
                 .as_ref()
@@ -1188,14 +1341,13 @@ pub struct Engine {
     makelevel: u32,
     inherited_exports: HashSet<Vec<u8>>,
     command_replay: bool,
-    done: HashMap<Vec<u8>, Outcome>,
     #[allow(clippy::box_collection)]
     debug_considered: Option<Box<HashSet<Vec<u8>>>>,
     recipe_reaps: u64,
     commands_started: u64,
     debug_pass: u64,
     visiting: HashSet<Vec<u8>>,
-    file_visits: HashMap<Vec<u8>, FileVisit>,
+    file_traversals: FileTraversals,
     // A later encounter affects declarations that revisit a completed file.
     // Its first traversal context still owns the recipe and diagnostics.
     retained_scope_parents: HashMap<Vec<u8>, ScopeParent<Vec<u8>>>,
@@ -1772,13 +1924,12 @@ impl Engine {
             makelevel,
             inherited_exports,
             command_replay,
-            done: HashMap::new(),
             debug_considered: None,
             recipe_reaps: 0,
             commands_started: 0,
             debug_pass: 0,
             visiting: HashSet::new(),
-            file_visits: HashMap::new(),
+            file_traversals: FileTraversals::default(),
             retained_scope_parents: HashMap::new(),
             target_contexts: HashMap::new(),
             implicit_scopes: HashMap::new(),
@@ -1895,7 +2046,7 @@ impl Engine {
     ) -> T {
         let warnings = mute_undefined.then(|| self.flag_state.replace_scoped_warning_policy(false));
         let mut target_reads = TargetReads {
-            visits: &self.file_visits,
+            visits: &self.file_traversals,
             retained_parents: &self.retained_scope_parents,
             aliases: &self.aliases,
             base: &self.target_contexts,
@@ -2191,8 +2342,8 @@ impl Engine {
 
     fn cached_optional_group_peer_failure(&self, name: &[u8]) -> bool {
         let identity = self.aliases.resolve(name);
-        self.done
-            .get(identity)
+        self.file_traversals
+            .outcome(identity)
             .is_some_and(|outcome| outcome.optional_group_peer_failure)
             && !self.optional_remake_failures.contains_key(identity)
     }
@@ -2723,8 +2874,8 @@ impl Engine {
         if let Some(index) = self.options.temp_stdin_file {
             let name = self.options.files[index].as_os_str().as_bytes();
             self.database.file_records.insert(name);
-            self.done.insert(
-                name.to_vec(),
+            self.file_traversals.set_outcome(
+                name,
                 Outcome {
                     time: modified(name),
                     completion: CompletionTime::Preserve,
@@ -3693,7 +3844,7 @@ impl Engine {
                             let before = first.get().0;
                             let unchanged = before.is_some()
                                 && !visit_modes.active()
-                                && self.done.get(source).is_some_and(|outcome| {
+                                && self.file_traversals.outcome(source).is_some_and(|outcome| {
                                     !outcome.failed
                                         && !outcome.fatal
                                         && !outcome.question_outdated
@@ -3720,8 +3871,8 @@ impl Engine {
                             }
                         } else if context.is_some() {
                             let cached = self
-                                .done
-                                .get(self.aliases.resolve(name))
+                                .file_traversals
+                                .outcome(self.aliases.resolve(name))
                                 .copied()
                                 .unwrap_or_default();
                             self.debug_cached_prerequisite_visit(name, 1, cached);
@@ -4010,7 +4161,7 @@ impl Engine {
                                     && visit_modes.question
                                     && std::ptr::eq(request.file, &read_files[0].0);
                                 if !self.pending(prior)
-                                    && self.done.get(prior).is_some_and(|outcome| {
+                                    && self.file_traversals.outcome(prior).is_some_and(|outcome| {
                                         !outcome.failed
                                             && (!outcome.question_outdated || queried_primary)
                                     })
@@ -4134,8 +4285,8 @@ impl Engine {
                         let name = remake.file.name.as_slice();
                         let before = visited[name].0;
                         let result = self
-                            .done
-                            .get(self.aliases.resolve(name))
+                            .file_traversals
+                            .outcome(self.aliases.resolve(name))
                             .copied()
                             .unwrap_or(remake.initial);
                         if remake.duplicate && (remake.file.optional || !result.failed) {
@@ -4246,7 +4397,8 @@ impl Engine {
                         && !*skip
                         && !failed_remakes.contains_key(name)
                         && let Some(&(before, _)) = visited.get(name)
-                        && let Some(outcome) = self.done.get(self.aliases.resolve(name))
+                        && let Some(outcome) =
+                            self.file_traversals.outcome(self.aliases.resolve(name))
                         && outcome.optional_group_peer_failure
                     {
                         failed = true;
@@ -4271,8 +4423,8 @@ impl Engine {
                             .get(name)
                             .copied()
                             .filter(|_| {
-                                self.done
-                                    .get(name)
+                                self.file_traversals
+                                    .outcome(name)
                                     .is_some_and(|outcome| outcome.optional_group_peer_failure)
                             })
                             .or(*before);
@@ -4297,9 +4449,7 @@ impl Engine {
             if ran_remake_recipe || self.recipe_reaps != initial_reaps {
                 // Keep the cached outcomes and timestamps, but report ordinary
                 // goal activity only for recipes started in that phase.
-                for outcome in self.done.values_mut() {
-                    outcome.ran = false;
-                }
+                self.file_traversals.clear_recipe_activity();
             }
             for module in crate::native::unloaded() {
                 let location = self.database.loaded_modules.get(&module).cloned();
@@ -4428,7 +4578,7 @@ impl Engine {
         for (index, goal) in goals.into_iter().enumerate() {
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let name = self.aliases.resolve(&goal);
-            let already_done = (self.done.contains_key(name)
+            let already_done = (self.file_traversals.has_outcome(name)
                 && !self.cached_double_colon_input_due(name))
                 || self.pending(&goal);
             if already_done && !self.parallel_graph() {
@@ -4462,7 +4612,7 @@ impl Engine {
                 if self.visited_cached_double_colon_input(name) {
                     // The goal summary uses the declared head, while the
                     // first visit still reports the trailing input's failure.
-                    completed_report = self.done.get(name).copied();
+                    completed_report = self.file_traversals.outcome(name).copied();
                 } else if outcome.late_input_failed && !pending {
                     completed_report = Some(outcome);
                 }
@@ -4584,7 +4734,9 @@ impl Engine {
                     self.debug_completed_goal_visit(&goal.name, false);
                     goal.awaiting_recipe = false;
                     if self.options.question
-                        && let Some(outcome) = self.done.get(self.aliases.resolve(&goal.name))
+                        && let Some(outcome) = self
+                            .file_traversals
+                            .outcome(self.aliases.resolve(&goal.name))
                     {
                         self.ordinary_queries.record(outcome.goal_verdict());
                     }
@@ -4623,8 +4775,8 @@ impl Engine {
                 self.debug_completed_goal_visit(&goal.name, goal.awaiting_group_peer);
             }
             let outcome = self
-                .done
-                .get(self.aliases.resolve(&goal.name))
+                .file_traversals
+                .outcome(self.aliases.resolve(&goal.name))
                 .copied()
                 .unwrap_or(goal.initial);
             let outcome = self.observe_updated(&goal.name, outcome);
@@ -5299,8 +5451,8 @@ impl Engine {
             || (!self.remaking
                 && self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
                 && self
-                    .file_visits
-                    .get(target)
+                    .file_traversals
+                    .visit(target)
                     .and_then(|visit| visit.quiet_consideration)
                     .is_some_and(|pass| pass.get() == self.debug_pass.wrapping_add(1)))
     }
@@ -5426,7 +5578,7 @@ impl Engine {
             return;
         }
         let name = self.aliases.resolve(goal);
-        let Some(outcome) = self.done.get(name).copied() else {
+        let Some(outcome) = self.file_traversals.outcome(name).copied() else {
             return;
         };
         if outcome.fatal
@@ -5755,7 +5907,7 @@ impl Engine {
         if rmake_core::filenames::archive_parts(target).is_none() {
             let time = self.modified(target);
             if self.clock_candidate(time).is_some()
-                && !self.done.contains_key(target)
+                && !self.file_traversals.has_outcome(target)
                 && !self.special(b".PHONY", target, false)
             {
                 self.check_clock_skew(target, time);
@@ -5767,7 +5919,7 @@ impl Engine {
         }
         let prepared = self.prepare_search_name(target)?;
         let target = prepared.as_deref().unwrap_or(target);
-        if let Some(outcome) = self.done.get(target) {
+        if let Some(outcome) = self.file_traversals.outcome(target) {
             return Ok(outcome.time);
         }
         if !self.path_observations.contains_key(target) && self.archive_metadata_error(target, true)
@@ -5812,7 +5964,7 @@ impl Engine {
         let target = prepared.as_deref().unwrap_or(target);
         let direct = depth >= 512
             || self.assumed_time(target).is_some()
-            || self.done.contains_key(target)
+            || self.file_traversals.has_outcome(target)
             || self.pending(target)
             || !self.intermediate(target)
             || self.special(b".PHONY", target, false);
@@ -5845,12 +5997,10 @@ impl Engine {
                 pending: self.pending(target),
             };
         }
-        self.file_visits
-            .entry(target.to_vec())
-            .or_insert_with(|| FileVisit {
-                parent: Some(parent.into_owned()),
-                quiet_consideration: None,
-            });
+        self.file_traversals.remember_visit(target, || FileVisit {
+            parent: Some(parent.into_owned()),
+            quiet_consideration: None,
+        });
         if !self.resolve_implicit_for_intermediate(target, depth) {
             return Inspection {
                 outcome: Outcome {
@@ -6275,8 +6425,8 @@ impl Engine {
                     return false;
                 }
                 let outcome = self
-                    .done
-                    .get(self.aliases.resolve(name))
+                    .file_traversals
+                    .outcome(self.aliases.resolve(name))
                     .copied()
                     .unwrap_or(request.initial);
                 if !needs_visit {
@@ -6667,11 +6817,15 @@ impl Engine {
                     .parallel_jobs
                     .remove(&target, identity)
                     .expect("reserved load waiter");
-                let mut outcome = self.done.get(&target).copied().unwrap_or_default();
+                let mut outcome = self
+                    .file_traversals
+                    .outcome(&target)
+                    .copied()
+                    .unwrap_or_default();
                 outcome.failed = true;
                 outcome.fatal |= self.graph_abort == Some(Status::Fatal);
                 outcome.ran = false;
-                self.done.insert(target, outcome);
+                self.file_traversals.set_outcome(&target, outcome);
                 drop(job); // Return the queued recipe's permit without launching it.
             }
             return;
@@ -6953,7 +7107,11 @@ impl Engine {
         if failed && self.parallel_jobs.contains_key(&target) {
             self.notice_waiting_for_jobs();
         }
-        let mut outcome = self.done.get(&target).copied().unwrap_or_default();
+        let mut outcome = self
+            .file_traversals
+            .outcome(&target)
+            .copied()
+            .unwrap_or_default();
         outcome.fatal |= cleanup_fatal || self.interrupt.is_some();
         let mut all_recursive = !job.continuation.flow.has_ordinary();
         let (completed_permit, continued) = if command_question {
@@ -7064,7 +7222,7 @@ impl Engine {
                 .insert(target.clone());
         }
         let cached = self.cached_recipe_outcome(outcome);
-        self.done.insert(target.clone(), cached);
+        self.file_traversals.set_outcome(&target, cached);
         if !pending {
             self.finish_group(&target, outcome);
         }
@@ -7102,7 +7260,7 @@ impl Engine {
             || self.makefile_names.contains(target)
             || self.path_observations.contains_key(target)
             || self.assumed_time(target).is_some()
-            || self.done.contains_key(target)
+            || self.file_traversals.has_outcome(target)
             || self.pending(target)
             || self.ordinary_queries.deferred_tails.contains_key(target)
             || self.visiting.contains(target)
@@ -7340,9 +7498,7 @@ impl Engine {
             }
         }
         self.database.merge_target_scope(from, to);
-        if let Some(visit) = self.file_visits.remove(from) {
-            self.file_visits.entry(to.to_vec()).or_insert(visit);
-        }
+        self.file_traversals.rename_visit(from, to);
         if let Some(parent) = self.retained_scope_parents.remove(from) {
             self.retained_scope_parents
                 .entry(to.to_vec())
@@ -7741,7 +7897,9 @@ impl Engine {
         // The archive is a separate file observation even when the member
         // has already finished. Its first physical timestamp may be here.
         if self.clock_candidate(container_time).is_some()
-            && !self.done.contains_key(self.aliases.resolve(&container))
+            && !self
+                .file_traversals
+                .has_outcome(self.aliases.resolve(&container))
         {
             let name = path
                 .as_deref()
@@ -7892,7 +8050,10 @@ impl Engine {
         } else {
             target
         };
-        if !self.done.contains_key(self.aliases.resolve(spelling)) {
+        if !self
+            .file_traversals
+            .has_outcome(self.aliases.resolve(spelling))
+        {
             self.check_clock_skew(spelling, time);
         }
     }
@@ -8104,7 +8265,7 @@ impl Engine {
                 outcome.completion = CompletionTime::ArchiveUnknown;
             }
             outcome.search_after_update = false;
-            self.done.insert(target.to_vec(), outcome);
+            self.file_traversals.set_outcome(target, outcome);
             return outcome;
         }
         outcome.search_after_update = false;
@@ -8119,7 +8280,7 @@ impl Engine {
                         outcome.failed = true;
                         outcome.fatal = true;
                     }
-                    self.done.insert(name, outcome);
+                    self.file_traversals.set_outcome(&name, outcome);
                 }
             }
             Err(error) => {
@@ -8128,7 +8289,7 @@ impl Engine {
                 outcome.fatal = true;
             }
         }
-        self.done.insert(target.to_vec(), outcome);
+        self.file_traversals.set_outcome(target, outcome);
         self.record_graph_failure(outcome);
         outcome
     }
@@ -9333,7 +9494,7 @@ impl Engine {
         let Some(dependency) = rule.dependencies.iter().find(|dependency| {
             dependency.name != b".WAIT"
                 && dropped.is_none_or(|dropped| !dropped.contains(&dependency.name))
-                && self.done.get(&dependency.name).map_or_else(
+                && self.file_traversals.outcome(&dependency.name).map_or_else(
                     || self.optional_remake_failures.contains_key(&dependency.name),
                     |child| child.failed || child.question_outdated,
                 )
@@ -9348,8 +9509,8 @@ impl Engine {
                 Rc::new(FailedPrerequisite {
                     target: dependency.name.clone(),
                     parent: self
-                        .file_visits
-                        .get(&dependency.name)
+                        .file_traversals
+                        .visit(&dependency.name)
                         .and_then(|visit| visit.parent.as_ref())
                         .map_or_else(|| target.to_vec(), |parent| parent.target.clone()),
                 })
@@ -9418,7 +9579,7 @@ impl Engine {
                     Err(()) => {
                         outcome.failed = true;
                         outcome.fatal = true;
-                        self.done.insert(target.to_vec(), outcome);
+                        self.file_traversals.set_outcome(target, outcome);
                         return outcome;
                     }
                     Ok(None) => {}
@@ -9434,7 +9595,7 @@ impl Engine {
                         .unwrap_or(outcome);
                     head.time = Some(time);
                     head.search_after_update = false;
-                    self.done.insert(key, head);
+                    self.file_traversals.set_outcome(&key, head);
                 }
                 self.fail_double_colon_input(target, depth, &mut outcome);
             }
@@ -9445,7 +9606,7 @@ impl Engine {
         }
         outcome.late_input_failed = true;
         if !self.options.keep_going {
-            self.done.insert(target.to_vec(), outcome);
+            self.file_traversals.set_outcome(target, outcome);
         }
         outcome
     }
@@ -9471,7 +9632,7 @@ impl Engine {
         }
         let before = self.modified(target);
         let phony = self.special(b".PHONY", target, false);
-        self.done.remove(target);
+        self.file_traversals.remove_outcome(target);
         self.pending_double_colon.insert(
             target.to_vec(),
             DoubleColonState {
@@ -9648,7 +9809,7 @@ impl Engine {
             // check. A newly merged goal gets a first evaluation even when the
             // destination was completed earlier. Prerequisite/peer lookups run
             // before that check and prepare their aliases before entering here.
-            self.done.remove(name);
+            self.file_traversals.remove_outcome(name);
         }
         // A new goal can announce consideration before a GPATH rename.
         // Prerequisites prepare their lookup before beginning consideration.
@@ -9688,7 +9849,7 @@ impl Engine {
         let deferred_peer_failure =
             self.parallel_makefile_remakes && self.cached_optional_group_peer_failure(target);
         let archive_target = rmake_core::filenames::archive_parts(target).is_some();
-        let previously_done = archive_target && self.done.contains_key(target);
+        let previously_done = archive_target && self.file_traversals.has_outcome(target);
         let archive_error = if archive_target
             && !previously_done
             && self.assumed_time(target).is_none()
@@ -9767,8 +9928,8 @@ impl Engine {
             // A later required visit exposes the original failure hidden by
             // the optional remake, including the edge to a deeper failure.
             let query = self
-                .done
-                .get(target)
+                .file_traversals
+                .outcome(target)
                 .copied()
                 .filter(|outcome| outcome.question_outdated);
             if query.is_some() {
@@ -9782,7 +9943,10 @@ impl Engine {
                 emit(&self.output, Event::RecentlyFailed(target, debug_depth));
                 traced_optional_failure = true;
             } else if !self.remaking
-                && self.done.get(target).is_some_and(|outcome| outcome.failed)
+                && self
+                    .file_traversals
+                    .outcome(target)
+                    .is_some_and(|outcome| outcome.failed)
                 && self.trace_cached_unruled_makefile(considering_name, target, depth, true)
             {
                 traced_optional_failure = true;
@@ -9791,12 +9955,12 @@ impl Engine {
                 && !self.parallel_makefile_remakes
                 && parent.is_none()
                 && self
-                    .done
-                    .get(target)
+                    .file_traversals
+                    .outcome(target)
                     .is_some_and(|outcome| outcome.failed && !outcome.fatal)
             {
-                self.file_visits
-                    .get(target)
+                self.file_traversals
+                    .visit(target)
                     .and_then(|visit| visit.parent.as_ref())
                     .map(|parent| self.aliases.resolve(&parent.target).to_vec())
             } else {
@@ -9810,8 +9974,8 @@ impl Engine {
                         && parent.is_some())
                     || cached_remake_parent.is_some())
                 && self
-                    .done
-                    .get(target)
+                    .file_traversals
+                    .outcome(target)
                     .is_some_and(|outcome| outcome.failed && !outcome.fatal)
             {
                 use crate::debug::{Event, emit};
@@ -9840,7 +10004,11 @@ impl Engine {
         if let Some(owner) = self.active_peers.get(target)
             && owner != target
         {
-            let mut outcome = self.done.get(owner).copied().unwrap_or_default();
+            let mut outcome = self
+                .file_traversals
+                .outcome(owner)
+                .copied()
+                .unwrap_or_default();
             if !self.remaking
                 && !traced_optional_failure
                 && self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
@@ -9876,7 +10044,7 @@ impl Engine {
         if self.pending_rules.contains_key(target) {
             return self.resume_rule(target);
         }
-        if let Some(mut outcome) = self.done.get(target).copied() {
+        if let Some(mut outcome) = self.file_traversals.outcome(target).copied() {
             if let Some(parent) = parent {
                 self.remember_retained_scope_parent(target, parent);
             }
@@ -9966,7 +10134,7 @@ impl Engine {
                         outcome.fatal = true;
                     }
                 }
-                self.done.insert(target.to_vec(), outcome);
+                self.file_traversals.set_outcome(target, outcome);
             }
             return outcome;
         }
@@ -9989,7 +10157,7 @@ impl Engine {
                 completion: CompletionTime::Preserve,
                 ..Outcome::default()
             };
-            self.done.insert(target.to_vec(), outcome);
+            self.file_traversals.set_outcome(target, outcome);
             return outcome;
         }
         if depth >= 512 {
@@ -10013,9 +10181,8 @@ impl Engine {
             } else {
                 NonZeroU64::new(self.debug_pass.wrapping_add(1))
             };
-        self.file_visits
-            .entry(target.to_vec())
-            .or_insert_with(|| FileVisit {
+        self.file_traversals
+            .remember_visit(target, || FileVisit {
                 parent: parent.map(ScopeParent::into_owned),
                 quiet_consideration,
             })
@@ -10107,7 +10274,7 @@ impl Engine {
                 if !self.special(b".NOTINTERMEDIATE", target, true) {
                     self.database_secondary.insert(target.to_vec());
                 }
-                self.done.insert(target.to_vec(), result);
+                self.file_traversals.set_outcome(target, result);
                 return result;
             }
             crate::debug::emit(
@@ -10131,7 +10298,7 @@ impl Engine {
                 failed: true,
                 ..Outcome::default()
             };
-            self.done.insert(target.to_vec(), result);
+            self.file_traversals.set_outcome(target, result);
             return result;
         };
         if let Some(branches) = rule.double_colon.take() {
@@ -10165,7 +10332,11 @@ impl Engine {
                 if outcome.late_input_failed {
                     return outcome;
                 }
-                return self.done.get(target).copied().unwrap_or(outcome);
+                return self
+                    .file_traversals
+                    .outcome(target)
+                    .copied()
+                    .unwrap_or(outcome);
             }
             return outcome;
         }
@@ -10185,7 +10356,7 @@ impl Engine {
             // retained eager read may have updated this file's local table.
             return;
         }
-        if self.file_visits.get(target).is_some_and(|first| {
+        if self.file_traversals.visit(target).is_some_and(|first| {
             first
                 .parent
                 .as_ref()
@@ -10280,15 +10451,15 @@ impl Engine {
                 if self.pending_rules.contains_key(target) || recipe_waiting {
                     state.awaiting_recipe |= recipe_waiting;
                     let mut outcome = state.combined;
-                    if let Some(branch) = self.done.get(target).copied() {
+                    if let Some(branch) = self.file_traversals.outcome(target).copied() {
                         merge_child(&mut outcome, branch);
                     }
                     self.pending_double_colon.insert(target.to_vec(), state);
                     return outcome;
                 }
                 let result = self
-                    .done
-                    .remove(target)
+                    .file_traversals
+                    .remove_outcome(target)
                     .expect("finished double-colon branch");
                 // A direct single declaration keeps the ordinary goal-level visit.
                 if std::mem::take(&mut state.awaiting_recipe)
@@ -10439,13 +10610,13 @@ impl Engine {
                         let mut head = tail.head;
                         head.time = state.combined.time;
                         head.search_after_update = false;
-                        self.done.insert(target.to_vec(), head);
+                        self.file_traversals.set_outcome(target, head);
                         self.remember_failed_double_colon_input(target);
                         state.combined.late_input_failed = true;
                         return state.combined;
                     }
                 }
-                self.done.insert(target.to_vec(), state.combined);
+                self.file_traversals.set_outcome(target, state.combined);
                 return state.combined;
             };
             let declared = entry.is_some();
@@ -10882,7 +11053,7 @@ impl Engine {
                 fatal: true,
                 ..Outcome::default()
             };
-            self.done.insert(target.to_vec(), result);
+            self.file_traversals.set_outcome(target, result);
             return result;
         }
         if grouped {
@@ -10981,7 +11152,10 @@ impl Engine {
             outcome
         } else {
             self.wait_target(target);
-            self.done.get(target).copied().unwrap_or(outcome)
+            self.file_traversals
+                .outcome(target)
+                .copied()
+                .unwrap_or(outcome)
         }
     }
 
@@ -11306,8 +11480,8 @@ impl Engine {
             state.stale |= state.rule.normal_prerequisites().any(|name| {
                 !state.dropped.contains(name)
                     && self
-                        .done
-                        .get(name)
+                        .file_traversals
+                        .outcome(name)
                         .is_some_and(|child| self.prerequisite_stale(state.comparison, *child))
             });
             self.apply_graph_abort(&mut state.outcome);
@@ -11379,7 +11553,11 @@ impl Engine {
             let outcome = if owns_frame {
                 self.build(dependency, Some(parent), state.depth + 1)
             } else {
-                let outcome = self.done.get(resolved).copied().unwrap_or_default();
+                let outcome = self
+                    .file_traversals
+                    .outcome(resolved)
+                    .copied()
+                    .unwrap_or_default();
                 if self.remaking && outcome.failed && visit == PrerequisiteVisit::DebugReplay {
                     self.debug_cached_prerequisite_visit(dependency, state.depth + 2, outcome);
                 }
@@ -11423,7 +11601,7 @@ impl Engine {
                 state.inspections.insert(index, (epoch, child));
             } else {
                 state.inspections.remove(&index);
-                if !self.done.contains_key(dependency) {
+                if !self.file_traversals.has_outcome(dependency) {
                     state.deferred_intermediates.push(dependency.clone());
                 }
                 if !occurrence.order_only && (child.time.is_none() || child.time > state.comparison)
@@ -11437,11 +11615,11 @@ impl Engine {
             // changed timestamp independently of the final freshness test.
             let observe_change = first
                 && self.output.debug_mask().has(crate::debug::Mask::BASIC)
-                && !self.done.contains_key(dependency);
+                && !self.file_traversals.has_outcome(dependency);
             let serial_observation = observe_change && !self.parallel_graph();
             let unknown_archive = self
-                .done
-                .get(dependency)
+                .file_traversals
+                .outcome(dependency)
                 .is_some_and(|child| child.completion == CompletionTime::ArchiveUnknown)
                 && rmake_core::filenames::archive_parts(dependency).is_some();
             let child = if first
@@ -11469,7 +11647,7 @@ impl Engine {
                     None,
                 )
             } else {
-                let outcome = self.done.get(dependency).copied();
+                let outcome = self.file_traversals.outcome(dependency).copied();
                 // A suspended required frame can first see a shared child's
                 // failed completion here, without entering the builder again.
                 if self.parallel_makefile_remakes
@@ -11585,7 +11763,7 @@ impl Engine {
                     self.modified(target)
                 };
                 self.visiting.remove(target);
-                self.done.insert(target.to_vec(), result);
+                self.file_traversals.set_outcome(target, result);
                 return result;
             }
             if self.active_group_branches.contains(&id) {
@@ -11704,7 +11882,7 @@ impl Engine {
             if !self.remake_stopped() {
                 self.wait_target(dependency);
             }
-            let Some(child) = self.done.get(dependency).copied() else {
+            let Some(child) = self.file_traversals.outcome(dependency).copied() else {
                 continue;
             };
             merge_child(&mut outcome, child);
@@ -11787,7 +11965,7 @@ impl Engine {
                 if dependency == b".WAIT" || dropped.contains(dependency) {
                     continue;
                 }
-                let child = self.done.get(dependency).copied();
+                let child = self.file_traversals.outcome(dependency).copied();
                 if child.is_none() && !deferred.contains(dependency.as_slice()) {
                     continue;
                 }
@@ -12069,8 +12247,8 @@ impl Engine {
                 if !self.optional_remake() {
                     self.show_makefile_error();
                     let parent = self
-                        .file_visits
-                        .get(target)
+                        .file_traversals
+                        .visit(target)
                         .and_then(|visit| visit.parent.as_ref())
                         .map(|parent| parent.target.as_slice());
                     self.report_missing_rule(target, parent);
@@ -12159,7 +12337,7 @@ impl Engine {
             }
         }
         self.visiting.remove(target);
-        self.done.insert(target.to_vec(), outcome);
+        self.file_traversals.set_outcome(target, outcome);
         if !self.parallel_jobs.contains_key(target) {
             self.finish_group(target, outcome)
         } else {
@@ -12208,7 +12386,7 @@ impl Engine {
                 // The grouped completion includes the owner in its physical
                 // refresh, replacing any preceding standalone dry-run time.
                 self.modified(target);
-                if let Some(owner) = self.done.get_mut(target) {
+                if let Some(owner) = self.file_traversals.outcome_mut(target) {
                     owner.database_result = DatabaseResult::ObservedDoubleColon;
                 }
             }
@@ -12354,7 +12532,7 @@ impl Engine {
             };
             if peer == target {
                 if let Some(time) = observation
-                    && let Some(owner) = self.done.get_mut(target)
+                    && let Some(owner) = self.file_traversals.outcome_mut(target)
                 {
                     owner.database_result = database_result;
                     if retain_explicit_dry_time {
@@ -12437,7 +12615,7 @@ impl Engine {
                     },
                 );
             }
-            self.done.insert(peer, completed);
+            self.file_traversals.set_outcome(&peer, completed);
         }
         outcome
     }
@@ -12457,8 +12635,8 @@ impl Engine {
             return Ok(variables);
         }
         let parent = self
-            .file_visits
-            .get(target)
+            .file_traversals
+            .visit(target)
             .and_then(|visit| visit.parent.clone());
         let inherited = if let Some(parent) = parent {
             self.rule_variables(&parent.target, parent.branch)?
@@ -12820,11 +12998,17 @@ impl Engine {
                             .filter(|dependency| {
                                 dependency.name != b".WAIT"
                                     && !dropped.contains(&dependency.name)
-                                    && self.done.get(&dependency.name).is_some_and(|child| {
-                                        child.time.is_none()
-                                            && (child.completion != CompletionTime::AssumeNew
-                                                || self.special(b".PHONY", &dependency.name, false))
-                                    })
+                                    && self.file_traversals.outcome(&dependency.name).is_some_and(
+                                        |child| {
+                                            child.time.is_none()
+                                                && (child.completion != CompletionTime::AssumeNew
+                                                    || self.special(
+                                                        b".PHONY",
+                                                        &dependency.name,
+                                                        false,
+                                                    ))
+                                        },
+                                    )
                             })
                             .map(|dependency| dependency.name.as_slice()),
                     )
@@ -13247,7 +13431,7 @@ impl Engine {
                 let mut emitted_order = Vec::new();
                 let mut inherited_mflags = false;
                 let mut target_reads = TargetReads {
-                    visits: &self.file_visits,
+                    visits: &self.file_traversals,
                     retained_parents: &self.retained_scope_parents,
                     aliases: &self.aliases,
                     base: &self.target_contexts,
@@ -14005,6 +14189,60 @@ pub(crate) fn run_native_ownership_check(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn file_traversals_keep_scope_and_outcome_lifetimes_independent() {
+        let mut files = FileTraversals::default();
+        let name = b"source";
+        let alias = b"alias";
+        files.set_outcome(
+            name,
+            Outcome {
+                ran: true,
+                ..Outcome::default()
+            },
+        );
+        assert!(files.visit(name).is_none());
+
+        files.remember_visit(name, || FileVisit {
+            parent: Some(ScopeParent {
+                target: b"parent".to_vec(),
+                branch: Some(1),
+            }),
+            quiet_consideration: NonZeroU64::new(2),
+        });
+        assert!(files.remove_outcome(name).expect("initial outcome").ran);
+        assert!(files.visit(name).is_some());
+        files.set_outcome(
+            name,
+            Outcome {
+                failed: true,
+                ..Outcome::default()
+            },
+        );
+        files.set_outcome(alias, Outcome::default());
+
+        files.rename_visit(name, alias);
+        assert!(files.visit(name).is_none());
+        assert!(files.outcome(name).expect("source outcome").failed);
+        assert!(!files.outcome(alias).expect("alias outcome").failed);
+        let moved = files.visit(alias).expect("moved visit");
+        let parent = moved.parent.as_ref().expect("scope parent");
+        assert_eq!(parent.target, b"parent");
+        assert_eq!(parent.branch, Some(1));
+        assert_eq!(moved.quiet_consideration, NonZeroU64::new(2));
+
+        files.set_outcome(b"third", Outcome::default());
+        assert!(matches!(&files, FileTraversals::Map(_)));
+        assert!(files.outcome(name).expect("retained source outcome").failed);
+        assert_eq!(
+            files
+                .visit(alias)
+                .expect("retained visit")
+                .quiet_consideration,
+            NonZeroU64::new(2)
+        );
+    }
+
+    #[test]
     fn native_source_prefixes_keep_null_empty_and_literal_builtin_distinct() {
         use rmake_core::diagnostic::SourceName;
         assert_eq!(
@@ -14413,7 +14651,9 @@ mod tests {
 
         engine.capture_phony_names();
         assert!(engine.phony_names.is_some());
-        engine.done.insert(b".PHONY".to_vec(), Outcome::default());
+        engine
+            .file_traversals
+            .set_outcome(b".PHONY", Outcome::default());
         assert!(!engine.build(b".PHONY", None, 0).failed);
         assert!(engine.phony_names.is_none());
     }
