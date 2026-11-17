@@ -1,0 +1,12 @@
+id = "eval-append-target-read-command-winner"
+requirement = "functions.eval"
+candidate = "required"
+description = "A selected simple target binding expands the suffix while the stronger global command-line assignment survives."
+provenance = "Original rmake fixture, independently authored against the pinned GNU Make 4.4.1 interface."
+args = ["-rR", "--no-print-directory", "V=command", "all", "later"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "target=[selected]\nRHS=[selected]\nglobal=[command/command line/recursive]\n"
+stderr = ""

@@ -1,0 +1,12 @@
+id = "eval-append-target-read-export"
+requirement = "functions.eval"
+candidate = "required"
+description = "A target-reader eval append exports the published global value and the child still sees its selected target value."
+provenance = "Original rmake fixture, independently authored against the pinned GNU Make 4.4.1 interface."
+args = ["-rR", "--no-print-directory", "all", "later"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "target child=[selected]\nglobal=[selected tail/simple]\nglobal child=[selected tail]\n"
+stderr = ""

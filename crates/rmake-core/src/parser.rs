@@ -2935,9 +2935,9 @@ impl Database {
                 .cloned();
             let append_from_lexical = lexical.is_some();
             let append_base = lexical.or_else(|| {
-                lookup_scope
-                    .as_ref()
-                    .and_then(|scope| scope.scoped_append(spec.name, live_makeflags))
+                lookup_scope.as_ref().and_then(|scope| {
+                    scope.scoped_append(spec.name, live_makeflags, self.target_read.is_some())
+                })
             });
             (
                 append_base.map(std::cell::RefCell::new),
@@ -2985,10 +2985,13 @@ impl Database {
                     };
                     if let Some(base) = &append_base
                         && !append_from_lexical
-                        && let Some(value) = self
-                            .evaluation_scope
-                            .as_ref()
-                            .and_then(|scope| scope.scoped_append(spec.name, live_makeflags))
+                        && let Some(value) = self.evaluation_scope.as_ref().and_then(|scope| {
+                            scope.scoped_append(
+                                spec.name,
+                                live_makeflags,
+                                self.target_read.is_some(),
+                            )
+                        })
                     {
                         *base.borrow_mut() = value;
                     }
