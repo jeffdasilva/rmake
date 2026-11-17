@@ -3057,6 +3057,14 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         if requires_load is True and not has_load_profiles:
             continue
         held = by_id.get(name)
+        named_count = row.get('named_count')
+        if named_count is not None:
+            if (held is None or not isinstance(named_count, int) or named_count not in (3, 8)
+                    or not name.startswith('load-stock-primary-three-mixed-last-adjacent-2-')
+                    or name.endswith('-named') or '-t' not in held.model.args):
+                raise h.HarnessError('invalid longer stock primary remake debug model')
+            held = stock_primary_add_named_touch_sources(held, named_count)
+            name = held.model.id
         if (held is None or (name, flag) in seen or not isinstance(requires_load, bool)
                 or (held.load is not None) != requires_load
                 or flag not in ('b,m', 'm', 'm,v') or not isinstance(fifo, bool)

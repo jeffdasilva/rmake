@@ -350,6 +350,9 @@ struct Outcome {
     deferred_spawn_failure: bool,
     // An optional grouped recipe already supplied this peer's failure.
     optional_group_peer_failure: bool,
+    // A successful serial grouped remake invalidates each other read peer,
+    // including one whose physical timestamp did not change.
+    remake_group_peer_updated: bool,
     // The cached declared head can remain successful after the tail fails.
     late_input_failed: bool,
     // A real recipe invalidates its timestamp; a parent may search again.
@@ -3338,8 +3341,9 @@ impl Engine {
             let final_named_dry = limited_load
                 && final_required_dry
                 && self.options.jobs.is_some_and(|slots| slots >= 4);
-            let final_named_touch_debug =
-                debug_before_remake.bits() == remake_debug_bits && final_named_sources.len() == 2;
+            let final_named_touch_debug = debug_before_remake.bits() == remake_debug_bits
+                && (final_named_sources.len() == 2
+                    || (!final_named_sources.is_empty() && optional_named_sources == 0));
             let final_named_touch = modes.touch
                 && !final_named_sources.is_empty()
                 && (optional_named_sources <= 1 || final_named_sources.len() == 2)
@@ -3919,7 +3923,8 @@ impl Engine {
                         && !result.question_outdated;
                     let physically_changed = (record_change || check_optional_touch)
                         && self.modified(&makefile.name) != before;
-                    changed |= record_change && physically_changed;
+                    changed |=
+                        record_change && (physically_changed || result.remake_group_peer_updated);
                     let simulated_change =
                         visit_modes.dry_run && result.completion == CompletionTime::AssumeNew;
                     if self.parallel_makefile_remakes
@@ -12255,6 +12260,11 @@ impl Engine {
                     && self.makefile_names.contains(&peer));
             completed.optional_group_peer_failure =
                 self.optional_remake() && outcome.failed && !outcome.fatal;
+            completed.remake_group_peer_updated = serial_explicit_remake
+                && outcome.completion == CompletionTime::Refresh
+                && !outcome.failed
+                && !phony
+                && self.makefile_names.contains(&peer);
             completed.search_after_update = false;
             completed.time = if phony {
                 None
