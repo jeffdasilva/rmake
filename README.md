@@ -78,6 +78,9 @@ default goal or pass a goal by name. Use `-j4` to allow up to four jobs.
 rmake -j4
 ```
 
+Use [output synchronization](docs/output-sync.md) to keep parallel build logs
+readable.
+
 For rule syntax, recipe behavior, and options, start with the
 [GNU Make manual](https://www.gnu.org/software/make/manual/html_node/index.html).
 For tested projects, known differences, and platform support, see the
