@@ -3270,7 +3270,7 @@ impl Engine {
             // All other makefile visits can run recipes even under -n/-q/-t.
             let modes = MakefileModes::from_options(&self.options);
             let always = self.options.always;
-            MakefileModes::default().apply(&mut self.options);
+            self.set_makefile_modes(MakefileModes::default());
             if restarts > 0 {
                 self.options.always = false;
             }
@@ -3597,7 +3597,7 @@ impl Engine {
                 } else {
                     MakefileModes::default()
                 };
-                visit_modes.apply(&mut self.options);
+                self.set_makefile_modes(visit_modes);
                 let visit = match visited.entry(name) {
                     std::collections::hash_map::Entry::Vacant(visit) => visit,
                     std::collections::hash_map::Entry::Occupied(first) => {
@@ -4054,7 +4054,7 @@ impl Engine {
                     self.remake_error_cursor = pending
                         .last()
                         .and_then(|remake| remake.context.open_error.clone());
-                    MakefileModes::default().apply(&mut self.options);
+                    self.set_makefile_modes(MakefileModes::default());
                 }
                 let primary_after_optional_pass = active_primary
                     && final_named_touch
@@ -4171,7 +4171,7 @@ impl Engine {
             if stopped || changed || failed || self.shutdown.get() != Shutdown::Running {
                 self.wait_all_jobs();
             }
-            modes.apply(&mut self.options);
+            self.set_makefile_modes(modes);
             self.options.always = always;
             self.output.set_debug_mask(debug_before_remake);
             self.remaking = false;
@@ -4289,6 +4289,9 @@ impl Engine {
         if restart_pending {
             return self.restart_after_makefiles(restarts.wrapping_add(1));
         }
+        // The ordinary goals decide the final query status. A queried source
+        // still carries its cached verdict if a goal later depends on it.
+        self.would_build = false;
         if let Err(error) = self.publish_phase_makeflags(false) {
             self.expansion_error(None, &error);
             return 2;
@@ -6202,7 +6205,7 @@ impl Engine {
                     request.active = false;
                     continue;
                 }
-                request.modes.apply(&mut self.options);
+                self.set_makefile_modes(request.modes);
                 self.remake_error_cursor = request.context.open_error.clone();
                 let needs_visit = if request.duplicate {
                     !request.file.optional

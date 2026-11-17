@@ -1,0 +1,105 @@
+id = "remake-live-query-result-optional"
+description = "An explicit remake query leaves a cached source verdict for dependent ordinary goals while unrelated ordinary goals decide their own exit status."
+provenance = "Original rmake inputs and exact expectations independently checked with repeated GNU Make 4.4.1 runs. No upstream source or tests were consulted for these cases."
+initial = []
+
+[[steps]]
+name = "build-unrelated"
+args = ["-rR"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "-include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(eval MAKEFLAGS = -q)@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 0, "stdout" = "cp seed out\nparent\n", "stderr" = ""}
+unchanged = ["Makefile", "seed", "opts.mk"]
+mtime_order = []
+
+[[steps]]
+name = "build-dependent"
+args = ["-rR"]
+actions = [
+  {"op" = "remove", "path" = "out"},
+  {"op" = "write", "path" = "Makefile", "content" = "-include opts.mk\nall: out opts.mk\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(eval MAKEFLAGS = -q)@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 2, "stdout" = "cp seed out\n", "stderr" = "make: *** No rule to make target 'opts.mk', needed by 'all'.  Stop.\n"}
+unchanged = ["Makefile", "seed", "opts.mk"]
+mtime_order = []
+
+[[steps]]
+name = "touch-unrelated"
+args = ["-rR", "-t"]
+actions = [
+  {"op" = "remove", "path" = "out"},
+  {"op" = "write", "path" = "Makefile", "content" = "-include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(eval MAKEFLAGS = -q)@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 0, "stdout" = "touch out\ntouch all\n", "stderr" = ""}
+unchanged = ["Makefile", "seed", "opts.mk"]
+mtime_order = []
+
+[[steps]]
+name = "touch-dependent"
+args = ["-rR", "-t"]
+actions = [
+  {"op" = "remove", "path" = "all"},
+  {"op" = "remove", "path" = "out"},
+  {"op" = "write", "path" = "Makefile", "content" = "-include opts.mk\nall: out opts.mk\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(eval MAKEFLAGS = -q)@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 2, "stdout" = "touch out\n", "stderr" = "make: *** No rule to make target 'opts.mk', needed by 'all'.  Stop.\n"}
+unchanged = ["Makefile", "seed", "opts.mk"]
+mtime_order = []
+
+[[steps]]
+name = "dry-run-unrelated"
+args = ["-rR", "-n"]
+actions = [
+  {"op" = "remove", "path" = "out"},
+  {"op" = "write", "path" = "Makefile", "content" = "-include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(eval MAKEFLAGS = -q)@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 0, "stdout" = "cp seed out\nprintf \"parent\\n\"\n", "stderr" = ""}
+unchanged = ["Makefile", "seed", "opts.mk"]
+mtime_order = []
+
+[[steps]]
+name = "dry-run-dependent"
+args = ["-rR", "-n"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "-include opts.mk\nall: out opts.mk\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(eval MAKEFLAGS = -q)@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 2, "stdout" = "cp seed out\n", "stderr" = "make: *** No rule to make target 'opts.mk', needed by 'all'.  Stop.\n"}
+unchanged = ["Makefile", "seed", "opts.mk"]
+mtime_order = []
+
+[[steps]]
+name = "query-unrelated"
+args = ["-rR", "-q"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "-include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(eval MAKEFLAGS = -q)@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+unchanged = ["Makefile", "seed", "opts.mk"]
+mtime_order = []
+
+[[steps]]
+name = "query-dependent"
+args = ["-rR", "-q"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "-include opts.mk\nall: out opts.mk\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(eval MAKEFLAGS = -q)@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 1, "stdout" = "", "stderr" = ""}
+unchanged = ["Makefile", "seed", "opts.mk"]
+mtime_order = []
