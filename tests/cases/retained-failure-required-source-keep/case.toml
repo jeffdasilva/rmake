@@ -1,0 +1,12 @@
+id = "retained-failure-required-source-keep"
+requirement = "includes.retained-failure-goals"
+candidate = "required"
+description = "Deferred optional-remake errors and completed-goal summaries: required-source-keep."
+provenance = "Original rmake fixture and independently checked GNU Make 4.4.1 byte expectations; no upstream implementation or tests consulted."
+args = ["-rR", "--no-print-directory", "-k", "opts.mk"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'leaf', needed by 'opts.mk'.\nMakefile:1: Failed to remake makefile 'opts.mk'.\n"

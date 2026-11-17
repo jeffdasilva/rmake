@@ -1,0 +1,12 @@
+id = "retained-failure-ordinary-completed-recipe-failure"
+requirement = "includes.retained-failure-goals"
+candidate = "required"
+description = "Deferred optional-remake errors and completed-goal summaries: ordinary-completed-recipe-failure."
+provenance = "Original rmake fixture and independently checked GNU Make 4.4.1 byte expectations; no upstream implementation or tests consulted."
+args = ["-rR", "--no-print-directory", "-k", "all", "opts.mk"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** [Makefile:6: leaf] Error 1\nmake: Target 'all' not remade because of errors.\n"

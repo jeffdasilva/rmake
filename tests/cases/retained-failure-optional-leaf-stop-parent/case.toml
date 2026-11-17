@@ -1,0 +1,12 @@
+id = "retained-failure-optional-leaf-stop-parent"
+requirement = "includes.retained-failure-goals"
+candidate = "required"
+description = "Deferred optional-remake errors and completed-goal summaries: optional-leaf-stop-parent."
+provenance = "Original rmake fixture and independently checked GNU Make 4.4.1 byte expectations; no upstream implementation or tests consulted."
+args = ["-rR", "--no-print-directory", "leaf"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'leaf', needed by 'opts.mk'.  Stop.\n"

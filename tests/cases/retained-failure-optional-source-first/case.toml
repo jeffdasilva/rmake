@@ -1,0 +1,12 @@
+id = "retained-failure-optional-source-first"
+requirement = "includes.retained-failure-goals"
+candidate = "required"
+description = "Deferred optional-remake errors and completed-goal summaries: optional-source-first."
+provenance = "Original rmake fixture and independently checked GNU Make 4.4.1 byte expectations; no upstream implementation or tests consulted."
+args = ["-rR", "--no-print-directory", "-k", "opts.mk"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'leaf', needed by 'opts.mk'.\n"
