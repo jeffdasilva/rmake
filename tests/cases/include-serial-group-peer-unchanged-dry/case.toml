@@ -1,0 +1,12 @@
+id = "include-serial-group-peer-unchanged-dry"
+requirement = "includes.remake"
+candidate = "required"
+description = "A successful serial grouped recipe rereads its unchanged read peers; single-source, no-command and up-to-date controls preserve the boundary."
+provenance = "Original rmake fixture and GNU 4.4.1 black-box observations; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = "READ:\nRUN\nREAD:1\nprintf \"%s\\n\" \"ALL:1:old\"\n"
