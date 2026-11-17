@@ -1,0 +1,12 @@
+id = "include-double-group-failure-two-failures-optional-keep"
+requirement = "includes.remake"
+candidate = "required"
+description = "Settled grouped double-colon peers retain serial head/tail failure policy, effect order and source restart decisions."
+provenance = "Original rmake fixture and GNU 4.4.1 black-box observations; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:\nREAD:1\nanchor\ngroup\nfail\nsecond-fail\nALL:1\n"
+stderr = "make: *** [Makefile:8: pair.peer.mk] Error 1\nmake: *** [Makefile:9: pair.peer.mk] Error 1\n"

@@ -1,0 +1,12 @@
+id = "include-double-group-failure-missing-head-optional-keep"
+requirement = "includes.remake"
+candidate = "required"
+description = "Settled grouped double-colon peers retain serial head/tail failure policy, effect order and source restart decisions."
+provenance = "Original rmake fixture and GNU 4.4.1 black-box observations; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:\nanchor\ngroup\nALL:\n"
+stderr = "make: *** No rule to make target 'absent', needed by 'pair.peer.mk'.\n"
