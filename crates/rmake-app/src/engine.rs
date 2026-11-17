@@ -8296,15 +8296,20 @@ impl Engine {
                     }
                 }
             }
-            if let Some(group) = group {
-                if let Some(history) = self.database.database_history() {
-                    if let Some(stem) = &selection.rule.stem {
-                        history.intern(stem);
-                    }
-                    if let Some(pattern) = &selection.rule.implicit_pattern {
-                        history.record_file_lookup(pattern);
-                    }
+            // Detached double-colon roots prepare their own history.
+            // A database dump also needs the attached root's selected stem.
+            if (group.is_some()
+                || (!detach_root && selection.name == target && self.output.database_requested()))
+                && let Some(history) = self.database.database_history()
+            {
+                if let Some(stem) = &selection.rule.stem {
+                    history.intern(stem);
                 }
+                if let Some(pattern) = &selection.rule.implicit_pattern {
+                    history.record_file_lookup(pattern);
+                }
+            }
+            if let Some(group) = group {
                 for (peer, pattern) in &group.implicit_peer_patterns {
                     if peer != &selection.name {
                         if let Some(history) = self.database.database_history() {
@@ -12022,7 +12027,8 @@ impl Engine {
                         before,
                         branch,
                         record_suffix_stem_lookup: !implicit_group
-                            && (rule.stem.is_none() || rule.implicit_pattern.is_some()),
+                            && (rule.stem.is_none()
+                                || (branch.is_some() && rule.implicit_pattern.is_some())),
                         location: recipes.first().map(|recipe| &recipe.location),
                         dependencies: &rule.dependencies,
                         dropped: &dropped,
