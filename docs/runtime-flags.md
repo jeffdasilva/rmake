@@ -50,7 +50,6 @@ A global `GNUMAKEFLAGS` assignment takes effect when options are interpreted
 again after reading the Makefiles. Replacing `MAKEFLAGS` with `GNUMAKEFLAGS` in
 the example therefore leaves the third line silent. The warning option is
 active by recipe time and is included in the flags passed to recursive builds.
-For Makefiles that require GNU-compatible behavior, use `MAKEFLAGS` directly.
 GNU's [special-variable reference](https://www.gnu.org/software/make/manual/html_node/Quick-Reference.html)
 explains the portability role of `GNUMAKEFLAGS`.
 
@@ -105,5 +104,4 @@ Its SHA-256 is
 The [oracle manifest](../oracle/manifest.json) identifies the reference build.
 
 The Rust state model, implementation, protocol helpers, and fixtures were
-independently authored. No GNU implementation or upstream test code was copied
-or translated. See [licensing and provenance](licensing.md).
+independently authored for rmake. See [licensing and provenance](licensing.md).

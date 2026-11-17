@@ -1,9 +1,9 @@
 # Choose a shell for recipes
 
-On Linux, rmake uses `/bin/sh` for recipes unless you set `SHELL` in a
-Makefile or on the command line. The invoking shell's `SHELL` environment
-variable does not choose the recipe interpreter. Set `.SHELLFLAGS` to pass
-options to the shell. The default is `-c`, or `-ec` when `.POSIX` is active.
+On Linux, set `SHELL` in a Makefile or on the command line to choose the recipe
+interpreter. Without that setting, rmake uses `/bin/sh`. Your `SHELL`
+environment variable describes your interactive shell. Set `.SHELLFLAGS` to
+pass options to the recipe interpreter. The default is `-c`, or `-ec` when `.POSIX` is active.
 Keep `-c` when the shell expects the recipe as a command string. See the
 [GNU Make reference for choosing a shell](https://www.gnu.org/software/make/manual/html_node/Choosing-the-Shell.html).
 
