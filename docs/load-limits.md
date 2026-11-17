@@ -178,6 +178,9 @@ the same touch policy through the first optional completion.
 Four cases also cover three named includes with two optional ones, where the
 required include comes first or in the middle. They check normal output and
 primary mode or deletion with and without a load limit.
+Four more cases put both optional includes before the required include.
+The high-load touch cases check that the earlier queued include resumes
+at the second optional pass, before the final named include.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
@@ -219,6 +222,13 @@ no-load runs with two or unbounded slots.
 Six more profiles place a single optional include at either end of three
 named makefiles and compare release, restart, deletion, and file modes.
 Four more profiles place the optional include in the middle.
+Six more profiles cover two optional includes among three named sources
+under a load limit. They check all three positions for the required source.
+Four further cases omit the load limit and check touch or deletion when
+the required source comes first or in the middle. Their held release
+includes the earlier unnamed include’s touch output.
+Four more profiles place the optional include first or last among four
+named sources under a load limit.
 
 ## Performance observation
 

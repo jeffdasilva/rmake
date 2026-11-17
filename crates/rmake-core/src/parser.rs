@@ -5128,11 +5128,18 @@ impl Database {
                 }
                 let prefix_tail_len = tail.len();
                 let mut syntax_end = prefix_tail_len;
-                if !expanded_inline {
+                let assignment_tail = if expanded_inline {
+                    tail.as_slice()
+                } else {
                     syntax_end += rule_end.saturating_sub(prefix_expansion.consumed);
-                    tail.extend_from_slice(raw_tail);
-                }
-                if let Some(assignment) = target_assignment(&tail, syntax_end) {
+                    if tail.is_empty() {
+                        raw_tail
+                    } else {
+                        tail.extend_from_slice(raw_tail);
+                        tail.as_slice()
+                    }
+                };
+                if let Some(assignment) = target_assignment(assignment_tail, syntax_end) {
                     declaration.ignore_recipes =
                         !self.define_target_assignments(targets, assignment, &location, context)?;
                     continue;

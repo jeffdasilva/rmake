@@ -2253,6 +2253,7 @@ def stock_primary_load_models() -> list[HeldModel]:
                                             both, True, extend_named=False,
                                             job_cases=(('-j2', '2-slots'), ('-j4', '4-slots'))))
     results.extend(stock_primary_three_named_two_optional_cases(results))
+    results.extend(stock_primary_two_optional_before_required_cases(results))
     return results
 
 
@@ -2694,7 +2695,9 @@ def stock_primary_three_named_two_optional_cases(held_models: list[HeldModel]) -
     by_id = {held.model.id: held for held in held_models}
     base_id = 'load-stock-primary-both-optional-three-mixed-last-adjacent-reversed-2-'
     samples = (('t-pipe-high-2-slots', False), ('qt-fifo-high-4-slots', True),
-               ('t-pipe-low-4-slots', True), ('qt-fifo-no-load-2-slots', False))
+               ('t-pipe-low-4-slots', True), ('qt-fifo-no-load-2-slots', False),
+               ('t-pipe-no-load-2-slots', False), ('t-fifo-no-load-4-slots', True),
+               ('qt-pipe-no-load-4-slots', True))
     for sample, required_first in samples:
         held = stock_primary_add_named_touch_sources(by_id[base_id + sample], 3)
         model = held.model
@@ -2739,6 +2742,49 @@ def stock_primary_three_named_two_optional_cases(held_models: list[HeldModel]) -
         expected = {'exit_code': 0, 'stdout_template_hex': (stdout + b'touch all\n').hex(),
                     'stderr_template_hex': stderr.hex()}
         model = replace(model, id=identifier, files=files, args=args, expected=expected, updates=updates)
+        yield replace(held, model=model, before_first_stdout=release,
+                      stock_primary_mode=None if question else 0o644)
+
+
+def stock_primary_two_optional_before_required_cases(held_models: list[HeldModel]) -> Iterator[HeldModel]:
+    by_id = {held.model.id: held for held in held_models}
+    base_id = 'load-stock-primary-both-optional-three-mixed-last-adjacent-2-'
+    samples = ('t-pipe-high-2-slots', 'nt-fifo-high-4-slots',
+               'qt-fifo-high-2-slots', 'nqt-pipe-no-load-4-slots')
+    leaf_touch = b'touch leaf.mk\n'
+    optional_touch = b'touch extra.mk\n'
+    required_touch = b'touch tail.mk\n'
+    for sample in samples:
+        held = stock_primary_add_named_touch_sources(by_id[base_id + sample], 3)
+        model = held.model
+        goals = model.args[-4:-1]
+        high = held.load.at_release == LOAD_HIGH
+        dry_run = '-n' in model.args
+        question = '-q' in model.args
+        release = b'cat Makefile.sh >Makefile \ntouch child.mk\n'
+        if not high:
+            release += leaf_touch + optional_touch
+        queued_optional = optional_touch if high else b''
+        updates = {name: content for name, content in model.updates.items() if name.startswith('primary.')}
+        if not dry_run:
+            updates.update(dict.fromkeys((*goals, 'all'), b''))
+        if question:
+            stdout = release + queued_optional + required_touch
+            if not high:
+                updates['leaf.mk'] = b'LEAF := loaded\n'
+            stderr = b"make: *** Deleting file 'Makefile'\n"
+        else:
+            stdout = release + b'touch Makefile\n' * 2 + queued_optional + leaf_touch * 2 + required_touch
+            if dry_run:
+                named_touches = b'touch child.mk\n' + optional_touch + required_touch
+                stdout += b'touch child.mk\n' + leaf_touch + optional_touch + required_touch + named_touches
+            stdout += b''.join(f"make: '{goal}' is up to date.\n".encode() for goal in goals)
+            updates['leaf.mk'] = b'LEAF := loaded\n' if dry_run else b''
+            updates['Makefile'] = model.files['Makefile.sh']
+            stderr = b''
+        expected = {'exit_code': 0, 'stdout_template_hex': (stdout + b'touch all\n').hex(),
+                    'stderr_template_hex': stderr.hex()}
+        model = replace(model, expected=expected, updates=updates)
         yield replace(held, model=model, before_first_stdout=release,
                       stock_primary_mode=None if question else 0o644)
 
@@ -3179,8 +3225,13 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         held = by_id.get(name)
         named_count = row.get('named_count')
         if named_count is not None:
-            if (held is None or not isinstance(named_count, int) or named_count not in (3, 8)
-                    or not name.startswith('load-stock-primary-three-mixed-last-adjacent-2-')
+            required_tail = (named_count in (3, 8)
+                             and name.startswith('load-stock-primary-three-mixed-last-adjacent-2-'))
+            optional_endpoint = named_count == 4 and name.startswith((
+                'load-stock-primary-optional-three-mixed-last-adjacent-2-',
+                'load-stock-primary-optional-three-mixed-last-adjacent-reversed-2-',
+            ))
+            if (held is None or not isinstance(named_count, int) or not (required_tail or optional_endpoint)
                     or name.endswith('-named') or '-t' not in held.model.args):
                 raise h.HarnessError('invalid longer stock primary remake debug model')
             held = stock_primary_add_named_touch_sources(held, named_count)

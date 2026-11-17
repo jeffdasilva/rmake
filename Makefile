@@ -132,18 +132,35 @@ help:
 		'rmake - GNU Make compatibility development' \
 		'' \
 		'Available targets:' \
+		'' \
+		'Build and prepare a checkout' \
 		'  bootstrap       Install local Rust and build the pinned GNU Make oracle' \
 		'  bootstrap-integration Verify pinned external project source archives' \
 		'  bootstrap-guile  Verify the optional Ubuntu Guile tools and separate oracle' \
+		'  bootstrap-locale-data Verify and generate pinned private French locale data' \
 		'  doctor          Check the toolchain and oracle' \
 		'  build / release Build debug / optimized rmake' \
 		'  catalog-check / catalog-install Verify and stage owned message data' \
-		'  test-catalog-coverage Compare all GNU catalog languages and fallback' \
-		'  test-nls / test-nls-directory Compare localized diagnostics and directory output' \
+		'  clean           Remove Cargo build output' \
+		'' \
+		'Run the common checks' \
+		'  check-core      Run formatting, Clippy, Rust, tooling, and catalog checks' \
+		'  check / ci      Run all current development gates' \
 		'  fmt / fmt-check Format Rust / check formatting' \
 		'  lint            Run Clippy with warnings denied' \
 		'  test-unit       Run Rust unit and integration tests' \
 		'  test-tools      Test the independent tooling' \
+		'  test-selfhost   Run build and core checks through the serial candidate' \
+		'  test-developer-flows Compare warm bootstrap, clean and benchmark checks' \
+		'' \
+		'Run acceptance and release checks' \
+		'  m4-acceptance  Run development and optimized rule-resolution gates' \
+		'  m5-acceptance  Run combined development and optimized runtime gates' \
+		'  test-m4-release Run optimized corpus, stateful, archive-fault and self-host gates' \
+		'  test-m5-release Run the optimized Linux runtime and rule checks' \
+		'  test-integration Compare real-project builds, rebuilds and executable smokes' \
+		'' \
+		'Check Makefile language and rule behavior' \
 		'  test-oracle     Validate fixtures against two oracle executions' \
 		'  test-builtins   Verify embedded Linux defaults against the pinned oracle' \
 		'  regenerate-builtins Refresh declarative Linux defaults from the oracle' \
@@ -168,8 +185,12 @@ help:
 		'  test-wildcards   Compare seeded filesystem queries and write invalidation' \
 		'  test-modes      Compare 512 ordinary/one-shell execution mode combinations' \
 		'  test-intcmp     Compare seeded arbitrary-length integer expressions' \
-		'  test-diagnostics Compare diagnostic output and expansion ordering' \
 		'  test-stateful   Compare incremental builds and timestamp boundaries' \
+		'  test-flag-terminator Compare inherited option source boundaries' \
+		'  test-startup-usage Compare malformed argument effects and usage output' \
+		'  test-runtime-option-values Compare live notices and deferred pool style' \
+		'' \
+		'Check recipe execution and Linux resources' \
 		'  test-graph-progress Stress repeated parallel barriers, groups and aliases' \
 		'  test-runtime-signals Compare Linux signals, shutdown and token recovery' \
 		'  test-startup-exits Compare early exit effects and cosmetic banner ordering' \
@@ -177,21 +198,6 @@ help:
 		'  test-output-sync Compare grouping, mutexes and mixed recursive output' \
 		'  test-load       Compare controlled Linux runnable-load and fallback profiles' \
 		'  test-jobserver  Compare mixed GNU/rmake FIFO and pipe jobserver trees' \
-		'  test-native-modules Compare original C modules and native ABI lifecycles' \
-		'  test-integration Compare real-project builds, rebuilds and executable smokes' \
-		'  test-database-output Compare complete databases, histories and phase effects' \
-		'  test-database-nls / test-database-nls-release Compare exact localized databases' \
-		'  test-database-lifecycle Compare restart environments and exact cleanup phases' \
-		'  test-database-search Compare full VPATH/GPATH database and filename histories' \
-		'  test-database-numeric Compare native rounding and registration history' \
-		'  test-database-order-roles Compare prepared normal and order-only duplicates' \
-		'  test-database-dry-run-time Compare synthetic and physical timestamps' \
-		'  test-database-branch-metadata Compare per-branch double-colon records' \
-		'  test-database-double-dry-run Compare double-colon recipe timestamps' \
-		'  test-database-grouped / test-database-implicit-grouped Compare grouped file records' \
-		'  test-guile-components Check the opt-in leading-C/GC architecture component' \
-		'  test-guile-frontend Compare the enabled application with the verified Guile reference' \
-		'  test-native-fenv Compare native thread rounding, flags and nested callbacks' \
 		'  test-stdin-sources Compare named stdin lifetime, restarts and cleanup' \
 		'  test-resource-file-size Compare stdin copy and signals under a file-size limit' \
 		'  test-stdout-file-size Compare stdout writes and finalization under a file-size limit' \
@@ -207,14 +213,28 @@ help:
 		'  test-resource-fd-fifo Compare constrained FIFO pools and borrowed descriptor identity' \
 		'  test-resource-fd-parallel Compare many live recipes under a small descriptor limit' \
 		'  test-jobserver-release Compare ordinary token return and abort drain' \
+		'  test-remake-parallel Compare overlapping include remakes and failure draining' \
+		'' \
+		'Check diagnostics, database output, and locales' \
+		'  test-catalog-coverage Compare all GNU catalog languages and fallback' \
+		'  test-nls / test-nls-directory Compare localized diagnostics and directory output' \
+		'  test-diagnostics Compare diagnostic output and expansion ordering' \
+		'  test-database-output Compare complete databases, histories and phase effects' \
+		'  test-database-nls / test-database-nls-release Compare exact localized databases' \
+		'  test-database-lifecycle Compare restart environments and exact cleanup phases' \
+		'  test-database-search Compare full VPATH/GPATH database and filename histories' \
+		'  test-database-numeric Compare native rounding and registration history' \
+		'  test-database-order-roles Compare prepared normal and order-only duplicates' \
+		'  test-database-dry-run-time Compare synthetic and physical timestamps' \
+		'  test-database-branch-metadata Compare per-branch double-colon records' \
+		'  test-database-double-dry-run Compare double-colon recipe timestamps' \
+		'  test-database-grouped / test-database-implicit-grouped Compare grouped file records' \
 		'  test-locales    Compare glibc C/C.UTF8 locale, wildcard and recursion phases' \
-		'  bootstrap-locale-data Verify and generate pinned private French locale data' \
 		'  test-locale-collation Compare exact locale and live native glob ordering' \
 		'  test-directory-reporting Compare directory policy, output groups and restarts' \
 		'  test-debug-output Compare debug policy, phases and deterministic traces' \
 		'  test-debug-reap-race Compare a waitable child at the inner prerequisite boundary' \
 		'  test-debug-group-peers Compare held ordinary grouped prerequisite debug visits' \
-		'  test-remake-parallel Compare overlapping include remakes and failure draining' \
 		'  test-debug-traversal Compare implicit search and intermediate cleanup traces' \
 		'  test-debug-traversal-nls Compare debug events in the verified French locale' \
 		'  test-debug-verbose Compare timestamp and remake decisions in C and French' \
@@ -223,21 +243,20 @@ help:
 		'  test-job-debug-nls Compare C and French JOBS events' \
 		'  test-trace-job-languages Compare German, Japanese and Brazilian Portuguese trace and JOBS events' \
 		'  test-job-debug-load Compare controller phase and controlled load events' \
-		'  m5-acceptance  Run combined development and optimized runtime gates' \
-		'  m4-acceptance  Run development and optimized rule-resolution gates' \
-		'  test-m4-release Run optimized corpus, stateful, archive-fault and self-host gates' \
-		'  test-selfhost   Run build and core checks through the serial candidate' \
-		'  test-developer-flows Compare warm bootstrap, clean and benchmark checks' \
-		'  test-flag-terminator Compare inherited option source boundaries' \
-		'  test-startup-usage Compare malformed argument effects and usage output' \
-		'  test-runtime-option-values Compare live notices and deferred pool style' \
+		'' \
+		'Check native modules and Guile' \
+		'  test-native-modules Compare original C modules and native ABI lifecycles' \
+		'  test-guile-components Check the opt-in leading-C/GC architecture component' \
+		'  test-guile-frontend Compare the enabled application with the verified Guile reference' \
+		'  test-native-fenv Compare native thread rounding, flags and nested callbacks' \
+		'' \
+		'Measure performance' \
 		'  bench           Record original GNU oracle workload baselines' \
+		'  bench-compare   Compare release rmake and GNU with paired timings' \
 		'  profile-allocations  Sample allocation requests in an isolated profile build' \
 		'  profile-allocations-frozen Profile a frozen PROFILE_CANDIDATE with exact output checks' \
-		'  bench-compare   Compare release rmake and GNU with paired timings' \
-		'  check / ci      Run all current development gates' \
-		'  clean           Remove Cargo build output' \
 		'' \
+		'Replay and benchmark settings' \
 		'Overrides: PYTHON, ORACLE, CANDIDATE, SEED, GENERATED_CASES, EXPRESSIONS.' \
 		'Graph overrides: GRAPH_SEED, GRAPH_CASES, GRAPH_NODES, START_INDEX.' \
 		'Mode replay: MODE_CASE=<case ID>.' \
@@ -248,8 +267,7 @@ help:
 		'Directory reporting replay: DIRECTORY_REPORT_CASE=<case ID>.' \
 		'Debug replay: DEBUG_CASE=<case ID>.' \
 		'Implicit search replay: DEBUG_TRAVERSAL_CASE=<case ID>.' \
-		'Integration replay: INTEGRATION_CASE=xxhash-0.8.3|zlib-1.3.2|lua-5.4.9|gzip-1.14|patch-2.8|gzip-1.14-parallel-fifo|zlib-1.3.2-staged-shared.' \
-		'Select BusyBox configuration or executable builds with INTEGRATION_CASE=busybox-1.37.0|busybox-1.37.0-executable.' \
+		'Integration replay sets INTEGRATION_CASE to an ID from docs/project-integration.md.' \
 		'Database replay: DATABASE_CASE=<case ID>; DATABASE_SEARCH_CASE=<search case ID>.' \
 		'Locale replay: LOCALE_CASE=<case ID>.' \
 		'JOBS replay: JOB_DEBUG_CASE=<case ID>.' \
