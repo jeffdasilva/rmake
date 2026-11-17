@@ -500,6 +500,26 @@ struct FailedPrerequisite {
     parent: Vec<u8>,
 }
 
+/// Grouped logical updates are provisional until the serial source pass settles.
+/// After a failed chain, only an optional failed tail can leave its successful
+/// cached head invalidated. Physical timestamp changes are tracked separately.
+#[derive(Default)]
+struct SerialGroupedRemakeChanges {
+    failed: bool,
+    updated: bool,
+    optional_failed_tail_updated: bool,
+}
+
+impl SerialGroupedRemakeChanges {
+    fn changed(&self) -> bool {
+        if self.failed {
+            self.optional_failed_tail_updated
+        } else {
+            self.updated
+        }
+    }
+}
+
 struct PendingIncludeError {
     location: Option<Location>,
     name: Vec<u8>,
@@ -3563,6 +3583,8 @@ impl Engine {
             self.remaking = true;
             self.defer_stopped_remake_load = ordinary_mode;
             let mut changed = false;
+            let mut grouped_changes =
+                (!parallel_remakes && !ordinary_mode).then(SerialGroupedRemakeChanges::default);
             let mut ran_remake_recipe = false;
             let mut failed = false;
             let mut stopped = false;
@@ -3811,6 +3833,10 @@ impl Engine {
                     build_visit,
                     None,
                 );
+                let chain_failed = result.failed;
+                if let Some(changes) = &mut grouped_changes {
+                    changes.failed |= chain_failed;
+                }
                 let serial_declarations = if result.failed && !result.fatal {
                     self.serial_double_colon_declarations(name)
                 } else {
@@ -3871,6 +3897,23 @@ impl Engine {
                     } else if optional {
                         result.fatal = true;
                     }
+                }
+                let tracked_group_change = result.remake_group_peer_updated
+                    && grouped_changes.is_some()
+                    && self
+                        .database
+                        .rules
+                        .get(name)
+                        .and_then(|rule| rule.double_colon.as_ref())
+                        .is_some_and(|branches| {
+                            branches
+                                .iter()
+                                .any(|rule| rule.grouped_double_id().is_some())
+                        });
+                if tracked_group_change && let Some(changes) = &mut grouped_changes {
+                    let updated = visit_modes.check_update(result) && !result.failed;
+                    changes.updated |= updated;
+                    changes.optional_failed_tail_updated |= updated && optional && chain_failed;
                 }
                 let before = self
                     .serial_remake_peer_times
@@ -3963,8 +4006,9 @@ impl Engine {
                         && !result.question_outdated;
                     let physically_changed = (record_change || check_optional_touch)
                         && self.modified(&makefile.name) != before;
-                    changed |=
-                        record_change && (physically_changed || result.remake_group_peer_updated);
+                    changed |= record_change
+                        && (physically_changed
+                            || (result.remake_group_peer_updated && !tracked_group_change));
                     let simulated_change =
                         visit_modes.dry_run && result.completion == CompletionTime::AssumeNew;
                     if self.parallel_makefile_remakes
@@ -4282,6 +4326,9 @@ impl Engine {
                     }
                 }
             }
+            changed |= grouped_changes
+                .as_ref()
+                .is_some_and(SerialGroupedRemakeChanges::changed);
             // A skipped required read suppresses an otherwise successful
             // restart. A failed remake still checks for physically updated peers.
             if changed && !remake_question && (!skipped_required_read || unsuccessful_remake) {

@@ -1,0 +1,12 @@
+id = "include-group-restart-unrelated-single-required-unchanged-opt"
+requirement = "includes.remake"
+candidate = "required"
+description = "Serial grouped remake verdict preserves source order, final status and independently asserted nanosecond timestamps after a failed declaration."
+provenance = "Original black-box rmake fixture; no upstream implementation or tests read or copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:\nSOURCE:owner.mk:\nSOURCE:peer.mk:\nSOURCE:third.mk:\n"
+stderr = "make: *** [Makefile:11: third.mk] Error 1\nMakefile:8: Failed to remake makefile 'third.mk'.\n"
