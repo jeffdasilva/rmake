@@ -1,149 +1,137 @@
-# GNU Make 4.4.1 compatibility contract
+# GNU Make 4.4.1 compatibility
 
-Compatibility target established 2026-10-18. Implementation is partial; the
-[progress record](progress.md) identifies verified slices and open requirements.
+rmake targets GNU Make 4.4.1 on Linux. Full compatibility is still in
+development. To evaluate rmake on your project, compare both engines on clean
+and incremental builds in separate checkouts. Use the
+[GNU Make manual](https://www.gnu.org/software/make/manual/html_node/index.html)
+for Makefile syntax and command-line options.
 
-rmake will reimplement GNU Make 4.4.1 behavior in Rust on Linux. Compatibility
-comes before performance or new features. The reference is the pinned executable's
-observable behavior, informed by the public manual, rather than a simplified
-interpretation of what a build tool ought to do.
+## What the project tests today
 
-The [official release directory](https://ftp.gnu.org/gnu/make/) lists 4.4.1 as the
-latest stable release at the time of this plan. The
-[manual](https://www.gnu.org/software/make/manual/) identifies its 4.4.1 edition.
-The compatibility target will stay pinned even if GNU publishes a later version.
+The main reference environment is x86-64 Linux with glibc. Tests cover Makefile
+reading and expansion, rule selection, serial and parallel recipes, recursive
+builds, native modules, and diagnostics. The
+[real-project tests](project-integration.md) check clean and incremental builds
+of pinned projects, including zlib and GNU Make itself.
 
-## Supported scope
+The default build omits Guile. The `guile` Cargo feature enables the Scheme
+interface and has a separate set of comparison tests. Work continues on broader
+Linux, native-module, Guile, locale, and resource-limit coverage. See the
+[Guile frontend guide](guile-frontend.md) and the
+[compatibility work that remains](m3-m6-audit.md).
 
-| Area | Contract |
+Benchmark results depend on the workload. The
+[benchmark reports](benchmarks/README.md) describe the inputs, environment,
+and measured times for each comparison.
+
+## Compatibility target
+
+The target stays pinned to GNU Make 4.4.1. The
+[GNU release archive](https://ftp.gnu.org/gnu/make/) provides the reference
+source. The executable determines the expected behavior when the manual leaves
+a detail open.
+
+| Area | What needs to match |
 | --- | --- |
-| Platform | Linux; initial reference environment is x86-64 with glibc. Add aarch64 and musl validation before claiming those environments. No Windows, macOS, DOS, or VMS implementation. |
-| Language | All syntax, expansion phases, functions, variables, rules, special targets, and documented Linux behavior in 4.4.1, plus reproducible binary-observed quirks. |
-| Execution | Serial and parallel execution, recursive make, shell behavior, signals, file descriptors, output synchronization, errors, and timestamps. |
-| Command line | GNU options and option interactions, environment handling, diagnostics, exit codes, trace, debug, and database output. |
-| Branding | `--help` and `--version` can identify rmake. Other deterministic diagnostics remain compatibility work, not a general cosmetic exemption. |
-| Extensions already in GNU | Dynamic object loading and Guile-enabled/disabled reference profiles. These are compatibility features, separate from future rmake plugins. |
-| New rmake extensions | Explicitly enabled only; never silently modify default make semantics. |
-| Distributed execution | No remote worker transport, cluster scheduler, or distributed cache. |
+| Makefile language | Syntax, variable and function expansion, rules, special targets, and reproducible 4.4.1 behavior. |
+| Execution | Recipe and shell behavior, serial and parallel builds, recursion, signals, file descriptors, output synchronization, and timestamps. |
+| Command line | Options, environment handling, exit status, diagnostics, trace, debug, and database output. |
+| GNU extensions | Dynamic loading and the Guile-disabled and Guile-enabled builds. |
+| Platform details | Linux behavior for shells, locale, byte paths, nanosecond timestamps, archives, and symlinks. Qualify aarch64 and musl with separate profiles. |
 
-GNU's jobserver coordinates local recursive builds and cooperating tools. Keep
-Linux FIFO and pipe interoperability, including mixed GNU/rmake process trees.
-Omitting it would break ordinary local parallel builds. See
-[job slots](https://www.gnu.org/software/make/manual/html_node/Job-Slots.html) and
-[the POSIX protocol](https://www.gnu.org/software/make/manual/html_node/POSIX-Jobserver.html).
+The jobserver lets recipes and cooperating tools share a pool of job slots on
+one machine. rmake targets both Linux FIFO and pipe protocols in recursive
+builds with either engine as parent or child. See GNU's
+[job slots](https://www.gnu.org/software/make/manual/html_node/Job-Slots.html)
+and [POSIX jobserver protocol](https://www.gnu.org/software/make/manual/html_node/POSIX-Jobserver.html),
+and rmake's [jobserver tests](jobserver.md).
 
-Linux-only does not mean UTF-8-only paths, a mandatory Bash shell, second-resolution
-timestamps, or ignoring archives and symlinks. Locale, shell, filesystem, and
-toolchain conditions are part of the test environment.
+`rmake --help` and `rmake --version` identify rmake. `MAKE_VERSION` in a
+Makefile reports `4.4.1` for compatibility. `$(MAKE)` follows the command you
+invoked so a recursive recipe runs the intended engine. See the GNU manual's
+[MAKE variable](https://www.gnu.org/software/make/manual/html_node/MAKE-Variable.html).
 
-## Pin a reference profile, not just a version string
+## Reference builds
 
-Milestone 0 records an immutable oracle manifest with:
+Tests use a verified GNU Make executable, called the *oracle*. Build options,
+linked libraries, include directories, locale data, and distro patches can all
+change what a Makefile observes. Record these details along with the source
+version, executable digest, architecture, and runtime environment.
 
-- Executable digest, trusted acquisition/build provenance, upstream version,
-  package patches if any, architecture, libc, and linked runtime identities.
-- Feature configuration, `.FEATURES`, built-in variables/rules, default include
-  directories, shell behavior, locale catalogs, and load/Guile availability.
-- Container/root filesystem digest, toolchain and shell versions, locale,
-  timezone, umask, environment, filesystem properties, and fixture runner version.
+The [oracle manifest](../oracle/manifest.json) pins the 4.4.1 source archive,
+checksum, and default build configuration. The
+[bootstrap and verifier](../tools/oracle.py) check the executable and runtime
+identities. The baseline enables native language support and uses `LC_ALL=C`
+for the ordinary comparisons. Guile and locale tests have separate profiles.
+Any distro-patched executable needs its own profile. See the
+[pinned Guile toolchain](../oracle/guile/toolchain.json) and GNU's
+[Guile integration documentation](https://www.gnu.org/software/make/manual/html_node/Guile-Integration.html).
 
-Prefer an unpatched upstream-compatible binary. Treat distro patches as a
-different profile rather than silently changing the target. Maintain both a
-Guile-disabled baseline and a Guile-enabled profile; full-profile compatibility
-requires the enabled behavior too. Guile is a build option, as documented in
-[Guile integration](https://www.gnu.org/software/make/manual/html_node/Guile-Integration.html).
+The full profile also records the runtime image and digest, toolchain and shell
+versions, default rules and variables, locale, timezone, umask, environment,
+filesystem, and test-runner version. Immutable runtime images and complete
+filesystem and network isolation are
+[open test infrastructure work](progress.md#open-foundation-gates).
 
-Initial fast tests run in `LC_ALL=C`; non-C locales and supported profile variants
-have separate gates. Translation catalogs and compile-time path differences must
-be inventoried, not silently excused. The current development host's GNU Make 4.3
-is suitable for bootstrapping workflows but is not the conformance oracle.
+## How rmake checks a difference
 
-## Invocation identity and observable output
+For exact comparisons, the runner resets the same temporary working directory
+and executable alias for each engine. It compares stdout and stderr byte for
+byte, exit status, and filesystem effects. Dedicated suites check execution
+order, timestamps, descriptor behavior, native callbacks, and the real
+invocation names and paths used in recursive builds. Debug and database output
+must match where the inputs make them deterministic, including ordering and
+statistics.
 
-`MAKE_VERSION` exposes `4.4.1` in compatibility mode. `rmake --version` separately
-reports the rmake release and compatibility target. Do not add default-visible
-variables, feature words, environment variables, or startup messages that change
-existing Makefile conditionals or `.VARIABLES`.
+Control variable inputs such as timestamps or parallel worker release whenever
+possible. When a PID or jobserver path has to vary, check its specific
+relationship to the process or descriptor and keep the raw output. Keep known
+differences visible in reports. A pending fixture tracks an open requirement,
+and a new match requires review before the fixture becomes required.
 
-GNU defines `MAKE` using the invoked program name. Therefore `$(MAKE)` cannot be
-literally identical when one command is named `make` and the other `rmake`: it must
-reinvoke the correct implementation. This is input-dependent behavior, not a
-general output waiver. See
-[the MAKE variable](https://www.gnu.org/software/make/manual/html_node/MAKE-Variable.html).
-
-Run strict comparisons with both implementations installed at the same absolute
-path and invoked with the same name in separate sandboxes. Also run direct-name
-tests for `make`, `gmake`, `rmake`, absolute paths, symlinks, and mixed recursive
-trees. Do not replace every occurrence of a program name in captured output.
-
-Compare deterministic stdout and stderr bytes, source locations, exit status,
-recipe effects, environment inheritance, and filesystem results. Preserve GNU
-ordering where specified or reproducibly observable. Debug/database rendering is
-a dedicated compatibility surface, including deterministic ordering/statistics;
-it must not simply dump rmake's internal Rust structures.
-
-Time, PIDs, file descriptors, and unconstrained parallel completion can differ
-between two executions of GNU itself. Fixtures must control such inputs or use
-narrow, named validators tied to their meaning. Unknown discrepancies fail.
-Do not globally sort output, strip whitespace, or discard diagnostics to obtain a
-pass. Finite testing provides strong regression evidence, not a proof for every
-possible effectful Makefile.
+For commands and fixture formats, see the [testing guide](testing.md) and the
+[test corpus guide](../tests/README.md). The
+[requirements ledger](../tests/requirements.toml) maps cases to behaviors, and
+[the implementation plan](implementation-plan.md) defines the completion gates.
 
 ## Source reference and provenance
 
-The project uses `GPL-3.0-or-later`, matching GNU Make's stated license. GNU Make
-4.4.1 source, headers and tests may be inspected to understand behavior. This is
-a source-informed Rust reimplementation, not a clean-room project. This policy
-supersedes the earlier source-inspection prohibition. See
-[licensing and provenance](licensing.md).
+rmake is licensed under `GPL-3.0-or-later`. Contributors can read the GNU Make
+4.4.1 source to understand behavior. Write original Rust and fixtures, and
+confirm the result against the pinned executable. Keep GNU Make as a separate
+test executable. rmake executes builds through its own engine.
 
-1. Derive requirements from documentation, release announcements, version-pinned
-   source references, and independently designed black-box experiments. Confirm
-   behavioral conclusions against the actual reference executable.
-2. Keep the Rust architecture appropriate to rmake; source access does not require
-   a mechanical port. Record the upstream version, file/function and relevant
-   behavior when source inspection informs a change.
-3. If code, declarations, tables or tests are copied, translated or adapted, record
-   their origin, retain applicable copyright/license notices, identify changes
-   and dates, and satisfy the actual file's license. Source access does not make
-   all files in an upstream archive uniformly licensed or erase attribution.
-4. Keep oracle execution reproducible and separate from the product. A verified
-   binary or a reproducible source build is acceptable; record its provenance.
-   GNU Make must never be an implementation fallback at rmake runtime.
-5. Maintain an independently authored differential corpus. Source-informed cases
-   and any explicitly tracked upstream-derived supplemental cases must still
-   compare executable behavior; do not derive expected answers from rmake code.
-6. Record each requirement's references, oracle profile, observed result, fixture
-   provenance and regression test. Review license compatibility for dependencies
-   and adapters, and retain the relevant notices in release artifacts.
-
-The compatibility ledger will track `specified`, `fixture-ready`, `implemented`,
-`passing`, and `blocked` independently. A known failure is never turned into a
-passing test by broad normalization or silently removing it from the suite.
+When source inspection informs a change, record the GNU version, file,
+function, and behavior. Identify the license of any upstream-derived material,
+preserve the notices, and document the changes and dates. Test expectations
+come from the specification and independent observations. For full attribution
+requirements, see [licensing and provenance](licensing.md).
 
 ## Safety and performance boundary
 
-GNU timestamp semantics remain authoritative. Hashes used to validate interpreter
-caches must not turn make into a content-based build system. Do not skip a recipe,
-shell expansion, file write, diagnostic, include-remake pass, or plugin call that
-the reference performs. Do not run Makefiles in a production sandbox by default:
-that would change their authorized shell behavior. The current test harness uses
-disposable workspaces for trusted fixtures; filesystem/network isolation remains
-an [open foundation gate](progress.md#open-foundation-gates).
+Makefiles execute recipes with the caller's permissions. Use Makefiles and
+helpers you trust. The test runners use disposable workspaces and bound
+processes and output. Hostile inputs require a security sandbox.
 
-Caching introduces private implementation files, which GNU does not create. During
-rollout, strict mode leaves persistent caching disabled. Cache-enabled testing
-uses an explicitly designated private namespace outside the build tree; cache
-effects are not claimed to be invisible to arbitrary shell commands that inspect
-the whole machine. No automatic enabling, shared cache, or daemon before the
-namespace and invalidation contract have been validated and accepted. Default
-execution must still function with the cache absent, corrupt, or inaccessible.
+The [documented safety exceptions](safety-exceptions.md) cover inputs that make
+GNU crash or hang and an approved set of unstable nested options. rmake returns
+deterministic errors for these cases. They have their own safety tests and earn
+zero exact-conformance credit. Record new hazards and resolve their behavior
+explicitly.
 
-No unapproved compatibility exclusions are hidden in performance work. If an
-observed GNU defect conflicts with memory/process/cache safety, retain a failing
-compatibility entry and resolve the conflict explicitly rather than claiming
-equivalence or deliberately reproducing memory corruption.
+An optimization must preserve GNU's decisions and the order of observable
+work, including shell expansions, warnings, writes, Makefile remakes, and
+extension calls. GNU timestamp rules determine when to rebuild targets.
 
-The owner approved [documented safe errors](safety-exceptions.md) for recorded
-GNU crash/hang inputs on 2026-10-28. Their separate candidate-only gate grants
-zero exact-conformance credit. Ordinary status-0 mismatches remain open work.
+The planned persistent cache would reuse validated interpreter data, such as
+parsed source or eligible dependency-graph fragments. It would require an
+explicit opt-in and a private directory outside the build tree. If an entry is
+missing, stale, or unusable, execute the ordinary interpreter path. Qualify
+cold, warm, invalidated, corrupt, concurrent, and disabled cache states and
+measure validation costs. See the
+[caching design](architecture.md#safe-caching-progression).
+
+Future rmake-specific plugins would use explicit opt-in and versioned
+interfaces. GNU's native-module and Guile interfaces are part of compatibility
+work today. See the
+[extension design](architecture.md#extensibility-without-changing-defaults).

@@ -1,502 +1,88 @@
 # rmake
 
-A Rust implementation of GNU Make, under active development.
+rmake is a Rust implementation of GNU Make for Linux. It reads existing
+Makefiles and builds their targets using the rules, variables, and recipes you
+already have. Run `rmake` alongside `make` to evaluate it on your project.
 
-An [optional Guile architecture component](docs/guile-component.md) has a
-separate verified toolchain and required safety CI. It does not yet expose a
-Guile make function or close the Guile compatibility profile.
+Use rmake to try a new build engine with familiar commands, including parallel
+builds and recursive `$(MAKE)` calls. The project aims to make Linux builds
+faster and compares its results with GNU Make 4.4.1 in CI. Compatibility is
+still in development. If you depend on a build, compare both tools on a clean
+build and again after changing an input.
 
-[Startup locale selection](docs/startup-locale.md) adds 183 separate glibc
-C/C.UTF8 profiles for exact wildcard, argument, assignment and recursive behavior.
-Both builds pass; NLS and broader profile acceptance remain open.
+## Build rmake
 
-[Wildcard locale collation](docs/locale-collation.md) adds 74 original comparisons,
-including raw-byte ties, directory-table growth and live native locale changes.
-Both builds pass with a pinned private French locale; broader locale and M3/M6
-acceptance remain open.
-
-[Pinned xxHash and zlib integration](docs/project-integration.md) compares
-complete builds, no-ops, header rebuilds and executable smoke checks in the
-development, optimized and selected self-host flows. Full M3/M6 acceptance
-remains open.
-
-Maintained by [Jeff DaSilva](https://github.com/jeffdasilva) at
-[jeffdasilva/rmake](https://github.com/jeffdasilva/rmake).
-
-## Status
-
-M4's rule-resolution implementation is complete for the pinned Linux development
-profile. The [M4 acceptance audit](docs/m4-exit-audit.md) records its combined
-CI gate and limits. M5's Linux runtime implementation is complete for that
-profile; its [acceptance audit](docs/m5-exit-audit.md) defines the combined
-development and optimized gate. M3 and broader compatibility/performance work
-remain open.
-
-The latest follow-ups add [ordered export effects](docs/export-order.md) and
-[shell argv/residual execution](docs/shell-argv-replay.md), with required
-collision, scope, configuration-byte and execution-mode tests.
-[Flag payload assignments](docs/flag-payloads.md) now use the ordinary evaluator;
-the [M3/M6 audit](docs/m3-m6-audit.md) tracks remaining compatibility surfaces.
-[Variable metadata](docs/variable-metadata.md) adds ordered `.VARIABLES` lookup
-and cache lifetime, pinned metadata values and scoped `MFLAGS` updates.
-[Documented safety exceptions](docs/safety-exceptions.md) return fatal errors for
-32 recorded inputs (17 GNU crash/hang cases and15 explicitly approved normal-exit
-nested short-option hazards), gated separately from exact conformance.
-
-[Old and what-if file options](docs/assumed-files.md) now have 631 required
-cases covering logical ages, execution modes, flag phases, VPATH and remakes.
-M3/M6 remain open.
-
-[Imported restart-directory traces](docs/imported-directory-trace.md) now close
-once across rereads and failures, with 482 additional controlled profiles.
-
-[Unambiguous long-option prefixes](docs/long-option-prefixes.md) now have 1,068
-required cases for metadata, operands and selection effects. Full M3/M6 remains open.
-
-[Live invalid-option handling](docs/live-invalid-options.md) now ignores invalid
-MAKEFLAGS syntax while continuing later options, assignments and effects. The
-ordinary corpus totals 17,736 required cases.
-
-[Live option arity](docs/live-option-arity.md) now skips rejected arguments without
-applying their effects and retains valid cluster letters and definitions. The
-ordinary corpus totals 18,506 required cases.
-
-[Saved invocation inputs](docs/runtime-argument-retention.md) now move across
-live flag resets without repeated buffer copies. Ten original controls bring
-the corpus to 18,516 required cases.
-
-[Ordered warning policy](docs/live-warning-phases.md) now follows live payload
-positions and nested cursors while retaining active diagnostic locations. The
-corpus totals 19,729 required cases; full M3/M6 remains open.
-
-[Post-read warning policy](docs/passive-warning-phases.md) now follows passive
-GNUMAKEFLAGS definition positions. A 1,872-case phase/priority/byte/source matrix brings
-the corpus to 21,601 required cases. Complete source/effect ordering and M3/M6
-remain open.
-
-[Sequential post-read sources](docs/passive-source-order.md) now finish GNU
-definitions before expanding MAKEFLAGS and clear the GNU source afterward.
-Exact effects, diagnostic locations and real jobserver tokens bring the corpus
-to 22,891 required cases. Broader decoder and M3/M6 work remain open.
-
-[Shuffle traversal](docs/shuffle.md) now supports modes/seeds, goal and prerequisite
-permutations, barriers, recursive flags and startup/live policy boundaries.
-The corpus totals 24,886 required cases, with a separate random-seed replay gate.
-Full M3/M6 and general performance parity remain open.
-
-[Raw implicit prerequisite spelling](docs/implicit-prerequisite-spelling.md)
-now retains backslashes around literal percent substitution and borrows unchanged
-names. Forty preceding mismatches are closed; the corpus totals 25,030 required
-cases. Rejected-search timing controls improve about 4–5.5%; general performance
-parity and full M3/M6 remain open.
-
-[The approved nested short-option boundary](docs/nested-short-options-proposal.md)
-adds 18 ordinary exact-match controls and a tightly scoped S004 evidence path.
-The corpus totals 25,048 required cases; the 32 documented safety exceptions remain
-separate and earn no exact-conformance credit. Full M3/M6 remains open.
-
-[Output-sync validation ordering](docs/output-validation-order.md) now preserves
-payload effects before invalid-mode errors and validates each completed flag
-source before expanding the next. 818 original controls close 553 preceding
-mismatches, bringing the corpus to 25,866 required cases. Full M3/M6 and general
-performance parity remain open.
-
-[Runtime HOME include operands](docs/runtime-home-includes.md) now expand at
-argument positions through owned decoder suspensions, with warning masking and
-invocation ownership across callbacks and errors. 506 original cases close 444
-recorded mismatches, bringing the corpus to 26,372 required cases. Full M3/M6 and
-general performance parity remain open.
-
-[Second-stage include search](docs/secondary-include-search.md) now expands stored
-tilde operands after argument decoding, preserves their raw MAKEFLAGS history and
-handles nested resets without holding option-state borrows. 474 original cases
-close 240 recorded mismatches, bringing the corpus to 26,846 required cases.
-Full M3/M6 and general performance parity remain open.
-
-[Runtime flag inspection](docs/runtime-flag-inspection.md) now records incoming
-switch selections during the existing parse. The runtime-update control uses
-1,009 fewer allocation requests (about 4.8%). 96 new regression cases bring the
-corpus to 26,942 required cases. Timing evidence is mixed; full M3/M6 and general
-performance parity remain open.
-
-[Linux native modules](docs/native-modules.md) now support GNU-compatible shared
-libraries, registered functions, expansion/eval callbacks, module metadata and
-qualified rebuild/finalizer behavior. 226 original compiled module models are
-checked against GNU through `make test-native-modules`. Full native/profile
-acceptance and complete M3/M6 remain open; no general performance parity is claimed.
-
-[Native startup exits](docs/native-startup-exits.md) retain the actual decoder,
-constructor or restart state for finalizers, preserve C-buffer/banner ordering,
-and restore the OS directory without rewriting `CURDIR`. 31 new original models
-close 27 preceding mismatches; full startup/profile acceptance remains open.
-
-[Directory reporting](docs/directory-reporting.md) now supports ordered `-w` and
-negative selection, automatic `-C`/recursion policy, synchronized output groups,
-early output and restart/finalizer ownership. 40 original models close 36
-preceding mismatches through `make test-directory-reporting`. Broader profiles,
-complete M3/M6 and general performance parity remain open.
-
-[Structured debug output](docs/debug-output.md) now separates original debug
-requests from effective selection and emits borrowed reader/traversal events.
-Both frozen builds pass 64 deterministic profiles; the preceding debug build
-passes 62 and differs on two child-lifecycle cases. Rust has 576 passing tests
-and tooling 634. Native 215 and directory 40 models, the 27,766-case ordinary
-ledger and all approved safety exceptions are unchanged. Broader JOBS,
-broader asynchronous diagnostics, implicit and default-reader diagnostics,
-database/profile/integration/cache acceptance and full M3/M6 remain open;
-no general GNU performance parity is claimed.
-
-The [ten BASIC-child cases](docs/debug-output.md) add controlled serial/parallel
-failure, keep-going, ignored-error, up-to-date and queued-worker evidence. Only
-two preceding debug outcomes differed; GNU's deliberate omission of queued-child
-Success lines is preserved. Native/directory models and historical evidence are
-unchanged. That C1 checkpoint completed its full local and CI gates; the earlier
-54-profile qualification and its negative timing results remain historical.
-
-[Controlled actual-child JOBS output](docs/job-debug.md) adds nine independent
-profiles for exact lifecycle events, stable recipe identities across command
-PIDs, FIFO/pipe authentication and externally witnessed token return. Both frozen
-builds pass JOBS 9, debug 64, native 215 and directory 40. Formatting, Clippy,
-578 Rust tests and 643 tooling tests pass, plus a separate archive-integrity unit.
-[Retained measurements](docs/benchmarks/job-debug.md) show mixed elapsed changes
-and unchanged allocation calls/frees on selected disabled-debug controls. Broader
-JOBS transports/scopes/recursion/restarts/resources, database/Guile acceptance,
-cache correctness, full M3/M6 and general performance parity remain open.
-
-[Native load reader preparation](docs/load-reader.md) supports empty `load` and
-`-load` requests, complete operand effects and byte-preserving empty setup-symbol
-errors. 324 original cases close 312 preceding mismatches, bringing the corpus
-to 27,766 required cases. Broader shared-library/native ABI profiles remain open, along with complete
-M3/M6 and general GNU performance parity.
-
-[Startup include search](docs/startup-include-search.md) now performs the second
-HOME lookup before Makefiles are read, preserving stored operands and delayed
-flag activation. 500 original cases close 438 recorded mismatches, bringing the
-corpus to 27,442 required cases. Raw byte arguments are replayable through
-hexadecimal manifests. Full M3/M6 and general performance parity remain open.
-
-The executable now reads Makefiles, expands core variables/functions, and builds
-explicit and implicit dependencies with local parallel scheduling. An independent differential harness compares it
-with pinned GNU Make 4.4.1, and GitHub CI checks each implementation slice.
-Target-specific and pattern-specific variables support inheritance, private
-bindings, assignment timing, and export policies. Seeded graph tests check their
-interactions with shared prerequisites and recipe environments.
-The `file`, `realpath` and `wildcard` functions use explicit Linux filesystem
-effects, with byte-preserving paths, archive-member queries and tests for buffered
-I/O failures and directory-cache refresh timing.
-This is an experimental subset, **not yet a GNU Make replacement**. Includes,
-implicit rules, process expansion effects, recursive jobservers and grouped
-outputs have implemented slices; many compatibility details remain unfinished. See [implementation progress](docs/progress.md) for exact
-scope, required fixtures and open milestone gates.
-Expansion diagnostics preserve raw bytes and GNU's distinct caller/definition
-locations. The [`error` function and fatal aborts](docs/fatal-errors.md),
-[`info`/`warning` effects](docs/diagnostic-functions.md), and remaining context
-gaps are documented in [diagnostic notes](docs/diagnostics.md).
-The [runtime continuation notes](docs/fatal-continuations.md) cover post-child
-fatal configuration and ordered shutdown. [Linux load and stdin](docs/load-limits.md)
-and [signal shutdown](docs/runtime-signals.md) have controlled runtime gates.
-[Output synchronization](docs/output-sync.md),
-[interruption and completion](docs/runtime-cancellation.md), and
-[recursive runtime flags](docs/runtime-flags.md) share that acceptance gate.
-[Source-name sharing](docs/shared-source-names.md)
-reduces repeated location allocations; `make profile-allocations` provides an
-isolated development profiler.
-The [hidden-prerequisite notes](docs/extra-prerequisites.md) describe
-`.EXTRA_PREREQS`, snapshot effects and automatic-variable exclusion.
-The [file-record notes](docs/file-record-order.md) describe deterministic intermediate
-cleanup, collisions, growth and dependency registration phases.
-The [library lookup notes](docs/library-resolution.md) describe `-l` prerequisites,
-pattern/directory priorities and record merging.
-The [rule declaration notes](docs/declaration-recording.md) explain when rules,
-prerequisite filename observations and nested evaluations enter the database.
-The [assignment syntax notes](docs/assignment-syntax.md) explain lexical token
-boundaries, whitespace handling and remaining assignment gaps.
-
-The target is a Linux-only Rust reimplementation of GNU Make 4.4.1, with extensive
-side-by-side testing. GNU Make's source may be used as a reference under its GPL
-terms. Compatibility comes first; safe performance improvements and opt-in
-extensions follow.
-
-## Design and implementation plan
-
-- [Compatibility contract](docs/compatibility.md): exact scope, reference profiles,
-  source-reference policy, and observable behavior.
-- [Architecture](docs/architecture.md): interpreter, rule resolution, Linux
-  execution, safe caching, and extension boundaries.
-- [Testing strategy](docs/testing.md): original Makefile corpus, differential
-  harness, generated cases, mutation tests, and continuous compatibility gates.
-- [Implementation plan](docs/implementation-plan.md): milestones, acceptance
-  criteria, Makefile-driven flows, and performance objectives.
-- [Licensing and provenance](docs/licensing.md): GPL terms, reference-source use,
-  attribution, and the license transition.
-
-## Getting started
-
-Clone the repository and run the development workflows:
+You need x86-64 Linux with glibc, Git, GNU Make, Python 3.11 or later, a C
+toolchain, and network access to download the pinned Rust toolchain and Cargo
+dependencies.
 
 ```sh
 git clone https://github.com/jeffdasilva/rmake.git
 cd rmake
-make help
+make bootstrap-rust
+make release
+./target/release/rmake --version
+```
+
+`make bootstrap-rust` installs Rust inside the checkout. To run `rmake` from any
+directory in your current shell, install the executable to your user bin
+directory and add it to `PATH`.
+
+```sh
+install -Dm755 target/release/rmake "$HOME/.local/bin/rmake"
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+## Run your first build
+
+In an empty directory, create a file named `message.txt` with any text. Then
+save this example as `Makefile`. Start the recipe line with a tab.
+
+```makefile
+greeting.txt: message.txt
+	cp "$<" "$@"
+```
+
+Run `rmake` twice. The first run creates `greeting.txt`. The second sees that
+the target is up to date and skips the recipe. Change `message.txt` and run
+`rmake` again to rebuild it. Learn how targets, prerequisites, and recipes fit
+together in the [GNU Make introduction](https://www.gnu.org/software/make/manual/html_node/Introduction.html).
+
+## Try rmake on an existing project
+
+From a directory that contains your project's Makefile, run `rmake` for the
+default goal or pass a goal by name. Use `-j4` to allow up to four jobs.
+
+```sh
+rmake -j4
+```
+
+For rule syntax, recipe behavior, and options, start with the
+[GNU Make manual](https://www.gnu.org/software/make/manual/html_node/index.html).
+For tested projects, known differences, and platform support, see the
+[rmake compatibility guide](docs/compatibility.md).
+
+## Contribute to rmake
+
+A Makefile that behaves differently under the two commands is a good place to
+start. When [reporting a difference](https://github.com/jeffdasilva/rmake/issues),
+include the smallest Makefile you can reproduce it with, the complete command,
+the two versions, and what each command did.
+
+From the rmake checkout, prepare the comparison tools and run the developer
+checks.
+
+```sh
 make bootstrap
 make check
 ```
 
-Bootstrap requires Linux x86-64, Python 3.11+, a C toolchain, GNU Make, and network
-access to the pinned GNU/Rust downloads. Tools are installed inside the ignored
-`.tools/` directory; no system packages or shell profiles are changed. The current
-fixture runner is for trusted project fixtures only, not untrusted Makefiles.
-Use `make build`, `make test`, `make fmt-check`, `make lint`, and `make bench` for
-individual flows. The build binary is `target/debug/rmake`.
-
-`make test-generated` runs 200 reproducible programs containing 6,400 expression
-observations by default. Increase the campaign with `SEED`, `GENERATED_CASES` and
-`EXPRESSIONS`; `START_INDEX` replays a recorded program. `make test-graphs` runs
-100 seeded explicit dependency graphs, with `GRAPH_SEED`, `GRAPH_CASES` and
-`GRAPH_NODES` controls. `make test-modes` checks 512 ordinary/one-shell combinations
-of dry-run, query, touch, ignore-error and silent modes; `MODE_CASE` selects a
-recorded case for replay. `make test-stateful` compares multi-step builds and
-nanosecond timestamp boundaries. These are CI gates.
-`make test-intcmp` checks 200 programs with 6,400 independently predicted integer
-comparison results, including GNU 4.4.1's observed negative-number ordering.
-Use `INTCMP_SEED`, `INTCMP_CASES`, `INTCMP_EXPRESSIONS`, and `START_INDEX` to
-scale or replay that campaign. See [integer comparison notes](docs/intcmp.md).
-`make test-diagnostics` checks 206 fixed output-function scenarios with independent
-stream, status and filesystem expectations, including merged output ordering.
-`DIAGNOSTIC_CASE` replays one recorded cell. This is also part of `make ci`.
-`make test-filesystem` checks twenty-one Linux/glibc scenarios, including partial
-reads, close failures and external directory mutations; `FILESYSTEM_CASE` selects
-one for replay. `make test-directory-search` checks 176 original shared-cache and
-I/O programs; `DIRECTORY_CASE` selects one. `make test-symlink-times` checks 112
-ordinary/link/library timestamp syscall-fault programs; `SYMLINK_CASE` selects one. `make test-archive-times` checks 2,600 original archive timestamp, read/seek and
-completion fault programs; `ARCHIVE_TIME_CASE` selects one. See
-[archive observations](docs/archive-observations.md). `make test-wildcards` runs 100 seeded filesystem query programs
-with independent matching and complete filesystem anchors. Use `WILDCARD_SEED`,
-`WILDCARD_CASES`, `WILDCARD_EXPRESSIONS` and `START_INDEX` to scale or replay them.
-See [wildcard semantics](docs/wildcard.md) for the implemented profile and limits.
-`make test-whitespace` checks pure-function whitespace, local bindings and effect
-ordering; `WHITESPACE_CASE` selects one case.
-`make test-word-index` checks `word` and `wordlist` integer boundaries, raw-byte
-errors and expansion ordering; `WORD_INDEX_CASE` selects one case. See the
-[word index notes](docs/word-indices.md) for the accepted numeric grammar.
-Their reports and failure reproductions are written under `artifacts/`.
-
-`make bench-compare` builds release rmake and records alternating paired timings
-against the verified oracle, checking exact output before reporting times. These
-early workloads are measurement tools, not evidence of complete compatibility or
-a general speed advantage. Set `BENCH_VALIDATE=1` with either `make bench` or
-`make bench-compare` to run the workloads without collecting timings. Validation
-starts each execution with fresh inputs and checks output, status, and file
-effects against two runs of the verified GNU executable. It writes separate
-reports under `artifacts/bench`.
-Use `BENCH_SUITE=word-spans` for six large-list workloads covering selected ranges,
-full scans, `let` remainders and literal `patsubst`. The default `core` suite
-retains the original three workloads; `BENCH_SUITE=all` includes every suite.
-`BENCH_SUITE=target-contexts` isolates variable-scope and automatic-value costs
-without launching children. See [target context measurements](docs/target-context-performance.md).
-`BENCH_SUITE=wildcard` measures cold, repeated, complex and literal queries over
-1,000 input files prepared outside the timed invocations.
-`BENCH_SUITE=bindings` measures repeated reads of large simple global and local
-values, with eight references per assignment and five replacement assignments.
-`BENCH_SUITE=implicit-search` measures resolution with many irrelevant patterns.
-`BENCH_SUITE=archives` measures existing archive members with fixed historical dates.
-Set `BENCH_BASELINE=/absolute/path/to/previous/rmake` to compare a previous
-candidate in the same campaign. See the [implicit search measurements](docs/implicit-search-performance.md).
-`BENCH_SUITE=vpath-search` measures ordinary/archive search policy;
-[compiled VPATH measurements](docs/vpath-search-performance.md) record the current
-lookup optimization and its limits.
-`BENCH_SUITE=secondary` measures deferred clauses with large ready lists,
-empty clauses and many targets; see [secondary expansion](docs/secondary-expansion.md).
-`BENCH_SUITE=implicit-rejections` measures repeated rejected pattern searches;
-see [implicit secondary expansion](docs/implicit-secondary-expansion.md).
-`BENCH_SUITE=gpath` measures permanent filename lookup, aliases and implicit rules
-over fixed-time files; see [GPATH behavior and measurements](docs/gpath.md).
-`BENCH_SUITE=intermediates` measures lazy inspection of missing intermediates
-with current outputs; see [intermediate-file policy](docs/intermediate-policy.md).
-`BENCH_SUITE=lazy-records` measures grouped and double-colon intermediate
-inspection; see [lazy rule records](docs/lazy-rule-records.md).
-`BENCH_SUITE=vpath-records` measures declared searched records and alias pairs;
-see [declared VPATH file records](docs/vpath-file-records.md).
-`BENCH_SUITE=directory-search` measures shared input probes and repeated VPATH misses;
-see [shared directory observations](docs/shared-directory-search.md).
-`BENCH_SUITE=archive-names` measures GNU/BSD long names and repeated archive wildcards;
-see [archive name encodings and borrowed scans](docs/archive-name-encodings.md).
-`BENCH_SUITE=symlink-times` measures `-L` over ordinary files and live/dangling chains;
-see [symlink timestamps](docs/symlink-timestamps.md).
-`BENCH_SUITE=rule-filenames` measures quoted declarations, ordinary/deferred
-globs and implicit names with spaces; see [rule filename sequences](docs/rule-filenames.md).
-`BENCH_SUITE=rule-tilde` measures literal/deferred tilde prerequisites and implicit search;
-see [rule tilde expansion](docs/rule-tilde.md).
-`BENCH_REPEAT` controls measured samples per engine (default 15).
-
-The engine can drive the repository's `build` and `check-core` targets:
-
-```sh
-target/debug/rmake -rR --no-print-directory build check-core
-```
-
-`make test-selfhost` exercises those leaf flows and selected mode/diagnostic replays
-without recursively invoking the full CI target. Simple commands use GNU's
-direct-execution path; commands
-requiring shell interpretation retain the selected shell and flags. Full process,
-signal and diagnostic compatibility remains under development.
-See [grouped output rules](docs/grouped-targets.md) for explicit `&:` and
-implicit multi-output behavior. [Low-resolution timestamp comparisons](docs/timestamp-comparisons.md)
-preserve GNU rebuild decisions without changing stored file metadata.
-See [archive members](docs/archive-members.md) for member timestamps, automatic
-variables, touch behavior and the remaining archive rule-resolution work.
-The [archive resolution slice](docs/archive-rule-resolution.md) supports member
-pattern search, archive suffix rules and the built-in archiver recipe.
-[Archive groups](docs/archive-groups.md) work in rule and variable declarations,
-including explicit secondary expansion.
-[Archive rule wildcards](docs/archive-rule-wildcards.md) preserve complete member
-names and GNU observation timing.
-[Rule filename sequences](docs/rule-filenames.md) add quoted blank/colon/pipe
-handling, ordinary rule globs and preserved static/implicit filename boundaries.
-[Rule tilde expansion](docs/rule-tilde.md) adds global HOME evaluation, declaration-close
-prerequisite timing, account/environment fallback and default-goal filename parsing.
-The [adaptive archive reader](docs/archive-reader-performance.md) reduces dense
-header scan I/O while retaining fresh reads between effects.
-[Archive member-name encodings](docs/archive-name-encodings.md) preserve signed/wrapped
-indexes, inline lengths and NUL-terminated markers while avoiding unnecessary name copies.
-[Archive-first VPATH resolution](docs/archive-vpath.md) searches the archive name
-before checking members and preserves GNU search/rebuild observations.
-[GPATH permanent filenames](docs/gpath.md) retain searched rebuild paths and merge
-rule, scope and job identities, including overlapping parallel alias workers.
-[Declared VPATH records](docs/vpath-file-records.md) allow missing searched outputs
-and ordinary VPATH record merges with target eligibility and GNU phase timing.
-[Symlink timestamps](docs/symlink-timestamps.md) support `-L` / `--check-symlink-times`,
-including dangling chains, search-policy boundaries and archive second comparisons.
-[Shared directory observations](docs/shared-directory-search.md) preserve cached
-name membership, incremental streams, refresh timing and search I/O errors.
-[Secondary-expansion clauses](docs/secondary-expansion.md) retain individual
-static stems, literal prerequisites, GNU traversal order and diagnostic context.
-[Implicit secondary expansion](docs/implicit-secondary-expansion.md) evaluates
-candidate words during search, preserving lazy effects, stem reconstruction,
-temporary chain contexts and prerequisite cleanup roles.
-Failed-search observations share the [filesystem invalidation boundaries](docs/implicit-search-invalidation.md)
-used by directory queries, so commands and writes can make a rejected input viable.
-[Intermediate-file policy](docs/intermediate-policy.md) handles global/named
-secondary and not-intermediate precedence, conflicts and lazy missing-file checks.
-[Lazy rule records](docs/lazy-rule-records.md) preserve grouped peer phases,
-double-colon head inspection, cycle removal and parent rebuild evidence.
-`make test-secondary` runs a seeded graph campaign with mixed variable scopes.
-See [shell configuration notes](docs/shell-configuration.md) for literal arguments,
-empty-shell behavior and the remaining newline/complex-flag boundaries.
-The [invocation-depth notes](docs/makelevel.md) distinguish `MAKELEVEL` startup
-state, child exports and the still-incomplete command-line replay phase.
-
-Required/optional includes, [include search directories](docs/include-search.md),
-startup [MAKEFILES loading](docs/startup-makefiles.md),
-and generated makefile restarts are supported in the
-[current include slice](docs/dynamic-makefiles.md). Shell functions, `!=`, and
-`eval` now use explicit mutable interpreter state; see
-[stateful expansion](docs/stateful-expansion.md) for supported behavior and limits.
-
-Local `-jN` scheduling, `.NOTPARALLEL`, and recursive command bindings are now
-available. The [local parallelism notes](docs/local-parallelism.md) describe the
-current single-command scheduling scope and remaining jobserver work.
-
-## Repository layout
-
-| File | Purpose |
-| --- | --- |
-| `README.md` | Project overview and current status |
-| `Makefile` | Development command entry point |
-| `LICENSE` | GNU General Public License version 3 |
-| `.gitignore` | Ignore Rust build output and local editor/OS artifacts |
-| `.editorconfig` | Consistent whitespace and line endings |
-| `docs/` | Proposed architecture, compatibility contract, test strategy, and roadmap |
-| `crates/` | Rust command-line program and compatibility core |
-| `tools/` | Toolchain/oracle bootstrap, independent conformance and benchmarks |
-| `tests/` | Original fixture corpus and requirement inventory |
-| `oracle/` | Pinned GNU Make source and profile configuration |
+Use `make help` for build, test, and benchmark commands. To understand how the
+project checks compatibility or measures speed, see the
+[testing guide](docs/testing.md) and [benchmark reports](docs/benchmarks/README.md).
+The [architecture guide](docs/architecture.md) explains where to make changes.
 
 ## License
 
-Copyright 2026 Jeff DaSilva.
-
-This project is licensed under the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or (at your option)
-any later version. SPDX identifier: `GPL-3.0-or-later`.
-
-It is distributed without any warranty, including the implied warranties of
-merchantability or fitness for a particular purpose. See [LICENSE](LICENSE) for
-the full terms and [licensing and provenance](docs/licensing.md) for the
-source-reference policy and historical license information.
-
-`make m4-acceptance` runs development CI followed by optimized rule-resolution
-regressions. `make test-m4-release` runs the optimized corpus, stateful and archive
-fault suites, repeated parallel cases and self-hosted flows. The
-[recursive HOME notes](docs/recursive-home-names.md) describe the safe byte model
-and [M4 audit](docs/m4-exit-audit.md) records milestone acceptance and open work.
-
-The [owned environment-vector slice](docs/environment-vectors.md) adds byte/order-preserving Linux child launches and export activation phase checks. [M3/M6 remain open](docs/m3-m6-audit.md).
-
-[POSIX mode](docs/posix-mode.md) now covers reader activation, defaults, folding, shell error flags, suffix eligibility and recursive command variables; M3/M6 remain open.
-
-[Negative switches and option origins](docs/switch-origins.md) now cover silent/keep-going aliases, explicit propagation, precedence and scoped flag normalization. M3/M6 remain open.
-
-[Restart directory namespaces and recursive invocation identity](docs/restart-directories.md) now follow original `-C` replay, actual-directory refresh and default `MAKE_COMMAND` indirection, with 348 required cases. M3/M6 remain open.
-
-[M3 profile inputs](docs/profile-inputs.md) now cover inherited file/directory switches, Guile-free lookup and expression reference boundaries. The [option inventory](docs/m3-option-inventory.md) lists the remaining CLI work; M3/M6 remain open.
-
-[Explicit startup arguments](docs/startup-arguments.md) now use one parse when no inherited tokens need merging. Three required fixtures and an output-checked `startup-arguments` benchmark cover up to 5,000 overrides. General performance parity remains open.
-
-[Late built-in disabling](docs/late-builtins.md) now reconciles `-r`/`-R` after reading, preserving user overrides and suffix recipes. Cleanup visits the fixed built-in tables, with 207 required cases and an output-checked scaling benchmark. M3/M6 remain open.
-
-[Undefined-variable warnings](docs/undefined-warnings.md) now cover reader/runtime scopes, option sources, automatic variables and raw diagnostic order. Numeric lexical bindings survive nested calls correctly. Startup ordering and broader M3/M6 acceptance remain open.
-
-[Command-line eval](docs/command-line-eval.md) now evaluates ordered buffers before ordinary Makefiles, with recursive transport, metadata, source diagnostics and restart replay. Broader startup and M3/M6 acceptance remain open.
-
-[Trace output](docs/trace.md) now reports rebuild reasons, source locations and command echo across execution modes, recursion and Makefile remake phases. Broader debug, startup and profile acceptance remain open.
-
-[Automatic snapshot preparation](docs/automatic-snapshots.md) avoids unused owned prerequisite/value snapshots while preserving freshness and grouped-target views. Raw allocation and timing evidence accompanies the change; general performance parity remains open.
-
-[CLI assignment effects](docs/cli-assignment-effects.md) now use the full evaluator, retain included-file startup diagnostics, and install shell/default variables after early assignment effects. Full M3/M6 acceptance and process restart reconstruction remain open.
-
-[Ordered startup replay](docs/startup-replay.md) now reconstructs pre-assignment state for CLI effects after Makefile remaking, including fresh reads, computed names, warnings and recursive snapshots. Broader M3/M6 acceptance remains open.
-
-[Initial inherited flag expansion](docs/initial-flag-expansion.md) now evaluates variable/function effects before token decoding, transfers prepared state into startup, and repeats early effects on restart. M3/M6 remain open.
-
-[Ordered explicit CLI startup](docs/ordered-cli-startup.md) adds 126 semantic and two scaling controls, a 128-cell exit-phase gate and 42 interruption cells. Full GNU compatibility and performance parity remain open.
-
-[Imported restart state](docs/restart-state.md) adds 214 counter/policy controls and eight early special-activation controls. It preserves numeric wrap and binding export lifetime while transferring original startup inputs without a redundant full copy. M3/M6 remain open.
-
-[Prepared startup retention](docs/startup-retention.md) removes unused copies, with repeated allocation observations and paired timing reports. Original include-metadata observations remain as historical research; their qualified closure is recorded in the constructor phase controls. M3/M6 remain open.
-
-[Runtime include phases](docs/runtime-includes.md) now preserve old search during metadata eval, nested publication, current flag state and bindings changed by immediate RHS effects. There are 155 new required cases, 42 staged interruption cells and an output-checked `BENCH_SUITE=runtime-includes`; full M3/M6 and performance parity remain open.
-
-[Startup metadata recursion](docs/startup-metadata-recursion.md) now preserves CLI versus metadata recursion, child environments, diagnostic program levels and real definition sources, with 55 new required cases. Assignment priority and scope preservation share one fresh binding lookup. The eleven original startup-metadata gaps are now covered by the constructor phase controls; broader M3/M6 remains open.
-
-[Include-directory interruption handling](docs/include-stat-interruptions.md) now retries transient metadata interruptions and stops on fatal signals. `make test-include-stat` adds twelve separately gated fault profiles with observer ABI qualification; ordinary conformance and safety-exception counts are unchanged.
-
-[Ordered literal startup](docs/literal-startup.md) now uses the same argument and restart phases for all invocations, preserving directory operand comparison, repeated Makefile metadata and recursion diagnostics. There are 146 new required controls; allocation requests fall on the measured literal-argument workloads, while general M3/M6 compatibility and performance parity remain open.
-
-[Constructor metadata phases](docs/constructor-metadata.md) now preserve early default/automatic visibility, full eval, imported shell use, output-buffer boundaries and cached directory state. 539 new required cases close all nineteen historical probes; the ordinary corpus is 11,605 required / zero pending, plus 17 separate safety exceptions. Complete M3/M6 and general performance parity remain open.
-
-[Early absolute-path selection](docs/early-abspath.md) now distinguishes pending startup from a selected logical directory. 132 new controls preserve absolute words, argument effects, computed-name errors and rereads while relative early words remain empty as in GNU. The corpus is 11,737 required / zero pending with 17 separate safety exceptions; M3/M6 and general performance parity remain open.
-
-[Include operand history](docs/include-operands.md) now preserves raw-versus-stored comparison, multiplicity, barriers and fresh metadata across initial and runtime resets. 941 new required cases bring the ordinary corpus to 12,678 required / zero pending, with 17 separate safety exceptions; the include-stat gate now has 24 profiles. Large distinct-operand startup improves on measured workloads; full M3/M6 and general performance parity remain open.
-
-[Linux abspath bounds](docs/abspath-bounds.md) now preserve raw-word and incremental byte limits before normalization can shorten paths. 243 required controls bring the ordinary corpus to 12,921 required / zero pending, plus 17 separate safety exceptions. Borrowed components and exact result capacity reduce allocation requests on measured target-context workloads; full M3/M6 and general performance parity remain open.
-
-[Literal reference chains](docs/literal-chains.md) now resolve eligible deep chains on the heap while preserving cycle diagnostics, scopes, warnings, NUL boundaries and effectful fallbacks. 353 required controls close 166 preceding mismatches, including all 136 recorded deep-chain failures. The ordinary corpus is 13,274 required / zero pending, plus 17 separate safety exceptions. Measured shallow-chain reads improve; full M3/M6 and general performance parity remain open.
-
-[Pure text expansion frames](docs/text-frames.md) extend heap evaluation to eligible text/reference graphs and shared branches. 479 required original controls close 182 preceding mismatches, bringing the ordinary corpus to 13,753 required / zero pending, plus 17 separate safety exceptions. Warning order, scopes, NUL boundaries and effectful fallbacks are preserved. Performance costs remain mixed; complete M3/M6 compatibility and general performance parity remain open.
-
-[Linear leaf continuations](docs/linear-continuations.md) now resume eligible text chains around full function, file, shell, eval and metadata leaves. 419 required cases close 248 preceding mismatches, including all forty recorded deep-leaf failures. The ordinary corpus is 14,172 required / zero pending, plus 17 separate safety exceptions. Repeated measurements remove the prior shallow-chain regression and improve eligible function-leaf workloads; GNU remains faster and full M3/M6 stays open.
-
-[Heap expression continuations](docs/heap-continuations.md) now support deeply nested function bodies, branches, computed references, lexical scopes and recursive calls without raising the native recursion guard. 457 required cases close 296 preceding mismatches, including all 80 failures in the prior function-body research set. The ordinary corpus is 14,629 required / zero pending, plus 17 unchanged separate safety exceptions. Performance measurements retain regressions as well as improvements; full M3/M6 and general performance parity remain open.
-
-[Deep inherited appends](docs/deep-appends.md) now evaluate outer binding snapshots iteratively, retaining private inheritance, leaf automatic context, empty separators and exact effect order. 495 required cases close 144 preceding mismatches. The ordinary corpus is 15,124 required / zero pending, plus 17 unchanged separate safety exceptions. Effect-free prefix scans reduce repeated parsing; measured core expansion and valid function-body workloads improve about 4% and 9–11% versus the preceding build, while GNU remains faster. Full M3/M6, broader resource/profile acceptance and general performance parity remain open.
-
-
-## M3/M6 live source and parser continuations
-
-[Live source streams and parser continuations](docs/live-sources.md) retain open-file identity, libc read/error/EOF phases, prepared include filenames and nested evaluation cycle state. Heap include frames and a bounded same-thread x86-64 Linux eval-stack adapter extend finite depth acceptance; other profiles retain their earlier guard. 269 required models close 158 preceding mismatches and retain 111 controls. The corpus is 15,393 ordinary required / zero pending, plus 17 unchanged separate safe errors; 36 separate source-I/O profiles cover interruption, errors, close and fatal cancellation. Eleven Rust and thirteen tooling tests extend coverage to 509 / 507. Rejected model assumptions and all raw observations remain recorded. Full frozen acceptance and exact-head CI remain merge gates. Complete M3/M6, native/Guile/profile/resource acceptance and general performance parity remain open.
-
-
-## M3/M6 eval allocation profiling controls
-
-[Recipe-free eval profiles](docs/eval-allocation-profiles.md) add three required every-read controls and extend the frozen allocation flow. The ordinary corpus is 15,396 required / zero pending, plus 17 unchanged separate safe errors. Experimental ownership/frame changes lowered measured allocation requests but showed repeated elapsed regressions; their source patches, all observations and build controls are retained, and the validated runtime from PR #142 is preserved. Formatting, lint, 509 Rust and 510 tooling tests pass; exact-head CI remains the merge gate. Full M3/M6 and general performance parity remain open.
+rmake is published under the [GNU General Public License, version 3 or later](LICENSE).
+See [licensing and provenance](docs/licensing.md) for details.
