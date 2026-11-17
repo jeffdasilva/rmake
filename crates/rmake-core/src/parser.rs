@@ -5376,7 +5376,14 @@ impl Database {
                 .targets
                 .iter()
                 .any(|target| target == b".SECONDEXPANSION");
-            declaration.prerequisites.extend_from_slice(prereqs);
+            // The immediate prerequisite header loses trailing C whitespace,
+            // including bytes preceded by a backslash. Deferred expansion
+            // happens later and preserves whitespace it introduces itself.
+            let end = prereqs
+                .iter()
+                .rposition(|byte| !matches!(byte, b' ' | b'\t'..=b'\r'))
+                .map_or(0, |index| index + 1);
+            declaration.prerequisites.extend_from_slice(&prereqs[..end]);
             declaration.header = Some(RuleHeader {
                 static_pattern,
                 double_colon: delimiter.double_colon,
@@ -6848,6 +6855,47 @@ mod tests {
         let recipe = &db.rules[b"all".as_slice()].recipes.as_ref().unwrap()[0];
         assert_eq!(recipe.location.line, 3);
         assert_eq!(db.variables.expand(&recipe.bytes).unwrap(), b"@echo late");
+    }
+
+    #[test]
+    fn immediate_prerequisite_tail_trims_all_c_whitespace_before_unquoting() {
+        for byte in b" \t\n\x0b\x0c\r" {
+            for order_only in [false, true] {
+                let mut db = Database::default();
+                db.variables
+                    .define_literal(b"E", &[*byte], Origin::File)
+                    .unwrap();
+                let source = if order_only {
+                    b"all: | \\$(E)\n".as_slice()
+                } else {
+                    b"all: \\$(E)\n".as_slice()
+                };
+                db.read(source, b"m").unwrap();
+                let dependencies = &db.rules[b"all".as_slice()].dependencies;
+                assert_eq!(dependencies.len(), 1);
+                assert_eq!(dependencies[0].name, b"\\");
+                assert_eq!(dependencies[0].order_only, order_only);
+                assert!(db.explicit_names.contains(b"\\".as_slice()));
+                assert!(!db.explicit_names.contains(&[*byte][..]));
+            }
+        }
+    }
+
+    #[test]
+    fn prerequisite_tail_keeps_interior_blanks_and_deferred_text() {
+        let mut db = Database::default();
+        db.read(
+            b".SECONDEXPANSION:\nall: \\  next\nlate: \\ $$(EMPTY) \n",
+            b"m",
+        )
+        .unwrap();
+        assert_eq!(
+            normals(&db.rules[b"all".as_slice()]),
+            [b" ".to_vec(), b"next".to_vec()]
+        );
+        let late = &db.rules[b"late".as_slice()];
+        assert!(late.secondary.is_some());
+        assert_eq!(late.dependencies[0].name, b" \\ $(EMPTY)");
     }
 
     #[test]

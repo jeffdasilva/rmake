@@ -3073,3 +3073,23 @@ cases = [
   "retained-failure-ordinary-repeated-parent",
   "retained-failure-ordinary-completed-recipe-failure",
 ]
+
+[[requirements]]
+id = "options.default-goal-spelling"
+title = "Default-goal complete spelling and final expansion"
+status = "fixture-ready"
+candidate_status = "implemented"
+candidate_required = 32
+reference = "https://www.gnu.org/software/make/manual/html_node/Special-Variables.html"
+fixture_count = 32
+cases = ["default-selection-space-simple", "default-selection-two-spaces-recursive", "default-selection-included-recursive", "default-selection-preloaded-simple", "default-selection-command-line-recursive", "default-selection-automatic-space", "default-selection-automatic-reset-two-spaces", "default-selection-unknown-space", "default-selection-unknown-vertical-tab", "default-selection-unknown-form-feed", "default-selection-unknown-mixed-whitespace", "default-selection-unknown-newline", "default-selection-physical-file-without-record", "default-selection-trailing-quoted-prerequisite", "default-selection-interned-prerequisite", "default-selection-interned-wildcard", "default-selection-early-eval", "default-selection-late-include", "default-selection-second-makefile", "default-selection-recursive-final-value", "default-selection-simple-frozen-value", "default-selection-dot-prefix", "default-selection-escaped-unknown-space", "default-selection-known-multiple-words", "default-selection-binding-replaced-during-expansion", "default-selection-raw-byte-name", "default-selection-nonbreaking-space-name", "default-selection-explicit-goal-skips-file-error", "default-selection-explicit-goal-skips-preload-error", "default-selection-explicit-goal-skips-cli-effect", "default-selection-explicit-goal-skips-eval-error", "default-selection-explicit-space-goal"]
+
+[[requirements]]
+id = "rules.prerequisite-tail-whitespace"
+title = "Immediate prerequisite trailing whitespace and deferred controls"
+status = "fixture-ready"
+candidate_status = "implemented"
+candidate_required = 12
+reference = "https://www.gnu.org/software/make/manual/html_node/Reading-Makefiles.html"
+fixture_count = 12
+cases = ["prerequisite-tail-space-normal", "prerequisite-tail-tab-order-only", "prerequisite-tail-vertical-tab-normal", "prerequisite-tail-form-feed-order-only", "prerequisite-tail-carriage-return-normal", "prerequisite-tail-newline-order-only", "prerequisite-tail-raw-trailing-quote", "prerequisite-tail-interior-quoted-space", "prerequisite-tail-deferred-quoted-space", "prerequisite-tail-deferred-empty-suffix", "prerequisite-tail-raw-high-byte-control", "prerequisite-tail-utf8-nonbreaking-control"]
