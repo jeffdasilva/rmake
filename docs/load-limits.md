@@ -224,6 +224,9 @@ named makefiles and compare release, restart, deletion, and file modes.
 Four more profiles place the optional include in the middle.
 Six more profiles cover two optional includes among three named sources
 under a load limit. They check all three positions for the required source.
+Four further cases omit the load limit and check touch or deletion when
+the required source comes first or in the middle. Their held release
+includes the earlier unnamed include’s touch output.
 
 ## Performance observation
 

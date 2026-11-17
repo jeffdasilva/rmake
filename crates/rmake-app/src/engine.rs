@@ -3344,7 +3344,9 @@ impl Engine {
                 && (final_named_sources.len() == 2
                     || (!final_named_sources.is_empty() && optional_named_sources == 0)
                     || (final_named_sources.len() == 3 && optional_named_sources == 1)
-                    || (limited_load && three_named_two_optional));
+                    || (three_named_two_optional
+                        && (limited_load
+                            || matches!(final_named_sources, [_, _, (last, _)] if last.optional))));
             let two_optional_touch = three_named_two_optional
                 && (debug_before_remake.bits() == Mask::NONE.bits() || final_named_touch_debug);
             let optional_pair_before_required = two_optional_touch

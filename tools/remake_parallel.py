@@ -2648,7 +2648,9 @@ def stock_primary_three_named_two_optional_cases(held_models: list[HeldModel]) -
     by_id = {held.model.id: held for held in held_models}
     base_id = 'load-stock-primary-both-optional-three-mixed-last-adjacent-reversed-2-'
     samples = (('t-pipe-high-2-slots', False), ('qt-fifo-high-4-slots', True),
-               ('t-pipe-low-4-slots', True), ('qt-fifo-no-load-2-slots', False))
+               ('t-pipe-low-4-slots', True), ('qt-fifo-no-load-2-slots', False),
+               ('t-pipe-no-load-2-slots', False), ('t-fifo-no-load-4-slots', True),
+               ('qt-pipe-no-load-4-slots', True))
     for sample, required_first in samples:
         held = stock_primary_add_named_touch_sources(by_id[base_id + sample], 3)
         model = held.model
