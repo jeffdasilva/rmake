@@ -229,6 +229,9 @@ the required source comes first or in the middle. Their held release
 includes the earlier unnamed include’s touch output.
 Four more profiles place the optional include first or last among four
 named sources under a load limit.
+Three no-load profiles place both optional includes before the required
+include. They check that the first optional visit precedes the unnamed
+include’s completion trace.
 
 ## Performance observation
 

@@ -2749,14 +2749,19 @@ def stock_primary_three_named_two_optional_cases(held_models: list[HeldModel]) -
 def stock_primary_two_optional_before_required_cases(held_models: list[HeldModel]) -> Iterator[HeldModel]:
     by_id = {held.model.id: held for held in held_models}
     base_id = 'load-stock-primary-both-optional-three-mixed-last-adjacent-2-'
-    samples = ('t-pipe-high-2-slots', 'nt-fifo-high-4-slots',
-               'qt-fifo-high-2-slots', 'nqt-pipe-no-load-4-slots')
+    samples = (('t-pipe-high-2-slots', None), ('nt-fifo-high-4-slots', None),
+               ('qt-fifo-high-2-slots', None), ('nqt-pipe-no-load-4-slots', None),
+               ('nt-pipe-no-load-4-slots', '-j'), ('nt-fifo-no-load-4-slots', '-j3'))
     leaf_touch = b'touch leaf.mk\n'
     optional_touch = b'touch extra.mk\n'
     required_touch = b'touch tail.mk\n'
-    for sample in samples:
+    for sample, jobs in samples:
         held = stock_primary_add_named_touch_sources(by_id[base_id + sample], 3)
         model = held.model
+        if jobs is not None:
+            args = tuple(jobs if arg == '-j4' else arg for arg in model.args)
+            slot_label = 'unbounded' if jobs == '-j' else '3-slots'
+            model = replace(model, args=args, id=model.id.replace('-4-slots-', f'-{slot_label}-'))
         goals = model.args[-4:-1]
         high = held.load.at_release == LOAD_HIGH
         dry_run = '-n' in model.args
@@ -2774,12 +2779,16 @@ def stock_primary_two_optional_before_required_cases(held_models: list[HeldModel
                 updates['leaf.mk'] = b'LEAF := loaded\n'
             stderr = b"make: *** Deleting file 'Makefile'\n"
         else:
-            stdout = release + b'touch Makefile\n' * 2 + queued_optional + leaf_touch * 2 + required_touch
+            stdout = release + b'touch Makefile\n' * 2 + queued_optional
+            if high:
+                stdout += leaf_touch * 2
+            stdout += required_touch
             if dry_run:
-                named_touches = b'touch child.mk\n' + optional_touch + required_touch
-                stdout += b'touch child.mk\n' + leaf_touch + optional_touch + required_touch + named_touches
+                if high:
+                    stdout += b'touch child.mk\n' + leaf_touch + optional_touch + required_touch
+                stdout += b'touch child.mk\n' + optional_touch + required_touch
             stdout += b''.join(f"make: '{goal}' is up to date.\n".encode() for goal in goals)
-            updates['leaf.mk'] = b'LEAF := loaded\n' if dry_run else b''
+            updates['leaf.mk'] = b'' if high and not dry_run else b'LEAF := loaded\n'
             updates['Makefile'] = model.files['Makefile.sh']
             stderr = b''
         expected = {'exit_code': 0, 'stdout_template_hex': (stdout + b'touch all\n').hex(),

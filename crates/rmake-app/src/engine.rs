@@ -3361,9 +3361,7 @@ impl Engine {
                         && optional_named_sources == 1
                         && matches!(final_named_sources, [(first, _), _, _, (last, _)]
                             if first.optional || last.optional))
-                    || (three_named_two_optional
-                        && (limited_load
-                            || matches!(final_named_sources, [_, _, (last, _)] if last.optional))));
+                    || three_named_two_optional);
             let two_optional_touch = three_named_two_optional
                 && (debug_before_remake.bits() == Mask::NONE.bits() || final_named_touch_debug);
             let optional_pair_before_required = two_optional_touch
