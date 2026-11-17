@@ -3863,6 +3863,11 @@ impl Engine {
                         result.blocked = head.blocked;
                         result.completion = CompletionTime::Refresh;
                         result.time = self.modified(name);
+                        if !optional {
+                            // A failed required declaration revisits the shared
+                            // physical head time, replacing its grouped update.
+                            result.remake_group_peer_updated = false;
+                        }
                     } else if optional {
                         result.fatal = true;
                     }
@@ -3879,6 +3884,9 @@ impl Engine {
                 if !self.parallel_makefile_remakes
                     && settled_chain
                     && (!optional || before == result.time)
+                    && !(optional
+                        && serial_declarations.is_some()
+                        && result.remake_group_peer_updated)
                 {
                     self.debug_double_colon_goal_prunes(name, result);
                 }
@@ -10238,8 +10246,16 @@ impl Engine {
             return None;
         }
         let branches = self.database.rules.get(target)?.double_colon.as_ref()?;
-        (branches.len() > 1 && branches.iter().all(|branch| branch.group.is_none()))
-            .then_some(branches.len())
+        // A completed grouped declaration participates in the same serial
+        // head/tail policy as an independent declaration. An active group must
+        // still settle through its own completion path.
+        (branches.len() > 1
+            && branches.iter().all(|branch| {
+                branch
+                    .grouped_double_id()
+                    .is_none_or(|id| self.completed_group_branches.contains_key(&id))
+            }))
+        .then_some(branches.len())
     }
 
     fn resume_double_colon_state(&mut self, target: &[u8], mut state: DoubleColonState) -> Outcome {
@@ -12194,7 +12210,7 @@ impl Engine {
                 }
             }
             if !outcome.question_outdated && !outcome.fatal && (!outcome.failed || outcome.ran) {
-                for (peer, _, phony) in group.members {
+                for (peer, before, phony) in group.members {
                     let owner = peer == target;
                     let Some(branches) = self
                         .database
@@ -12221,6 +12237,19 @@ impl Engine {
                     } else {
                         self.observed_modified(&peer, false)
                     };
+                    if self.remaking
+                        && !self.parallel_makefile_remakes
+                        && !outcome.failed
+                        && outcome.completion == CompletionTime::Refresh
+                        && !phony
+                        && self.makefile_names.contains(&peer)
+                        && let Some(time) = before
+                        && completed.time != before
+                    {
+                        self.serial_remake_peer_times
+                            .entry(peer.clone())
+                            .or_insert(time);
+                    }
                     let mut peer_times = (database_requested
                         && !phony
                         && if owner {
