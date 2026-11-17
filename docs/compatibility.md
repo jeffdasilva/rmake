@@ -92,10 +92,9 @@ Any distro-patched executable needs its own profile. See the
 [pinned Guile toolchain](../oracle/guile/toolchain.json) and GNU's
 [Guile integration documentation](https://www.gnu.org/software/make/manual/html_node/Guile-Integration.html).
 
-The full profile also records the runtime image and digest, toolchain and shell
-versions, default rules and variables, locale, timezone, umask, environment,
-filesystem, and test-runner version. Immutable runtime images and complete
-filesystem and network isolation are
+A complete profile would also pin the runtime image, toolchain, shell, and
+filesystem and record their observed properties. Immutable runtime images and
+complete filesystem and network isolation are
 [open test infrastructure work](progress.md#open-foundation-gates).
 
 ## How rmake checks a difference
