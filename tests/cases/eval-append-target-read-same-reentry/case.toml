@@ -1,0 +1,12 @@
+id = "eval-append-target-read-same-reentry"
+requirement = "functions.eval"
+candidate = "required"
+description = "Nested evaluation re-enters the same target, and the append uses the target value replaced while evaluating its suffix."
+provenance = "Original rmake fixture, independently authored against the pinned GNU Make 4.4.1 interface."
+args = ["-rR", "--no-print-directory", "all", "later"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "RHS=[rebound]\nreturn=[rebound]\ntarget=[rebound]\nglobal=[rebound tail/simple]\n"
+stderr = ""
