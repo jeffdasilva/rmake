@@ -1,0 +1,12 @@
+id = "include-group-owner-policy-group-blocked-tail-optional-stop-read-peer"
+requirement = "includes.remake"
+candidate = "required"
+description = "A serial grouped owner applies optional suppression only to its declared head before any branch executes."
+provenance = "Original rmake fixture and GNU 4.4.1 black-box observations; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:\n"
+stderr = "make: *** No rule to make target 'absent', needed by 'pair.owner.mk'.  Stop.\n"

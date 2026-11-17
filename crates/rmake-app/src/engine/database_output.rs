@@ -305,7 +305,9 @@ impl Engine {
         });
         view.intermediate = self.intermediates.contains(name);
         view.not_intermediate = self.special(b".NOTINTERMEDIATE", name, true);
-        view.secondary = self.special(b".SECONDARY", name, true)
+        let named_secondary = self.special(b".SECONDARY", name, false);
+        view.secondary = named_secondary
+            || self.intermediate_policy.all_secondary
             || match &branch_key {
                 Some(key) => self.database_branch_secondary.contains(key),
                 None => self.database_secondary.contains(name),
@@ -404,6 +406,19 @@ impl Engine {
             && (outcome.is_some() || observed.is_some() || times.contains_key(name) || view.phony)
         {
             view.time = FileTime::Missing;
+        }
+        // Named secondary records start as intermediate. An unvisited
+        // record or a query that observed no file retains that marker.
+        // In grouped rules the reported time can stay unchecked after
+        // a recipe changes the file, so use the update outcome as well.
+        if named_secondary
+            && ((outcome.is_none() && matches!(view.time, FileTime::Unchecked))
+                || (self.options.question
+                    && timestamp.is_none()
+                    && matches!(view.time, FileTime::Missing)
+                    && outcome.is_none_or(|outcome| !outcome.ran)))
+        {
+            view.intermediate = true;
         }
         if let Some(outcome) = outcome {
             view.updated = true;

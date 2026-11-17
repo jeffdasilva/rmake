@@ -1,85 +1,76 @@
 # Original deterministic debug-output profiles
 
-The original forty models cover debug level selection/reset and raw serialization,
-BASIC/VERBOSE/IMPLICIT/MAKEFILE/PRINT/WHY behavior, TRACE aliases, quiet recipe
-policy, inherited/live flags, restart replay, invalid options and ordered output.
-The controlled graphs avoid nondeterministic job addresses and PIDs. No native
-module or C compiler is used. Dynamic job identity compatibility remains open
-until a strict relationship comparator is independently qualified.
+Use these tests to compare GNU Make 4.4.1 and rmake diagnostics with the same
+Makefile, process arguments, and starting files. Most cases compare text and
+file effects. Held-worker cases also check the output visible before a real
+recipe process can finish.
 
-`@WORK@` and `@BIN@` are fixed byte slots for the predetermined reset workspace
-and its executable alias. They never derive from observed output. The gate checks
-exact streams/status, ordered `seen`, independent complete filesystem state,
-GNU repeat equality and process bounds. Declared nanosecond timestamps are
-applied before identical fixture copies. Extra/missing files or events, shared
-wrong headers/paths/indentation, leftovers and resource limits always fail.
+## Run or replay the gate
 
-Every automatic debug-triggered GNU version header is exact public protocol.
-Only `debug-invalid-before-version`, which explicitly requests `--version`, has
-one permitted `@EXPLICIT_VERSION@` branding block. The original GNU raw model
-and report remain unchanged in history. Its refined GNU calibration must match
-the stored original block exactly. Each engine's isolated version is checked
-twice, including unchanged files and no debug/directory events. The complete
-merged eager → fatal → version stream and its status/effects must match the
-fixed template. The slot cannot move, swallow adjacent diagnostics or alter any
-ordinary debug header. No broad banner, path or job normalization is used.
+From the repository root, run the full debug gate or select one case.
 
-Run `make test-debug-output`, optionally with `DEBUG_CASE=debug-bare-basic`.
-The standalone tool accepts `--oracle`, `--candidate` or `--oracle-only`,
-`--report` and repeated exact `--case` IDs. GNU-only qualification grants no
-candidate acceptance. This separate gate adds no ordinary-ledger or approved
-safety-exception credit; native 215 and directory 40 profiles remain unchanged.
+```sh
+make test-debug-output
+make test-debug-output DEBUG_CASE=debug-remake-cache-include-current-existing-ordinary
+```
 
-[history.json](history.json) checksums the complete original first/final models,
-observers, raw observations, verifier and handoff, together with the refined
-GNU2 and preceding-candidate reports and integration-source snapshots. All 40
-refined GNU2 profiles pass, while the frozen preceding candidate passes one and
-fails 39. Seven incorrect initial wording/indentation/spool predictions remain
-retained. Broader debug/database/profile acceptance remains open.
+The normal target writes `artifacts/debug-output/development.json`. To test an
+existing optimized binary or select several cases, use the runner directly.
 
+```sh
+python3 tools/debug_output.py --candidate target/release/rmake \
+  --case debug-bare-basic \
+  --case debug-remake-cache-include-current-existing-ordinary \
+  --report artifacts/debug-output/focused-release.json
+```
 
-The current gate includes fourteen additional independently GNU2-qualified
-review boundaries in `extension.toml`, for a total of 54. They cover `--eval`
-header timing, BASIC byte-order-mark reporting, reader annotation order, empty
-debug separators and remaining-suffix errors. The original forty-model file,
-history and frozen v1 reports remain unchanged. All fourteen first predictions
-matched GNU twice; v1 passes two and differs on twelve. No additional cosmetic
-slots, native modules or dynamic job identities are introduced.
+Use `--oracle PATH` to select a verified reference, or `--oracle-only` to check
+the expected models against GNU Make without evaluating rmake. See the
+[testing guide](../../docs/testing.md) for reference setup and how to interpret
+a replay.
 
-[extension-history.json](extension-history.json) retains complete first/final
-research, transformed GNU2 and v1 observations, original-forty fingerprints,
-frozen-report hashes and the extension's integration sources. The extension
-has no wrong first hypotheses to correct; the first observations are preserved
-as such. Fixed-candidate and full developer acceptance remain separate gates.
+## Read a case result
 
+Each case runs GNU Make twice in the same reset workspace, followed by rmake.
+The checks include stdout and stderr bytes, exit status, the complete expected
+filesystem, and ordered effects in `seen`. Inputs specify timestamps when
+timing affects a rebuild. A process bound, an unexpected file, or an uncollected
+child fails the case.
+
+The fixture knows the workspace and invocation paths before either engine runs.
+`@WORK@` and `@BIN@` insert those paths into the expected streams.
+GNU versions printed when debug starts must match exactly. The one explicit
+`--version` case compares each engine's banner at its declared position, then
+checks all other bytes and the surrounding effects.
+
+## Find a case
+
+| Case group | What it checks |
+| --- | --- |
+| Original and extension cases | Debug levels, option reset and serialization, trace, startup and live flags, source annotations, and output order. |
+| Child and goal waits | Real workers held at declared boundaries, `.WAIT` and targeted `.NOTPARALLEL`, and the exact trace after a child can finish. |
+| [Recursive question cases](recursive-question.toml) | Forced exit status one, nested and double-colon parents, keep-going and current children, and directory messages around a sub-make include. |
+| [Remake cache cases](remake-cache-phase.toml) | Required and optional reads, restarts, named goals and cached results. Eight cases hold workers across Makefile and ordinary phases. Four more check verbose output enabled in the middle of ordinary traversal. |
+
+These fixtures use ordinary Makefiles and shell recipes. The
+[JOBS comparisons](../../docs/job-debug.md) use live process relationships to
+check diagnostics that include process IDs or addresses. The
+[compatibility audit](../../docs/m3-m6-audit.md) tracks remaining combinations.
+
+## Historical reports
+
+The early campaigns and their negative controls are retained with their source
+and executable identities. The first 40 models pass the pinned GNU reference
+twice. The early rmake binary passed one. A later revision added 14 reader and
+option boundaries, then added child-lifecycle cases. A historical observer fix
+treated `ESRCH` like `ENOENT` when an observed child exited, and retained a
+control for other read errors.
 
 | Evidence manifest | Contents |
 | --- | --- |
-| [performance-v2.json](performance-v2.json) | Complete three elapsed reports, 16 allocation reports/raw traces, helper/tool sources and exact workload input manifest. Links the immutable v2 source snapshot; retains every negative result and separates elapsed CPU23 affinity from allocation limits. |
-| [performance-children.json](performance-children.json) | Complete C1 elapsed/allocation reports and traces, exact input/helper manifests and qualification-children reference. Preserves requested-byte increases and links unchanged earlier v2 regressions; CPU23 applies only to elapsed campaigns. |
-| [qualification-children.json](qualification-children.json) | Complete C1 development/release 64-pass and preceding debug-v2 62-pass/2-fail reports, with coherent code/input hashes. Earlier native/directory qualifications remain historical references; new C1/full acceptance is separate. |
-| [qualification-v2.json](qualification-v2.json) | Complete final development/release reports passing debug 54, native 215 and directory 40, plus preceding-main debug 1-pass/53-fail control. Includes coherent source/input/module hashes; ordinary and full developer acceptance remain separate. |
-| [history.json](history.json) | Original forty-profile raw/refined discovery and retained incorrect hypotheses, unchanged. |
-| [extension-history.json](extension-history.json) | Fourteen independently qualified review boundaries, exact first/final predictions, immutable v1 negative controls and original-model/report fingerprints. |
-
-A child can exit after the observer opens `/proc/<pid>/stat` and before it
-reads the entry. The observed GNU run failed inside the test worker with
-`ESRCH`; the second GNU run and rmake matched the expected result. Both
-`ENOENT` and `ESRCH` now mean that the observed process is gone. Other read
-errors still fail, as the injected permission-error control checks. All ten
-child profiles use the same observer, and their expected output, status,
-ordering, and file effects stay unchanged. Both 64-case runs and 24 repeats
-of the affected case passed after the correction.
-
-The four goal-own-wait models hold a prerequisite worker and then the goal's
-own worker. A recipe expansion writes a file after either a `.WAIT` barrier or
-a target-specific `.NOTPARALLEL` barrier. GNU reports that the goal is still
-updating before its recipe finishes. The info-only control leaves the debug
-pass unchanged, and the nested-goal control retains the prerequisite trace.
-Each model compares complete streams, status, the ordered file effects, and
-child cleanup.
-
-`recursive-question.toml` checks eight standalone recursive question
-profiles. Forced status one stops the waiting prerequisite trace, including
-nested and double-colon parents. Controls cover `-k`, current children, and
-ordered directory reports when a sub-make reads an include.
+| [history.json](history.json) | Original 40 models, raw and refined observations, and earlier wording and order hypotheses. |
+| [extension-history.json](extension-history.json) | The 14 added input and option cases, raw observations, and earlier binary results. |
+| [qualification-v2.json](qualification-v2.json) | Full 54-case debug comparison, native and directory checks, and preceding-binary results. |
+| [qualification-children.json](qualification-children.json) | Both 64-case child-lifecycle runs and the two failures on the preceding debug binary. |
+| [performance-v2.json](performance-v2.json) | Elapsed and allocation reports, helper sources, and workload inputs for the earlier debug version. |
+| [performance-children.json](performance-children.json) | Paired timing and allocation reports for the child-lifecycle change, including regressions. |

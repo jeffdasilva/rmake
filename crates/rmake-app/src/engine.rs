@@ -4491,7 +4491,12 @@ impl Engine {
                 let first_question = self.ordinary_queries.first_verdict.is_none()
                     && verdict == Some(Status::Question);
                 self.ordinary_queries.record(verdict);
-                self.report_goal(&goal, started_command, completed_report.unwrap_or(outcome));
+                self.report_goal(
+                    &goal,
+                    started_command,
+                    completed_report.unwrap_or(outcome),
+                    already_done,
+                );
                 if first_question
                     && !self.options.keep_going
                     && self.parallel_graph()
@@ -4631,7 +4636,7 @@ impl Engine {
             failed |= outcome.failed;
             fatal |= outcome.fatal;
             self.ordinary_queries.record(outcome.goal_verdict());
-            self.report_goal(&goal.name, goal.started_command, outcome);
+            self.report_goal(&goal.name, goal.started_command, outcome, goal.already_done);
         }
         if self.options.question
             && self.would_build
@@ -5355,7 +5360,27 @@ impl Engine {
         {
             // Each extra goal entry returns to the same considered chain head.
             let count = branches.len() + usize::from(self.visited_cached_double_colon_input(name));
-            for _ in 1..count {
+            let mut repeats = count.saturating_sub(1);
+            if self.remaking && self.optional_remake() && outcome.remake_group_peer_updated {
+                // An optional source advances after its first declaration
+                // already updated as another group's peer. Earlier entries
+                // can still revisit and prune the fresh chain head.
+                let mut key = (name.to_vec(), 0);
+                for ordinal in 0..branches.len() {
+                    key.1 = ordinal;
+                    if self
+                        .database_branch_outcomes
+                        .get(&key)
+                        .is_some_and(|branch| {
+                            branch.database_result == DatabaseResult::ObservedGroup
+                        })
+                    {
+                        repeats = repeats.min(ordinal);
+                        break;
+                    }
+                }
+            }
+            for _ in 0..repeats {
                 emit(
                     &self.output,
                     Event::Pruning(name, usize::from(self.remaking)),
@@ -5460,8 +5485,8 @@ impl Engine {
         }
     }
 
-    fn report_goal(&self, goal: &[u8], started_command: bool, outcome: Outcome) {
-        if outcome.fatal {
+    fn report_goal(&self, goal: &[u8], started_command: bool, outcome: Outcome, cached: bool) {
+        if outcome.fatal || (outcome.failed && cached) {
             return;
         }
         if outcome.failed && outcome.blocked {
@@ -9762,10 +9787,15 @@ impl Engine {
     ) -> Outcome {
         let mut traced_optional_failure = false;
         if !self.optional_remake()
-            && let Some(cause) = self.optional_remake_failures.remove(target)
+            && let Some(cause) = self.optional_remake_failures.get(target).cloned()
         {
             // A later required visit exposes the original failure hidden by
             // the optional remake, including the edge to a deeper failure.
+            // Blocked parents retain their cause for later goal visits; the
+            // failed leaf's own diagnostic is consumed only once.
+            if cause.is_none() {
+                self.optional_remake_failures.remove(target);
+            }
             let query = self
                 .done
                 .get(target)
@@ -9787,8 +9817,7 @@ impl Engine {
             {
                 traced_optional_failure = true;
             }
-            let cached_remake_parent = if self.remaking
-                && !self.parallel_makefile_remakes
+            let cached_remake_parent = if (!self.remaking || !self.parallel_makefile_remakes)
                 && parent.is_none()
                 && self
                     .done
@@ -9916,7 +9945,10 @@ impl Engine {
                         emit(&self.output, Event::RecentlyFailed(target, debug_depth));
                     } else if visit == BuildVisit::PrerequisiteAfterRecipe
                         || outcome.debug_serial_group_peer
+                        || (!self.remaking && !outcome.fatal && !outcome.question_outdated)
                     {
+                        // An ordinary visit introduces cached remake results
+                        // through the same consideration and failure policy.
                         self.debug_cached_prerequisite_visit(target, debug_depth, outcome);
                     } else {
                         let mask = self.output.debug_mask();
@@ -10249,16 +10281,9 @@ impl Engine {
             return None;
         }
         let branches = self.database.rules.get(target)?.double_colon.as_ref()?;
-        // A completed grouped declaration participates in the same serial
-        // head/tail policy as an independent declaration. An active group must
-        // still settle through its own completion path.
-        (branches.len() > 1
-            && branches.iter().all(|branch| {
-                branch
-                    .grouped_double_id()
-                    .is_none_or(|id| self.completed_group_branches.contains_key(&id))
-            }))
-        .then_some(branches.len())
+        // The declared head alone inherits optional-source error suppression,
+        // including when this visit will execute a grouped recipe itself.
+        (branches.len() > 1).then_some(branches.len())
     }
 
     fn resume_double_colon_state(&mut self, target: &[u8], mut state: DoubleColonState) -> Outcome {
@@ -12113,7 +12138,11 @@ impl Engine {
                 && !self.parallel_jobs.contains_key(target)
                 && self.debug_timestamp_changed(before, outcome);
         }
-        if !debug_remake && !outcome.failed && !self.special(b".NOTINTERMEDIATE", target, true) {
+        if !debug_remake
+            && !prerequisite_question
+            && !outcome.failed
+            && !self.special(b".NOTINTERMEDIATE", target, true)
+        {
             if let Some(ordinal) = branch {
                 self.database_branch_secondary
                     .insert((target.to_vec(), ordinal));
