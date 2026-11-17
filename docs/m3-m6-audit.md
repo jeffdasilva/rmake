@@ -202,6 +202,12 @@ implicit search, default Makefile discovery, recursive builds, restarts and live
 option changes. Qualify deterministic ordering and statistics, and use specific
 relationship validators for inherently variable process or time fields.
 
+One known difference is the file database after a recipe appends `-p` to
+`MAKEFLAGS`. For example, `%.out: ; @$(eval MAKEFLAGS += -p):` can produce
+different lookup counts for `a.out`. GNU includes implicit-rule operations
+from before the recipe enabled printing. Reproduce the difference with the
+original goal order, since earlier goals can contribute to the counters.
+
 Broader locale work includes native and Guile callbacks, diagnostic producers,
 cache history and resource failures. The x86-64/glibc results and selected
 C/C.UTF8/private French cases retain their recorded scope. Wider Linux profiles
