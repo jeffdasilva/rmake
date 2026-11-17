@@ -1,0 +1,12 @@
+id = "include-group-restart-owner-tail-optional-unchanged-pot"
+requirement = "includes.remake"
+candidate = "required"
+description = "Serial grouped remake verdict preserves source order, final status and independently asserted nanosecond timestamps after a failed declaration."
+provenance = "Original black-box rmake fixture; no upstream implementation or tests read or copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:\nSOURCE:peer.mk:\nSOURCE:owner.mk:\nSOURCE:third.mk:\nREAD:1\nSOURCE:peer.mk:1\nSOURCE:owner.mk:1\nSOURCE:third.mk:1\nALL:1\nanchor\ngroup:peer.mk\nowner-fail\nowner.mk=1680300000000000000\npeer.mk=1680300000000000000\nthird.mk=1680300000000000000\n"
+stderr = "make: *** [Makefile:11: owner.mk] Error 1\n"

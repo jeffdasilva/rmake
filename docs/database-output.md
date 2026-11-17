@@ -25,7 +25,8 @@ make test-database-order-roles DATABASE_ORDER_ROLE_CASE=question-prerequisite-st
 The case checks that a prerequisite's question result stops the parent without
 giving the parent an incidental secondary marker. Other cases compare
 explicitly named `.SECONDARY` records with missing or unchecked timestamps and
-controls for records with known files. The gate also checks prerequisite
+records with known files. An empty `.SECONDARY:` has its own cases for read-time
+file heads and `.NOTINTERMEDIATE` precedence. The gate also checks prerequisite
 roles, order, streams, and file effects. The development reports are under
 `artifacts/database-output` and `artifacts/database-order-roles`.
 

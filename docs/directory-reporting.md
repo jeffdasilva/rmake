@@ -1,59 +1,69 @@
 # Directory reporting
 
-`-w` / `--print-directory` and `--no-print-directory` now select ordered,
-origin-aware directory policy. Explicit CLI selection survives later file flag
-assignments. Automatic policy observes current silence, consumed `-C` operands
-and the published startup recursion level; it does not add `w` to MAKEFLAGS.
-Late `-s` can disable automatic entry while an already-emitted entry still earns
-its leave message.
+Use `-w` or `--print-directory` to see the working directory of a build and its
+recursive Make processes. For example, run the default goal in an existing
+`build` directory.
 
-One process output owner spans decoding, construction, reading, restarts and
-native finalization. It keeps selection separate from actual entry and terminal
-closure. Managed output before directory/level publication can report an unknown
-directory at level zero. Later publication updates the directory snapshot rather
-than reconstructing it after cwd restoration. None and an explicitly empty
-snapshot remain distinct, and repeated snapshots reuse storage.
+```sh
+rmake -C build -w
+```
 
-Unsynchronized and recurse output enter lazily at managed output or actual child
-launch. The qualified quiet-target boundary distinguishes `@:` (no child/pair)
-from `@true` (a child/pair). Line/target synchronization brackets nonempty spool
-dumps, including stderr-only groups. Header, payload and footer share the same
-coordination lock; empty buffers stay silent. Serial reading retains its earlier
-buffer mode until the reader dump finishes, before the global serial downgrade.
+Use `--no-print-directory` to suppress those messages. The order and origin of
+the options determine the active setting. An explicit command-line choice takes
+precedence over later Makefile flag assignments. A recursive build or `-C` can
+enable automatic reporting. Silence can disable that automatic entry, while an
+entry already printed still gets a corresponding leave message. See GNU Make's
+[option summary](https://www.gnu.org/software/make/manual/html_node/Options-Summary.html)
+and [recursive use](https://www.gnu.org/software/make/manual/html_node/Options_002fRecursion.html).
 
-Restarts share the process owner or export an actually-entered trace through
-negative MAKE_RESTARTS. Exec itself emits no leave. Process cleanup emits the
-owed leave before restoring the original OS cwd; native finalizer output cannot
-reopen the closed trace. A directory message also flushes pending native C stdout
-before the raw descriptor write, including entry triggered by stderr output.
+## When a directory message appears
+
+A process-level message appears when Make publishes output or starts a child
+that needs reporting. A quiet recipe reduced to `@:` can finish without a
+child and without a directory pair. A real quiet child can still trigger the
+pair.
+
+With line or target synchronization, directory lines frame nonempty buffered
+output. A group containing only stderr still receives its frame. The header,
+payload, and footer are written under the same coordination lock. An empty
+group emits no pair. A live switch to unsynchronized output can open the
+process trace while earlier buffered output still takes its own frame. See
+[output during parallel execution](https://www.gnu.org/software/make/manual/html_node/Parallel-Output.html).
+
+## Restarts and process exits
+
+A Makefile remake can replace the process image. When a trace has already
+entered, rmake carries that state in its restart environment. The final image
+prints the leave message before restoring the original working directory.
+Early output can use the available directory and recursion level before both
+are known. Native finalizer output after the trace closes leaves it closed.
+See the [restart guide](restart-state.md) and the
+[imported directory trace tests](imported-directory-trace.md).
 
 ## Qualification and remaining work
 
-`make test-directory-reporting` runs 40 independent models against GNU Make
-4.4.1 twice and the candidate. Both frozen builds pass all 40; the preceding main
-passes four and differs on 36. The models check exact streams/status, ordered
-witnesses, repeated reference agreement, independent full filesystem expectations
-and process/resource bounds. Path slots resolve from the predetermined reset
-workspace, never observed output. The single version slot is calibrated in an
-isolated invocation and cannot swallow directory boundaries. Only the two native
-finalizer profiles invoke the compiler. Incorrect first predictions and complete
-observations remain unchanged under `tests/directory-reporting`.
+Run the full comparison or replay one stored case from the repository root.
 
-All 215 earlier native models pass in both builds and remain unchanged. Existing
-imported-trace and startup-exit gates pass 482 and 128 profiles; approved safety
-coverage remains 32 inputs / 128 cells. Rust has 571 passing tests, including
-policy/origin, dynamic silence, terminal closure and independent-process lock
-checks for both spool callbacks. All 623 tooling tests, formatting and Clippy
-pass. The ordinary inventory stays 27,766 required / zero pending across 158
-families. The separate directory gate adds no ordinary or exception credit.
+```sh
+make test-directory-reporting
+make test-directory-reporting DIRECTORY_REPORT_CASE=directory-explicit-w
+```
 
-The top-level Makefile requires directory acceptance in development, optimized
-and focused self-host flows. `DIRECTORY_REPORT_CASE` selects a case. Full frozen
-rmake-driven acceptance and exact-head development/optimized/aggregate CI remain
-merge requirements.
+The development report is `artifacts/directory-reporting/development.json`.
+The gate runs the pinned GNU Make twice and compares the candidate's exact
+streams, status, complete expected filesystem, ordered effects, and process
+bounds. Predetermined paths come from the reset workspace. The single explicit
+version slot is calibrated separately and keeps surrounding directory lines
+in place. Two original native finalizer profiles use a C compiler.
 
-[Both performance versions](benchmarks/directory-reporting.md) retain regressions
-and the remaining allocation cost. They establish no general GNU parity.
-Database/debug formatting interactions, broader early-output, path, descriptor,
-stdio, restart, locale/Linux and resource profiles remain open. Enabled Guile/GC,
-integration, persistent caching and complete M3/M6 retain their separate gates.
+The initial checkpoint passed 40 independent directory models in both builds.
+The preceding rmake passed four. The
+[test corpus](../tests/directory-reporting) retains the original predictions,
+input sources, and observations. Later tests cover inherited option policy,
+recursive invocations, and output synchronization. The
+[historical performance reports](benchmarks/directory-reporting.md) retain the
+measured allocation and timing costs.
+
+The top-level developer flows include development and optimized comparisons and
+a focused replay under rmake. See the [M3/M6 audit](m3-m6-audit.md) for remaining
+directory, locale, resource, and diagnostic interactions.

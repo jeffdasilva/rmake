@@ -4,9 +4,17 @@ The original forty models cover explicit and automatic directory reporting,
 silent and inherited/live flag policy, startup metadata phases, failed directory
 changes, remakes, output-sync groups and two native finalizers. Twenty-seven
 more profiles compare inherited and file switch precedence through recursive
-recipes and directory boundaries. The 65 ordinary cases never compile C. Each
-of the two declared finalizer profiles compiles its original module once before
-both GNU executions and the candidate.
+recipes and directory boundaries.
+
+Twenty additional profiles retain directory frames around nonempty spools after
+a live change to `-Onone`. They cover reading, recipe expansion, warnings, fatal
+errors, direct and recursive restarts, automatic `-C` and recursion-level policy,
+and imported process traces. Empty buffers, suppressed directory reporting,
+initial unsynchronized output and live recurse mode provide controls.
+
+The 85 ordinary cases never compile C. Each of the two declared finalizer
+profiles compiles its original module once before both GNU executions and the
+candidate.
 
 The runner expands static `@WORK@`, `@HOME@` and `@TMP@` byte tokens solely from
 the predetermined reset workspace before execution. It checks complete streams,

@@ -522,3 +522,79 @@ all: n ; @:
 records = ["all: n"]
 flags = ["-p", "-q"]
 existing = true
+
+[[case]]
+id = "global-secondary-unvisited-grouped-double"
+makefile = '''
+all: ; @:
+unused peer &:: n ; @:
+unused peer &:: z ; @:
+.SECONDARY:
+'''
+records = ["unused:: n", "unused:: z", "all:"]
+flags = ["-p", "-q"]
+existing = true
+
+[[case]]
+id = "global-secondary-excludes-names"
+makefile = '''
+all: ; @:
+unused peer &:: n ; @:
+unused peer &:: z ; @:
+.SECONDARY:
+.NOTINTERMEDIATE: unused
+'''
+records = ["unused:: n", "unused:: z", "all:"]
+flags = ["-p", "-q"]
+existing = true
+
+[[case]]
+id = "global-secondary-late-option"
+makefile = '''
+all: ; @:
+unused: n | gate ; @:
+.SECONDARY:
+MAKEFLAGS += -p -q
+'''
+records = ["unused: n | gate", "all:"]
+existing = true
+
+[[case]]
+id = "global-secondary-query-missing-goal"
+makefile = '''
+all: ; @:
+.SUFFIXES:
+.SECONDARY:
+'''
+records = ["all:"]
+flags = ["-p", "-q"]
+status = 1
+
+[[case]]
+id = "implicit-known-stem-skips-suffix-fallback"
+makefile = '''
+al%: ; @:
+'''
+records = ["all:"]
+flags = ["-p", "-q"]
+status = 1
+
+[[case]]
+id = "implicit-known-stem-with-explicit-prerequisite"
+makefile = '''
+all: n
+al%: ; @:
+MAKEFLAGS += -p
+'''
+records = ["all: n"]
+flags = ["-q"]
+status = 1
+
+[[case]]
+id = "implicit-known-stem-recipe-file-effect"
+makefile = '''
+al%: ; @$(file >>seen,$*):
+'''
+records = ["all:"]
+seen_hex = "6c0a"
+flags = ["-p"]
