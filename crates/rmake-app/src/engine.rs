@@ -33,6 +33,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, FileTimes, OpenOptions};
 use std::io::{self, Write};
+use std::num::NonZeroU64;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
@@ -691,8 +692,14 @@ fn emit_getcwd_error(output: &crate::output::Controller, program: &[u8], error: 
     );
 }
 
+struct FileVisit {
+    parent: Option<ScopeParent<Vec<u8>>>,
+    // Ordinary pass plus one, recorded when verbose output was disabled.
+    quiet_consideration: Option<NonZeroU64>,
+}
+
 struct TargetReads<'a> {
-    parents: &'a HashMap<Vec<u8>, Option<ScopeParent<Vec<u8>>>>,
+    visits: &'a HashMap<Vec<u8>, FileVisit>,
     retained_parents: &'a HashMap<Vec<u8>, ScopeParent<Vec<u8>>>,
     aliases: &'a Aliases,
     base: &'a HashMap<Vec<u8>, VariableStore>,
@@ -715,9 +722,12 @@ impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
     }
 
     fn parent(&self, target: &[u8]) -> Option<Option<ScopeParent<&[u8]>>> {
-        self.parents
-            .get(target)
-            .map(|parent| parent.as_ref().map(|parent| self.resolve_parent(parent)))
+        self.visits.get(target).map(|visit| {
+            visit
+                .parent
+                .as_ref()
+                .map(|parent| self.resolve_parent(parent))
+        })
     }
 
     fn has_parent_changes(&self) -> bool {
@@ -1185,7 +1195,7 @@ pub struct Engine {
     commands_started: u64,
     debug_pass: u64,
     visiting: HashSet<Vec<u8>>,
-    scope_parents: HashMap<Vec<u8>, Option<ScopeParent<Vec<u8>>>>,
+    file_visits: HashMap<Vec<u8>, FileVisit>,
     // A later encounter affects declarations that revisit a completed file.
     // Its first traversal context still owns the recipe and diagnostics.
     retained_scope_parents: HashMap<Vec<u8>, ScopeParent<Vec<u8>>>,
@@ -1768,7 +1778,7 @@ impl Engine {
             commands_started: 0,
             debug_pass: 0,
             visiting: HashSet::new(),
-            scope_parents: HashMap::new(),
+            file_visits: HashMap::new(),
             retained_scope_parents: HashMap::new(),
             target_contexts: HashMap::new(),
             implicit_scopes: HashMap::new(),
@@ -1885,7 +1895,7 @@ impl Engine {
     ) -> T {
         let warnings = mute_undefined.then(|| self.flag_state.replace_scoped_warning_policy(false));
         let mut target_reads = TargetReads {
-            parents: &self.scope_parents,
+            visits: &self.file_visits,
             retained_parents: &self.retained_scope_parents,
             aliases: &self.aliases,
             base: &self.target_contexts,
@@ -5263,6 +5273,21 @@ impl Engine {
         emit(&self.output, Event::Considering(name, depth));
     }
 
+    fn debug_was_considered(&self, target: &[u8]) -> bool {
+        self.debug_considered
+            .as_ref()
+            .is_some_and(|files| files.contains(target))
+            // A later MAKEFLAGS expansion can enable verbose output after
+            // the file was considered in this same ordinary goal pass.
+            || (!self.remaking
+                && self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
+                && self
+                    .file_visits
+                    .get(target)
+                    .and_then(|visit| visit.quiet_consideration)
+                    .is_some_and(|pass| pass.get() == self.debug_pass.wrapping_add(1)))
+    }
+
     fn debug_cached_prerequisite_visit(&mut self, target: &[u8], depth: usize, outcome: Outcome) {
         use crate::debug::{Event, Mask, emit};
 
@@ -5273,12 +5298,13 @@ impl Engine {
             return;
         }
         let name = self.aliases.resolve(target);
-        let considered = self.debug_considered.get_or_insert_default();
-        if considered.contains(name) {
+        if self.debug_was_considered(name) {
             emit(&self.output, Event::Pruning(name, depth));
             return;
         }
-        considered.insert(name.to_vec());
+        self.debug_considered
+            .get_or_insert_default()
+            .insert(name.to_vec());
         emit(&self.output, Event::Considering(name, depth));
         emit(
             &self.output,
@@ -5802,9 +5828,12 @@ impl Engine {
                 pending: self.pending(target),
             };
         }
-        self.scope_parents
+        self.file_visits
             .entry(target.to_vec())
-            .or_insert_with(|| Some(parent.into_owned()));
+            .or_insert_with(|| FileVisit {
+                parent: Some(parent.into_owned()),
+                quiet_consideration: None,
+            });
         if !self.resolve_implicit_for_intermediate(target, depth) {
             return Inspection {
                 outcome: Outcome {
@@ -7294,8 +7323,8 @@ impl Engine {
             }
         }
         self.database.merge_target_scope(from, to);
-        if let Some(parent) = self.scope_parents.remove(from) {
-            self.scope_parents.entry(to.to_vec()).or_insert(parent);
+        if let Some(visit) = self.file_visits.remove(from) {
+            self.file_visits.entry(to.to_vec()).or_insert(visit);
         }
         if let Some(parent) = self.retained_scope_parents.remove(from) {
             self.retained_scope_parents
@@ -9302,9 +9331,9 @@ impl Engine {
                 Rc::new(FailedPrerequisite {
                     target: dependency.name.clone(),
                     parent: self
-                        .scope_parents
+                        .file_visits
                         .get(&dependency.name)
-                        .and_then(Option::as_ref)
+                        .and_then(|visit| visit.parent.as_ref())
                         .map_or_else(|| target.to_vec(), |parent| parent.target.clone()),
                 })
             });
@@ -9749,9 +9778,9 @@ impl Engine {
                     .get(target)
                     .is_some_and(|outcome| outcome.failed && !outcome.fatal)
             {
-                self.scope_parents
+                self.file_visits
                     .get(target)
-                    .and_then(Option::as_ref)
+                    .and_then(|visit| visit.parent.as_ref())
                     .map(|parent| self.aliases.resolve(&parent.target).to_vec())
             } else {
                 None
@@ -9847,10 +9876,7 @@ impl Engine {
                     input,
                 );
             }
-            let pruned = self
-                .debug_considered
-                .as_ref()
-                .is_some_and(|files| files.contains(target));
+            let pruned = self.debug_was_considered(target);
             if !traced_optional_failure {
                 if pruned {
                     crate::debug::emit(
@@ -9964,9 +9990,19 @@ impl Engine {
         }
         // Record first ownership before implicit secondary expansion can ask
         // for this context. Pattern-scope activation itself remains lazy.
-        self.scope_parents
+        let quiet_consideration =
+            if self.remaking || self.output.debug_mask().has(crate::debug::Mask::VERBOSE) {
+                None
+            } else {
+                NonZeroU64::new(self.debug_pass.wrapping_add(1))
+            };
+        self.file_visits
             .entry(target.to_vec())
-            .or_insert_with(|| parent.map(ScopeParent::into_owned));
+            .or_insert_with(|| FileVisit {
+                parent: parent.map(ScopeParent::into_owned),
+                quiet_consideration,
+            })
+            .quiet_consideration = quiet_consideration;
         let phony = self.special(b".PHONY", target, false);
         // Search-time expansion can create or remove this target. GNU decides
         // freshness from the observation made before those effects occur.
@@ -10132,8 +10168,9 @@ impl Engine {
             // retained eager read may have updated this file's local table.
             return;
         }
-        if self.scope_parents.get(target).is_some_and(|first| {
+        if self.file_visits.get(target).is_some_and(|first| {
             first
+                .parent
                 .as_ref()
                 .map(|first| (self.aliases.resolve(&first.target), first.branch))
                 != Some((parent.target, parent.branch))
@@ -11985,9 +12022,9 @@ impl Engine {
                 if !self.optional_remake() {
                     self.show_makefile_error();
                     let parent = self
-                        .scope_parents
+                        .file_visits
                         .get(target)
-                        .and_then(Option::as_ref)
+                        .and_then(|visit| visit.parent.as_ref())
                         .map(|parent| parent.target.as_slice());
                     self.report_missing_rule(target, parent);
                 }
@@ -12363,7 +12400,10 @@ impl Engine {
             self.database.refresh_scoped_variables(&mut variables);
             return Ok(variables);
         }
-        let parent = self.scope_parents.get(target).cloned().flatten();
+        let parent = self
+            .file_visits
+            .get(target)
+            .and_then(|visit| visit.parent.clone());
         let inherited = if let Some(parent) = parent {
             self.rule_variables(&parent.target, parent.branch)?
         } else {
@@ -13151,7 +13191,7 @@ impl Engine {
                 let mut emitted_order = Vec::new();
                 let mut inherited_mflags = false;
                 let mut target_reads = TargetReads {
-                    parents: &self.scope_parents,
+                    visits: &self.file_visits,
                     retained_parents: &self.retained_scope_parents,
                     aliases: &self.aliases,
                     base: &self.target_contexts,

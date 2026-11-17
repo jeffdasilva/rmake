@@ -1,0 +1,11 @@
+id = "debug-live-verbose-re-enabled"
+requirement = "debug.live-verbose-consideration"
+candidate = "required"
+description = "Existing verbose output survives repeated MAKEFLAGS debug changes."
+provenance = "Original rmake fixture checked against GNU Make 4.4.1."
+args = ["-rR", "--debug=v"]
+
+[expected]
+exit_code = 0
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\n Considering target file 'before'.\n  File 'before' does not exist.\n  Considering target file 'seed'.\n  Finished prerequisites of target file 'seed'.\n  No need to remake target 'seed'.\n Finished prerequisites of target file 'before'.\n Must remake target 'before'.\ncp seed before\ncp seed out\ncp out final\nparent\n"
+stderr = ""

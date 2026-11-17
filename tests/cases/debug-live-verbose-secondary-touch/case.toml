@@ -1,0 +1,11 @@
+id = "debug-live-verbose-secondary-touch"
+requirement = "debug.live-verbose-consideration"
+candidate = "required"
+description = "Secondary expansion enables verbose output during a touch build."
+provenance = "Original rmake fixture checked against GNU Make 4.4.1."
+args = ["-rR", "-t"]
+
+[expected]
+exit_code = 0
+stdout = "  Considering target file 'seed'.\n  Finished prerequisites of target file 'seed'.\n  No need to remake target 'seed'.\n Finished prerequisites of target file 'out'.\n Must remake target 'out'.\ntouch out\n Successfully remade target file 'out'.\n Considering target file 'final'.\n  File 'final' does not exist.\n  Pruning file 'out'.\n Finished prerequisites of target file 'final'.\n Must remake target 'final'.\ntouch final\n Successfully remade target file 'final'.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\ntouch all\nSuccessfully remade target file 'all'.\n"
+stderr = ""

@@ -1,0 +1,11 @@
+id = "debug-live-verbose-double-colon"
+requirement = "debug.live-verbose-consideration"
+candidate = "required"
+description = "A double-colon traversal retains consideration when its first recipe enables debug."
+provenance = "Original rmake fixture checked against GNU Make 4.4.1."
+args = ["-rR"]
+
+[expected]
+exit_code = 0
+stdout = "cp seed out\n Successfully remade target file 'out'.\n Considering target file 'out'.\n  File 'out' does not exist.\n  Pruning file 'seed'.\n Finished prerequisites of target file 'out'.\n Must remake target 'out'.\nsecond\n Successfully remade target file 'out'.\n Considering target file 'final'.\n  File 'final' does not exist.\n  Pruning file 'out'.\n Finished prerequisites of target file 'final'.\n Must remake target 'final'.\ncp out final\n Successfully remade target file 'final'.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nparent\nSuccessfully remade target file 'all'.\n"
+stderr = ""

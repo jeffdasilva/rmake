@@ -1,0 +1,11 @@
+id = "debug-live-verbose-unvisited-leaf"
+requirement = "debug.live-verbose-consideration"
+candidate = "required"
+description = "Dry-run distinguishes a new prerequisite from the ones already visited."
+provenance = "Original rmake fixture checked against GNU Make 4.4.1."
+args = ["-rR", "-n"]
+
+[expected]
+exit_code = 0
+stdout = "cp seed out\n Successfully remade target file 'out'.\n Considering target file 'final'.\n  File 'final' does not exist.\n  Considering target file 'independent'.\n   File 'independent' does not exist.\n   Pruning file 'seed'.\n  Finished prerequisites of target file 'independent'.\n  Must remake target 'independent'.\ncp seed independent\n  Successfully remade target file 'independent'.\n  Pruning file 'out'.\n Finished prerequisites of target file 'final'.\n Must remake target 'final'.\ncp out final\n Successfully remade target file 'final'.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nprintf 'parent\\n'\nSuccessfully remade target file 'all'.\n"
+stderr = ""
