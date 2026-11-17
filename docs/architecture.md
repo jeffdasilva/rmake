@@ -1,225 +1,261 @@
 # rmake architecture
 
-Status: proposed design. The governing requirements are in the
-[compatibility contract](compatibility.md); delivery gates are in the
-[implementation plan](implementation-plan.md).
+rmake is an ordered Makefile interpreter with dependency resolution and a Linux
+execution runtime. Evaluation order, variable scope and external effects are
+part of its behavior. Changes to storage or scheduling must preserve them.
 
-Build an ordered interpreter with a lazy dependency resolver and a separate Linux
-runtime. Optimize its internal representations without changing when Makefile
-expressions or external effects occur. A serialized dependency graph is an
-optional acceleration structure, never the semantic authority.
+The [compatibility contract](compatibility.md)
+defines required behavior. The [implementation plan](implementation-plan.md) and
+[remaining compatibility work](m3-m6-audit.md) describe acceptance criteria and
+open work.
 
-## Control flow
+## Code layout
+
+The [Cargo workspace](../Cargo.toml) contains four crates. Most subsystems remain
+modules within these crates. Create another crate when it gives a useful
+ownership, dependency or safety boundary.
+
+| Location | Responsibility |
+| --- | --- |
+| [`rmake`](../crates/rmake/src/main.rs) | Thin executable entry. Initializes the process locale and enters the application. The optional Guile build also enters the reviewed foreign-runtime host here. |
+| [`rmake-app`](../crates/rmake-app/src/lib.rs) | Application lifecycle, CLI startup, dependency traversal, target updates, recipe scheduling and compatibility output. Connects the core interpreter to Linux effects. |
+| [`rmake-core`](../crates/rmake-core/src/lib.rs) | Byte-oriented reading, parsing, variable expansion, rule data, implicit-rule helpers and diagnostic formatting. Uses explicit callbacks for external effects. |
+| [`rmake-linux`](../crates/rmake-linux/src/lib.rs) | Filesystem and process operations, descriptors, child readiness, jobservers, signals, output transport, locales and native/Guile adapters. |
+
+The conformance tools live in [`tools/`](../tools/) with original inputs in
+[`tests/`](../tests/). They are independent Python programs that compare
+executables. Expected results come from authored assertions and verified GNU
+observations. They must remain independent of the candidate interpreter's
+internal model. See the [testing guide](testing.md).
+
+The core and application crates forbid unsafe Rust. Linux adapters contain
+reviewed unsafe Rust and C where the operating-system or foreign-function
+interface requires it. The executable has a narrow reviewed Guile entry point.
+Ownership and lifetime tests protect these boundaries. The workspace pins its
+[toolchain](../rust-toolchain.toml) and [dependency lockfile](../Cargo.lock).
+
+## Runtime flow
 
 ```mermaid
 flowchart TD
-    CLI[CLI and inherited environment] --> SESSION[Compatibility session]
-    SESSION --> READ[Incremental reader and evaluator]
+    ENTRY[Executable entry] --> START[Arguments, environment and startup effects]
+    START --> READ[Read and evaluate Makefiles]
     READ --> DB[Variables and ordered rule database]
-    DB --> REMAKE[Update makefiles and loaded objects]
-    REMAKE -->|changed: restart reading| READ
-    REMAKE -->|stable| RESOLVE[Lazy rule resolution and secondary expansion]
-    RESOLVE --> SCHED[Update state machine and scheduler]
-    SCHED --> RUN[Linux process and jobserver runtime]
-    RUN -->|completion and filesystem effects| SCHED
-    SCHED -->|discover prerequisites| RESOLVE
-    READ --> EFFECTS[Explicit effect interfaces]
-    RESOLVE --> EFFECTS
-    RUN --> EFFECTS
-    CACHE[Validated reusable data] -.-> READ
-    CACHE -.-> RESOLVE
+    DB --> REMAKE[Update Makefiles and loaded objects]
+    REMAKE -->|restart required| EXEC[Exec the original invocation]
+    EXEC --> ENTRY
+    REMAKE -->|ready| RESOLVE[Resolve goals and prerequisites]
+    RESOLVE --> BUILD[Update targets and schedule recipes]
+    BUILD --> RUN[Linux child processes and jobserver]
+    RUN -->|completion and effects| BUILD
+    BUILD -->|more prerequisites| RESOLVE
+    BUILD --> FINISH[Cleanup, output and native finalization]
 ```
 
-This loop matters: generated includes can restart evaluation, and prerequisites
-can be expanded in target context later. The documented parser performs immediate
-expansion before classifying some lines. Parsing an entire file into a fixed,
-context-free AST first would lose that behavior. See
+[`rmake_app::run`](../crates/rmake-app/src/lib.rs) establishes output and signal
+ownership, prepares the invocation, then creates and runs
+[`Engine`](../crates/rmake-app/src/engine.rs). The engine keeps the rule database,
+filesystem observations, target contexts, pending work, child records and
+jobserver permits for that invocation. Startup and live option handling remain
+part of the same ordered evaluator.
+
+The reader evaluates Makefile statements as it encounters them. Immediate
+expansion can affect how a line is classified. Includes and `eval` can introduce
+more input while parsing is in progress. Prerequisites can undergo another
+expansion later in the selected target's context. See GNU's
 [Makefile parsing](https://www.gnu.org/software/make/manual/html_node/Parsing-Makefiles.html)
 and [secondary expansion](https://www.gnu.org/software/make/manual/html_node/Secondary-Expansion.html).
 
-## Workspace boundaries
+After reading, the engine checks whether Makefiles or loaded objects need
+updating. A required restart executes the original invocation through the
+[initial invocation plan](../crates/rmake-app/src/engine/initial.rs). This preserves
+process-entry behavior, module lifetime and startup replay. Reading a whole file
+into a fixed syntax tree or restoring only a saved dependency graph would need
+to preserve all these phases before it could replace the current flow.
 
-Start with a small Cargo workspace once implementation begins. Keep most
-subsystems as modules; split a crate only when it provides a useful dependency or
-safety boundary. No separate service or background daemon is required.
+## Where to make changes
 
-The current workspace contains `rmake-core`, the `rmake` application and
-`rmake-linux` for explicit filesystem effects and its private stdio/POSIX adapters.
-The engine owns invocation-scoped directory observations shared across expansion
-contexts. Successful file-write opens and recipe dispatch completion invalidate
-them; other observations retain their own freshness rules.
-Process scheduling still lives in the application; the rest of the boundaries
-below describe the intended incremental structure, not completed subsystems.
-
-| Proposed crate | Responsibility | Dependencies |
-| --- | --- | --- |
-| `rmake-core` | Source handling, expression engine, variables, ordered rules, resolution, update semantics, diagnostic events | No OS process spawning; interfaces for effects |
-| `rmake-linux` | Filesystem, shells/processes, descriptors, signals, output transport, jobserver | Core interfaces; a narrow reviewed syscall layer |
-| `rmake` | CLI, session configuration, compatibility presentation, integration | Core and Linux runtime |
-| `rmake-conformance` | Independent fixtures, oracle execution, comparison, reduction, reports, benchmark driving | Executables as black boxes; no access to core internals for expected answers |
-
-Later add cache storage and GNU extension adapters behind clear boundaries when
-their implementation exists. Public rmake plugins come after compatibility. Keep
-the conformance runner independent of the core even if some low-level process
-utilities can eventually be shared.
-
-Use safe Rust for semantic code. Put necessary unsafe FFI in small audited
-adapters with ownership and lifetime tests. Pin the Rust toolchain and dependency
-lockfile when Cargo is initialized; select exact versions then. Avoid a general
-async framework until measurements demonstrate a need; child-process readiness
-and signal handling use an explicit Linux event loop with owned child handles,
-pidfd readiness where available, borrowed jobserver readiness, and a minimal
-signal-to-interpreter wake pipe. See [runtime shutdown](runtime-signals.md).
-
-## Interpreter and data model
-
-| Component | Design and invariants |
+| Area | Main code and behavior to preserve |
 | --- | --- |
-| Source store | Immutable byte buffers, interned names, source spans, physical/logical line mapping. Unix paths and values are not assumed to be UTF-8. |
-| Incremental reader | Context-aware logical lines, continuations, comments, conditionals, includes, `define`, recipe-prefix state, and generated input from `eval`. Preserve unexpanded recipe bytes. |
-| Expression engine | Explicit immediate, deferred, secondary, recipe, and function-argument contexts. Lazy arguments are evaluated only when required. Track effect order and variable mutations. |
-| Variable store | Binding flavor, origin, export policy, definition order, scope and generations. Model global, command-line, environment, target, pattern and automatic-variable contexts explicitly. |
-| Function registry | GNU-compatible functions with argument/expansion policy and effect classification. No default registration of rmake-only functions. |
-| Rule database | Ordered explicit, static-pattern, implicit, suffix, grouped and double-colon rules. Keep definitions distinct from resolved target instances. |
-| Rule resolver | Lazy implicit search, VPATH/GPATH, archives, secondary expansion, intermediate files and scoped automatic variables. Candidate indexes preserve reference priority. |
-| Update engine | Explicit target states, ordered prerequisite edges, cycle handling, freshness decisions, grouped outcomes and shared-target ownership. Preserve duplicate/order information where automatic variables expose it. |
-| Presentation | Structured semantic events rendered through a GNU-compatible adapter; no default logging mixed into stdout/stderr. Trace/debug/database modes have dedicated formatting. |
+| Startup and options | [`cli.rs`](../crates/rmake-app/src/cli.rs), [`engine/startup.rs`](../crates/rmake-app/src/engine/startup.rs), [`initial.rs`](../crates/rmake-app/src/engine/initial.rs) and [`runtime_options.rs`](../crates/rmake-app/src/engine/runtime_options.rs). Preserve argument order, inherited flags, early effects, directory changes and restart state. |
+| Source reading and parsing | [`reader.rs`](../crates/rmake-core/src/reader.rs), [`reader/stream.rs`](../crates/rmake-core/src/reader/stream.rs) and [`parser.rs`](../crates/rmake-core/src/parser.rs). Preserve live source reads, physical/logical line locations, continuations, comments, conditionals, includes, `define`, `eval` and recipe-prefix state. Recipes retain their unexpanded bytes. |
+| Variables and expansion | [`variables.rs`](../crates/rmake-core/src/variables.rs) and its [evaluator modules](../crates/rmake-core/src/variables/). Preserve flavor, origin, export policy, definition locations, binding lifetime and global, environment, command-line, lexical, target, pattern and automatic-variable scopes. Lazy arguments retain their evaluation timing. |
+| Rules and dependency resolution | [`parser::Database`](../crates/rmake-core/src/parser.rs), [`implicit.rs`](../crates/rmake-core/src/implicit.rs) and [`Engine`](../crates/rmake-app/src/engine.rs). Preserve declaration order, implicit-rule priority, VPATH/GPATH, archives, secondary expansion, intermediate files and scoped automatic variables. Keep declarations distinct from target update state. |
+| Recipe behavior | [`recipe_flow.rs`](../crates/rmake-app/src/recipe_flow.rs), [`process.rs`](../crates/rmake-app/src/process.rs), [`oneshell.rs`](../crates/rmake-app/src/oneshell.rs) and the engine. Preserve recipe modifiers, execution modes, shell selection, command arguments, failure handling and target cleanup. |
+| Filesystem observations | [`filesystem.rs`](../crates/rmake-linux/src/filesystem.rs), [`archive.rs`](../crates/rmake-linux/src/archive.rs) and [`timestamp.rs`](../crates/rmake-linux/src/timestamp.rs). Preserve the timing of observations, raw path bytes, symlink behavior, stream errors and timestamp decisions. |
+| Diagnostics and output | [`diagnostic.rs`](../crates/rmake-core/src/diagnostic.rs), [`database.rs`](../crates/rmake-core/src/database.rs), [`debug.rs`](../crates/rmake-app/src/debug.rs) and [`output.rs`](../crates/rmake-app/src/output.rs). Preserve byte output, source context, event order, synchronization and GNU database/debug presentation. |
+| GNU extension calls | The [application native registry](../crates/rmake-app/src/native.rs) and [Linux native adapter](../crates/rmake-linux/src/native.rs). Preserve registration order, argument policy, allocator ownership, callback context and module lifetime. The [optional Guile frontend](guile-frontend.md) uses the same interpreter. |
 
-Arena-backed IDs and interned byte strings avoid reference cycles and repeated
-allocation. Storage layout must not determine visible rule, variable, diagnostic,
-or traversal order. Store order explicitly; do not depend on Rust hash-map iteration.
+Names, paths and values are byte strings. Code must preserve non-UTF-8 data.
+Source locations distinguish physical input lines from expanded text. Storage
+choices must preserve visible order in rules, variables, traversal and diagnostics.
+Record visible order explicitly and implement the required compatibility
+ordering independently of Rust map iteration. Interning, arena IDs and compact storage remain optimization
+choices that require measurements and matching behavior.
 
-The rule database may contain cycles before resolution and special rule groups;
-it is not simply a static DAG. A shared prerequisite also carries the variable
-context of the target that actually causes its update. Preserve first-update
-ownership and inheritance rather than freely parallelizing evaluation. See
-[target-specific variables](https://www.gnu.org/software/make/manual/html_node/Target_002dspecific.html)
-and [implicit search](https://www.gnu.org/software/make/manual/html_node/Implicit-Rule-Search.html).
+The graph can contain cycles, rule groups and prerequisites discovered during
+resolution. A shared prerequisite inherits the context of the target that first
+causes its update. Preserve that ownership when later targets encounter it.
+Duplicate prerequisite occurrences and their normal/order-only roles can remain
+visible through automatic variables. GNU documents the relevant
+[target-specific variable](https://www.gnu.org/software/make/manual/html_node/Target_002dspecific.html)
+and [implicit search](https://www.gnu.org/software/make/manual/html_node/Implicit-Rule-Search.html)
+rules.
 
-## Effects and Linux execution
+## Effects and process ownership
 
-Model filesystem observations, subprocess creation, file writes, diagnostics,
-variable/rule mutations, and opaque extension calls as explicit operations.
-Production handlers perform real effects; tests can supply deterministic handlers.
-Recording an effect does not authorize replaying or eliminating it.
+An effect includes a filesystem observation, process launch, file write,
+diagnostic, variable or rule mutation, or native call. The core passes these
+operations through explicit [expansion contexts](../crates/rmake-core/src/diagnostic.rs).
+Production handlers perform the real operation. Tests can provide controlled
+handlers. Recording an operation does not authorize skipping or replaying it.
 
-Evaluate semantics in a controlled order first. Parallelism initially belongs to
-recipe execution, not arbitrary expansion. The scheduler owns ready-order policy,
-`.WAIT`, `.NOTPARALLEL`, `-j`, load limits, keep-going decisions and cancellation.
-The runtime owns child creation, environment, cwd, umask, descriptors, stdin,
-shell invocation, output collection and reaping. This boundary allows optimization
-without confusing a process-completion event with a target's semantic success.
+The application scheduler owns ready order, `.WAIT`, `.NOTPARALLEL`, `-j`, load
+limits, keep-going decisions and cancellation. Linux adapters own process and
+resource operations. Recipe completion feeds back into target state, where
+failure policy, freshness and grouped-target results determine the next action.
+Arbitrary expression evaluation must retain its required ordering even when
+recipes run in parallel.
 
-Use Linux process primitives where they measurably help, with capability fallbacks
-on supported kernels. An optimization such as direct exec must preserve GNU's
-shell-selection and error semantics; never combine ordinary recipe lines into one
-shell or replace a configured shell with a preferred one. Test `.ONESHELL`
-separately. Keep signal handlers minimal and route cleanup through normal runtime
-state. Token leases and child ownership must survive spawn failures and interrupts.
+The application event loop uses Linux adapters to wait for owned children,
+borrowed jobserver readiness and signal notifications. It uses pidfd readiness where available and a bounded
+fallback on supported kernels. Signal handlers perform minimal work and wake
+the interpreter through an owned pipe. Cleanup runs through normal runtime
+state. See [runtime shutdown](runtime-signals.md).
 
-Implement both FIFO and pipe jobserver protocols, inherited `MAKEFLAGS`, implicit
-slot ownership, recursive-command detection, token accounting, and exact token
-return. Do not change inherited pipe blocking modes. Test GNU parent/rmake child,
-rmake parent/GNU child, and original cooperating-tool fixtures. The public
-[jobserver protocol](https://www.gnu.org/software/make/manual/html_node/POSIX-Jobserver.html)
-defines interoperability independently of GNU's implementation.
+Each child and jobserver permit has an owner through launch failure, completion
+and interruption. Both FIFO and pipe jobservers preserve inherited `MAKEFLAGS`,
+the implicit job slot, recursive-command detection, token accounting and token
+return. Borrowed pipe blocking modes remain unchanged. Mixed GNU/rmake parents,
+children and cooperating tools have dedicated tests. See the
+[jobserver implementation](jobserver.md) and GNU's
+[POSIX protocol](https://www.gnu.org/software/make/manual/html_node/POSIX-Jobserver.html).
 
-Preserve output-sync grouping, terminal behavior and stdin ownership. A faster
-dispatcher cannot reorder observable parse-time effects or discard GNU's failure
-and target-cleanup rules. Cancellation does not mean blindly killing arbitrary
-process groups: derive the exact process/signal behavior from controlled probes.
+Direct execution must preserve GNU's shell-selection and error behavior.
+Ordinary recipe lines keep their separate command boundaries. `.ONESHELL` has
+its own preparation rules. Environment bytes, working directory, umask, inherited
+descriptors, stdin ownership, terminal behavior and output synchronization all
+remain observable. Derive signal and cancellation behavior from controlled probes, including
+which processes receive signals and when cleanup runs.
+
+The engine shares invocation-local directory observations across expansion
+contexts. Successful file-write opens and recipe dispatch completion invalidate
+those observations. Other observations have their own freshness rules.
+Refreshing more often than GNU can change behavior too. Preserve the required
+observation phase when optimizing filesystem access.
+
+Native callbacks run trusted code with the process's permissions. The
+[native runtime](native-modules.md) and [Guile frontend](guile-frontend.md) describe
+foreign-stack handling, callback ownership and finalization. These boundaries
+need their own lifecycle and failure tests.
 
 ## Safe caching progression
 
-| Layer | Rollout | Required validation |
-| --- | --- | --- |
-| Interning, arenas, ordered indexes | From first implementation | Same semantic output; allocation and search benchmarks |
-| Pure expansion memoization | Within an invocation first | Full scope/binding generations; no effects; lazy evaluation unchanged |
-| Source scanning/expression templates | First persistent layer | Hash exact bytes read, format/version identity, contextual interpretation still runs |
-| Rule indexes and graph fragments | In-memory first | Rule priority, dynamic context and dependency discovery remain correct |
-| Persistent graph fragments | After broad conformance | Explicit purity and dependency proof, complete observation validation, no skipped effects |
-| Shell results, recipe results, completed-target state | Not reused in compatibility mode | GNU requires their normal execution/freshness behavior |
+The persistent cache is planned as an opt-in feature. Within each invocation,
+observations follow the engine’s existing freshness rules.
 
-Even logical-line scanning depends on context in some constructs. Cache raw-source
-structure or parameterized fragments only where the reader can prove independence
-from state. Do not treat an ordinary per-file AST as a reusable semantic result.
+| Candidate layer | Rollout and required validation |
+| --- | --- |
+| Interning, arenas and ordered indexes | Introduce when allocation/search measurements justify them and all semantic observations remain unchanged. |
+| Pure expansion memoization | Start within one invocation. Track complete scope and binding generations, preserve laziness and exclude effects. |
+| Source scanning and expression templates | First persistent layer. Hash the exact bytes read and include format/version identity. Context-dependent interpretation still runs. |
+| Rule indexes and graph fragments | Start in memory. Preserve rule priority, dynamic context and dependency discovery. |
+| Persistent graph fragments | Require broad conformance, complete dependency tracking, validated observations and proof that reuse skips no required effects. |
+| Shell results, recipe results and completed targets | Preserve GNU's execution and freshness behavior. Do not reuse them as persistent build results in compatibility mode. |
 
-Persistent entries use semantic/cache-format versions, exact source-content
-digests, reference profile, and the complete relevant invocation/scope inputs.
-Track variable reads and absence, environment bytes, cwd/include search, definition
-generations, and the filesystem observations that informed reuse. Hash bytes already
-read for interpretation; do not trust a path/mtime/size key for Makefile contents.
-Validate negative observations too: a previously missing include, failed rule
-candidate, wildcard nonmatch, or absent environment variable can change the answer.
+### Validate every dependency
 
-Graph-fragment eligibility is conservative. Start with effect-free declarations
-and fully tracked pure expansions. Defer opaque effects, dynamic `eval`, target
-context-sensitive expansion, and any case where dependency tracking is incomplete.
-An opaque shell/plugin effect can invalidate observations beyond the known graph;
-recompute rather than inventing a directory-based heuristic. Validation must cost
-less than reconstruction to justify a hit.
+Even logical-line scanning can depend on interpreter state. Cache source
+structure or parameterized fragments only where that dependency is understood.
+A reusable parse result must preserve contextual interpretation.
 
-Always preserve include/loaded-object remaking and restart passes. Execute
-`shell`, `!=`, `file`, `info`, `warning`, `error`, and extension effects at their
-normal evaluation points, with the same call counts and order. Reusing the final
-value of an exported recursive variable can wrongly eliminate effects during
-environment construction. See [shell expansion](https://www.gnu.org/software/make/manual/html_node/Shell-Function.html)
-and [file effects](https://www.gnu.org/software/make/manual/html_node/File-Function.html).
+Persistent entries must identify semantic and cache-format versions, exact
+source-content digests, the reference profile and all relevant invocation and
+scope inputs. Track variable reads and absence, environment bytes, working
+directory, include search, binding generations and filesystem observations.
+Hash bytes read for interpretation. A path/mtime/size key is insufficient for
+Makefile contents.
 
-Content hashing validates reusable interpreter data; target freshness still uses
-GNU's timestamp semantics. Recipe effects, symlink changes and makefile restarts
-must invalidate observations at the correct phase. Refreshing filesystem state
-more frequently than GNU can itself change behavior; probe timing rather than
-assuming that more freshness is automatically more compatible. Inotify can be an
-acceleration hint but cannot establish persistent cache validity by itself.
+Validate negative observations too. A missing include, failed rule candidate,
+wildcard nonmatch or absent environment variable can change a future result.
+Begin with effect-free declarations and fully tracked pure expansions. Defer
+opaque effects, dynamic `eval`, target-sensitive expansion and any case with
+incomplete dependency tracking. Shell and plugin effects can change state beyond
+the known graph. Recompute when the required observations cannot be validated.
 
-Store bounded, disposable entries outside the build tree in an owner-private
-namespace. Validate lengths, indexes, versions and checksums on read; never load
-executable cache data. Use immutable entries, temporary writes and atomic publish;
-do not follow untrusted cache paths or hold locks while invoking user code.
-Corruption, eviction, permission failures, full disks and lock contention fall
-back to ordinary computation without changing normal build status or output.
-Cache diagnostics belong only in an explicitly requested developer mode.
+### Preserve effects and freshness
 
-Provide cold/warm/off/corrupt/concurrent comparisons before enabling each layer.
-No persistent daemon, network cache, or build-output cache in the initial design.
-The private-cache namespace and default-off rollout are defined in the
-[compatibility contract](compatibility.md#safety-and-performance-boundary).
+Include and loaded-object remaking, restarts and effectful functions keep their
+normal evaluation points, call counts and order. This applies to `shell`, `!=`,
+`file`, `info`, `warning`, `error` and extension calls. Exported recursive variables
+can produce effects each time the child environment is built. Their previous
+expanded value cannot stand in for those effects. See GNU's
+[shell function](https://www.gnu.org/software/make/manual/html_node/Shell-Function.html)
+and [file function](https://www.gnu.org/software/make/manual/html_node/File-Function.html).
+
+Content hashes validate reusable interpreter data. GNU timestamp semantics still
+determine target freshness. Recipe effects, symlink changes and Makefile restarts
+must invalidate observations at the correct phase. Inotify can provide a hint,
+but cannot establish persistent cache validity on its own.
+
+### Keep cache failures recoverable
+
+Store bounded, disposable entries in an owner-private namespace outside the
+build tree. Check lengths, indexes, versions and checksums when reading. Cache
+data must never be executable. Use immutable entries, temporary writes and atomic
+publication. Avoid untrusted cache paths and release locks before calling user
+code.
+
+Corruption, eviction, denied permissions, full disks and lock contention must
+fall back to ordinary computation without changing normal status or output.
+Cache diagnostics belong in an explicitly requested developer mode. Validate
+cache-off, cold, warm, invalidated, corrupt and concurrent runs before accepting
+a layer. The benefit must exceed validation and initialization costs.
+
+The initial design uses a private local cache for interpreter data. Review the
+namespace and invalidation contract before considering automatic enablement. See
+the [compatibility contract](compatibility.md#safety-and-performance-boundary).
 
 ## Extensibility without changing defaults
 
-Separate three concerns:
+Internal interfaces for functions, effects, rule resolution, diagnostics and
+execution support maintenance today. Their ordering and ownership rules remain
+explicit as modules evolve.
 
-1. Internal extension points: function registration, effect handlers, rule
-   resolution, diagnostics and execution backends are narrow interfaces with
-   explicit ordering and ownership. They support maintenance from the start.
-2. GNU compatibility: implement the documented dynamic-load ABI,
-   allocator ownership, callbacks, source locations, object-remake lifecycle and
-   required marker-symbol checks. Support Guile profiles through a separate
-   adapter. Native callbacks remain effectful and trusted code, not a sandbox.
-   See the [loaded-object API](https://www.gnu.org/software/make/manual/html_node/Loaded-Object-API.html).
-3. Future rmake plugins: stabilize only after conformance. Prefer a versioned
-   external protocol or capability-restricted runtime over a public Rust binary
-   ABI. Explicit enablement, typed requests, deterministic ordering, error policy,
-   plugin/configuration identities and compatibility tests are required.
+GNU native loading and Guile are compatibility features. Preserve the documented
+ABI, allocation ownership, callbacks, source locations, marker-symbol checks and
+loaded-object remake lifecycle. See GNU's
+[loaded-object API](https://www.gnu.org/software/make/manual/html_node/Loaded-Object-API.html),
+the [native runtime](native-modules.md) and the [Guile frontend](guile-frontend.md).
 
-Plugins never acquire purity simply by declaring it. Only capability-enforced
-deterministic operations with complete inputs can participate in memoization.
-Opaque/native callbacks invalidate relevant cache eligibility. No implicit plugin
-discovery from the current directory, new default syntax, or silent overrides of
-GNU functions. New modes retain a full test run of unmodified compatibility mode.
+A public rmake plugin platform is planned after compatibility. Prefer a versioned
+external protocol or a capability-restricted runtime. Explicit enablement, typed
+requests, deterministic ordering, error policy, plugin/configuration identities
+and compatibility tests are required before promising a stable interface.
+A public Rust binary ABI would need a separate compatibility commitment.
 
-## Performance measurement
+A plugin's claim of purity is insufficient for caching. Eligible operations need
+enforced capabilities, deterministic behavior and complete inputs. Opaque native
+callbacks invalidate relevant cache eligibility. Default compatibility mode must
+remain free of implicit plugin discovery, added syntax and silent GNU-function
+overrides. New modes must retain a full test run of the default mode.
 
-Benchmark from milestone 0, then optimize after each feature is correct. Track
-startup, no-op builds, macro expansion, implicit search, large graphs, generated
-includes, recursive builds, incremental updates and parallel dispatch. Separate
-engine time from external recipe time; record wall/CPU time, peak RSS, allocations,
-syscalls, bytes read and cache size, including validation overhead.
+## Measure performance
 
-Candidate optimizations include compact values, less copying, ordered rule
-indexes, conservative pure-expression reuse, fewer redundant lookups and cheap
-Linux spawning. Each is accepted by measured end-to-end benefit and conformance,
-not by microbenchmarks alone. Universal speedups cannot be promised for arbitrary
-recipes or tiny workloads. Proposed goals and regression thresholds are in the
-[implementation plan](implementation-plan.md#performance-gates).
+Measure correctness and end-to-end benefit for each optimization. Workloads
+include startup, no-op builds, expansion, implicit search, large graphs,
+generated includes, recursion, incremental updates and parallel dispatch.
+Separate interpreter time from external recipe time.
+
+The measurement plan includes wall and CPU time, peak memory, allocation counts,
+syscalls, bytes read and cache size. Reports must state which metrics were
+actually collected and include cache-validation costs where relevant.
+[Recorded benchmarks](benchmarks/README.md) retain improvements, regressions and
+measurement limits.
+
+Compact values, fewer copies, ordered indexes, pure-expression reuse, fewer
+lookups and Linux process improvements are candidates for measurement. A useful
+microbenchmark must also produce a net gain in the intended build workload while
+passing conformance tests. General speedup remains an objective that requires
+broader evidence. The [performance criteria](implementation-plan.md#performance-gates)
+define the acceptance requirements.
