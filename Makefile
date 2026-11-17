@@ -149,7 +149,7 @@ help:
 		'  regenerate-builtins Refresh declarative Linux defaults from the oracle' \
 		'  test-diff       Compare rmake against the oracle; report pending cases' \
 		'  test-shuffle    Validate random/zero-seed permutations and numeric replay' \
-		'  test-nested-short-proposal Review the unapproved short-option error boundary' \
+		'  test-nested-short-proposal Check the approved short-option error boundary' \
 		'  test-safety     Check documented safe errors without invoking GNU' \
 		'  test-include-stat Check include-directory EINTR and cancellation behavior' \
 		'  test-source-streams Check live source read, close and interruption ordering' \
