@@ -123,6 +123,7 @@
       ],
       "smoke_stdout_hex": "3235350a677a697020696e746567726174696f6e207769746e6573730a",
       "source_url": "https://ftp.gnu.org/gnu/gzip/gzip-1.14.tar.gz",
+      "fallback_url": "https://mirrors.kernel.org/gnu/gzip/gzip-1.14.tar.gz",
       "archive_sha256": "613d6ea44f1248d7370c7ccdeee0dd0017a09e6c39de894b3c6f03f981191c6b",
       "topdir": "gzip-1.14",
       "license_file": "COPYING",
