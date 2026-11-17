@@ -1,5 +1,36 @@
 # Database output and logical execution history
 
+Use `-p` to print the rules, variables, and file records known to the build.
+Add `-q` to ask whether a goal is current while printing the database.
+
+```sh
+rmake -pq target
+```
+
+The dump can include timestamps, cached decisions, and counts of operations
+during the build. See the
+[GNU Make option summary](https://www.gnu.org/software/make/manual/html_node/Options-Summary.html)
+for the behavior of printing and question mode.
+
+## Check a database result
+
+From the repository root, run the full database comparison or replay a
+specific record-role case.
+
+```sh
+make test-database-output
+make test-database-order-roles DATABASE_ORDER_ROLE_CASE=question-prerequisite-stops-parent
+```
+
+The case checks that a prerequisite's question result stops the parent without
+giving the parent an incidental secondary marker. Other cases compare
+explicitly named `.SECONDARY` records with missing or unchecked timestamps and
+controls for records with known files. The gate also checks prerequisite
+roles, order, streams, and file effects. The development reports are under
+`artifacts/database-output` and `artifacts/database-order-roles`.
+
+## What the dump contains
+
 The database starts explicit file printing with the recipe prefix active when
 the database is emitted. Each file can then publish a transition to its own
 stored prefix. Implicit rule commands use the active prefix throughout their
