@@ -4039,6 +4039,32 @@ impl Engine {
                 if let Some(changes) = &mut grouped_changes {
                     changes.failed |= chain_failed;
                 }
+                if prior_peer_failure
+                    && result.failed
+                    && !result.fatal
+                    && self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
+                {
+                    use crate::debug::{Event, emit};
+
+                    // The visit already emitted its first Considering event.
+                    // Remaining occurrences replay or prune the observed peer.
+                    let declarations = self
+                        .database
+                        .rules
+                        .get(name)
+                        .and_then(|rule| rule.double_colon.as_ref())
+                        .map_or(1, Vec::len);
+                    emit(&self.output, Event::RecentlyFailed(name, 1));
+                    if self.options.keep_going {
+                        for _ in 1..declarations {
+                            emit(&self.output, Event::Considering(name, 1));
+                            emit(&self.output, Event::RecentlyFailed(name, 1));
+                        }
+                    }
+                    for _ in 1..declarations {
+                        emit(&self.output, Event::Pruning(name, 1));
+                    }
+                }
                 let serial_declarations = if result.failed && !result.fatal && !prior_peer_failure {
                     self.serial_double_colon_declarations(name)
                 } else {
