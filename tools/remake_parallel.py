@@ -2246,6 +2246,7 @@ def stock_primary_load_models() -> list[HeldModel]:
                                         results.extend(stock_primary_three_final_touch_profiles(
                                             both, True, extend_named=False,
                                             job_cases=(('-j2', '2-slots'), ('-j4', '4-slots'))))
+    results.extend(stock_primary_three_named_two_optional_cases(results))
     return results
 
 
@@ -2681,6 +2682,59 @@ def stock_primary_two_optional_touches(held: HeldModel) -> HeldModel:
         files[name] = files[name].replace(b'include extra.mk\n', b'-include extra.mk\n')
     identifier = model.id.replace('stock-primary-optional-', 'stock-primary-both-optional-')
     return replace(held, model=replace(model, id=identifier, files=files))
+
+
+def stock_primary_three_named_two_optional_cases(held_models: list[HeldModel]) -> Iterator[HeldModel]:
+    by_id = {held.model.id: held for held in held_models}
+    base_id = 'load-stock-primary-both-optional-three-mixed-last-adjacent-reversed-2-'
+    samples = (('t-pipe-high-2-slots', False), ('qt-fifo-high-4-slots', True),
+               ('t-pipe-low-4-slots', True), ('qt-fifo-no-load-2-slots', False))
+    for sample, required_first in samples:
+        held = stock_primary_add_named_touch_sources(by_id[base_id + sample], 3)
+        model = held.model
+        files = dict(model.files)
+        args = model.args
+        identifier = model.id
+        if required_first:
+            previous = b'-include extra.mk\ninclude tail.mk\n-include child.mk\n'
+            reordered = b'include tail.mk\n-include extra.mk\n-include child.mk\n'
+            for name in ('Makefile', 'Makefile.sh'):
+                assert files[name].count(previous) == 1
+                files[name] = files[name].replace(previous, reordered)
+            index = args.index('extra.mk')
+            args = (*args[:index], 'tail.mk', 'extra.mk', *args[index + 2:])
+            identifier = identifier.replace('-last-adjacent-reversed-', '-last-adjacent-required-first-')
+        goals = args[-4:-1]
+        touches = tuple(f'touch {goal}\n'.encode() for goal in goals)
+        boundary = 2 if required_first else 1
+        through_optional = touches[:boundary]
+        queued = touches[boundary:]
+        high = held.load.at_release == LOAD_HIGH
+        question = '-q' in args
+        release = b'cat Makefile.sh >Makefile \n' + b''.join(through_optional)
+        updates = {name: content for name, content in model.updates.items() if name.startswith('primary.')}
+        updates.update(dict.fromkeys((*goals, 'all'), b''))
+        if not high:
+            release += b'touch leaf.mk\n' + b''.join(queued)
+            updates['leaf.mk'] = b'LEAF := loaded\n'
+        stdout = release
+        if question:
+            if high:
+                stdout += b''.join(queued)
+            stderr = b"make: *** Deleting file 'Makefile'\n"
+        else:
+            stdout += b'touch Makefile\n' * 2
+            if high:
+                stdout += b''.join(queued) + b'touch leaf.mk\n' * 2
+                updates['leaf.mk'] = b''
+            stdout += b''.join(f"make: '{goal}' is up to date.\n".encode() for goal in goals)
+            updates['Makefile'] = files['Makefile.sh']
+            stderr = b''
+        expected = {'exit_code': 0, 'stdout_template_hex': (stdout + b'touch all\n').hex(),
+                    'stderr_template_hex': stderr.hex()}
+        model = replace(model, id=identifier, files=files, args=args, expected=expected, updates=updates)
+        yield replace(held, model=model, before_first_stdout=release,
+                      stock_primary_mode=None if question else 0o644)
 
 
 def stock_primary_three_prefix_model(held: HeldModel, optional: bool, named_count: int,

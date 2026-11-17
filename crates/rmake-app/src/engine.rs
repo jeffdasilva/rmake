@@ -3345,9 +3345,14 @@ impl Engine {
                 && (final_named_sources.len() == 2
                     || (!final_named_sources.is_empty() && optional_named_sources == 0)
                     || (final_named_sources.len() == 3 && optional_named_sources == 1));
+            let ordinary_two_optional_touch = debug_before_remake.bits() == Mask::NONE.bits()
+                && optional_named_sources == 2
+                && matches!(final_named_sources, [_, _, (last, _)] if last.optional);
             let final_named_touch = modes.touch
                 && !final_named_sources.is_empty()
-                && (optional_named_sources <= 1 || final_named_sources.len() == 2)
+                && (optional_named_sources <= 1
+                    || final_named_sources.len() == 2
+                    || ordinary_two_optional_touch)
                 && (!debug_before_remake.has(Mask::MAKEFILES) || final_named_touch_debug)
                 && self.options.jobs.is_some_and(|slots| slots >= 2);
             let unruled_primary = ordinary_mode
