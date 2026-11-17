@@ -3627,6 +3627,14 @@ impl Database {
         }
         if suspended {
             previous_scope = self.suspended_target_reads.pop();
+            // A temporary declaration uses its own binding table. A nested
+            // declaration can publish an update to that table while it is paused.
+            if let (Some(parent), Some(scope)) = (&parent, &mut previous_scope)
+                && !scope.is_file_read_context(&parent.target)
+                && let Some(declarations) = self.target_scopes.get(&parent.target)
+            {
+                declarations.refresh_read_bindings(scope);
+            }
         }
         if owns_reader_lexical {
             self.target_read
