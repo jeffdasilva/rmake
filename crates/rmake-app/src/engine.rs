@@ -5305,7 +5305,27 @@ impl Engine {
         {
             // Each extra goal entry returns to the same considered chain head.
             let count = branches.len() + usize::from(self.visited_cached_double_colon_input(name));
-            for _ in 1..count {
+            let mut repeats = count.saturating_sub(1);
+            if self.remaking && self.optional_remake() && outcome.remake_group_peer_updated {
+                // An optional source advances after its first declaration
+                // already updated as another group's peer. Earlier entries
+                // can still revisit and prune the fresh chain head.
+                let mut key = (name.to_vec(), 0);
+                for ordinal in 0..branches.len() {
+                    key.1 = ordinal;
+                    if self
+                        .database_branch_outcomes
+                        .get(&key)
+                        .is_some_and(|branch| {
+                            branch.database_result == DatabaseResult::ObservedGroup
+                        })
+                    {
+                        repeats = repeats.min(ordinal);
+                        break;
+                    }
+                }
+            }
+            for _ in 0..repeats {
                 emit(
                     &self.output,
                     Event::Pruning(name, usize::from(self.remaking)),
