@@ -12136,7 +12136,11 @@ impl Engine {
                 && !self.parallel_jobs.contains_key(target)
                 && self.debug_timestamp_changed(before, outcome);
         }
-        if !debug_remake && !outcome.failed && !self.special(b".NOTINTERMEDIATE", target, true) {
+        if !debug_remake
+            && !prerequisite_question
+            && !outcome.failed
+            && !self.special(b".NOTINTERMEDIATE", target, true)
+        {
             if let Some(ordinal) = branch {
                 self.database_branch_secondary
                     .insert((target.to_vec(), ordinal));
