@@ -2387,6 +2387,33 @@ impl Engine {
         (cached || declared_peer) && !self.optional_remake_failures.contains_key(identity)
     }
 
+    fn observed_failed_duplicate_peer(&self, name: &[u8]) -> bool {
+        if self.database_branch_outcomes.is_empty() || self.file_traversals.has_outcome(name) {
+            return false;
+        }
+        let Some((head, rest)) = self
+            .database
+            .rules
+            .get(name)
+            .and_then(|rule| rule.double_colon.as_deref())
+            .and_then(<[Rule]>::split_first)
+        else {
+            return false;
+        };
+        // Repeated occurrences of a completed peer came from one declaration.
+        // There is no new optional failure to report when visiting that peer.
+        let group = head.grouped_double_id();
+        group.is_some()
+            && !rest.is_empty()
+            && rest.iter().all(|rule| rule.grouped_double_id() == group)
+            && self
+                .database_branch_outcomes
+                .get(&(name.to_vec(), 0))
+                .is_some_and(|head| {
+                    head.failed && head.database_result == DatabaseResult::ObservedGroup
+                })
+    }
+
     fn cached_recipe_outcome(&self, mut outcome: Outcome) -> Outcome {
         if !self.remaking && self.active_makefile_remake.is_some() {
             // A recipe left running by a stopped optional remake can finish
@@ -3996,6 +4023,10 @@ impl Engine {
                 } else {
                     BuildVisit::Ordinary
                 };
+                let prior_peer_failure = optional
+                    && !self.parallel_makefile_remakes
+                    && !modes.active()
+                    && self.observed_failed_duplicate_peer(name);
                 let mut result = self.build_recording_initial_time(
                     name,
                     None,
@@ -4008,7 +4039,7 @@ impl Engine {
                 if let Some(changes) = &mut grouped_changes {
                     changes.failed |= chain_failed;
                 }
-                let serial_declarations = if result.failed && !result.fatal {
+                let serial_declarations = if result.failed && !result.fatal && !prior_peer_failure {
                     self.serial_double_colon_declarations(name)
                 } else {
                     None

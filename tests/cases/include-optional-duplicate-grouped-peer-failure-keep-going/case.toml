@@ -1,0 +1,12 @@
+id = "include-optional-duplicate-grouped-peer-failure-keep-going"
+requirement = "includes.remake"
+candidate = "required"
+description = "An optional read peer repeated in a grouped declaration keeps the earlier recipe verdict."
+provenance = "Original rmake fixture captured against two GNU Make 4.4.1 runs."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 3
+
+[expected]
+exit_code = 0
+stdout_hex = "524541443a0a414c4c3a0a"
+stderr_hex = ""
