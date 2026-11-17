@@ -1,62 +1,87 @@
-# Trace output and rebuild reasons
+# Trace why a target rebuilds
 
-rmake now accepts and propagates `--trace` on the pinned Linux profile. Rebuild
-messages preserve recipe filenames/lines, raw target names, `.PHONY` and missing
-target reasons, changed prerequisite names, and GNU's missing-prerequisite or
-unknown-reason fallback. Trace prints recipe commands even when `@`, `-s` or
-`.SILENT` would ordinarily suppress them. Empty recipes and nonexecuting modes
-retain their separate behavior.
+Add `--trace` to a build command to see which target rmake is about to rebuild
+and why. The output includes the recipe's origin when known and identifies
+changed prerequisites when they are available.
 
-Trace reasons are emitted after all recipe bodies expand and a recipe slot is
-reserved, before shell configuration/command execution and load waiting. An
-expansion failure precedes trace; a later configuration failure follows it.
-Existing output buffers retain synchronization boundaries. Includes, built-in
-recipes, VPATH/GPATH identities, recursive invocations and `.ONESHELL` keep their
-ordinary locations and execution semantics.
+```sh
+rmake --trace
+rmake --trace greeting.txt
+```
+
+Trace prints recipe commands even when `@`, `-s`, or `.SILENT` would
+ordinarily hide them. It still obeys the selected execution mode. For example,
+`rmake --trace -n` uses dry-run rules. See the
+[GNU Make option summary](https://www.gnu.org/software/make/manual/html_node/Options-Summary.html)
+for the behavior of those options and their exceptions.
 
 ## Requested flags and active diagnostics
 
-GNU suspends these diagnostics while remaking Makefiles unless Makefile debug
-output was separately enabled. The requested `--trace` flag still belongs in
-recursive flag metadata. A flag assignment during a remake can decode the
-requested flag again and reactivate diagnostics; leaving the remake restores
-the entry diagnostic state. A dedicated live policy cell represents that
-boundary independently of the retained option spelling. Broader `--debug`
-categories remain unimplemented and receive no acceptance credit here.
+rmake prints a rebuild reason after expanding a recipe and reserving a job
+slot. An expansion error interrupts the recipe before the reason appears.
+A later shell configuration failure follows the reason. Output synchronization
+keeps the same recipe and recursion boundaries. See
+[output during parallel execution](https://www.gnu.org/software/make/manual/html_node/Parallel-Output.html)
+and [options for recursion](https://www.gnu.org/software/make/manual/html_node/Options_002fRecursion.html)
+in the GNU Make manual.
 
-Fallback reasons inspect the interpreter's existing completion observations.
-A non-phony prerequisite assumed updated by dry-run is not still logically
-missing merely because its physical timestamp is absent. A missing phony
-prerequisite retains its distinct state, including when a physical file exists.
-No new timestamp cache, mutable semantic cache, filesystem probe, unsafe code
-or GNU implementation fallback is introduced.
+During Makefile remaking, GNU Make suspends trace diagnostics unless Makefile
+debug output is enabled. The recursive flags still carry the requested
+`--trace` option. A live flag assignment during a remake can reactivate trace.
+When the remake phase ends, rmake restores its previous diagnostic policy.
+
+Reasons use the target and prerequisite results available when the recipe is
+ready. For example, a regular prerequisite hypothetically updated by dry-run
+can count as updated even while its file is missing. A phony prerequisite
+keeps separate freshness rules.
 
 ## Evidence and remaining work
 
-165 original required fixtures have explicit byte/status models checked against
-two pinned GNU Make 4.4.1 observations and the final candidate. They cover normal,
-dry-run, query, touch, silent, parallel and synchronized modes; empty/expanded
-recipes; ordinary, hidden and order-only prerequisites; `.PHONY`, double-colon
-and cyclic dependencies; raw names; implicit and built-in recipes; includes,
-restarts, recursion, option sources and live remake reactivation. Negative
-anchors reject missing echo, changed locations/identities and reordered events.
-GPATH controls must reach a real rebuild; phony fallback controls must reach an
-existing parent target rather than pass through the missing-target shortcut.
+The original trace comparison added 165 fixtures with independently specified
+output and status. The checks cover command echo, raw file names, recipe
+locations, missing and changed prerequisites, phony targets, include and
+restart paths, `VPATH` and `GPATH`, implicit and built-in recipes, recursive
+builds and live option changes. They also cover parallel and synchronized
+output. The fixtures require the intended rebuild to occur before checking its
+reason.
 
-The corpus is 9,796 required ordinary cases with no ordinary pending entries,
-plus 17 separately gated safe-error exceptions. Totals are 453 Rust / 381 tooling
-tests. Full development/optimized acceptance and exact-head CI remain merge
-gates. M3/M6 are open: full startup, option/debug/profile/locale interactions,
-native loading, enabled Guile and the complete compatibility inventory remain
-separate acceptance work.
+Use the [testing guide](testing.md) to run or replay comparisons. The
+[M3/M6 audit](m3-m6-audit.md) tracks remaining interactions among traces,
+diagnostic settings, execution profiles and locales.
+
+## Localized trace output
+
+From the repository root, run the trace-specific comparison gates.
+
+```sh
+make test-trace-nls
+make test-trace-job-languages
+```
+
+Add `-release` to a target name to test an optimized build. The trace NLS
+reports are in `artifacts/trace`. The language reports are under
+`artifacts/trace-job-languages`.
+
+The NLS gate compares raw streams, exit status, and filesystem effects under C
+and a verified French locale. It covers built-in and included recipes, changed
+prerequisites, directory search, recursion, restarts, nonexecuting modes and
+synchronized output. Two byte-oriented cases preserve non-UTF-8 names and a user
+line that resembles a trace diagnostic.
+
+The trace and JOBS language gate covers 18 German, Japanese and Brazilian
+Portuguese comparisons, including live PID and address checks. The French
+catalog translates the generic prerequisite template and built-in source
+label. Fixed reasons use gettext fallback. Recipe commands and their output
+retain their original bytes. See the [localization guide](nls-diagnostics.md)
+for catalog setup and [catalog provenance](../catalogs/provenance.json) for
+message sources and notices. The source reference for the trace message IDs
+is GNU Make 4.4.1's `src/job.c`.
 
 ## Performance observations
 
-Output-checked common workloads run with trace disabled. Frozen comparisons use
-101 alternating samples, retain executable identities and every sample, and run
-without concurrent builds or acceptance campaigns. Host activity is not
-controlled. These are workload observations, not statistical proof or a claim
-of general performance parity. GNU remains faster on standard workloads.
+The historical trace change was measured with trace disabled. These medians
+come from 101 alternating, output-checked samples on one host. The measurements
+cover the listed workloads. Host activity was uncontrolled.
 
 | Workload | GNU ms | Current ms | Preceding main release ms |
 | --- | ---: | ---: | ---: |
@@ -66,31 +91,5 @@ of general performance parity. GNU remains faster on standard workloads.
 | Parallel branches, depth 1 | 87.926 | 90.266 | 90.310 |
 | Parallel branches, depth 4 | 87.953 | 90.341 | 90.467 |
 
-The medians are mixed; expansion is about 0.7% higher in this run. These samples
-establish neither a statistical regression nor a speedup.
-
 Raw [core](benchmarks/trace-core.json) and
 [parallel](benchmarks/trace-parallel.json) reports accompany this slice.
-
-## Localized trace output
-
-`make test-trace-nls` and `make test-trace-nls-release` compare C and
-verified French streams, exit status, complete filesystem effects and
-fixed timestamp inputs. The profiles cover builtin and included source
-names, changed prerequisite names, VPATH, recursive builds, a real restart,
-nonexecuting modes and output synchronization. Two original byte-oriented
-fixtures cover non-UTF-8 source, target and prerequisite names and a user
-line that looks like a trace diagnostic.
-
-The renderer passes a typed reason and raw bytes to the active gettext
-domain at the existing trace publication boundary. The French catalog
-translates the generic prerequisite template and the builtin source label.
-Its fixed reason strings use gettext fallback. Recipe echoes and recipe
-output retain their original bytes. The message IDs come from GNU Make
-4.4.1's trace producer in `src/job.c`. Catalog provenance and translation
-notices are recorded in [catalogs/provenance.json](../catalogs/provenance.json)
-and [catalogs/COPYING](../catalogs/COPYING).
-
-`make test-trace-job-languages` also checks 18 trace and JOBS comparisons
-in German, Japanese, and Brazilian Portuguese. The gate verifies each
-catalog and preserves the existing live PID and address checks.
