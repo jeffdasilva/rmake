@@ -480,3 +480,45 @@ all: old ; @:
 records = ["all: old"]
 flags = ["-p", "-q"]
 existing = true
+
+[[case]]
+id = "named-secondary-unvisited-record"
+makefile = '''
+all: ; @:
+unused: n ; @:
+.SECONDARY: unused
+'''
+records = ["unused: n", "all:"]
+flags = ["-p"]
+
+[[case]]
+id = "named-secondary-missing-query-parent"
+makefile = '''
+leaf: ; @:
+all: leaf ; @:
+.SECONDARY: all
+'''
+records = ["all: leaf"]
+flags = ["-p", "-q"]
+status = 1
+
+[[case]]
+id = "named-secondary-missing-grouped-double-query"
+makefile = '''
+all peer &:: n ; @:
+all peer &:: z ; @:
+.SECONDARY: all
+'''
+records = ["all:: n", "all:: z"]
+flags = ["-p", "-q"]
+status = 1
+
+[[case]]
+id = "named-secondary-existing-query-target"
+makefile = '''
+all: n ; @:
+.SECONDARY: all
+'''
+records = ["all: n"]
+flags = ["-p", "-q"]
+existing = true
