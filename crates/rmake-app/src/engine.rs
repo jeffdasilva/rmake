@@ -11577,7 +11577,14 @@ impl Engine {
         let has_hidden = rule.dependencies.iter().any(|dependency| dependency.hidden);
         let visible_normal =
             has_hidden.then(|| normal.iter().map(Vec::as_slice).collect::<HashSet<_>>());
-        let normal_names: HashSet<_> = if has_hidden || !capture_automatic {
+        let all_normal = !capture_automatic
+            && !rule
+                .dependencies
+                .iter()
+                .any(|dependency| dependency.order_only);
+        let normal_names: HashSet<_> = if all_normal {
+            HashSet::new()
+        } else if has_hidden || !capture_automatic {
             rule.normal_prerequisites().collect()
         } else {
             normal.iter().map(Vec::as_slice).collect()
@@ -11595,7 +11602,7 @@ impl Engine {
                 continue;
             };
             merge_child(&mut outcome, child);
-            let order_only = !normal_names.contains(dependency.as_slice());
+            let order_only = !all_normal && !normal_names.contains(dependency.as_slice());
             let inspected_stale = intermediate_stale
                 .as_ref()
                 .is_some_and(|edges| edges.contains(&index));
