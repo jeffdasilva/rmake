@@ -213,6 +213,8 @@ Five more held profiles test three or eight required names with `-j2`
 and a load limit. They verify the same release and completion effects.
 Six further profiles cover higher and unbounded job counts under load and
 no-load runs with two or unbounded slots.
+Six more profiles place a single optional include at either end of three
+named makefiles and compare release, restart, deletion, and file modes.
 
 ## Performance observation
 
