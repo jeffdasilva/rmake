@@ -3344,6 +3344,10 @@ impl Engine {
                 && (final_named_sources.len() == 2
                     || (!final_named_sources.is_empty() && optional_named_sources == 0)
                     || (final_named_sources.len() == 3 && optional_named_sources == 1)
+                    || (limited_load
+                        && optional_named_sources == 1
+                        && matches!(final_named_sources, [(first, _), _, _, (last, _)]
+                            if first.optional || last.optional))
                     || (three_named_two_optional
                         && (limited_load
                             || matches!(final_named_sources, [_, _, (last, _)] if last.optional))));

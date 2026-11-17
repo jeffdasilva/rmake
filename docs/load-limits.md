@@ -227,6 +227,8 @@ under a load limit. They check all three positions for the required source.
 Four further cases omit the load limit and check touch or deletion when
 the required source comes first or in the middle. Their held release
 includes the earlier unnamed include’s touch output.
+Four more profiles place the optional include first or last among four
+named sources under a load limit.
 
 ## Performance observation
 

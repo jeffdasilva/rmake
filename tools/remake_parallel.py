@@ -3178,8 +3178,13 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         held = by_id.get(name)
         named_count = row.get('named_count')
         if named_count is not None:
-            if (held is None or not isinstance(named_count, int) or named_count not in (3, 8)
-                    or not name.startswith('load-stock-primary-three-mixed-last-adjacent-2-')
+            required_tail = (named_count in (3, 8)
+                             and name.startswith('load-stock-primary-three-mixed-last-adjacent-2-'))
+            optional_endpoint = named_count == 4 and name.startswith((
+                'load-stock-primary-optional-three-mixed-last-adjacent-2-',
+                'load-stock-primary-optional-three-mixed-last-adjacent-reversed-2-',
+            ))
+            if (held is None or not isinstance(named_count, int) or not (required_tail or optional_endpoint)
                     or name.endswith('-named') or '-t' not in held.model.args):
                 raise h.HarnessError('invalid longer stock primary remake debug model')
             held = stock_primary_add_named_touch_sources(held, named_count)
