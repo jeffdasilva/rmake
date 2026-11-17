@@ -569,3 +569,32 @@ all: ; @:
 records = ["all:"]
 flags = ["-p", "-q"]
 status = 1
+
+[[case]]
+id = "implicit-known-stem-skips-suffix-fallback"
+makefile = '''
+al%: ; @:
+'''
+records = ["all:"]
+flags = ["-p", "-q"]
+status = 1
+
+[[case]]
+id = "implicit-known-stem-with-explicit-prerequisite"
+makefile = '''
+all: n
+al%: ; @:
+MAKEFLAGS += -p
+'''
+records = ["all: n"]
+flags = ["-q"]
+status = 1
+
+[[case]]
+id = "implicit-known-stem-recipe-file-effect"
+makefile = '''
+al%: ; @$(file >>seen,$*):
+'''
+records = ["all:"]
+seen_hex = "6c0a"
+flags = ["-p"]
