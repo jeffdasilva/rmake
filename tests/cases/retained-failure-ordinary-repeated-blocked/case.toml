@@ -1,0 +1,12 @@
+id = "retained-failure-ordinary-repeated-blocked"
+requirement = "includes.retained-failure-goals"
+candidate = "required"
+description = "Deferred optional-remake errors and completed-goal summaries: ordinary-repeated-blocked."
+provenance = "Original rmake fixture and independently checked GNU Make 4.4.1 byte expectations; no upstream implementation or tests consulted."
+args = ["-rR", "--no-print-directory", "-k", "opts.mk", "opts.mk"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'leaf', needed by 'opts.mk'.\nmake: Target 'opts.mk' not remade because of errors.\n"

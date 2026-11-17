@@ -4491,7 +4491,12 @@ impl Engine {
                 let first_question = self.ordinary_queries.first_verdict.is_none()
                     && verdict == Some(Status::Question);
                 self.ordinary_queries.record(verdict);
-                self.report_goal(&goal, started_command, completed_report.unwrap_or(outcome));
+                self.report_goal(
+                    &goal,
+                    started_command,
+                    completed_report.unwrap_or(outcome),
+                    already_done,
+                );
                 if first_question
                     && !self.options.keep_going
                     && self.parallel_graph()
@@ -4631,7 +4636,7 @@ impl Engine {
             failed |= outcome.failed;
             fatal |= outcome.fatal;
             self.ordinary_queries.record(outcome.goal_verdict());
-            self.report_goal(&goal.name, goal.started_command, outcome);
+            self.report_goal(&goal.name, goal.started_command, outcome, goal.already_done);
         }
         if self.options.question
             && self.would_build
@@ -5480,8 +5485,8 @@ impl Engine {
         }
     }
 
-    fn report_goal(&self, goal: &[u8], started_command: bool, outcome: Outcome) {
-        if outcome.fatal {
+    fn report_goal(&self, goal: &[u8], started_command: bool, outcome: Outcome, cached: bool) {
+        if outcome.fatal || (outcome.failed && cached) {
             return;
         }
         if outcome.failed && outcome.blocked {
@@ -9782,10 +9787,15 @@ impl Engine {
     ) -> Outcome {
         let mut traced_optional_failure = false;
         if !self.optional_remake()
-            && let Some(cause) = self.optional_remake_failures.remove(target)
+            && let Some(cause) = self.optional_remake_failures.get(target).cloned()
         {
             // A later required visit exposes the original failure hidden by
             // the optional remake, including the edge to a deeper failure.
+            // Blocked parents retain their cause for later goal visits; the
+            // failed leaf's own diagnostic is consumed only once.
+            if cause.is_none() {
+                self.optional_remake_failures.remove(target);
+            }
             let query = self
                 .done
                 .get(target)
@@ -9807,8 +9817,7 @@ impl Engine {
             {
                 traced_optional_failure = true;
             }
-            let cached_remake_parent = if self.remaking
-                && !self.parallel_makefile_remakes
+            let cached_remake_parent = if (!self.remaking || !self.parallel_makefile_remakes)
                 && parent.is_none()
                 && self
                     .done
