@@ -1,312 +1,152 @@
-# Differential testing strategy
+# Test changes to rmake
 
-Status: implementation underway. Curated, generated, mode-matrix and stateful
-runners, early benchmarks and GitHub CI are implemented. The
-[progress record](progress.md) lists current coverage and open gates; the broader
-profile, isolation, stress and release-scale requirements below remain the design
-target. Current runners execute trusted fixtures in disposable directories with
-bounded processes and output; they are not a filesystem or network sandbox.
-The primary corpus consists of independently authored Makefiles and helpers.
-GNU source may inform implementation and case design under the
-[source-reference policy](compatibility.md#source-reference-and-provenance).
-Any upstream-derived supplemental cases require their own provenance and notices.
+The tests compare rmake with a pinned GNU Make 4.4.1 executable. If you change
+how rmake reads a Makefile, chooses a recipe, or runs a command, add a small
+Makefile that reproduces the behavior. For the supported platform, reference
+builds, and permitted differences, see the [compatibility guide](compatibility.md).
 
-The [compatibility contract](compatibility.md) defines the reference and permitted
-differences. Testing must detect semantic mistakes, establish which feature
-combinations are covered, and make any future optimization earn its correctness.
+## Run the checks
 
-## Fixture format and oracle execution
+From the repository root, prepare the toolchain and reference executable.
 
-Each case is a directory containing an original `Makefile`, optional included
-files and input data, and a declarative `case.toml`. The manifest records:
+```sh
+make bootstrap
+```
 
-- Stable case ID, requirement IDs, feature tags, rationale, documentation/source
-  references or original experiment provenance, and required oracle profile.
-- Initial files and byte contents, modes, links, directory structure and exact
-  nanosecond modification times where relevant.
-- One or more invocation steps: argv, cwd, environment, stdin/TTY mode, umask,
-  filesystem/environment mutations between runs, and bounded resource limits.
-- Output-descriptor topology: separate streams, a shared file or pipe, a PTY,
-  closed descriptors, and broken pipes where the case requires them.
-- Comparison mode, required observable events and precisely scoped nondeterminism.
-- Reproducible seed and shrinking constraints for a generated case.
+The bootstrap also prepares the sources for real-project tests. For a local
+edit, choose the smallest check that exercises the change, then run `make check`
+before sending the change for review.
 
-The current single-invocation runner accepts `args` as text, or `args_hex` as a
-complete list of hexadecimal byte arguments. The representations are exclusive.
-For example, `args_hex = ["2d7252", "4e414d453dff"]` passes `-rR` and a
-`NAME=` assignment ending in byte `ff`. Empty strings encode empty arguments;
-NUL is rejected because Linux argv cannot contain it. This keeps raw-byte probes
-replayable without lossy Unicode conversion.
-
-Fixtures with GNU restart traces may use `stdout_template` in place of
-`stdout` or `stdout_hex`. The runner expands `@BIN@` to the exact executable
-alias for that invocation. Both captured streams still compare byte for byte.
-
-The runner creates separate isolated environments with identical absolute paths,
-for example `/work/case` and `/opt/test/bin/make`. It mounts the appropriate
-executable at the latter path; never use different workspace prefixes and then
-blindly rewrite captured text. Pin shell/tool versions, `PATH`, `HOME`, `TMPDIR`,
-locale, timezone and relevant host properties. No network access or host-home
-access is needed for ordinary fixtures; capabilities required by a test are
-explicit. Tests cannot escape their disposable roots or leave background children.
-
-Reference and candidate executions each start from the same state. Stateful tests
-maintain independent copies across the same mutation sequence. Bound time, output
-and child counts; timeout is a separately reported observation, not an ordinary
-success/error code. Save enough state to reproduce every discrepancy.
-
-The fixture runner also tests real invocation names and mixed GNU/rmake recursive
-trees. A recipe helper records which executable recursion actually reached. A
-candidate that accidentally delegates to GNU must fail the test.
-
-## Observations and comparators
-
-| Observation | Comparison |
+| Command | What it checks |
 | --- | --- |
-| stdout/stderr | Exact bytes in deterministic cases, including whitespace, warnings and source locations; capture separate streams or shared-descriptor output according to the fixture |
-| termination | Exit code or terminating signal, with timeout classified separately |
-| filesystem | New/changed/deleted entries, bytes, permissions, symlinks and hard-link relationships, timestamp values or specified relationships |
-| command context | Recipe-observed arguments, environment, cwd, umask, stdin and inherited-descriptor behavior |
-| scheduling | Start/finish/failure event traces, dependency order, invocation counts, slot bounds and cleanup |
-| protocols | Jobserver token ownership/return, recursion state, output synchronization and signal propagation |
+| `make check-core` | Rust formatting, Clippy, unit tests, Python tooling, and translation catalogs. |
+| `make test-oracle` | The GNU Make reference against itself and the expected outputs in the ordinary fixtures. |
+| `make test-diff` | rmake and GNU Make on the ordinary fixtures. |
+| `make test-stateful` | Repeated builds after file changes, including timestamp and include behavior. |
+| `make test-remake-parallel` | Parallel Makefile remakes and restarts with controlled recipe completion. Use `make test-remake-parallel-release` for the optimized build. |
+| `make test-jobserver` | Mixed GNU Make and rmake trees with pipe or FIFO jobservers. |
+| `make test-integration` | Clean and incremental builds of pinned real projects. |
+| `make test-selfhost` | Selected developer tasks run through rmake. |
+| `make test-safety` | rmake's documented error behavior for the separate [safety cases](safety-exceptions.md). |
 
-Internal syscall counts need not match: reducing overhead is a goal. Shell and
-process behavior that a recipe can observe still belongs in conformance.
-Preserve raw captures alongside comparator reports. Do not let the candidate's
-own internal model produce expected results for black-box comparisons.
+Use `make help` to find other suites and their replay settings. GitHub CI runs
+the development and optimized checks, plus separate Guile checks. See the
+[CI workflow](../.github/workflows/ci.yml).
 
-For parallel cases, use helper-controlled barriers and acknowledgements instead
-of sleep-based timing. Assert exact results under controlled schedules, and
-specified partial-order constraints for legitimately unconstrained schedules.
-Check each output-sync mode separately; globally sorting output would conceal
-interleaving defects. GNU describes the modes in
-[parallel output](https://www.gnu.org/software/make/manual/html_node/Parallel-Output.html).
+To replay one ordinary case, build the candidate and pass the case ID to the
+runner. The runner uses `.tools/oracle/bin/make` by default.
 
-Time/PID/descriptor fields receive narrowly named validators with relationship
-checks, never broad regular-expression scrubbing. For debug/database output,
-control the clock when practical and validate only intrinsically variable fields
-separately; keep deterministic ordering and statistics as compatibility work.
-Every comparator rule gets a test proving that an actual semantic mismatch still
-fails. TTY-specific cases use a PTY, not the ordinary pipe-capture path.
+```sh
+make build
+python3 tools/conformance.py --candidate target/debug/rmake \
+  --case graph-ready-two-barriers
+```
 
-Include shared-descriptor invocations such as `make >log 2>&1`: two separately
-captured streams cannot establish their merged ordering. Compare controlled
-merged output exactly and exercise output synchronization, closed descriptors,
-broken pipes, and the resulting signal/error behavior under each topology.
+Repeat `--case` to select several cases. With explicit cases, add `--repeat 3`
+to run each comparison three times in fresh directories. Outputs and failure
+reproductions are written under `artifacts/`.
 
-## Requirement ledger and corpus
+The runners execute Makefile recipes and helpers. Use trusted fixtures and run
+untrusted programs only in an environment designed to contain them. The test
+runner bounds processes and output and resets a temporary workspace between
+engines.
 
-Create a stable requirement ID for every option, directive, assignment form,
-built-in function, special variable/target, expansion rule, diagnostic class,
-execution protocol and relevant documented ordering guarantee. Map each ID to
-positive, negative, boundary and interaction cases. A test count cannot substitute
-for this inventory.
+## Add a regression case
 
-| Family | Required original cases |
+1. Reduce the difference to a Makefile with as few rules and input files as
+   possible. For a generated case, save the seed, full input, and exact command
+   before reducing it.
+2. Put a one-run case in `tests/cases/CASE_ID/` with its inputs and `case.toml`.
+   Use the [manifest guide](../tests/README.md) to record arguments, environment,
+   provenance, and the outcome you expect from GNU Make. For an incremental
+   build, use the [stateful fixture format](../tests/stateful/README.md).
+3. Add the case to [the requirements it covers](../tests/requirements.toml).
+   Run it with GNU Make and reproduce the rmake difference before qualifying
+   the fix. Record any upstream source or test references in the fixture's
+   provenance.
+4. Set the candidate status to `required` when the case passes against the
+   pinned reference. Replay nearby cases to cover the shared behavior, including
+   error paths, ordering, and boundary inputs where they apply.
+
+Write the expected effects independently of the rmake implementation. A
+fixture for a generated file should assert that the file exists with the right
+contents or metadata as well as comparing what the programs print. Generated
+programs should keep a replayable seed and check independent properties, such
+as whether every required node in a dependency graph created its output.
+
+## Compare results
+
+For deterministic output, compare stdout and stderr byte for byte. Run the
+engines with the same inputs, working directory, and executable name so the
+comparison preserves details such as paths in restart diagnostics. Name and
+recursion tests run with the real invocation names and check which engine
+executes the child.
+
+Compare exit status and filesystem effects even when both engines print the
+same output. The ordinary runner compares file types, contents, permissions,
+and links. The stateful and resource suites add checks for timestamps, process
+termination, inherited descriptors, and other effects they exercise.
+
+Use a controlled worker or a jobserver token to hold a parallel recipe until
+the event you need to observe. Repeated GNU runs help establish whether the
+schedule is stable. For a schedule with several valid outcomes, check the
+required dependency order, job limits, and cleanup. Compare a shared stdout
+and stderr descriptor directly when the order between the streams matters.
+See the [parallel output documentation](https://www.gnu.org/software/make/manual/html_node/Parallel-Output.html)
+and [jobserver tests](jobserver.md).
+
+For fields that necessarily vary, such as a process ID or jobserver path, check
+the field's format and relationship to the observed process or descriptor. Keep
+the raw output alongside the comparison. Add a harness test that proves a real
+difference still fails. When two GNU observations disagree, keep both and
+identify the cause before making the test required.
+
+## Choose a suite
+
+The [requirements ledger](../tests/requirements.toml) records which ordinary
+cases cover each behavior. Check the interaction you changed as well as the
+individual features. For example, a secondary expansion change may affect
+which target-specific variables an implicit rule sees.
+
+| Behavior | Suites and replay settings |
 | --- | --- |
-| Source selection | `GNUmakefile`/`makefile`/`Makefile`, repeated `-f`, stdin, include paths, `MAKEFILES`, absent/default files |
-| Lexical boundaries | Continuations, comments, escaping, CRLF, missing final newline, whitespace, computed separators, non-UTF-8 bytes, `.RECIPEPREFIX` changes |
-| Variables | All assignment forms and modifiers, empty versus undefined, computed names, recursion, `define`, `undefine`, precedence and append semantics |
-| Scope and exports | Environment/CLI/global/target/pattern scopes, `private`, `override`, inheritance, first-updater context, export/unexport and recursive export effects |
-| Functions | Every built-in, nested/missing/extra arguments, whitespace boundaries, lazy arguments, `call`, `eval`, `foreach`, `let`, integer and string edge cases |
-| Expansion effects | `shell`, `!=`, `.SHELLSTATUS`, file reads/writes, info/warning/error, repeated evaluations and lazy branches |
-| Automatic variables | Ordering and duplicates, directory/file variants, archive context, multiple rule types, missing values and secondary expansion |
-| Explicit rules | Multi-target independent/grouped rules, double-colon, static patterns, default goals, missing rules, cycles, duplicate/order-only prerequisites |
-| Implicit search | Pattern specificity/order, chains, suffix transformations, cancellation, match-anything rules, failed candidates, built-in rules and variable overrides |
-| Filesystem | Missing/equal/older/newer files, timestamp resolution/skew, directories, symlinks, hard links, permissions, search paths, wildcard order and negative matches |
-| Archives | Members, automatic variables, member timestamps, implicit rules, missing archives and controlled parallel archive updates |
-| Special targets | Every 4.4.1 special target: phony/intermediate/secondary/precious/delete behavior, low-resolution times, POSIX, one-shell, wait and serialization |
-| Remaking | Generated/missing includes, optional includes, multiple restarts, parallel remakes, restart suppression, `MAKEFILE_LIST`, `MAKE_RESTARTS`, loaded-object remakes |
-| Recipes | `@`, `-`, `+`, shell selection/flags, per-line shells, `.ONESHELL`, escaped newlines, empty recipes, direct exec boundaries, command-not-found and ignored errors |
-| CLI | Every short/long option, abbreviations where accepted, repetition/conflicts, operands/assignments, `-n/-q/-t`, `-B/-k/-r/-R/-o/-W`, shuffle, invalid inputs |
-| Recursion | `MAKE`, `MAKELEVEL`, `MAKEFLAGS`, `MFLAGS`, `GNUMAKEFLAGS`, `MAKEOVERRIDES`, direct/indirect recursive detection and mixed-engine trees |
-| Parallelism | Fixed/unlimited jobs, load limit, `.WAIT`, `.NOTPARALLEL`, shared prerequisites, grouped updates, readiness order, output sync and stdin ownership |
-| Jobserver | FIFO/pipe, token bytes, implicit slots, invalid/missing descriptors, incompatible auth, interrupts, child failure and cooperating tools |
-| Diagnostics | Syntax failures, missing prerequisites, recursion, cycles, errors/warnings, trace/debug/database output, locations, exit codes and locale profiles |
-| Extensions | `load`/`-load`, `.LOADED`, independently written ABI probes, callback expansion/evaluation, ownership, errors and enabled/disabled Guile profiles |
-| Host failures | Signals, terminal modes, exhausted descriptors, disk full, EACCES, spawn errors, long paths, temporary directory errors and child cleanup |
-| Caching | Off/cold/warm/stale/corrupt/concurrent cases, every external observation and every effectful expansion boundary |
+| Expansion and variables | `make test-generated`, `make test-whitespace`, `make test-word-index`, and `make test-intcmp`. |
+| Rule selection and prerequisites | `make test-graphs`, `make test-scopes`, `make test-pattern-scopes`, and `make test-secondary`. Use `GRAPH_SEED` and `START_INDEX` to replay a graph. |
+| Filesystem observations | `make test-filesystem`, `make test-directory-search`, `make test-wildcards`, `make test-symlink-times`, and `make test-archive-times`. |
+| Invocation and diagnostics | `make test-modes` and `make test-diagnostics`. Set `MODE_CASE` or `DIAGNOSTIC_CASE` to replay a case. |
+| Process and environment behavior | `make test-runtime-signals`, `make test-runtime-effects`, `make test-startup-exits`, and `make test-output-sync`. |
 
-Prioritize 4.4.1-specific cases: immediate `MAKEFLAGS` visibility, command-line
-assignments present during parsing, private-target export inheritance, and custom
-parallel archive rules. Write new fixtures from the behavior described in the
-[4.4.1 announcement](https://lists.gnu.org/archive/html/info-gnu/2023-02/msg00011.html).
+Retain original test inputs and attribution for third-party inputs. For
+milestone coverage and gaps beyond the current corpus, see the
+[current compatibility audit](m3-m6-audit.md) and the
+[implementation plan](implementation-plan.md).
 
-Proposed release-scale targets are at least 2,500 reviewed named cases, 100,000
-bounded generated cases per nightly run, and 1,000,000 seeds across a release soak.
-Measure runtime in milestone 0 and shard/rebudget transparently. These are coverage
-goals, not evidence of compatibility by themselves. Pairwise generation broadens
-interactions; deliberate higher-order cases cover secondary expansion + target
-scope + implicit search, restarts + exports + shell effects, and recursion +
-jobserver + failure.
+## Measure performance
 
-## Generation, reduction and mutation
+Validate the workload first. This command builds optimized rmake and checks
+results against GNU Make without measuring elapsed time.
 
-Maintain three project-owned generators:
+```sh
+make bench-compare BENCH_VALIDATE=1
+```
 
-1. Grammar generation for valid/invalid syntax, delimiters, escaping and bounded
-   recursive expansion; differential comparison, not only crash detection.
-2. Semantic generation for bounded graphs, rule conflicts, variable scopes,
-   search paths and timestamp states, with useful independent invariants.
-3. Stateful generation for repeated builds, file/environment edits, include
-   creation, interruptions and cache transitions.
+For timings, run `make bench-compare` and keep the report. Use `BENCH_SUITE`
+to select a workload and `BENCH_BASELINE` to compare with a prior rmake binary.
+The report includes the executable identities, inputs, and sample timings. Run
+paired benchmarks without concurrent builds when you can, and describe the
+workloads and machine when reporting a change. See the
+[benchmark reports](benchmarks/README.md).
 
-Save the seed, complete fixture, reference digest, environment and observations
-on failure. Minimize files, definitions, graph edges and build steps while
-preserving the discrepancy; promote the reduced result to a reviewed permanent
-fixture. Non-reproducible failures stay visible with captured evidence.
+## Test future persistent caching
 
-Use metamorphic tests only with explicit preconditions. Renaming ordinary targets
-can preserve behavior, but default-goal selection, implicit patterns or special
-names can invalidate that assumption. Likewise, adding an unreachable rule is not
-automatically harmless. Differential behavior remains the primary oracle.
+When persistent caching becomes available, compare runs with caching disabled,
+with an empty cache, and with a populated cache. Change an input without
+changing its size or timestamp. Also test changes to includes, wildcard
+matches, environment, arguments, tools on `PATH`, symlinks, permissions, and
+extension inputs. Check that shell calls, warnings, file writes, and restarts
+still occur in the correct order as well as comparing the final files.
 
-Mutation-test the harness by altering one output byte, status, file, permission,
-or event. Mutation-test the implementation by reversing precedence, skipping a
-secondary expansion, dropping an order-only edge, leaking a token, or omitting an
-invalidation dependency. Surviving mutants expose gaps that coverage percentages
-alone cannot find. Fuzz parsers, evaluators, cache decoders and ABI boundaries with
-resource bounds; run applicable unsafe-code and sanitizer checks.
-
-## Cache state matrix
-
-For each applicable stateful sequence, compare the oracle against rmake with:
-
-1. Persistent caching disabled.
-2. An empty cache.
-3. A valid warm cache.
-4. A cache warmed before input mutation.
-5. Corrupt, truncated, incompatible-version or concurrently written entries.
-
-Mutations include content changes with preserved mtime and size; new/deleted
-includes; wildcard misses becoming hits; changed environment or CLI assignments;
-shell/PATH changes; symlink retargeting; directory renames; permission changes;
-generated Makefiles; new rule candidates; extension changes; and mutations during
-validation. Compare sequences, not just isolated invocations.
-
-Count and order expansion effects. A warm cache that suppresses a shell command,
-file write, warning, or restart is wrong even when final target bytes match.
-Exercise interrupted writers, concurrent readers, cache eviction, resource limits
-and full-disk/read-only fallback. Test fixture and cache roots are disjoint, with
-the implementation cache namespace explicitly identified in reports.
-
-## Integration and continuous gates
-
-Use original synthetic projects and pinned real-project builds covering generated
-dependencies, recursive Makefiles, C/C++ builds, generated configuration, archives
-and large parallel graphs. Review the licenses and provenance of external corpus
-material; any upstream-derived tests form a separately attributed supplementary
-suite. Pin toolchains and inputs, disable network downloads, and compare both
-clean and incremental builds; distinguish nondeterministic compiler output from
-make errors.
-
-| Gate | Required execution |
-| --- | --- |
-| Feature change | New original fixtures, unit tests, requirement mapping, differential tests and minimized bug regressions |
-| Pull request | Full curated suite, fixed generated seeds, relevant cache/stateful cases, harness checks and self-host smoke; grow from initial seed counts |
-| Nightly | Broad generators, interaction matrices, signal/jobserver stress, resource failures, mutation checks, integration corpus and repeated schedules |
-| Release | Complete in-scope ledger, zero unresolved in-scope differential failures, no outstanding required-feature skips, supported-profile matrix, reproducible soak and performance report |
-
-The current `make test-modes` gate executes 512 fixed original combinations of
-ordinary/one-shell recipes, eight command shapes, and all subsets of `-n`, `-q`,
-`-t`, `-i`, and `-s`. It performs oracle self-comparison before candidate
-comparison, asserts independent simple anchors and preserved input files, and
-retains exact failure reproductions. `MODE_CASE` replays a recorded cell. The
-matrix has no pending classification. It complements the curated corpus and the
-separate stateful timestamp gate; it does not cover every option interaction.
-
-`make test-scopes` extends the seeded DAG generator with explicit target variable
-declarations. Its default 100 graphs combine assignment flavors, inherited
-appends, private/override/export/unexport modifiers and shared prerequisites.
-Each node records expansion, raw value, origin, flavor and the actual child
-environment. Comparisons retain exact output, status and filesystem checks plus
-independent graph anchors; they do not predict GNU's scope resolution internally.
-`GRAPH_SEED`, `GRAPH_CASES`, `GRAPH_NODES` and `START_INDEX` control replay, and
-failure metadata retains the `--scopes` flag. `make test-pattern-scopes` adds
-ordered matching pattern declarations to the same graphs and runs a separate
-100-program CI campaign; `--patterns` is retained for exact replay. Effectful
-functions remain outside these generators' current scope.
-
-`make test-secondary` adds immediate/deferred ordinary and static-pattern
-prerequisite clauses to the same DAGs, combined with explicit and pattern scopes.
-Each deferred clause records its identity, stem and automatic variables.
-Independent anchors require each clause to expand exactly once and each node to
-produce its authored file. Exact ordering and automatic-variable values come
-from the verified oracle. The default CI campaign has 100 eight-node graphs;
-the graph overrides above control replay, and failure metadata retains
-`--secondary --patterns`. Broader implicit secondary expansion and parallel
-generated graphs remain outside this profile. The original graph profiles keep
-their existing Makefile bytes and seed identities.
-
-`make test-filesystem` adds eleven original Linux/glibc fault scenarios. A
-temporary C interposer injects interrupted opens/reads/path observations, partial
-reads, write errors and errors after actual close. The runner compares exact
-streams, status, filesystem snapshots and injection traces with authored
-expectations, then compares both engines. `FILESYSTEM_CASE` selects a case for
-replay; reports retain the compiler, helper source and binary identities.
-Curated cases separately cover normal file/realpath behavior, byte filenames,
-symlinks, NUL expansion consumers, newline treatment and effect timing.
-See the [filesystem effect notes](filesystem-effects.md) for safety boundaries.
-
-Six additional interposer cases perform deterministic external mutations during
-a read without advancing make's command generation. Their authored observations
-check stale wildcard results, fresh literal existence tests, cached missing
-directories, inode aliases, path replacement and subsequent write invalidation.
-The injection trace and complete filesystem are anchored for both engines. An
-additional interrupted literal lookup verifies GNU's one-shot lstat boundary.
-A separate archive-open interruption verifies member-pattern fallback without
-silently retrying the failed open.
-
-`make test-wildcards` adds 100 seeded query programs by default. A separate Python
-model predicts ASCII glob matches, dot rules, per-pattern sorting and duplicates
-across files and directories. A write phase verifies cache invalidation, and
-both engines must match exact stdout/status and complete filesystem expectations.
-Reports retain seed, program index, expression count, input digest and executable
-identities for replay. Curated Makefiles supply escapes, raw bytes, tilde,
-archive formats, errors and recipe timing outside the generated model's scope.
-
-`make test-whitespace` checks pure-function tokenization, lazy arguments and
-local binding scopes across C whitespace and non-whitespace control bytes.
-Every case has authored stream/status/filesystem anchors, including selected
-and skipped effects; `WHITESPACE_CASE` supports individual replay. The
-[function whitespace notes](function-whitespace.md) describe the distinct
-preservation rules and the explicitly excluded upstream `let` crash family.
-
-`make test-word-index` checks `word` and `wordlist` numeric arguments against
-independently authored byte/status/filesystem expectations. Cases cover signed
-64-bit boundaries, signs, whitespace, invalid bytes, validation precedence and
-effects before failures, including missing arguments. `WORD_INDEX_CASE` replays
-one case. The [word index notes](word-indices.md) describe the numeric grammar
-and its distinction from arbitrary-length `intcmp` values.
-
-The current `make test-intcmp` gate executes 6,400 integer expressions across
-200 seeded programs. An independent Python integer model predicts normalization,
-branch selection and GNU 4.4.1's observed negative-number ordering quirk. The
-oracle must satisfy those predictions before candidate comparison. Original
-curated errors complement the generated valid-input campaign, including raw-byte
-diagnostics asserted through `stdout_hex`/`stderr_hex`. Reports preserve the
-source, seed, index, process bounds and exact observations for replay.
-
-The current `make test-diagnostics` gate checks 206 independently authored
-`info`/`warning` scenarios, including raw bytes, argument evaluation, caller
-locations, modes, exports, output before fatal errors and merged-stream order.
-Every cell has its own expected streams, status and complete filesystem snapshot;
-agreement between two wrong engines cannot pass these expectations. Reports and
-failure inputs support `DIAGNOSTIC_CASE` replay. The matrix has no pending
-classification; the curated corpus separately retains observed export-order and
-make-flag evaluation gaps that are outside its supported scope.
-
-Known missing features may be tracked during development, but reports must show
-their count and requirement IDs. CI must fail new differences and unexpected
-passes. Release conformance cannot pass with those missing features waived away.
-Tests that need unavailable host capabilities are reported as not run; a required
-release job must provide those capabilities.
-
-Self-hosting is a milestone gate: both GNU Make 4.4.1 and rmake must drive the same
-top-level developer flows, including recursive invocations. A passing build of
-rmake itself is necessary but far from sufficient evidence of full compatibility.
-
-`make test-jobserver` compares mixed GNU/rmake recursive trees using FIFO and
-pipe jobservers, including bounded concurrency, failures, borrowed pool ownership
-and token restoration. See [jobserver validation](jobserver.md) for independent
-anchors, retained evidence, and signal/containment limitations.
+Exercise interrupted writes, corrupt and incompatible entries, concurrent
+readers and writers, and read-only or full filesystems. Keep cache data outside
+the fixture workspace and record its state for each run. See the
+[caching design](architecture.md#safe-caching-progression).
