@@ -2129,11 +2129,16 @@ impl VariableStore {
         }
     }
 
-    /// Select a visible per-file append base independently of the global
-    /// destination's origin. Its encoded command suffix is reconstructed later.
-    pub(crate) fn scoped_append(&self, name: &[u8], strip_flags: bool) -> Option<Variable> {
+    /// Select a visible per-file or declaration append base independently of
+    /// the global destination's origin. Its command suffix is rebuilt later.
+    pub(crate) fn scoped_append(
+        &self,
+        name: &[u8],
+        strip_flags: bool,
+        during_target_read: bool,
+    ) -> Option<Variable> {
         let (index, value) = self.lookup_from(name, 0)?;
-        if !self.file_locals || (index > 0 && self.layers[index - 1].global) {
+        if (!self.file_locals && !during_target_read) || self.global_layer(index) {
             return None;
         }
         let mut value = value.clone();

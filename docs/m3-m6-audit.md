@@ -153,8 +153,10 @@ single-colon rules have serial and held parallel cases. Grouped double-colon
 cases now cover read peers, real restarts, settled serial branch failures and
 the number of repeated verbose visits. Serial tests now also cover a failed
 grouped recipe whose read peer gets a newer timestamp, including a later recipe
-that restores the timestamp. Remaining cases include mixed optional and required
-sources without `-k`, and combinations with parallel scheduling and tracing.
+that restores the timestamp. A required peer with a single grouped declaration
+also retains the result of a failed optional makefile recipe seen earlier,
+including when `-k` is absent. More cases remain for duplicate peers, mixed
+failure policies, and parallel scheduling and tracing.
 
 Local jobserver acceptance also needs broader combinations of transports,
 recursive builds, restarts, loaded modules and resource pressure. Preserve the
@@ -201,6 +203,12 @@ Complete debug, trace, directory and database behavior across asynchronous work,
 implicit search, default Makefile discovery, recursive builds, restarts and live
 option changes. Qualify deterministic ordering and statistics, and use specific
 relationship validators for inherently variable process or time fields.
+
+One known difference is the file database after a recipe appends `-p` to
+`MAKEFLAGS`. For example, `%.out: ; @$(eval MAKEFLAGS += -p):` can produce
+different lookup counts for `a.out`. GNU includes implicit-rule operations
+from before the recipe enabled printing. Reproduce the difference with the
+original goal order, since earlier goals can contribute to the counters.
 
 Broader locale work includes native and Guile callbacks, diagnostic producers,
 cache history and resource failures. The x86-64/glibc results and selected

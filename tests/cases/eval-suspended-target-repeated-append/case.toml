@@ -1,0 +1,12 @@
+id = "eval-suspended-target-repeated-append"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "Two writes from a sibling preserve each ordinary target append and the global value."
+provenance = "Original rmake fixture, independently authored against the pinned GNU Make 4.4.1 interface."
+args = ["-rR", "--no-print-directory", "all", "later"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "resumed=[selected rebound rebound/simple]\npeer=[peer]\ntarget=[selected rebound rebound]\nglobal=[global]\n"
+stderr = ""

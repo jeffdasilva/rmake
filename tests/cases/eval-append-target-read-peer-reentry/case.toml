@@ -1,0 +1,12 @@
+id = "eval-append-target-read-peer-reentry"
+requirement = "functions.eval"
+candidate = "required"
+description = "A re-entered peer uses its own target binding for append and restores the outer target after nested evaluation."
+provenance = "Original rmake fixture, independently authored against the pinned GNU Make 4.4.1 interface."
+args = ["-rR", "--no-print-directory", "all", "later"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "RHS=[rebound]\nreturn=[outer]\npeer=[rebound]\ntarget=[outer]\nglobal=[rebound tail/simple]\n"
+stderr = ""

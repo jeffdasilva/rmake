@@ -1,0 +1,12 @@
+id = "include-optional-group-peer-double-success-tail-unchanged"
+requirement = "includes.remake"
+candidate = "required"
+description = "A required source reuses an optional failed grouped peer without inventing a fresh stopping failure."
+provenance = "Original rmake black-box fixture with independently asserted status, source order, effects and nanosecond clocks; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:\nSOURCE:owner.mk:\nSOURCE:peer.mk:\nSOURCE:third.mk:\n"
+stderr = "Makefile:9: Failed to remake makefile 'peer.mk'.\n"

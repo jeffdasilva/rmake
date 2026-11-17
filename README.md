@@ -37,7 +37,8 @@ export PATH="$HOME/.local/bin:$PATH"
 
 ## Run your first build
 
-Create a small project to see when rmake runs a recipe.
+In a directory outside the rmake checkout, create a small project to see when
+rmake runs a recipe.
 
 ```sh
 mkdir rmake-example

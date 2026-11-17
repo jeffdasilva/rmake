@@ -77,11 +77,34 @@ On descent, skip private bindings from ancestors; do not delete their names from
 | First local `X += RHS` | Store a recursive append layer even if global `X` is simple. Resolve the outer value later; `value X` exposes only the local suffix and `flavor X` is recursive. |
 | `+=` with an existing local binding | Respect that local flavor. A simple local binding expands the suffix immediately; a recursive one defers it. Multiple inherited append layers retain their separate raw suffixes. |
 
-For example, `K=old; X:=base-$(K); target:X+=tail-$(K); K=new` yields expanded `base-old tail-new`, raw `tail-$(K)`, and recursive flavor in the target. An outer recursive value also expands in the effective target context, so target-local names affect its references.
+These assignments make `X` expand to `base-old tail-new` in the target.
+The first assignment to `X` expands immediately. The target-specific append
+retains its own text and expands it when read.
 
-Do not trim append boundaries indiscriminately. An empty inherited append suffix over nonempty `X=global` expands as `global `, with a trailing space. Two such layers can preserve additional spaces. Ordinary global/local appends of empty text do not introduce that trailing space.
+```makefile
+K = old
+X := base-$(K)
+target: X += tail-$(K)
+K = new
+```
 
-Recognize target assignments before ordinary prerequisite expansion and inline-recipe splitting: `target: X = a;b` stores `a;b`. Ordinary prerequisites still expand in the global read context; `X=global; target:X=local; target:$(X)` names prerequisite `global`, whose recipe can inherit `X=local`.
+In the target, `$(value X)` returns `tail-$(K)` and `$(flavor X)` returns
+`recursive`. If the outer value is recursive too, its references can also
+read the target's variables.
+
+An empty inherited append can leave a trailing space. An ordinary
+global or local append of empty text leaves the spacing unchanged.
+
+In an assignment such as `target: X = a;b`, the semicolon is part of the
+value. Ordinary prerequisites expand while the Makefile is read, before
+the target's variable scope takes effect. In this example the prerequisite is
+named `global`, and its recipe can inherit `X=local`.
+
+```makefile
+X = global
+target: X = local
+target: $(X)
+```
 
 ## Command-line precedence and qualifiers
 

@@ -1,0 +1,12 @@
+id = "eval-append-target-read-simple"
+requirement = "functions.eval"
+candidate = "required"
+description = "The immediate target read appends the visible value globally and leaves a subsequent target append local."
+provenance = "Original rmake fixture, independently authored against the pinned GNU Make 4.4.1 interface."
+args = ["-rR", "--no-print-directory", "all", "later"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "target=[selected local-tail/simple]\nRHS=[selected]\nglobal=[selected global-tail/simple]\n"
+stderr = ""

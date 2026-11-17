@@ -1,0 +1,12 @@
+id = "default-selection-unknown-form-feed"
+requirement = "options.default-goal-spelling"
+candidate = "required"
+description = "Default-goal complete spelling and final expansion. unknown form feed."
+provenance = "Original black-box GNU Make 4.4.1 observations and independently authored stream/status/filesystem anchors. No GNU implementation source or upstream tests consulted for this case."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f20746172676574732e202053746f702e0a"
+exit_code = 2

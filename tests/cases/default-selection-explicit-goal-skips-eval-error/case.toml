@@ -1,0 +1,12 @@
+id = "default-selection-explicit-goal-skips-eval-error"
+requirement = "options.default-goal-spelling"
+candidate = "required"
+description = "Default-goal complete spelling and final expansion. explicit goal skips eval error."
+provenance = "Original black-box GNU Make 4.4.1 observations and independently authored stream/status/filesystem anchors. No GNU implementation source or upstream tests consulted for this case."
+args = ["-rR", "--no-print-directory", "--eval=.DEFAULT_GOAL = $(error must-not-expand)\n", "other"]
+timeout_seconds = 5
+
+[expected]
+stdout_hex = "6f746865720a"
+stderr_hex = ""
+exit_code = 0

@@ -1,0 +1,12 @@
+id = "default-selection-explicit-goal-skips-cli-effect"
+requirement = "options.default-goal-spelling"
+candidate = "required"
+description = "Default-goal complete spelling and final expansion. explicit goal skips cli effect."
+provenance = "Original black-box GNU Make 4.4.1 observations and independently authored stream/status/filesystem anchors. No GNU implementation source or upstream tests consulted for this case."
+args = ["-rR", "--no-print-directory", ".DEFAULT_GOAL=$(info must-not-print)first second", "other"]
+timeout_seconds = 5
+
+[expected]
+stdout_hex = "6f746865720a"
+stderr_hex = ""
+exit_code = 0
