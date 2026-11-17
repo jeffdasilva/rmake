@@ -1,10 +1,12 @@
 # Database-output compatibility work
 
-`-p` is an open implementation surface. Mainline continues to reject it. The
-unmerged development implementation accepts it and now has frozen development
-and optimized fourteen-profile passes; that behavior is not mainline enablement
-or full compatibility. A
-partial dump must not be reported as compatible.
+The maintained database gates compare selected `-p` dumps against pinned GNU
+Make 4.4.1. See the [replay guide](../../docs/database-output.md#replay-a-database-comparison)
+for the top-level targets, build profiles, and report inspection.
+
+The original fourteen-profile checkpoint preceded mainline `-p` enablement.
+Its frozen development and optimized passes describe that checkpoint's finite
+coverage.
 
 Fourteen original fixtures cover raw variable forms and provenance, precedence,
 target and pattern declarations, implicit rules, VPATH, question mode, ordered

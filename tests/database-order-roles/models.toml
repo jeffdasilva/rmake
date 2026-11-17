@@ -598,3 +598,45 @@ al%: ; @$(file >>seen,$*):
 records = ["all:"]
 seen_hex = "6c0a"
 flags = ["-p"]
+
+[[case]]
+id = "implicit-substituted-prerequisite-lookup"
+makefile = '''
+al%: o%d ; @:
+MAKEFLAGS += -p
+'''
+records = ["all: old"]
+flags = ["-q"]
+status = 1
+directory_identity = true
+
+[[case]]
+id = "implicit-prerequisite-with-existing-record"
+makefile = '''
+unused: n
+al%: n ; @:
+'''
+records = ["unused: n", "all: n"]
+flags = ["-p", "-q"]
+status = 1
+directory_identity = true
+
+[[case]]
+id = "implicit-prerequisite-duplicate-order-role"
+makefile = '''
+al%: n n | n gate ; @:
+'''
+records = ["all: n n n | gate"]
+flags = ["-p", "-q"]
+status = 1
+directory_identity = true
+
+[[case]]
+id = "implicit-prerequisite-recipe-file-effect"
+makefile = '''
+al%: n | gate ; @$(file >>seen,$^:$|:$*):
+'''
+records = ["all: n | gate"]
+seen_hex = "6e3a676174653a6c0a"
+flags = ["-p"]
+directory_identity = true
