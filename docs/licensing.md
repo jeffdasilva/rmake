@@ -1,226 +1,192 @@
 # Licensing and provenance
 
-rmake is licensed under the GNU General Public License, version 3 or (at your
-option) any later version: `GPL-3.0-or-later`. The full license is in
-[LICENSE](../LICENSE), and the project grant is in [README.md](../README.md#license).
-This matches the license stated by [GNU Make](https://www.gnu.org/software/make/#licensing).
-Future Cargo packages must declare `license = "GPL-3.0-or-later"`.
+rmake uses the GNU General Public License, version 3 or any later version
+(`GPL-3.0-or-later`). The full text is in [LICENSE](../LICENSE), and the project
+grant is in [README.md](../README.md#license). GNU Make uses the
+[same license designation](https://www.gnu.org/software/make/#licensing).
+
+The project grant covers rmake's own material. Third-party material retains its
+own terms and notices. Contributions must use terms compatible with the project
+license, and future Cargo packages must declare `GPL-3.0-or-later`.
+
+Using rmake to build another program does not require that program to use the
+GPL. Incorporating covered code into a program has separate licensing
+implications. See [GNU's FAQ on using GPL tools](https://www.gnu.org/licenses/gpl-faq.en.html#CanIUseGPLToolsForNF).
 
 ## Source-informed implementation
 
-GNU Make 4.4.1 source may be read as a reference for the Rust implementation.
-The prior clean-room restriction is superseded. Preserve the Rust architecture,
-performance objectives and independently authored differential corpus; source
-access supplements documentation and executable experiments.
+Contributors may read GNU Make 4.4.1 source to understand its behavior. The owner
+superseded the original clean-room restriction. Preserve the Rust architecture,
+performance objectives and independently authored differential corpus. Use source
+research alongside documentation and executable experiments.
 
-Inspecting source and incorporating material are different activities. For source
-references, record the upstream version, file/function and behavior investigated.
-For copied, translated or adapted material, also retain applicable copyright and
-license notices, record the changes and dates, and identify the affected rmake
-files. Do not remove upstream authorship or represent adapted material as entirely
-original. Translation into Rust does not by itself remove the original license
+Record provenance according to the work performed.
+
+- For a source reference, record the upstream version, file, function and behavior
+  investigated. Link a precise research note when the details need more space.
+- For copied, translated or adapted material, also retain applicable copyright
+  and license notices, identify the affected rmake files, and record the changes
+  and dates. Preserve upstream authorship and describe adaptations accurately.
+- For tests, write independent programs and expectations. Identify any later
+  upstream-derived tests separately and retain their attribution. They supplement
+  the original coverage.
+
+The current Rust implementation and ordinary conformance fixtures were authored
+for this project. GNU implementation code and upstream tests have not been reused
+as the engine or its ordinary fixture programs. GNU Make serves as an external
+reference executable and a separate real-project build input. It cannot provide
+a product runtime fallback.
+
+Translating code into Rust retains the original code's applicable license
 obligations. See the [GNU FAQ on translation](https://www.gnu.org/licenses/gpl-faq.en.html#TranslateCode).
-
-The primary conformance corpus remains original. Any later upstream-derived tests
-must be separately identified and attributed; they supplement rather than replace
-independent coverage. The reference executable remains a test tool, not a runtime
-fallback. No GNU implementation code or upstream tests have been incorporated.
-The [hidden-prerequisite notes](extra-prerequisites.md) record snapshot, implicit
-edge-role and automatic-variable source references for the independent follow-up.
-The [file-record notes](file-record-order.md) record the hash/table and lifecycle
-references, original numeric observations and declarative suffix-name ordering.
-The [ordinary recipe lifecycle notes](forced-touch.md) record the source sections
-consulted for that independently written implementation and its later fixtures.
-The [pattern-variable notes](pattern-scopes.md) record the binding, activation
-and export-policy source references used for the independently written scope
-implementation.
-The [filesystem-effect notes](filesystem-effects.md) identify the filesystem and
-recipe-command source references and the narrow Linux stdio interface.
-The [wildcard notes](wildcard.md) record GNU Make and glibc semantic references,
-the independently authored archive scanner and Linux ABI adapters. Upstream
-implementation files and tests are not included in the product or corpus.
-The [export-binding notes](export-bindings.md) record the source references used
-for the independently authored binding-lifetime follow-up.
-The [NUL reader notes](nul-reader.md) record GNU's file-buffer and diagnostic
-references for the independently authored stream model.
-The [command replay notes](command-replay.md) record GNU's startup, post-read
-decoding and binding-precedence references for the independently authored replay.
-The [rule warning notes](rule-warnings.md) record declaration-recording phases
-and warning predicates used by the independently authored parser follow-up.
-The [assignment notes](assignment-syntax.md) also record the later GNU source
-reference for dispatching assignments before directive-shaped variable names.
-The [directive whitespace notes](directive-whitespace.md) record active and
-ignored definition-reader boundaries and diagnostic phases for the later slice.
-The [initial-BOM notes](initial-bom.md) record the read/parse phase reference
-used for independently authored byte-prefix handling.
-The [conditional whitespace notes](conditional-whitespace.md) record name-token,
-operand and expansion-order references used by the independent conditional fix.
-The [qualified-definition notes](qualified-definitions.md) record modifier,
-header-name and body-evaluation phases used by the independent follow-up.
-
-Inspect each reused file's actual terms. GNU Make's release can contain material
-with distinct notices, and the GNU manual has a separate documentation license.
-Program licensing does not relicense that manual; prefer links and original
-explanations over copying its prose. See the
+Inspect the terms of each reused file. The GNU Make release contains materials
+with their own notices, and the manual has a separate documentation license.
+Use links and original explanations when documenting behavior. See the
 [manual's license notice](https://www.gnu.org/software/make/manual/html_node/index.html).
+
+## Retain attribution for included material
+
+### Built-in declarations
+
+The files in [crates/rmake-core/data/](../crates/rmake-core/data/) contain Linux
+default variables and recipe declarations observed from GNU Make 4.4.1's public
+database output. The variable data also records declaration-order observations
+from the qualified GNU event trace. Each file retains Free Software Foundation
+copyright attribution and the `GPL-3.0-or-later` grant.
+
+The [built-in notes](builtins.md) describe the data, original extraction and
+conversion tools, and `src/rule.c` and `src/default.c` references. The
+[library-resolution notes](library-resolution.md) record the `.LIBPATTERNS`
+data extension under the same attribution.
+
+### Message catalogs
+
+The [catalog directory](../catalogs/README.md) contains the GNU Make 4.4.1
+release translations, with original PO sources, compiled MO bytes, copyright
+and translator notices. The [provenance manifest](../catalogs/provenance.json)
+records their release source and byte identities. The retained upstream package
+license is [catalogs/COPYING](../catalogs/COPYING).
+
+These are attributed declarative translation assets. The application uses its
+own catalog directory. Catalog installation and identity checks are described
+in the catalog README.
+
+### Runtime and build dependencies
+
+[THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) lists the pinned Cargo packages,
+versions, declared licenses and retained license files. The
+[license manifest](../licenses/third-party/manifest.json) records package and
+license-file checksums. It includes runtime, build-time and target-specific
+locked dependencies.
+
+The Linux evaluation-stack adapter uses `stacker` through its safe API. Keep
+dependency authorship and license notices with the corresponding material.
+Dependencies remain subject to their declared terms.
+
+### Reference and integration inputs
+
+The [integration suite](project-integration.md) builds pinned upstream projects
+with their own Makefiles, including GNU Make itself. Source acquisition verifies
+archive and license digests recorded in the
+[project manifest](../tests/integration/projects.json). These projects retain
+their own licenses.
+
+Retained [integration evidence](../tests/integration/README.md) can contain full
+source and build filesystem observations, including upstream file bytes and
+license notices. Those records preserve the original material's attribution.
+Their presence is separate from the independently authored ordinary fixtures
+and the Rust implementation. Keep applicable notices with any distributed test
+inputs or evidence.
 
 ## Distribution policy
 
-Keep the GPL text and applicable notices with distributed source and binaries.
-Where upstream GPL material is adapted, mark modifications and relevant dates.
-Distribute the covered work under the applicable GPL terms, without imposing
-additional restrictions on recipients' granted rights.
+When distributing source or binaries, preserve the GPL text and applicable
+notices. Mark modifications to adapted GPL material with the relevant dates.
+Distribute covered work under the applicable GPL terms and preserve recipients'
+granted rights without additional restrictions.
 
-Binary releases must provide the exact Corresponding Source through a GPL-compliant
-method, including required build/install scripts and any other applicable material.
-Plan to publish a matching source archive beside each binary release; a link to a
-moving default branch is not a substitute for its matching source. Check any
-additional requirements applicable to the chosen distribution form. See
-[GPLv3 sections 4-6](https://www.gnu.org/licenses/gpl-3.0.html#section4).
+Binary releases must provide their exact Corresponding Source through a
+GPL-compliant method, including the required build/install scripts and other
+applicable material. The project plans to publish a matching source archive
+beside each binary release. The source must match that binary. A moving branch
+link alone cannot provide that guarantee. Review the requirements for the chosen
+distribution form in [GPLv3 sections 4–6](https://www.gnu.org/licenses/gpl-3.0.html#section4).
 
-Review third-party dependencies and plugin/adaptor combinations for license
-compatibility before distribution. A plugin protocol or process boundary is not
-automatically a license exception. No blanket proprietary-plugin exception is
-granted by this project.
-
-Merely using rmake to build another program does not require that program to be
-GPL-licensed; incorporation of covered code is a different question. See
-[GNU's FAQ on using GPL tools](https://www.gnu.org/licenses/gpl-faq.en.html#CanIUseGPLToolsForNF).
+Review third-party dependencies and plugin or adapter combinations for license
+compatibility before distribution. A plugin protocol or process boundary does
+not automatically create a license exception. The project grants no blanket
+proprietary-plugin exception.
 
 ## Transition from the initial scaffold
 
 The initial scaffold commit,
 [`22dc143`](https://github.com/jeffdasilva/rmake/commit/22dc14330383a4f9f0c098a215e421ca74b74cc8),
-was published under Apache-2.0. On 2026-10-18 the project owner selected
-GPL-3.0-or-later for the current project and future development. The history is
-preserved; the change does not revoke Apache rights already granted for the
-initial snapshot. See [Apache-2.0 section 2](https://www.apache.org/licenses/LICENSE-2.0#copyright).
+was published under Apache-2.0. On 2026-10-18, the project owner selected
+GPL-3.0-or-later for the current project and future development.
 
-The current GPL grant covers the project's own material. It does not change the
-licenses of third-party material, and future contributions must be accepted on
-terms compatible with the project license.
+The history remains available. Apache rights already granted for the initial
+snapshot continue under their terms. The later project grant does not change
+third-party licenses. See [Apache-2.0 section 2](https://www.apache.org/licenses/LICENSE-2.0#copyright).
 
-The dynamic makefile slice consulted GNU Make 4.4.1 `src/main.c` and
-`src/remake.c` for remake staging and deferred include diagnostics. Its Rust
-implementation and differential fixtures were authored for this project.
+## Find source-reference records
 
-The [implicit-chain notes](implicit-chains.md) record the GNU Make 4.4.1
-`src/implicit.c` and `src/file.c` references used for independently authored
-transactional resolution and intermediate lifecycle handling.
+The following notes retain the original source references and distinguish
+observations from independently written implementations and tests. They provide
+the detailed provenance for the areas below.
 
-The Linux default variable and recipe declarations in `crates/rmake-core/data/`
-are reproduced as compatibility data from GNU Make 4.4.1's public database output.
-They retain Free Software Foundation copyright attribution and the GPL grant.
-The [built-in notes](builtins.md) distinguish these declarations from the
-independently authored Rust conversion and extraction tools, and record the
-`src/rule.c` and `src/default.c` source references.
+### Reading and evaluating Makefiles
 
-The [default-recipe notes](default-recipes.md) record the GNU Make 4.4.1
-`src/implicit.c` reference used to clarify selected-pattern special flags.
-The Rust implementation and default-recipe differential fixtures are original.
+- [NUL reader](nul-reader.md), [initial byte-order mark](initial-bom.md) and
+  [directive whitespace](directive-whitespace.md) cover buffer and reader phases.
+- [Assignment syntax](assignment-syntax.md),
+  [qualified definitions](qualified-definitions.md) and
+  [conditional whitespace](conditional-whitespace.md) cover declaration and
+  diagnostic phases.
+- [Dynamic makefiles](dynamic-makefiles.md) records `src/main.c` and
+  `src/remake.c` research on remake staging and deferred include diagnostics.
+- [Pattern scopes](pattern-scopes.md), [export bindings](export-bindings.md),
+  [export order](export-order.md) and [variable metadata](variable-metadata.md)
+  cover binding lifetime, membership, lookup and environment traversal.
 
-The [declared VPATH record notes](vpath-file-records.md) record eligibility,
-lookup spelling, record merging and traversal-phase references used for the
-independently authored Rust follow-up and original fixtures.
+### Resolving rules and files
 
-The [shared-directory notes](shared-directory-search.md) record GNU directory,
-VPATH and update-phase source references and the Linux/glibc directory interface
-used by the independently authored Rust adapter and original test hooks.
+- [Hidden prerequisites](extra-prerequisites.md),
+  [file-record order](file-record-order.md) and
+  [declaration recording](declaration-recording.md) cover recording, hash order,
+  rule families and diagnostics.
+- [Implicit chains](implicit-chains.md) and [default recipes](default-recipes.md)
+  cover candidate resolution, intermediate lifecycle and special flags.
+- [Rule filenames](rule-filenames.md), [rule tilde expansion](rule-tilde.md),
+  [recursive HOME](recursive-home-names.md) and [wildcards](wildcard.md) cover
+  name processing and filesystem queries.
+- [VPATH records](vpath-file-records.md) and
+  [shared directory search](shared-directory-search.md) cover record merging,
+  search names and Linux/glibc directory interfaces.
+- [Archive name encoding](archive-name-encodings.md),
+  [archive observations](archive-observations.md),
+  [symlink timestamps](symlink-timestamps.md) and
+  [ordinary stat](stat-timestamps.md) cover conversion, I/O, errors and freshness.
 
+### Running recipes and recursive builds
 
-The [archive name-encoding notes](archive-name-encodings.md) record the GNU
-`arscan.c`, `misc.c` and `ar.c` references used for the independently written
-conversion/lifetime follow-up and original archive/Makefile/stateful fixtures.
+- [Ordinary recipe lifecycle](forced-touch.md),
+  [filesystem effects](filesystem-effects.md),
+  [shell argv replay](shell-argv-replay.md) and
+  [environment vectors](environment-vectors.md) cover command construction,
+  Linux launch, capture and completion phases.
+- [Fatal continuations](fatal-continuations.md),
+  [cancellation and completion](runtime-cancellation.md),
+  [load and stdin](load-limits.md), [signals](runtime-signals.md) and
+  [output synchronization](output-sync.md) cover child ownership, descriptors,
+  interruption and cleanup.
+- [Command replay](command-replay.md), [runtime flags](runtime-flags.md),
+  [flag payloads](flag-payloads.md), [switch origins](switch-origins.md),
+  [restart directories](restart-directories.md) and
+  [profile inputs](profile-inputs.md) cover option, startup and restart phases.
+- [Rule warnings](rule-warnings.md) and [POSIX mode](posix-mode.md) record their
+  reader, rule, shell and startup references.
 
-
-The [symlink-time notes](symlink-timestamps.md) record GNU `remake.c` / `main.c`
-and Linux/glibc interface references for the independently written timestamp
-observer, option handling, matcher reuse and original test programs.
-
-The [rule filename notes](rule-filenames.md) identify the GNU 4.4.1 reader,
-prerequisite and implicit-search phases consulted for the independently written
-filename scanner and rule-expansion follow-up. No upstream code or tests were
-incorporated.
-
-The [rule tilde notes](rule-tilde.md) record the GNU reader, declaration-close,
-implicit-search and default-goal source references used for the independently
-written tilde-expansion and deferred-prerequisite follow-up.
-
-The [declaration-recording notes](declaration-recording.md) identify the GNU
-reader/file references used to establish recording, rule-family and diagnostic
-phases. The Rust refactor and its 73 anchored Makefiles are independently authored;
-no upstream implementation or tests were copied or translated.
-
-The [ordinary stat notes](stat-timestamps.md) record the GNU timestamp and
-completion references used for independently written error/retry and execution
-state changes, original kernel-error Makefiles and anchored syscall programs.
-
-The [library resolution notes](library-resolution.md) identify reader/file/search
-references used by the independently written Rust and original tests. The pinned
-`.LIBPATTERNS` declaration extends the existing public database extraction under
-its FSF/GPL data attribution; no upstream implementation or tests were copied.
-
-The [archive observation notes](archive-observations.md) identify the GNU
-timestamp, header-I/O, hash-record and cleanup sources consulted for the
-independent implementation and original anchored/fault/stateful tests. No GNU
-implementation or upstream test code was incorporated.
-
-The [recursive HOME notes](recursive-home-names.md) identify filename-parser,
-tilde and function-query reference paths used to understand reproducible shared
-scratch effects. The bounded Rust byte model and all tests are independently
-written; no GNU implementation or upstream tests were incorporated.
-
-The [fatal continuation notes](fatal-continuations.md) record GNU job and shutdown
-source references used for the independent owner-state follow-up and original
-fixture anchors. The [allocation/source-name study](shared-source-names.md) uses
-an independently written, development-only glibc interposer and ordinary Linux
-interfaces; the sampler is not linked into rmake.
-
-The [load/stdin notes](load-limits.md) record the source-reference study for the
-independent Linux runtime scheduling and descriptor follow-up.
-
-The [signal/runtime notes](runtime-signals.md) record child ownership, fatal
-signal, output ordering and intermediate-cleanup source references for the
-independent Linux event loop and original controlled signal campaign.
-
-The [output synchronization notes](output-sync.md) record output, recipe and
-POSIX synchronization source references used for the original Linux implementation
-and controlled output-phase and mixed-recursion fixtures.
-
-The [cancellation/completion notes](runtime-cancellation.md) record the source
-references for independently implemented evaluation cancellation, owned capture,
-stream interruption, synthetic completion and the original PTY/lock campaigns.
-
-The [runtime flag notes](runtime-flags.md) record reader/variable/option and
-jobserver references used for independently authored immediate option effects,
-post-read replay, restart restoration and original protocol fixtures.
-
-The [export-order notes](export-order.md) identify variable/environment and hash
-references used for the independently authored owned traversal index, deferred
-realization, scoped policy follow-up, original fixtures and diagnostic anchors.
-
-The [shell argv notes](shell-argv-replay.md) record command-construction and
-continuation references used to explain original shell configuration and residual
-execution observations. The Rust implementation and argument observers are
-original; allocator-abort probes remain research without conformance credit.
-
-The [flag payload notes](flag-payloads.md) record option/variable reference
-functions used for independently authored owned argument replay and evaluator
-integration. Original GNU nontermination and nested-decoder observations remain
-raw safety research without passing conformance credit.
-
-The [variable metadata notes](variable-metadata.md) identify reference lookup,
-startup/default membership and flag phases used for the independently authored
-lazy names cache, scope behavior, interface literals and original comparisons.
-
-The [environment vector notes](environment-vectors.md) identify export-table, dependency-freeze and process-launch references used for the independently authored owned Linux execution adapter, phase behavior and original C/Makefile probes.
-
-The [POSIX mode notes](posix-mode.md) identify special-reader, continuation, suffix, shell and startup references for the original Rust implementation and independently authored phase/profile fixtures.
-
-The [switch-origin notes](switch-origins.md) identify option, flag-definition, include-path and scope references used for the independently authored origin-aware decoder and original phase/recursion fixtures.
-
-The [restart directory notes](restart-directories.md) identify the fixed-reference invocation, restart and jobserver cleanup behavior consulted for independently authored Rust code and original namespace/byte-path fixtures.
-
-The [profile-input notes](profile-inputs.md) identify the fixed-reference switch-source, Guile registration and expansion-boundary sources consulted for independently authored Rust code, Makefiles and tooling tests. The option inventory is an acceptance audit rather than copied implementation.
-
-The Linux evaluation-stack adapter uses the pinned `stacker` package through its safe API. Exact runtime/build dependency versions, checksums and retained license texts are listed in [third-party notices](../THIRD_PARTY_NOTICES.md) and [the license manifest](../licenses/third-party/manifest.json). No dependency implementation is represented as rmake-authored material.
+The [source-name allocation study](shared-source-names.md) uses an independently
+written development-only glibc interposer. That sampler is not linked into rmake.
+The shell and flag research also retains allocator-abort and nontermination
+observations with no passing conformance credit.

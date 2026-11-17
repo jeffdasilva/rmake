@@ -42,14 +42,13 @@ CLI case. The corpus is 8,173 total / 8,172 required / one pending, with 438 Rus
 and 349 tooling tests. Full development/optimized acceptance and exact-head CI
 remain merge gates.
 
-The implementation retains the existing in-process restart loop. A complete
-self-exec lifecycle for native/Guile process state, startup assignment ordering,
-winning command-variable replay, directory reporting and broader CLI behavior
-remain in the [M3/M6 audit](m3-m6-audit.md). In particular, empty `-C` produces a
-GNU option diagnostic plus usage text; the candidate's current startup error
-differs. Its raw two-reference observations and input are retained in
-`tests/research/cli-empty-directory.json`, without passing conformance credit.
-This slice does not close M3 or M6.
+These comparisons originally ran with an in-process restart. Current
+[process restart tests](../tests/process-restarts/README.md) exercise process
+image replacement. The [startup usage tests](startup-usage.md) now cover
+empty `-C` operands, including GNU's option diagnostic and usage text. The
+[original comparison](../tests/research/cli-empty-directory.json) records the
+behavior before that fix. The [M3/M6 audit](m3-m6-audit.md) lists the remaining
+restart, option, and profile combinations.
 
 ## Reference provenance
 

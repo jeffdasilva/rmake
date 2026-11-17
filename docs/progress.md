@@ -1,5 +1,10 @@
 # Implementation progress
 
+For current support, see [GNU Make compatibility](compatibility.md). The
+[M3/M6 audit](m3-m6-audit.md) lists open work, and the
+[implementation plan](implementation-plan.md) defines the milestone gates.
+Entries below record the tests, measurements, and decisions for each change.
+
 ## M0 foundation
 
 The Rust workspace now builds with pinned Rust 1.90.0 and GPL-3.0-or-later
