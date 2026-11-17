@@ -137,7 +137,7 @@ impl Engine {
             }
             Files::bind_record(&mut self.database, name, &mut entry.bits);
             if entry.bits & DOUBLE_COLON != 0 {
-                if self.done.contains_key(name) {
+                if self.file_traversals.has_outcome(name) {
                     files.cached_double_colon_pass.insert(name.clone(), None);
                 }
                 continue;
@@ -145,7 +145,7 @@ impl Engine {
             self.path_observations.remove(name);
             // The remake graph can already have updated this file. Retain
             // its completed status and publish the new logical age.
-            if let Some(outcome) = self.done.get_mut(name) {
+            if let Some(outcome) = self.file_traversals.outcome_mut(name) {
                 outcome.time = Some(files.new);
             }
         }
