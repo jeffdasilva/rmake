@@ -209,6 +209,8 @@ limit and one optional name without a limit, through both pipe and FIFO
 jobservers with two, three, four, and unbounded job settings. They check the
 primary-worker release, Makefile mode or deletion, restart output, and final
 goal effects across touch, question, and dry-run combinations.
+Five more held profiles test three or eight required names with `-j2`
+and a load limit. They verify the same release and completion effects.
 
 ## Performance observation
 
