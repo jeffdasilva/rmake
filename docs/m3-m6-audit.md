@@ -150,7 +150,8 @@ of load limits, grouped remakes, build modes and debug output. Tests now cover
 serial and parallel explicit grouped rules that restart after leaving a read peer
 unchanged or missing. The serial tests include an empty recipe. Implicit grouped
 single-colon rules now have their own serial and held parallel cases. Grouped
-double-colon restarts need separate checks.
+double-colon restarts need separate checks. Some named-source touch combinations
+with optional includes still need coverage for exact scheduling and trace order.
 
 Local jobserver acceptance also needs broader combinations of transports,
 recursive builds, restarts, loaded modules and resource pressure. Preserve the
