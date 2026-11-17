@@ -165,6 +165,7 @@
       ],
       "smoke_stdout_hex": "474e5520706174636820322e382d726d616b650a61667465720a",
       "source_url": "https://ftp.gnu.org/gnu/patch/patch-2.8.tar.gz",
+      "fallback_url": "https://mirrors.kernel.org/gnu/patch/patch-2.8.tar.gz",
       "archive_sha256": "308a4983ff324521b9b21310bfc2398ca861798f02307c79eb99bb0e0d2bf980",
       "topdir": "patch-2.8",
       "license_file": "COPYING",
@@ -208,6 +209,7 @@
       ],
       "smoke_stdout_hex": "474e55204d616b6520342e342e312d726d616b650a6275696c742d6d616b652d72656164732d72756c65730a",
       "source_url": "https://ftp.gnu.org/gnu/make/make-4.4.1.tar.gz",
+      "fallback_url": "https://mirrors.kernel.org/gnu/make/make-4.4.1.tar.gz",
       "archive_sha256": "dd16fb1d67bfab79a72f5e8390735c49e3e8e70b4945a15ab1f81ddb78658fb3",
       "topdir": "make-4.4.1",
       "license_file": "COPYING",
@@ -318,6 +320,57 @@
         "set -e\nprintf '%s\\n' 'bzip2 round trip from the rmake integration suite' > rmake-smoke.input\n./bzip2 -c rmake-smoke.input > rmake-smoke.bz2\n./bzip2 -dc rmake-smoke.bz2"
       ],
       "smoke_stdout_hex": "627a69703220726f756e6420747269702066726f6d2074686520726d616b6520696e746567726174696f6e2073756974650a"
+    },
+    {
+      "id": "sed-4.10",
+      "source_url": "https://ftp.gnu.org/gnu/sed/sed-4.10.tar.gz",
+      "fallback_url": "https://mirrors.kernel.org/gnu/sed/sed-4.10.tar.gz",
+      "source_ref": "89b7a2224d4faa9d8baf76094b1232ad1477ef3e, GNU sed 4.10 signed distribution, publisher key 155D3FC500C834486D1EEA677FD9FCCB000BEEEE",
+      "archive_sha256": "4d179ffaf92ec4dcec541f7c032be1c3b9a1856f4970adb95a505221702f5277",
+      "topdir": "sed-4.10",
+      "license_file": "COPYING",
+      "license_sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+      "license_note": "GNU GPL-3.0-or-later program. The downloaded archive retains its original license and notices.",
+      "configure": [
+        "/bin/sh",
+        "./configure",
+        "--disable-nls",
+        "--without-selinux",
+        "--enable-dependency-tracking"
+      ],
+      "target": "all",
+      "snapshot": {
+        "max_files": 5500,
+        "max_total_bytes": 33554432
+      },
+      "args": [
+        "-j1",
+        "-s",
+        "--no-print-directory",
+        "V=1",
+        "CC=/usr/bin/cc",
+        "CFLAGS=-O1 -g0",
+        "LDFLAGS=-Wl,--build-id=none",
+        "ARFLAGS=crD"
+      ],
+      "header": "Makefile",
+      "watched": [
+        "sed/version.o",
+        "sed/libver.a",
+        "sed/sed"
+      ],
+      "smoke": [
+        "/bin/sh",
+        "-ec",
+        "set -eu\nversion=$(./sed/sed --version)\nprintf '%s\\n' \"${version%%'\n'*}\"\nprintf '%s\\n' 'green=37' other 'green=42' |\n    ./sed/sed -n 's/^green=\\([0-9][0-9]*\\)$/value:\\1/p'\n"
+      ],
+      "smoke_stdout_hex": "2e2f7365642f7365642028474e55207365642920342e31302d726d616b650a76616c75653a33370a76616c75653a34320a",
+      "header_rebuild": {
+        "before_hex": "5041434b4147455f56455253494f4e203d20342e31300a",
+        "after_hex": "5041434b4147455f56455253494f4e203d20342e31302d726d616b650a",
+        "fresh_smoke_stdout_hex": "2e2f7365642f7365642028474e55207365642920342e31300a76616c75653a33370a76616c75653a34320a"
+      },
+      "expected_build_stdout_hex": "4d616b696e6720616c6c20696e20706f0a4d616b696e6720616c6c20696e202e0a4d616b696e6720616c6c20696e20676e756c69622d74657374730a2323202d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2023230a2323202d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d20476e756c6962207465737473202d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2023230a232320596f752063616e2069676e6f726520636f6d70696c6572207761726e696e677320696e2074686973206469726563746f72792e202023230a2323202d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2023230a4d616b696e6720616c6c20696e202e0a"
     }
   ],
   "profiles": [
@@ -494,6 +547,22 @@
         "LDFLAGS=-Wl,--build-id=none",
         "AR=/usr/bin/ar",
         "RANLIB=/usr/bin/ranlib"
+      ]
+    },
+    {
+      "id": "sed-4.10-parallel-fifo",
+      "project": "sed-4.10",
+      "args": [
+        "-j4",
+        "--jobserver-style=fifo",
+        "--output-sync=recurse",
+        "-s",
+        "--no-print-directory",
+        "V=1",
+        "CC=/usr/bin/cc",
+        "CFLAGS=-O1 -g0",
+        "LDFLAGS=-Wl,--build-id=none",
+        "ARFLAGS=crD"
       ]
     }
   ],

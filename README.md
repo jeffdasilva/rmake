@@ -1,14 +1,16 @@
 # rmake
 
-rmake is a Rust implementation of GNU Make for Linux. It reads existing
-Makefiles and builds their targets using the rules, variables, and recipes you
-already have. Run `rmake` alongside `make` to evaluate it on your project.
+rmake builds existing Makefiles on Linux with a Rust engine. Keep your
+Makefile and system `make`, then run `rmake` alongside it with the same
+targets, parallel options, and recursive `$(MAKE)` calls.
 
-Use rmake to try a new build engine with familiar commands, including parallel
-builds and recursive `$(MAKE)` calls. The project aims to make Linux builds
-faster and compares its results with GNU Make 4.4.1 in CI. Compatibility is
-still in development. If you depend on a build, compare both tools on a clean
-build and again after changing an input.
+The goal is to make Linux builds faster while matching GNU Make 4.4.1.
+CI compares exact output and file effects and builds pinned projects such as
+zlib and Lua. One recorded workload with 5,000 command-line variables took
+about a third of GNU Make's time. See the
+[benchmark guide](docs/benchmarks/README.md) to measure your own workload.
+Compatibility is still in development. Compare clean and incremental builds
+with both tools before switching a build you depend on.
 
 ## Build rmake
 
@@ -35,18 +37,37 @@ export PATH="$HOME/.local/bin:$PATH"
 
 ## Run your first build
 
-In an empty directory, create a file named `message.txt` with any text. Then
-save this example as `Makefile`. Start the recipe line with a tab.
+Create a small project to see when rmake runs a recipe.
+
+```sh
+mkdir rmake-example
+cd rmake-example
+printf '%s\n' 'Hello from rmake' > message.txt
+```
+
+Save this example as `Makefile`. Start the recipe line with a tab.
 
 ```makefile
 greeting.txt: message.txt
 	cp "$<" "$@"
 ```
 
-Run `rmake` twice. The first run creates `greeting.txt`. The second sees that
-the target is up to date and skips the recipe. Change `message.txt` and run
-`rmake` again to rebuild it. Learn how targets, prerequisites, and recipes fit
-together in the [GNU Make introduction](https://www.gnu.org/software/make/manual/html_node/Introduction.html).
+Run the build twice, then edit the input and rebuild.
+
+```sh
+rmake
+rmake
+sleep 1
+printf '%s\n' 'Hello again' >> message.txt
+rmake
+```
+
+The first run creates `greeting.txt`. The second skips the recipe because
+the target is current. The pause gives the edit a newer timestamp. The last
+run copies the changed input. In the recipe,
+`$<` expands to the first prerequisite and `$@` expands to the target.
+See [automatic variables](https://www.gnu.org/software/make/manual/make.html#Automatic-Variables)
+in the GNU Make manual.
 
 ## Try rmake on an existing project
 
