@@ -1,57 +1,82 @@
-# File records and intermediate cleanup
+# How rmake orders intermediate-file cleanup
 
-GNU Make's final intermediate removal order follows its file-record table. The
-ordering is observable even with only two independent chains (`rm b.mid a.mid`),
-and collisions mean sorting names or hashes cannot reproduce it.
+An implicit rule chain can create a temporary file on the way to a requested
+target. When the build completes, rmake removes eligible intermediates and
+prints their names. For example, the [two-chain fixture](../tests/cases/chain-two-roots/)
+expects `rm b.mid a.mid` in that order. To learn when files count as
+intermediates, see the GNU Make manual's
+[chains of implicit rules](https://www.gnu.org/software/make/manual/html_node/Chained-Rules.html).
 
-The core now owns a separate filename index, independent of rule bodies and
-explicit-name flags. It uses safe owned byte names, the pinned Linux string
-fingerprint, linear collision resolution, deletion markers, and the 93.75%
-empty-slot threshold. Growth and same-size compaction retain ascending old-slot
-reinsertion order. A filename merge removes the source key while preserving the
-existing destination slot. Restart databases clone the index along with rules.
-There are no raw pointers, new dependencies or persistent filesystem observations.
+## How the order is determined
 
-Registration follows reading and selection phases: command goals precede suffix
-metadata; explicit immediate inputs precede targets; target-only bindings and
-include records enter during reading; static inputs remain distinct from explicit
-mentions; deferred inputs enter when expanded; accepted implicit chains install
-reverse candidate inputs and their saved child lists. Built-in suffix-name
-records enter after the read phase in the pinned Linux declaration order, rather
-than iterating Rust's randomized rule map. This order is declarative compatibility
-data; the suffix names also occur in the existing attributed GNU default data.
+The engine records a filename as it encounters it. For example, a goal from
+the command line enters before built-in suffix names. Immediate prerequisites
+enter before their target. Deferred prerequisites enter when expanded, and
+accepted implicit rules enter their selected inputs. The order depends on when
+each filename is encountered, including names from includes and target
+variable declarations.
 
-Cleanup scans the index after jobs finish. An intermediate created by an
-expansion-only recipe is eligible even when no child process ran. Preexisting
-explicit intermediates remain protected, as in GNU. Phony intermediates can be
-removed. Failed unlink operations retain GNU's partial command, exact diagnostic
-and command restart behavior; missing outputs remain silent. Query, touch, silent,
-dry and parallel modes retain their separate policies.
+The table uses the pinned Linux filename fingerprint and linear probing.
+A deleted slot stays marked so lookups can still reach keys beyond it. When
+fewer than one in sixteen slots remain unused, the table reinserts live names
+in their previous slot order. A merge keeps the existing destination slot. A
+tentative VPATH lookup can change the lookup key while keeping the original
+name for recipes and cleanup.
 
-The slice adds 35 required original Makefiles: 32/256/512-chain programs cover
-collisions, growth, multiple inputs, deferred/static dependencies, scope-only
-records, explicit goals, built-ins, eval and includes; cleanup controls cover
-phony outputs and directory unlink failures in four modes. Exact independent
-stream/status anchors and complete filesystem comparisons are retained. The
-historical `chain-two-roots` mismatch is promoted to required coverage. Rust tests
-check observed numeric fingerprint boundaries, collision deletion/merge behavior,
-large index growth, independent clones, and consistency of the declarative names.
+Cleanup walks the file table after active jobs finish. An expansion-only
+recipe can create an eligible intermediate. A failed removal can leave a
+partial `rm` line and emit an error. The engine preserves the mode-specific
+behavior for dry runs, question mode, touch mode, quiet builds, and parallel
+builds. See [rule resolution](rule-resolution.md).
 
-GNU Make 4.4.1 `src/hash.c` (string fingerprint and table policy), `src/file.c`
-(`enter_file`, `rehash_file`, `enter_prereqs`, `remove_intermediates`), `src/read.c`
-(`record_files`), `src/implicit.c` (accepted dependency installation), and
-`src/main.c` / `src/default.c` (initial and late suffix records) were consulted.
-The Rust data structures and tests were authored independently; no GNU C function
-or upstream test is included. Numeric vectors were measured using original,
-oracle-only instrumentation of its exported string hash. GNU remains a test tool.
+## Check a filename order difference
 
-This establishes the covered registration and cleanup paths. Hidden prerequisite
-snap effects, archive-container registration and the remaining M4 audit gates are
-separate work; this slice alone does not complete M4.
+From the rmake checkout, prepare the reference and run the curated comparisons.
 
-Validation: `make CANDIDATE=/tmp/rmake-record-final-debug ci` passed on this
+```sh
+make bootstrap
+make test-diff
+```
+
+If the difference needs an implicit chain, include every input and rule needed
+to choose it. Compare the cleanup line, any errors, and which files remain.
+The curated cases cover collisions, table growth, scope-only declarations,
+aliases, implicit chains, and files an attempted cleanup cannot unlink. See the
+[testing guide](testing.md).
+
+## Cost of storing filenames
+
+A slot now stores names up to 15 bytes inline. Longer names use boxed slices.
+The test for the boundary includes non-UTF-8 bytes, a cloned table, and renames
+in both directions. Table growth and tombstones preserve the same lookup and
+traversal order.
+
+On the 10,000-target no-op benchmark, the inline slots removed about 10,000
+allocator calls and increased requested bytes by about 175 KB because the
+slots are larger. Alternating samples on two CPUs measured about 1.7% to 2.2%
+less wall time for that workload. The distinct-declaration workload also
+improved. The expansion workload took about 0.5% to 1% longer, and the small
+no-op changes were within the range of the same-binary control. These
+measurements include startup and reflect the selected workloads.
+
+Repeat the core comparison with a previous rmake executable.
+
+```sh
+make bench-compare BENCH_SUITE=core BENCH_REPEAT=101 \
+  BENCH_BASELINE=/absolute/path/to/previous-rmake
+```
+
+## Source references and original measurements
+
+GNU Make 4.4.1's `src/hash.c`, `src/file.c`, `src/read.c`, `src/implicit.c`,
+`src/main.c`, and `src/default.c` informed the table, registration, and cleanup
+behavior. The Rust implementation and tests were authored independently.
+Original GNU-only instrumentation recorded the numeric hash observations.
+See [licensing and provenance](licensing.md).
+
+The original filename index passed `make CANDIDATE=/tmp/rmake-record-final-debug ci` passed on this
 source. All 4,456 oracle cases and 4,445 required candidate cases passed; eleven
-historical mismatches remain pending. The 65 stateful scenarios / 287 invocations,
+fixtures were pending at the time. The 65 stateful scenarios / 287 invocations,
 112 timestamp-fault programs, 61 jobserver cells, repeated 720-cell graph progress
 campaigns for each engine and top-level self-host gates passed. Core checks passed
 388 Rust tests and 285 tooling tests. Debug SHA-256:
@@ -68,9 +93,6 @@ OS cache, exact status/stream checks) measured median milliseconds:
 | 10,000 target no-op | 11.472 | 34.491 | 31.459 |
 | expansion | 2.811 | 4.755 | 4.755 |
 
-The filename index adds measurable no-op cost; this is compatibility work, not a
-speedup claim. Avoiding redundant registration during rule storage is follow-up
-performance work. There was no concurrent validation during measurement. The
-ignored report `artifacts/bench/file-record-core-101.json` retains all samples,
-identities and limitations. There is no CPU isolation, CPU/RSS/I/O profiling or
-threshold gate; GNU remains faster in these workloads.
+The ignored report `artifacts/bench/file-record-core-101.json` recorded the
+samples and binary identities from the original comparison. The measurements
+included startup and did not isolate the CPU.

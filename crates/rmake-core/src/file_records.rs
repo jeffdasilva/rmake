@@ -8,12 +8,46 @@
 
 use std::collections::HashMap;
 
+const INLINE_FILENAME_BYTES: usize = 15;
+
+#[derive(Clone)]
+enum FileSlot {
+    Unused,
+    Deleted,
+    Short {
+        length: u8,
+        bytes: [u8; INLINE_FILENAME_BYTES],
+    },
+    Long(Box<[u8]>),
+}
+
+impl FileSlot {
+    fn new(name: &[u8]) -> Self {
+        if name.len() > INLINE_FILENAME_BYTES {
+            return Self::Long(name.into());
+        }
+        let mut bytes = [0; INLINE_FILENAME_BYTES];
+        bytes[..name.len()].copy_from_slice(name);
+        Self::Short {
+            length: name.len() as u8,
+            bytes,
+        }
+    }
+
+    fn name(&self) -> Option<&[u8]> {
+        match self {
+            Self::Unused | Self::Deleted => None,
+            Self::Short { length, bytes } => Some(&bytes[..usize::from(*length)]),
+            Self::Long(name) => Some(name),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct FileRecords {
     database_history: Option<crate::database::History>,
-    // None is unused; an empty owned name is a deletion marker. Make filenames
-    // are nonempty. Keeping tombstones preserves collision chains on renaming.
-    slots: Vec<Option<Box<[u8]>>>,
+    // Keeping tombstones preserves collision chains on renaming.
+    slots: Vec<FileSlot>,
     live: usize,
     empty: usize,
     rehashed_names: HashMap<Vec<u8>, Vec<u8>>,
@@ -23,7 +57,7 @@ impl Default for FileRecords {
     fn default() -> Self {
         Self {
             database_history: None,
-            slots: vec![None; 1024],
+            slots: vec![FileSlot::Unused; 1024],
             live: 0,
             empty: 1024,
             rehashed_names: HashMap::new(),
@@ -45,13 +79,13 @@ impl FileRecords {
         let mut position = fingerprint as usize & mask;
         let mut deleted = None;
         loop {
-            match self.slots[position].as_deref() {
-                None => return (deleted.unwrap_or(position), false),
-                Some(old) if old == name => return (position, true),
-                Some([]) => {
+            match &self.slots[position] {
+                FileSlot::Unused => return (deleted.unwrap_or(position), false),
+                FileSlot::Deleted => {
                     deleted.get_or_insert(position);
                 }
-                Some(_) => {}
+                slot if slot.name() == Some(name) => return (position, true),
+                _ => {}
             }
             position = (position + 1) & mask;
         }
@@ -109,10 +143,10 @@ impl FileRecords {
     }
 
     fn insert_at(&mut self, name: &[u8], position: usize) {
-        if self.slots[position].is_none() {
+        if matches!(self.slots[position], FileSlot::Unused) {
             self.empty -= 1;
         }
-        self.slots[position] = Some(name.into());
+        self.slots[position] = FileSlot::new(name);
         self.live += 1;
         if self.empty < self.slots.len() / 16 {
             let size = if self.live >= self.slots.len() * 15 / 16 {
@@ -120,20 +154,19 @@ impl FileRecords {
             } else {
                 self.slots.len()
             };
-            let previous = std::mem::replace(&mut self.slots, vec![None; size]);
+            let previous = std::mem::replace(&mut self.slots, vec![FileSlot::Unused; size]);
             self.empty = size;
             self.live = 0;
             // Existing owned keys can move without allocating new names.
             // This is physical placement only: the logical history already
             // recorded its own growth at the original insertion boundary.
-            for name in previous
-                .into_iter()
-                .flatten()
-                .filter(|name| !name.is_empty())
-            {
-                let (position, found) = self.position(&name);
+            for slot in previous {
+                let Some(name) = slot.name() else {
+                    continue;
+                };
+                let (position, found) = self.position(name);
                 debug_assert!(!found);
-                self.slots[position] = Some(name);
+                self.slots[position] = slot;
                 self.empty -= 1;
                 self.live += 1;
             }
@@ -161,7 +194,7 @@ impl FileRecords {
             if let Some(history) = &self.database_history {
                 history.record_file_remove(from);
             }
-            self.slots[position] = Some(Box::default());
+            self.slots[position] = FileSlot::Deleted;
             self.live -= 1;
         }
         self.insert(to);
@@ -205,16 +238,13 @@ impl FileRecords {
     }
 
     pub fn name_in_slot(&self, index: usize) -> Option<&[u8]> {
-        self.slots
-            .get(index)
-            .and_then(|slot| slot.as_deref())
-            .filter(|name| !name.is_empty())
+        self.slots.get(index).and_then(FileSlot::name)
     }
 
     pub fn names(&self) -> impl Iterator<Item = &[u8]> {
         self.slots
             .iter()
-            .filter_map(|name| name.as_deref().filter(|name| !name.is_empty()))
+            .filter_map(FileSlot::name)
             .map(|key| self.logical_name(key).unwrap_or(key))
     }
 }
@@ -297,6 +327,30 @@ pub(crate) fn fingerprint(name: &[u8]) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn filename_storage_keeps_raw_bytes_across_the_inline_boundary() {
+        let short = b"12345678901234\xff";
+        let long = b"12345678901234\xffX";
+        let mut records = FileRecords::default();
+        records.insert(short);
+        records.insert(long);
+        let short_slot = records.position(short).0;
+        let long_slot = records.position(long).0;
+        assert_eq!(records.name_in_slot(short_slot), Some(short.as_slice()));
+        assert_eq!(records.name_in_slot(long_slot), Some(long.as_slice()));
+
+        let cloned = records.clone();
+        records.rename(long, short);
+        assert!(!records.contains(long));
+        assert_eq!(records.name_in_slot(short_slot), Some(short.as_slice()));
+        assert_eq!(cloned.name_in_slot(long_slot), Some(long.as_slice()));
+
+        records.rename(short, long);
+        assert!(!records.contains(short));
+        assert!(records.contains(long));
+        assert_eq!(records.names().collect::<Vec<_>>(), [long.as_slice()]);
+    }
 
     #[test]
     fn filename_moves_and_merges_retire_the_actual_logical_key() {
