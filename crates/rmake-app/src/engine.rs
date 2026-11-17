@@ -2362,10 +2362,29 @@ impl Engine {
 
     fn cached_optional_group_peer_failure(&self, name: &[u8]) -> bool {
         let identity = self.aliases.resolve(name);
-        self.file_traversals
+        let cached = self
+            .file_traversals
             .outcome(identity)
-            .is_some_and(|outcome| outcome.optional_group_peer_failure)
-            && !self.optional_remake_failures.contains_key(identity)
+            .is_some_and(|outcome| outcome.optional_group_peer_failure);
+        // A single double-colon peer has a branch record before its own visit.
+        let declared_peer = !cached
+            && self.remaking
+            && !self.parallel_makefile_remakes
+            && !MakefileModes::from_options(&self.options).active()
+            && self
+                .database
+                .rules
+                .get(identity)
+                .and_then(|rule| rule.double_colon.as_ref())
+                .is_some_and(|branches| {
+                    matches!(branches.as_slice(), [rule]
+                    if rule.grouped_double_id().is_some())
+                })
+            && self
+                .database_branch_outcomes
+                .get(&(identity.to_vec(), 0))
+                .is_some_and(|outcome| outcome.optional_group_peer_failure);
+        (cached || declared_peer) && !self.optional_remake_failures.contains_key(identity)
     }
 
     fn cached_recipe_outcome(&self, mut outcome: Outcome) -> Outcome {
@@ -12499,6 +12518,11 @@ impl Engine {
                 }
             }
             if !outcome.question_outdated && !outcome.fatal && (!outcome.failed || outcome.ran) {
+                let optional_serial_failure = self.remaking
+                    && !self.parallel_makefile_remakes
+                    && !MakefileModes::from_options(&self.options).active()
+                    && self.optional_remake()
+                    && outcome.failed;
                 for (peer, before, phony) in group.members {
                     let owner = peer == target;
                     let Some(branches) = self
@@ -12520,6 +12544,8 @@ impl Engine {
                         continue;
                     }
                     let mut completed = outcome;
+                    completed.optional_group_peer_failure |=
+                        optional_serial_failure && !owner && branches.len() == 1;
                     completed.database_result = DatabaseResult::ObservedGroup;
                     completed.time = if phony {
                         None
