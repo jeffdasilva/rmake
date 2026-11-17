@@ -13,9 +13,11 @@ import remake_parallel
 
 class UnchangedGroupTests(unittest.TestCase):
     def test_source_timestamp_check_rejects_one_nanosecond_change(self):
-        for implicit in (False, True):
-            model = remake_parallel.grouped_unchanged_peer_models(b'', {}, implicit=implicit)[0].model
-            with self.subTest(implicit=implicit), tempfile.TemporaryDirectory() as temporary:
+        models = [remake_parallel.grouped_unchanged_peer_models(b'', {}, implicit=implicit)[0].model
+                  for implicit in (False, True)]
+        models += [remake_parallel.grouped_double_unchanged_peer_models(b'', {})[0].model]
+        for model in models:
+            with self.subTest(model=model.id), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 (root / 'check-times.py').write_bytes(model.files['check-times.py'])
                 sources = [name for name in model.files if name.endswith('.gen')]

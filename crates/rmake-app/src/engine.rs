@@ -2206,6 +2206,14 @@ impl Engine {
         outcome
     }
 
+    fn mark_remade_group_peer(&self, target: &[u8], phony: bool, outcome: &mut Outcome) {
+        outcome.remake_group_peer_updated = self.remaking
+            && outcome.completion == CompletionTime::Refresh
+            && !outcome.failed
+            && !phony
+            && self.makefile_names.contains(target);
+    }
+
     fn show_makefile_error(&self) {
         self.show_remake_open_error(self.active_makefile_remake.as_ref());
     }
@@ -10309,6 +10317,7 @@ impl Engine {
                 state.combined.question_outdated |= result.question_outdated;
                 state.combined.late_input_failed |= result.late_input_failed;
                 state.combined.search_after_update |= result.search_after_update;
+                state.combined.remake_group_peer_updated |= result.remake_group_peer_updated;
                 state.combined.completion = state.combined.completion.max(result.completion);
                 if matches!(
                     result.database_result,
@@ -10483,8 +10492,27 @@ impl Engine {
                     // Commands executed for a previous goal must not suppress
                     // this goal's up-to-date diagnostic.
                     result.ran = false;
+                    self.mark_remade_group_peer(target, state.phony, &mut result);
+                    if serial_remake_root && result.remake_group_peer_updated {
+                        use crate::debug::{Event, emit};
+
+                        // The root announced the first declaration; later
+                        // completed declarations have their own cached visit.
+                        let depth = state.depth + 1;
+                        if ordinal != 0 {
+                            emit(&self.output, Event::Considering(target, depth));
+                        }
+                        emit(&self.output, Event::Already(target, depth));
+                    }
                     state.combined.retain_branch_verdict(result);
                     merge_child(&mut state.combined, result);
+                    // This cached declaration is a completed read-peer occurrence,
+                    // independently of prerequisite outcomes or physical timestamps.
+                    if result.remake_group_peer_updated {
+                        state.combined.remake_group_peer_updated = true;
+                        state.combined.completion =
+                            state.combined.completion.max(result.completion);
+                    }
                     state.combined.time = if state.phony {
                         None
                     } else {
@@ -11531,6 +11559,7 @@ impl Engine {
             // either selected a recipe. Recheck ownership after that wait.
             if let Some(mut result) = self.completed_group_branches.get(&id).copied() {
                 result.ran = false;
+                self.mark_remade_group_peer(target, state.phony, &mut result);
                 result.time = if state.phony {
                     None
                 } else {
@@ -12325,11 +12354,7 @@ impl Engine {
                     && self.makefile_names.contains(&peer));
             completed.optional_group_peer_failure =
                 self.optional_remake() && outcome.failed && !outcome.fatal;
-            completed.remake_group_peer_updated = self.remaking
-                && outcome.completion == CompletionTime::Refresh
-                && !outcome.failed
-                && !phony
-                && self.makefile_names.contains(&peer);
+            self.mark_remade_group_peer(&peer, phony, &mut completed);
             completed.search_after_update = false;
             completed.time = if phony {
                 None
