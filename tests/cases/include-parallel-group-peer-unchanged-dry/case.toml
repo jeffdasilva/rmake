@@ -1,0 +1,12 @@
+id = "include-parallel-group-peer-unchanged-dry"
+requirement = "includes.remake"
+candidate = "required"
+description = "A successful explicit grouped remake rereads its unchanged peer under parallel job options."
+provenance = "Original rmake fixture and GNU 4.4.1 black-box observations; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe", "-n", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:\nRUN\nREAD:1\necho ALL:1\n"
+stderr = ""
