@@ -8532,9 +8532,8 @@ impl Engine {
         for selection in &plan {
             let group = selection.rule.group.as_ref();
             // Detached double-colon roots prepare their own history.
-            // A database dump needs the attached root's inputs and stem.
-            let retain_history = group.is_some()
-                || (!detach_root && selection.name == target && self.output.database_requested());
+            // Recipes can request the database after this selection.
+            let retain_history = group.is_some() || (!detach_root && selection.name == target);
             for dependency in selection.rule.dependencies.iter().rev() {
                 if let Some(child) = inferred.get(dependency.name.as_slice()) {
                     self.database.file_records.insert(&dependency.name);
