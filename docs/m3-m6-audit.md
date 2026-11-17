@@ -151,8 +151,10 @@ serial and parallel explicit grouped rules that restart after leaving a read pee
 unchanged or missing. The serial tests include an empty recipe. Implicit grouped
 single-colon rules have serial and held parallel cases. Grouped double-colon
 cases now cover read peers, real restarts, settled serial branch failures and
-the number of repeated verbose visits. More combinations remain for named
-sources, active grouped failures, and parallel scheduling and trace order.
+the number of repeated verbose visits. Serial tests now also cover a failed
+grouped recipe whose read peer gets a newer timestamp, including a later recipe
+that restores the timestamp. Remaining cases include mixed optional and required
+sources without `-k`, and combinations with parallel scheduling and tracing.
 
 Local jobserver acceptance also needs broader combinations of transports,
 recursive builds, restarts, loaded modules and resource pressure. Preserve the
@@ -177,7 +179,10 @@ returned failures and cached visits to required and optional declarations.
 Existing includes changed or removed by a successful grouped recipe are reread
 when their timestamps change. An already loaded source keeps its earlier file
 observation when an earlier serial recipe removes it. Tests cover unruled,
-explicit, empty, order-only and double-colon forms.
+explicit, empty, order-only and double-colon forms. The
+[late timestamp restoration test](../tests/cases/include-failed-group-clock-late-restored-required-owner-first/)
+checks that a required read peer can still trigger a restart based on the time
+observed when the failed grouped recipe finished.
 
 The [composed validation from PR #374](https://github.com/jeffdasilva/rmake/pull/374)
 and [grouped double-colon database models](../tools/database_grouped_double_output.py)

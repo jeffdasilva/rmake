@@ -2925,14 +2925,26 @@ impl Database {
         } else {
             None
         };
-        let append_base = if spec.kind == Assignment::Append {
-            lookup_scope.as_ref().and_then(|scope| {
-                scope
-                    .scoped_append(spec.name, live_makeflags)
-                    .map(std::cell::RefCell::new)
-            })
+        // Eval appends read the visible base and write to the global table.
+        let (append_base, append_from_lexical) = if spec.kind == Assignment::Append {
+            let lexical = self
+                .evaluation_bindings
+                .iter()
+                .rev()
+                .find_map(|frame| frame.get(spec.name))
+                .cloned();
+            let append_from_lexical = lexical.is_some();
+            let append_base = lexical.or_else(|| {
+                lookup_scope
+                    .as_ref()
+                    .and_then(|scope| scope.scoped_append(spec.name, live_makeflags))
+            });
+            (
+                append_base.map(std::cell::RefCell::new),
+                append_from_lexical,
+            )
         } else {
-            None
+            (None, false)
         };
         if live_makeflags && spec.kind == Assignment::Append && !spec.value.is_empty() {
             self.variables.strip_makeflags_assignments(origin);
@@ -2972,6 +2984,7 @@ impl Database {
                         self.expand_with(bytes, context)
                     };
                     if let Some(base) = &append_base
+                        && !append_from_lexical
                         && let Some(value) = self
                             .evaluation_scope
                             .as_ref()

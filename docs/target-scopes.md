@@ -1,14 +1,52 @@
-# Target-variable scope design notes
+# Set variables for specific targets
 
-Status: explicit target-specific assignments are implemented with layered bindings,
-inheritance, privacy and export policies. Pattern-specific scopes use a separate
-implemented [activation model](pattern-scopes.md). These notes record GNU
-Make 4.4.1 observations from the pinned oracle on 2026-10-18; the
-[progress record](progress.md) records the verified corpus and remaining gates.
+Use a target-specific variable to give a build goal its own settings. For
+example, a `debug` target can pass debug compiler flags to its prerequisites.
+The variable applies to the target and its prerequisites. Use `private` to
+keep the value in the target's own recipe. See the GNU Make references for
+[target-specific variables](https://www.gnu.org/software/make/manual/html_node/Target_002dspecific.html)
+and [suppressing inheritance](https://www.gnu.org/software/make/manual/html_node/Suppressing-Inheritance.html).
 
-The [GNU target-specific variable documentation](https://www.gnu.org/software/make/manual/html_node/Target_002dspecific.html) describes separate target definitions, evaluation in the target's context, inheritance to prerequisites, and first-parent behavior for shared prerequisites. The [inheritance documentation](https://www.gnu.org/software/make/manual/html_node/Suppressing-Inheritance.html) describes `private`. The details below were checked with original disposable Makefiles; no upstream tests were copied.
+## Try debug and release flags
 
-## Required representation
+In an empty directory, save this example as `Makefile`. Start each recipe line
+with a tab.
+
+```makefile
+CFLAGS := -O2
+
+.PHONY: debug release flags
+debug: CFLAGS := -O0 -g
+debug release: flags
+	@printf '%s sees %s\n' '$@' '$(CFLAGS)'
+
+flags:
+	@printf 'compiler flags: %s\n' '$(CFLAGS)'
+```
+
+1. Run `rmake debug release`. The shared prerequisite `flags` uses the debug
+   value because `debug` reaches it first. The `release` recipe uses the global
+   value. Each invocation builds `flags` once.
+
+   ```text
+   compiler flags: -O0 -g
+   debug sees -O0 -g
+   release sees -O2
+   ```
+
+2. Run `rmake release debug`. Now `flags` prints `-O2` because `release`
+   reaches it first.
+3. Change the debug assignment to `debug: private CFLAGS := -O0 -g`, then run
+   `rmake debug`. The debug recipe still uses `-O0 -g`. The `flags` recipe
+   prints the global `-O2`.
+
+From the rmake checkout, use `make test-scopes` to compare generated
+dependency graphs with the pinned GNU Make executable. Use
+`make test-pattern-scopes` when the variable is set on a pattern like
+`%.o`. See the [pattern-specific variable guide](pattern-scopes.md) and the
+[testing guide](testing.md).
+
+## How rmake looks up target variables
 
 Keep target bindings separate from the explicit-rule table. A declaration such as `name: X = value` neither supplies a build rule nor chooses the default goal. Alone it produces `No targets`; requesting the missing `name` still produces `No rule to make target`. A scope entry must not make that target buildable.
 
@@ -45,7 +83,7 @@ Do not trim append boundaries indiscriminately. An empty inherited append suffix
 
 Recognize target assignments before ordinary prerequisite expansion and inline-recipe splitting: `target: X = a;b` stores `a;b`. Ordinary prerequisites still expand in the global read context; `X=global; target:X=local; target:$(X)` names prerequisite `global`, whose recipe can inherit `X=local`.
 
-## Precedence and qualifier details
+## Command-line precedence and qualifiers
 
 Non-override target assignments are replaced by the current command-line binding when applicable, preserving its flavor and origin. That creates a local snapshot: a later global `override X=later` does not change it. A suppressed target `?=` creates no local binding, so it observes later changes to the global definition instead.
 
@@ -54,7 +92,9 @@ definition location and export and private qualifiers, and clears append state.
 A declaration made by recipe-time `eval` can use a caller target's command
 value while keeping a different export policy on the declared target.
 
-An eager declaration of the currently active file uses its existing pattern,
+### Assignments made during `eval`
+
+An immediate assignment to the currently active file uses its existing pattern,
 ancestor, and automatic bindings for computed names and immediate values. Its
 explicit definitions stay in their declaration table across nested `eval`,
 and a shell completion updates the active file's `.SHELLSTATUS`. Reading an
@@ -85,6 +125,8 @@ flag and any explicit export policy, so later reads of its owner see the
 same qualifiers. Reading a declaration on an unvisited file preserves the
 initial lookup and leaves its pattern variables unactivated.
 
+### Environment and shell status
+
 Recursive exports expanded for a recipe child use the same retained file
 contexts as recipe text and shell capture. This applies to builtin `eval`
 and to a native function that calls `gmk_eval`. The selected file keeps the
@@ -103,6 +145,8 @@ fallback, explicit secondary clauses, and recipes can read that status.
 An intermediate keeps its own status and pattern scope across retries.
 The selected plan publishes them to the intermediate's file context when
 it installs the rule.
+
+### Double-colon rules and shared prerequisites
 
 In ordinary double-colon rules, secondary expansion and the recipe share
 the branch's file-local table. Each later branch starts with the head as
@@ -123,13 +167,20 @@ locals. A read uses the later branch's live table when that branch is the
 current or suspended caller. A named declaration on the double-colon
 target itself still selects its head.
 
+### Imported variables and privacy
+
 With `-e`, GNU initially reports an untouched imported variable's origin as `environment`. A conflicting **global** assignment promotes it to `environment override`. An ordinary target assignment can win before that promotion; a preceding global collision makes the environment win. A collision after the target assignment does not retroactively replace the local value. Importing every environment variable with override origin at startup cannot reproduce these distinctions.
 
 A later unqualified target assignment resets an earlier local `private` flag, even if `?=` or origin precedence prevents changing the value. Export/unexport policies likewise need explicit binding metadata rather than global export-name sets.
 
-One additional 4.4.1 behavior needs an explicit model and regression fixture: `X=global; parent: private X ?= ignored` marks the existing global binding private without creating a local binding. `X` then disappears from every recipe, including `parent` and unrelated targets. A subsequent ordinary global assignment retains that privacy. Binding metadata can therefore be modified through a suppressed conditional assignment; silently replacing it with a target-local copy is wrong.
+If `X` already has a global value, `parent: private X ?= ignored` can mark
+that existing global binding private without creating a separate binding
+for `parent`. Recipes then stop seeing `X`, and a later ordinary global
+assignment keeps it private. The focused fixtures cover the
+[conditional declaration](../tests/cases/scope-private-conditional-global-alias/)
+and [later assignment](../tests/cases/scope-private-global-alias-survives-reassignment/).
 
-## Independent timing correction and validation
+## Assignments that lose to higher precedence
 
 The current variable store now evaluates `:=` and `:::=` right-hand sides before discarding a lower-origin assignment. A losing `+=` also evaluates its suffix if the existing same-scope binding is simple. Recursive assignments/appends remain deferred, and `?=` still skips its RHS when any definition exists.
 
@@ -160,7 +211,7 @@ An unspecified child policy can inherit an ancestor policy even when a child
 binding supplies the value. These distinctions are observable in real child
 environments, not only through make variable expansion.
 
-## Pattern scopes: separate activation model
+## Pattern variables and assignments while reading
 
 The pattern fixtures establish a separate activation model. Preserve each
 declaration in order instead of merging matching patterns into static target

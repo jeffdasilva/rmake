@@ -36,6 +36,7 @@ class Model:
     status: int
     existing: bool
     explicit_goal: bool
+    directory_identity: bool
 
 
 def models() -> list[Model]:
@@ -45,7 +46,8 @@ def models() -> list[Model]:
     result = [Model(row['id'], row['makefile'].encode(), tuple(s.encode() for s in row['records']),
                     bytes.fromhex(row['seen_hex']) if 'seen_hex' in row else None,
                     tuple(row.get('flags', [])), row.get('status', 0), row.get('existing', False),
-                    row.get('explicit_goal', True)) for row in raw['case']]
+                    row.get('explicit_goal', True), row.get('directory_identity', False))
+              for row in raw['case']]
     ids = [model.id for model in result]
     if len(set(ids)) != len(ids) or any(not re.fullmatch(r'[a-z0-9-]+', name) for name in ids):
         raise harness.HarnessError('unsafe or duplicate order-role fixture ID')
@@ -65,13 +67,23 @@ def fixture(model: Model, path: Path) -> harness.Case:
     return harness.Case(path, model.id, 'database.order-only-duplicate', 'required', args, 15, {}, {})
 
 
-def validate_stdout(model: Model, output: bytes, start: int, end: int) -> bytes:
+def validate_stdout(
+    model: Model, output: bytes, start: int, end: int, directory: tuple[int, int] | None
+) -> bytes:
     clocks = list(CLOCK.finditer(output))
     if [clock[1] for clock in clocks] != [b'Make data base, printed on', b'Finished Make data base on']:
         raise harness.HarnessError('expected a complete late-selected database')
     opened, closed = (database.parse_clock(clock[2]) for clock in clocks)
-    if not start <= opened <= closed <= end or b'(device ' in output:
-        raise harness.HarnessError('unexpected ctime or directory identity')
+    if not start <= opened <= closed <= end:
+        raise harness.HarnessError('unexpected positioned ctime fields')
+    if directory is not None:
+        device, inode = directory
+        identity = f'# . (device {device}, inode {inode}):'.encode()
+        if output.count(identity) != 1 or output.count(b'(device ') != 1:
+            raise harness.HarnessError('implicit search directory differs from independent stat')
+        output = output.replace(identity, b'# . <checked directory identity>:', 1)
+    elif b'(device ' in output:
+        raise harness.HarnessError('unexpected physical directory identity')
     header, footer = b'\n# Files\n', b'\n# files hash-table stats:\n'
     if output.count(header) != 1 or output.count(footer) != 1 or output.index(header) > output.index(footer):
         raise harness.HarnessError('invalid file database section')
@@ -94,6 +106,8 @@ def observe(model: Model, case: harness.Case, runtime: Path, executable: Path) -
         expected['work/seen'] = {'type': 'file', 'mode': 0o644, 'size': len(model.seen),
                                  'content': base64.b64encode(model.seen).decode(),
                                  'sha256': hashlib.sha256(model.seen).hexdigest()}
+    directory_stat = work.stat() if model.directory_identity else None
+    directory = (directory_stat.st_dev, directory_stat.st_ino) if directory_stat else None
     start = database.libc_time()
     argv = [str(runtime / 'bin/make'), *case.args]
     output, error, status, limit, leftovers = harness.capture(argv, work, harness.clean_environment(runtime), case.timeout)
@@ -105,7 +119,12 @@ def observe(model: Model, case: harness.Case, runtime: Path, executable: Path) -
     try:
         if (status, error, limit, leftovers, filesystem) != (model.status, b'', None, False, expected):
             raise harness.HarnessError('unexpected status, stderr, process bound, or recipe effect')
-        stable = validate_stdout(model, output, start, end)
+        if directory is not None:
+            after = work.stat()
+            if directory != (after.st_dev, after.st_ino):
+                raise harness.HarnessError('workspace directory changed during database capture')
+            result['workspace_identity'] = directory
+        stable = validate_stdout(model, output, start, end, directory)
         result['positioned_stdout_sha256'] = hashlib.sha256(stable).hexdigest()
     except (harness.HarnessError, ValueError) as error:
         result['error'] = str(error)

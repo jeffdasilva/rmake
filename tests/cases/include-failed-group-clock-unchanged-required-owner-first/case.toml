@@ -1,0 +1,12 @@
+id = "include-failed-group-clock-unchanged-required-owner-first"
+requirement = "includes.remake"
+candidate = "required"
+description = "A serialized failed grouped remake retains observed peer times for the required-source restart check."
+provenance = "Original rmake black-box fixture; status, source order, effects and nanosecond observations independently asserted; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:\nSOURCE:owner.mk:\nSOURCE:peer.mk:\n"
+stderr = "make: *** [Makefile:11: owner.mk] Error 1\nMakefile:8: Failed to remake makefile 'owner.mk'.\nMakefile:9: Failed to remake makefile 'peer.mk'.\n"

@@ -3751,6 +3751,7 @@ impl Engine {
             let first_effect_generation = track_remake_effects.then_some(pass_progress);
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
+            let mut observed_failed_peer_changes = HashSet::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
             let mut visited = MakefileVisits::new();
             let mut optional_remake_failed = false;
@@ -4066,11 +4067,11 @@ impl Engine {
                     changes.updated |= updated;
                     changes.optional_failed_tail_updated |= updated && optional && chain_failed;
                 }
-                let before = self
+                let observed_peer_change = self
                     .serial_remake_peer_times
                     .remove(name)
-                    .filter(|_| !failed_opens.contains(name))
-                    .or(before.unwrap_or(result.time));
+                    .filter(|_| !failed_opens.contains(name));
+                let before = observed_peer_change.or(before.unwrap_or(result.time));
                 // A required chain under -k can revisit its cached head
                 // after a failed declaration and report the prune.
                 let settled_chain = !result.failed
@@ -4125,6 +4126,20 @@ impl Engine {
                     // blocked head. Other roots use their own recipe result.
                     let refresh_timestamp =
                         serial_declarations.is_some() || (result.ran && !result.blocked);
+                    if !result.ran
+                        && observed_peer_change.is_some()
+                        && self
+                            .database
+                            .rules
+                            .get(name)
+                            .and_then(|rule| rule.double_colon.as_ref())
+                            .is_some_and(|branches| {
+                                matches!(branches.as_slice(), [rule]
+                                if rule.grouped_double_id().is_some())
+                            })
+                    {
+                        observed_failed_peer_changes.insert(name);
+                    }
                     if may_replay {
                         optional_failures.insert(
                             name,
@@ -4461,7 +4476,13 @@ impl Engine {
                             )),
                         },
                     );
-                    // Later remake recipes can still change this file.
+                    if observed_failed_peer_changes.contains(name) {
+                        // A grouped completion already sampled this existing peer.
+                        // Later recipes do not replace that serialized observation.
+                        changed = true;
+                        *refresh_timestamp = false;
+                    }
+                    // Other failed sources still use their existing refresh policy.
                     if *refresh_timestamp {
                         let before = grouped_peer_times
                             .get(name)
@@ -8485,6 +8506,10 @@ impl Engine {
             .collect();
         for selection in &plan {
             let group = selection.rule.group.as_ref();
+            // Detached double-colon roots prepare their own history.
+            // A database dump needs the attached root's inputs and stem.
+            let retain_history = group.is_some()
+                || (!detach_root && selection.name == target && self.output.database_requested());
             for dependency in selection.rule.dependencies.iter().rev() {
                 if let Some(child) = inferred.get(dependency.name.as_slice()) {
                     self.database.file_records.insert(&dependency.name);
@@ -8492,7 +8517,7 @@ impl Engine {
                         self.database.file_records.insert(&input.name);
                     }
                 } else if selection.name == target && dependency.name != b".WAIT" {
-                    if group.is_some() {
+                    if retain_history {
                         if let Some(history) = self.database.database_history() {
                             history.intern(&dependency.name);
                         }
@@ -8504,12 +8529,7 @@ impl Engine {
                     }
                 }
             }
-            // Detached double-colon roots prepare their own history.
-            // A database dump also needs the attached root's selected stem.
-            if (group.is_some()
-                || (!detach_root && selection.name == target && self.output.database_requested()))
-                && let Some(history) = self.database.database_history()
-            {
+            if retain_history && let Some(history) = self.database.database_history() {
                 if let Some(stem) = &selection.rule.stem {
                     history.intern(stem);
                 }
@@ -12500,10 +12520,13 @@ impl Engine {
                     } else {
                         self.observed_modified(&peer, false)
                     };
+                    // A failed group can still sample a changed single read peer.
+                    // Keep that observation without changing owner refresh policy.
                     if self.remaking
                         && !self.parallel_makefile_remakes
-                        && !outcome.failed
                         && outcome.completion == CompletionTime::Refresh
+                        && (!outcome.failed
+                            || (!owner && branches.len() == 1 && completed.time.is_some()))
                         && !phony
                         && self.makefile_names.contains(&peer)
                         && let Some(time) = before

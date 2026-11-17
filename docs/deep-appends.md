@@ -82,6 +82,19 @@ remaining CLI/debug/database and Linux/locale/integration profiles remain in the
 [M3/M6 audit](m3-m6-audit.md). General performance parity and persistent cache
 correctness remain open.
 
+## Appending with eval inside a local scope
+
+Inside `let`, `foreach`, or `call`, `$(eval NAME += suffix)` uses the visible
+local value and flavor to prepare the append. The assignment publishes to the
+global name. The local binding stays visible for the rest of the enclosing
+expansion. A simple local binding makes the suffix run immediately, including
+when a command-line assignment wins publication.
+
+The [read-time let](../tests/cases/eval-append-let-read/Makefile),
+[exported foreach](../tests/cases/eval-append-foreach-export/Makefile), and
+[deferred call](../tests/cases/eval-append-call-deferred/Makefile) fixtures show
+where the value goes and when the suffix runs.
+
 ## Measurements
 
 Six sequential reports contain two batches of 101 alternating samples per engine/workload, two warmups and exact output agreement. Pinned GNU Make drives A; frozen rmake drives B through the top-level Makefile. No unrelated local build/test/probe campaign runs during timing. Every timed input is correct on GNU, preceding rmake and the candidate; the newly corrected deep cases receive no timing credit. Host activity is uncontrolled, with no confidence intervals or performance thresholds.

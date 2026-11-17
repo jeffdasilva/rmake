@@ -1,10 +1,35 @@
 # GNU Make 4.4.1 compatibility
 
-rmake targets GNU Make 4.4.1 on Linux. Full compatibility is still in
-development. To evaluate rmake on your project, compare both engines on clean
-and incremental builds in separate checkouts. Use the
+rmake targets GNU Make 4.4.1 on Linux. Use the
 [GNU Make manual](https://www.gnu.org/software/make/manual/html_node/index.html)
 for Makefile syntax and command-line options.
+
+## Compare rmake on your project
+
+1. Prepare two clean copies of the project with the same source and build
+   settings. In the first copy, run `make --version` and confirm that it reports
+   GNU Make 4.4.1. The rmake checkout can build a pinned executable with
+   `make bootstrap-oracle` if you need one.
+2. From each copy, build the default goal with the same job count.
+
+   ```sh
+   # First copy
+   make -j1
+
+   # Second copy
+   rmake -j1
+   ```
+
+3. Run each build again. Check which recipes run and that both builds produce
+   the expected files. Then make the same small source change in both copies
+   and check that the same targets rebuild.
+4. If your project uses parallel builds, repeat the comparison with your usual
+   job count. For group-by-target logs, add `-Otarget` to both commands.
+   See the [parallel output guide](output-sync.md).
+
+If you find a difference, keep the commands, Makefile, executable versions,
+errors, exit status, and changed files. A small working example makes it
+easier to add a regression test. See the [testing guide](testing.md).
 
 ## What the project tests today
 
