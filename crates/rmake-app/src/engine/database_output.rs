@@ -307,7 +307,6 @@ impl Engine {
         view.not_intermediate = self.special(b".NOTINTERMEDIATE", name, true);
         let named_secondary = self.special(b".SECONDARY", name, false);
         view.secondary = named_secondary
-            || self.intermediate_policy.all_secondary
             || match &branch_key {
                 Some(key) => self.database_branch_secondary.contains(key),
                 None => self.database_secondary.contains(name),
@@ -407,11 +406,25 @@ impl Engine {
         {
             view.time = FileTime::Missing;
         }
-        // Named secondary records start as intermediate. An unvisited
-        // record or a query that observed no file retains that marker.
+        // Secondary declarations mark the read-time file records as
+        // intermediate, with empty .SECONDARY reaching only each head.
+        // The default record is registered at startup without a graph rule.
+        // Built-in suffix transformations enter the file table later.
+        let globally_intermediate = is_head
+            && !view.not_intermediate
+            && self.intermediate_policy.all_secondary
+            && if view.builtin {
+                name == b".SUFFIXES"
+                    || rmake_core::parser::words(rmake_core::parser::DEFAULT_SUFFIXES)
+                        .any(|suffix| suffix == name)
+            } else {
+                name == b".DEFAULT" || self.intermediate_policy.global_intermediate(name)
+            };
+        // An unvisited record or a query that observed no file retains
+        // its intermediate marker.
         // In grouped rules the reported time can stay unchecked after
         // a recipe changes the file, so use the update outcome as well.
-        if named_secondary
+        if (named_secondary || globally_intermediate)
             && ((outcome.is_none() && matches!(view.time, FileTime::Unchecked))
                 || (self.options.question
                     && timestamp.is_none()
