@@ -146,9 +146,10 @@ in the expected behavior.
 **What remains**
 
 Extend directory-qualified sources, expanded source identities and combinations
-of load limits, grouped remakes, build modes and debug output. A known remaining
-behavior is a restart after a serial grouped recipe runs and leaves an already
-read peer unchanged. GNU can restart in that situation. It remains open here.
+of load limits, grouped remakes, build modes and debug output. Tests now cover
+serial explicit grouped rules that restart after leaving a read peer unchanged
+or missing, including when the group has an empty recipe. Parallel, implicit,
+and grouped double-colon cases need their own checks.
 
 Local jobserver acceptance also needs broader combinations of transports,
 recursive builds, restarts, loaded modules and resource pressure. Preserve the
