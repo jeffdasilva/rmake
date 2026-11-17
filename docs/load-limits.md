@@ -175,6 +175,9 @@ The 144 additional cases cover all three optional positions in a
 three-name tail and the pass boundary before a later required visit.
 Ninety-six further cases make both named sources optional and confirm
 the same touch policy through the first optional completion.
+Four cases also cover three named includes with two optional ones, where the
+required include comes first or in the middle. They check normal output and
+primary mode or deletion with and without a load limit.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
