@@ -10208,16 +10208,9 @@ impl Engine {
             return None;
         }
         let branches = self.database.rules.get(target)?.double_colon.as_ref()?;
-        // A completed grouped declaration participates in the same serial
-        // head/tail policy as an independent declaration. An active group must
-        // still settle through its own completion path.
-        (branches.len() > 1
-            && branches.iter().all(|branch| {
-                branch
-                    .grouped_double_id()
-                    .is_none_or(|id| self.completed_group_branches.contains_key(&id))
-            }))
-        .then_some(branches.len())
+        // The declared head alone inherits optional-source error suppression,
+        // including when this visit will execute a grouped recipe itself.
+        (branches.len() > 1).then_some(branches.len())
     }
 
     fn resume_double_colon_state(&mut self, target: &[u8], mut state: DoubleColonState) -> Outcome {
