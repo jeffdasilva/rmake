@@ -13023,6 +13023,13 @@ impl Engine {
         self.database.refresh_scoped_variables(&mut variables);
         if record_suffix_stem_lookup && !self.database_stem_prepared(target, branch) {
             self.record_explicit_stem_lookup();
+            if branch.is_none()
+                && let Some(history) = self.database.database_history()
+                && let Some((_, stem)) = automatic.iter().find(|(name, _)| *name == b"*")
+                && !stem.is_empty()
+            {
+                history.intern(stem);
+            }
         }
         for (name, value) in automatic {
             if let Err(error) = variables.define_literal(name, value, Origin::Automatic) {

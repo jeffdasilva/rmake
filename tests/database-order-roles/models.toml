@@ -663,3 +663,22 @@ a%: ; @:
 all: alpha atom ; @$(eval MAKEFLAGS += -p):
 '''
 records = ["all: MFLAGS = -prRs --no-print-directory", "all: MAKEFLAGS = prRs --no-print-directory", "all: alpha atom"]
+
+[[case]]
+id = "explicit-suffix-stem-recipe-late-print"
+makefile = '''
+.SUFFIXES: ll
+all: ; @$(eval MAKEFLAGS += -p):
+'''
+records = ["all: MFLAGS = -prRs --no-print-directory", "all: MAKEFLAGS = prRs --no-print-directory", "all:"]
+
+[[case]]
+id = "explicit-suffix-stem-recipe-string-hit"
+makefile = '''
+a: ;
+.SUFFIXES: ll
+all: ; @$(file >>seen,$*):
+'''
+records = ["all:"]
+flags = ["-p"]
+seen_hex = "610a"
