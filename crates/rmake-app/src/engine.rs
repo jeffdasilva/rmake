@@ -11720,11 +11720,12 @@ impl Engine {
         }
         let debug_depth = depth + usize::from(self.remaking);
         // A stopped graph still settles its blocked frames internally.
-        let stopping_dependency = outcome.blocked
-            && (outcome.fatal
-                || (!self.options.keep_going
-                    && !self.optional_remake()
-                    && (self.graph_abort.is_some() || !self.parallel_graph())));
+        let stopping_dependency = (outcome.question_outdated && self.forced_query_stop)
+            || (outcome.blocked
+                && (outcome.fatal
+                    || (!self.options.keep_going
+                        && !self.optional_remake()
+                        && (self.graph_abort.is_some() || !self.parallel_graph()))));
         if !stopping_dependency {
             crate::debug::emit(
                 &self.output,
