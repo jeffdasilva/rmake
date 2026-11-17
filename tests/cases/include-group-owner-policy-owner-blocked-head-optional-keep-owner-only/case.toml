@@ -1,0 +1,12 @@
+id = "include-group-owner-policy-owner-blocked-head-optional-keep-owner-only"
+requirement = "includes.remake"
+candidate = "required"
+description = "A serial grouped owner applies optional suppression only to its declared head before any branch executes."
+provenance = "Original rmake fixture and GNU 4.4.1 black-box observations; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:\nanchor\ngroup\nALL:\n"
+stderr = "make: *** No rule to make target 'absent', needed by 'pair.owner.mk'.\n"
