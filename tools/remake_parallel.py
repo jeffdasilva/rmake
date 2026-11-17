@@ -3034,6 +3034,24 @@ def builtin_load_model(held: HeldModel, *, explicit: bool = False) -> HeldModel:
                    before_second_stdout=builtin_stdout(second) if second is not None else None)
 
 
+def hold_stock_primary_child(held: HeldModel) -> HeldModel:
+    if (not held.stock_primary or held.load is None or held.overlap
+            or held.stock_second_worker is not None or '-n' not in held.model.args):
+        raise h.HarnessError('invalid held stock primary child fixture')
+    model = held.model
+    files = dict(model.files)
+    old = b"child.mk: ; @printf '%s\\n' 'CHILD := loaded' > $@\n"
+    recipe = b'child.mk: ; @./stock-primary-cat.py --child\n'
+    for name in ('Makefile', 'Makefile.sh'):
+        if files[name].count(old) != 1:
+            raise h.HarnessError('invalid stock primary child recipe')
+        files[name] = files[name].replace(old, recipe)
+    updates = {**model.updates, 'Makefile': files['Makefile.sh'], 'child.started': b'ready\n',
+               'child.release': b'yes\n', 'child.done': b'done\n'}
+    return replace(held, model=replace(model, files=files, updates=updates),
+                   stock_second_worker='child', load=replace(held.load, second_trace=held.load.trace))
+
+
 def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
     data = tomllib.loads((SOURCES / 'debug-models.toml').read_text())
     if data.get('schema_version') != 1:
@@ -3053,6 +3071,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         tail_barrier = row.get('tail_stdout_barrier')
         second_barrier = row.get('second_stdout_barrier')
         hold_named = row.get('hold_named', False)
+        hold_stock_child = row.get('hold_stock_child', False)
         requires_load = row.get('requires_load', False)
         if requires_load is True and not has_load_profiles:
             continue
@@ -3069,6 +3088,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                 or (held.load is not None) != requires_load
                 or flag not in ('b,m', 'm', 'm,v') or not isinstance(fifo, bool)
                 or not isinstance(hold_named, bool)
+                or not isinstance(hold_stock_child, bool)
                 or (hold_named and (flag != 'm,v' or not requires_load or trace_transports))
                 or (fifo and flag != 'm,v')
                 or not isinstance(trace_transports, list)
@@ -3082,10 +3102,13 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                 or (flag == 'm,v' and '--jobserver-style=pipe' not in held.model.args)):
             raise h.HarnessError('invalid remake debug model')
         seen.add((name, flag))
+        if hold_stock_child:
+            held = hold_stock_primary_child(held)
         stdout = row['stdout'].replace('@SPACE@', ' ').encode()
         prefixes = row['release_prefixes']
         primary = held.before_primary is not None
-        count = 1 + int(held.before_second is not None) + int(primary)
+        has_second_release = held.before_second is not None or held.stock_second_worker is not None
+        count = 1 + int(has_second_release) + int(primary)
         if (len(prefixes) != count or prefixes != sorted(prefixes)
                 or not 0 < prefixes[0] <= prefixes[-1] <= len(stdout)):
             raise h.HarnessError('invalid remake debug release prefixes')
@@ -3093,7 +3116,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                            for end, barrier in zip(prefixes, PRIMARY_BARRIERS, strict=True)):
             raise h.HarnessError('invalid named primary debug release barrier')
         first = prefixes[int(primary)]
-        second = prefixes[-1] if held.before_second is not None else None
+        second = prefixes[-1] if has_second_release else None
         second_trace = stdout[first:second] if second is not None else b''
         if trace_transports and (not second_trace or b'@BIN@' in second_trace
                                  or b'Using jobserver controller ' in second_trace):

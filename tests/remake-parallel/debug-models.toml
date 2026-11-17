@@ -20450,7 +20450,8 @@ Successfully remade target file 'all'.
 case = "load-stock-primary-optional-mixed-n-pipe-high"
 flag = "m"
 requires_load = true
-release_prefixes = [597]
+hold_stock_child = true
+release_prefixes = [597, 616]
 stdout = '''
 GNU Make 4.4.1
 Built for x86_64-pc-linux-gnu
