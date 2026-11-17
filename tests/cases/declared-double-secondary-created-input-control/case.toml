@@ -1,0 +1,11 @@
+id = "declared-double-secondary-created-input-control"
+requirement = "resolution.implicit-secondary"
+candidate = "required"
+provenance = "Original rmake differential fixture for secondary expansion on a declared double-colon branch."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout = "created[leaf||]\nparent\nlate\n"
+stderr = ""

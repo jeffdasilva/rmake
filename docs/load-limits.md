@@ -167,6 +167,14 @@ and four slots. These 128 additional profiles verify the same bytes,
 primary mode and file effects across the tested job counts.
 Ninety-six further touch profiles exercise unbounded `-j` with and
 without a load option, including both optional-source positions.
+The required named sources can also extend beyond the final pair.
+Ninety-six more cases check three or eight named includes with two or
+four slots, including exact order, primary mode, and file effects.
+One optional include can also appear anywhere among the named sources.
+The 144 additional cases cover all three optional positions in a
+three-name tail and the pass boundary before a later required visit.
+Ninety-six further cases make both named sources optional and confirm
+the same touch policy through the first optional completion.
 
 If a missing required include is skipped because it is phony or has an
 unconditional double-colon recipe, the failed read prevents a restart after an
@@ -194,6 +202,13 @@ skipped-source restart decision),
 `src/misc.c` (`make_toui`) and `src/posixos.c` (`get_bad_stdin`). The Rust state
 transitions, owned descriptor adapter, fault helper and fixtures are original;
 no GNU implementation or test material was copied or translated.
+
+Basic makefile diagnostics (`--debug=b,m`) retain the parallel final named
+touch schedule. Twenty-eight held profiles cover required names under a load
+limit and one optional name without a limit, through both pipe and FIFO
+jobservers with two, three, four, and unbounded job settings. They check the
+primary-worker release, Makefile mode or deletion, restart output, and final
+goal effects across touch, question, and dry-run combinations.
 
 ## Performance observation
 

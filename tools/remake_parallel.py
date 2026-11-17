@@ -2053,13 +2053,15 @@ def named_load_models(available: list[HeldModel]) -> list[HeldModel]:
                                before_first_stdout=first_stdout, before_second=before_second,
                                before_second_stdout=second_stdout)
             optional = optional_named_load_model(required, position, mode, high)
-            directory_optional = optional
-            if high and position == 'middle' and mode == 'n':
+            directory_optional = direct_optional = optional
+            if high and position == 'middle' and mode in ('n', 'q'):
                 directory_optional = replace(
                     optional, model=named_load_witness(optional.model),
                     named_recipe=b'named.gen', named_parent_wait=True,
                 )
-            results.extend((required, optional, directory_named_load_model(required),
+                if mode == 'q':
+                    direct_optional = directory_optional
+            results.extend((required, direct_optional, directory_named_load_model(required),
                             directory_named_load_model(directory_optional),
                             builtin_load_model(required, explicit=True),
                             builtin_load_model(optional, explicit=True), builtin_load_model(required),
@@ -2190,7 +2192,19 @@ def stock_primary_load_models() -> list[HeldModel]:
                                                     id=dry.model.id.replace('-low', f'-no-load-{slots}-slots'))
                                                 results.append(replace(dry, model=model,
                                                                        load=replace(dry.load, trace=b'')))
-                                    results.extend(stock_primary_three_final_touch_profiles(query, optional))
+                                    results.extend(stock_primary_three_final_touch_profiles(
+                                        query, optional,
+                                        extend_named=optional or position == 'last-adjacent'))
+                                    if optional and position == 'last-adjacent-reversed':
+                                        middle = stock_primary_insert_optional_middle(query)
+                                        results.extend(stock_primary_three_final_touch_profiles(
+                                            middle, True, extend_named=False,
+                                            job_cases=(('-j2', '2-slots'), ('-j4', '4-slots'))))
+                                    if optional:
+                                        both = stock_primary_two_optional_touches(query)
+                                        results.extend(stock_primary_three_final_touch_profiles(
+                                            both, True, extend_named=False,
+                                            job_cases=(('-j2', '2-slots'), ('-j4', '4-slots'))))
     return results
 
 
@@ -2490,21 +2504,23 @@ def stock_primary_three_final_touch(held: HeldModel, modes: str) -> HeldModel:
 
 def stock_primary_three_optional_final_touch(held: HeldModel, modes: str) -> HeldModel:
     model = stock_primary_three_modes(held.model, modes)
-    goals = model.args[-3:-1]
-    first, last = (f'touch {goal}\n'.encode() for goal in goals)
+    goals = model.args[model.args.index('-t') + 1:-1]
+    touches = tuple(f'touch {goal}\n'.encode() for goal in goals)
+    read_lines = set(model.files['Makefile'].splitlines())
+    optional_end = next(index for index, goal in enumerate(goals, 1)
+                        if f'-include {goal}'.encode() in read_lines)
+    through_optional = b''.join(touches[:optional_end])
+    after_optional = b''.join(touches[optional_end:])
+    has_followers = bool(after_optional)
     leaf_touch = b'touch leaf.mk\n'
     high = held.load.at_release == LOAD_HIGH
-    optional_first = goals[0] == 'child.mk'
-    interrupts_pass = optional_first and high
+    interrupts_pass = has_followers and high
     dry_run = 'n' in modes
     question = 'q' in modes
-    removed = question and (high or optional_first)
-    release = held.before_first_stdout + first
-    if not interrupts_pass:
-        if optional_first:
-            release += leaf_touch + last
-        else:
-            release += last if high else last + leaf_touch
+    removed = question and (high or has_followers)
+    release = held.before_first_stdout + through_optional
+    if not high:
+        release += leaf_touch + after_optional
     stdout = release
     stderr = b''
     updates = {name: data for name, data in model.updates.items() if name.startswith('primary.')}
@@ -2514,18 +2530,18 @@ def stock_primary_three_optional_final_touch(held: HeldModel, modes: str) -> Hel
     if removed:
         stderr = b"make: *** Deleting file 'Makefile'\n"
         if interrupts_pass:
-            stdout += last
+            stdout += after_optional
     else:
-        touched_primary = high or optional_first
+        touched_primary = high or has_followers
         primary_mode = 0o644 if touched_primary else 0o755
         stdout += b'touch Makefile\n' * 2 if touched_primary else b'chmod a+x Makefile\n'
         updates['Makefile'] = model.files['Makefile.sh']
         if interrupts_pass:
-            stdout += last + leaf_touch * 2
+            stdout += after_optional + leaf_touch * 2
             if dry_run:
-                stdout += first + leaf_touch + last
+                stdout += through_optional + leaf_touch + after_optional
         if dry_run:
-            stdout += first + last
+            stdout += through_optional + after_optional
     if not question:
         stdout += b''.join(f"make: '{goal}' is up to date.\n".encode() for goal in goals)
     stdout += b'touch all\n'
@@ -2537,20 +2553,93 @@ def stock_primary_three_optional_final_touch(held: HeldModel, modes: str) -> Hel
     return replace(held, model=model, before_first_stdout=release, stock_primary_mode=primary_mode)
 
 
-def stock_primary_three_final_touch_profiles(held: HeldModel, optional: bool) -> Iterator[HeldModel]:
+def stock_primary_three_final_touch_profiles(
+    held: HeldModel,
+    optional: bool,
+    *,
+    extend_named: bool,
+    job_cases: tuple[tuple[str, str], ...] = (
+        ('-j2', '2-slots'), ('-j3', '3-slots'), ('-j4', '4-slots'), ('-j', 'unbounded'),
+    ),
+) -> Iterator[HeldModel]:
     make_profile = (stock_primary_three_optional_final_touch if optional
                     else stock_primary_three_final_touch)
+    extra_counts = (3,) if optional else (3, 8)
     for modes in ('t', 'qt', 'nt', 'nqt'):
         base = make_profile(held, modes)
-        for jobs, label in (('-j2', '2-slots'), ('-j3', '3-slots'), ('-j4', '4-slots'), ('-j', 'unbounded')):
+        for jobs, label in job_cases:
             args = tuple(jobs if arg == '-j3' else arg for arg in base.model.args)
             model = replace(base.model, id=f'{base.model.id}-{label}', args=args)
-            touch = replace(base, model=model)
-            yield touch
+            profiles = [replace(base, model=model)]
             if held.load.at_release == LOAD_LOW:
                 args = tuple(arg for arg in model.args if arg != '-l2')
                 model = replace(model, id=model.id.replace('-low-', '-no-load-'), args=args)
-                yield replace(touch, model=model, load=replace(touch.load, trace=b''))
+                profiles.append(replace(base, model=model, load=replace(base.load, trace=b'')))
+            for profile in profiles:
+                yield profile
+                if extend_named and jobs in ('-j2', '-j4'):
+                    for count in extra_counts:
+                        yield stock_primary_add_named_touch_sources(profile, count)
+
+
+def stock_primary_add_named_touch_sources(held: HeldModel, named_count: int) -> HeldModel:
+    model = held.model
+    added = ['tail' if index == 1 else f'tail{index}' for index in range(1, named_count - 1)]
+    sources = [f'{name}.mk' for name in added]
+    includes = b''.join(f'include {source}\n'.encode() for source in sources)
+    references = b''.join(f' $({name.upper()})'.encode() for name in added)
+    rules = b''.join(f"{name}.mk: ; @printf '%s\\n' '{name.upper()} := loaded' > $@\n".encode()
+                     for name in added)
+    files = dict(model.files)
+    for name in ('Makefile', 'Makefile.sh'):
+        body = files[name]
+        files[name] = (body.replace(b'include extra.mk\n', b'include extra.mk\n' + includes)
+                       .replace(b'$(LEAF)', b'$(LEAF)' + references) + rules)
+    updates = dict(model.updates)
+    if 'Makefile' in updates:
+        updates['Makefile'] = files['Makefile.sh']
+    if 'extra.mk' in updates:
+        updates.update(dict.fromkeys(sources, updates['extra.mk']))
+    last_touch = b'touch extra.mk\n'
+    last_summary = b"make: 'extra.mk' is up to date.\n"
+    touches = b''.join(f'touch {source}\n'.encode() for source in sources)
+    summaries = b''.join(f"make: '{source}' is up to date.\n".encode() for source in sources)
+    stdout = (bytes.fromhex(model.expected['stdout_template_hex'])
+              .replace(last_touch, last_touch + touches)
+              .replace(last_summary, last_summary + summaries))
+    expected = {**model.expected, 'stdout_template_hex': stdout.hex()}
+    insert_after = model.args.index('extra.mk') + 1
+    args = (*model.args[:insert_after], *sources, *model.args[insert_after:])
+    model = replace(model, id=f'{model.id}-{named_count}-named', args=args,
+                    files=files, expected=expected, updates=updates)
+    return replace(held, model=model,
+                   before_first_stdout=held.before_first_stdout.replace(last_touch, last_touch + touches))
+
+
+def stock_primary_insert_optional_middle(held: HeldModel) -> HeldModel:
+    extended = stock_primary_add_named_touch_sources(held, 3)
+    model = extended.model
+    files = dict(model.files)
+    before = b'include tail.mk\n-include child.mk\n'
+    after = b'-include child.mk\ninclude tail.mk\n'
+    for name in ('Makefile', 'Makefile.sh'):
+        assert files[name].count(before) == 1
+        files[name] = files[name].replace(before, after)
+    index = model.args.index('tail.mk')
+    assert model.args[index + 1] == 'child.mk'
+    args = (*model.args[:index], 'child.mk', 'tail.mk', *model.args[index + 2:])
+    identifier = model.id.replace('last-adjacent-reversed', 'last-adjacent-optional-middle')
+    return replace(held, model=replace(model, id=identifier, files=files, args=args))
+
+
+def stock_primary_two_optional_touches(held: HeldModel) -> HeldModel:
+    model = held.model
+    files = dict(model.files)
+    for name in ('Makefile', 'Makefile.sh'):
+        assert files[name].count(b'include extra.mk\n') == 1
+        files[name] = files[name].replace(b'include extra.mk\n', b'-include extra.mk\n')
+    identifier = model.id.replace('stock-primary-optional-', 'stock-primary-both-optional-')
+    return replace(held, model=replace(model, id=identifier, files=files))
 
 
 def stock_primary_three_prefix_model(held: HeldModel, optional: bool, named_count: int,
@@ -2970,7 +3059,7 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
         held = by_id.get(name)
         if (held is None or (name, flag) in seen or not isinstance(requires_load, bool)
                 or (held.load is not None) != requires_load
-                or flag not in ('m', 'm,v') or not isinstance(fifo, bool)
+                or flag not in ('b,m', 'm', 'm,v') or not isinstance(fifo, bool)
                 or not isinstance(hold_named, bool)
                 or (hold_named and (flag != 'm,v' or not requires_load or trace_transports))
                 or (fifo and flag != 'm,v')
@@ -3016,8 +3105,10 @@ def remake_debug_models(held_models: list[HeldModel]) -> list[HeldModel]:
                 raise h.HarnessError('invalid named load recipe witness')
             if second is not None and second_barrier is None:
                 second_barrier = NAMED_LOAD_RIGHT_BARRIER.decode()
-            model = named_load_witness(model)
-            held = replace(held, named_recipe=b'named.gen')
+            if held.named_recipe is None:
+                model = named_load_witness(model)
+            # The verbose trace has its own release point.
+            held = replace(held, named_recipe=b'named.gen', named_parent_wait=False)
         if second_barrier is not None:
             if (not isinstance(second_barrier, str) or not second_barrier or second is None
                     or not stdout[:second].endswith(second_barrier.encode())):

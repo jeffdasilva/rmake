@@ -1,0 +1,11 @@
+id = "assumed-double-phony-default-completion"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+provenance = "Original rmake differential fixture for assumed-new phony double-colon completion."
+args = ["-rR", "--no-print-directory", "-j1", "-W", "leaf", "all"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout = "default[leaf]\n"
+stderr = ""

@@ -1022,6 +1022,7 @@ struct DoubleColonState {
     depth: usize,
     before: Option<SystemTime>,
     phony: bool,
+    assumed_phony_input: bool,
     branches: std::collections::VecDeque<(usize, Option<Rule>)>,
     active: Option<usize>,
     last_epoch: Option<u64>,
@@ -1117,6 +1118,7 @@ struct ImplicitSearch {
     compatibility: bool,
     archive: bool,
     intermediate_scope: Option<ImplicitScope>,
+    branch: Option<usize>,
 }
 
 // A selected Makefile record can name a file that does not exist yet.
@@ -3312,30 +3314,36 @@ impl Engine {
                 )
             };
             let limited_load = self.options.load_limit.is_some();
-            let final_named_required = match read_files.as_slice() {
-                [(_, false), (first, false), (middle, false), (last, false)]
-                    if ordinary_mode
-                        && !named_include(first)
-                        && named_include(middle)
-                        && named_include(last) =>
+            let final_named_sources = match read_files.as_slice() {
+                [(_, false), (first, false), named @ ..]
+                    if named.len() >= 2
+                        && (modes.touch || modes.dry_run)
+                        && !(first.optional || named_include(first))
+                        && named
+                            .iter()
+                            .all(|(file, skip)| !skip && named_include(file)) =>
                 {
-                    match (first.optional, middle.optional, last.optional) {
-                        (false, false, false) => Some(true),
-                        (false, true, false) | (false, false, true) => Some(false),
-                        _ => None,
-                    }
+                    named
                 }
-                _ => None,
+                _ => &[],
             };
-            let final_required_dry = final_named_required == Some(true)
+            let optional_named_sources = final_named_sources
+                .iter()
+                .filter(|(file, _)| file.optional)
+                .count();
+            let final_required_dry = final_named_sources.len() == 2
+                && optional_named_sources == 0
                 && modes.dry_run
                 && !(modes.question || modes.touch);
             let final_named_dry = limited_load
                 && final_required_dry
                 && self.options.jobs.is_some_and(|slots| slots >= 4);
-            let final_named_touch = final_named_required.is_some()
-                && modes.touch
-                && !debug_before_remake.has(Mask::MAKEFILES)
+            let final_named_touch_debug =
+                debug_before_remake.bits() == remake_debug_bits && final_named_sources.len() == 2;
+            let final_named_touch = modes.touch
+                && !final_named_sources.is_empty()
+                && (optional_named_sources <= 1 || final_named_sources.len() == 2)
+                && (!debug_before_remake.has(Mask::MAKEFILES) || final_named_touch_debug)
                 && self.options.jobs.is_some_and(|slots| slots >= 2);
             let unruled_primary = ordinary_mode
                 && (limited_load || final_named_touch)
@@ -3350,36 +3358,36 @@ impl Engine {
                 && self.unruled_primary_before_named_includes(&read_files, named_sources.as_ref());
             let named_load_files = &read_files[usize::from(unruled_primary)..];
             let mixed_named_overlap = unruled_primary
-                && match named_load_files {
-                    [(_, false), (_, false)] => {
-                        !debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug
-                    }
-                    [(first, false), (middle, false), (last, false)] => {
-                        let named_first = named_include(first);
-                        let named_last = named_include(last);
-                        let early_named = named_first || (!named_last && named_include(middle));
-                        let required_ends = !(first.optional || last.optional);
-                        let all_required = required_ends && !middle.optional;
-                        let required_touch = !named_last
-                            && all_required
-                            && modes.touch
-                            && (!modes.dry_run || !modes.question);
-                        let optional_middle_touch = !(named_first || named_last)
-                            && required_ends
-                            && middle.optional
-                            && modes.touch;
-                        !debug_before_remake.has(Mask::MAKEFILES)
-                            && ((modes.question && !modes.touch)
-                                || (named_first && !named_last)
-                                || final_named_dry
-                                || final_named_touch
-                                || (early_named
-                                    && ((modes.dry_run && !modes.touch)
-                                        || required_touch
-                                        || optional_middle_touch)))
-                    }
-                    _ => false,
-                }
+                && (final_named_touch
+                    || match named_load_files {
+                        [(_, false), (_, false)] => {
+                            !debug_before_remake.has(Mask::MAKEFILES) || qualified_remake_debug
+                        }
+                        [(first, false), (middle, false), (last, false)] => {
+                            let named_first = named_include(first);
+                            let named_last = named_include(last);
+                            let early_named = named_first || (!named_last && named_include(middle));
+                            let required_ends = !(first.optional || last.optional);
+                            let all_required = required_ends && !middle.optional;
+                            let required_touch = !named_last
+                                && all_required
+                                && modes.touch
+                                && (!modes.dry_run || !modes.question);
+                            let optional_middle_touch = !(named_first || named_last)
+                                && required_ends
+                                && middle.optional
+                                && modes.touch;
+                            !debug_before_remake.has(Mask::MAKEFILES)
+                                && ((modes.question && !modes.touch)
+                                    || (named_first && !named_last)
+                                    || final_named_dry
+                                    || (early_named
+                                        && ((modes.dry_run && !modes.touch)
+                                            || required_touch
+                                            || optional_middle_touch)))
+                        }
+                        _ => false,
+                    })
                 && named_load_files
                     .iter()
                     .any(|(file, _)| !named_include(file));
@@ -3479,6 +3487,7 @@ impl Engine {
                         || optional_named_load));
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
+                    || (final_named_touch && final_named_touch_debug)
                     || named_load_debug
                     || optional_named_load
                     || (((debug_before_remake.bits() == remake_debug_bits && !basic_load_debug)
@@ -3932,8 +3941,7 @@ impl Engine {
                         // Keep the optional mode through the primary continuation.
                         // Admit the earlier unnamed job after restoring ordinary mode.
                         let defer_load_refill = mixed_named_overlap
-                            && read_files.len() == 4
-                            && source_index == 2
+                            && (final_named_touch || (read_files.len() == 4 && source_index == 2))
                             && visit_modes.touch
                             && pending.iter().any(|request| {
                                 request.file.location.is_some() && !request.modes.active()
@@ -7926,9 +7934,17 @@ impl Engine {
 
     /// Local implicit prerequisites use directory membership without a fresh
     /// stat. VPATH candidates still require its positive-name stat check.
-    fn implicit_presence(&mut self, target: &[u8]) -> Result<ImplicitPresence, ExpandError> {
+    fn implicit_presence(
+        &mut self,
+        target: &[u8],
+        attempt: crate::debug::Event<'_>,
+    ) -> Result<ImplicitPresence, ExpandError> {
         if rmake_core::filenames::archive_parts(target).is_none() {
-            return if self.directory_member(target)? {
+            // The local lookup can announce an invalidated directory
+            // before the prerequisite attempt. VPATH follows the attempt.
+            let present = self.directory_member(target);
+            crate::debug::emit(&self.output, attempt);
+            return if present? {
                 Ok(ImplicitPresence::Local)
             } else {
                 Ok(match self.searched_file(target)? {
@@ -7938,6 +7954,7 @@ impl Engine {
                 })
             };
         }
+        crate::debug::emit(&self.output, attempt);
         // Viability uses the archive date alone. Standalone-member freshness
         // belongs to the later build timestamp phase. Existing containers enter
         // the filename table even if the candidate is eventually rejected.
@@ -8073,7 +8090,7 @@ impl Engine {
             Some(rule) => (true, rule.record_only.then(|| rule.dependencies.clone())),
             None => (false, Some(Vec::new())),
         };
-        let Ok(plan) = self.plan_implicit_update(target, debug_depth, true) else {
+        let Ok(plan) = self.plan_implicit_update(target, debug_depth, true, None) else {
             return false;
         };
         if plan.is_none()
@@ -8103,6 +8120,7 @@ impl Engine {
         target: &[u8],
         debug_depth: usize,
         record_attempt: bool,
+        branch: Option<usize>,
     ) -> Result<Option<Vec<ImplicitSelection>>, ()> {
         if self.terminal_prerequisites.contains(target) {
             return Ok(None);
@@ -8122,7 +8140,14 @@ impl Engine {
             crate::debug::Event::Looking(target, debug_depth + 1),
         );
         let mut budget = 100_000;
-        match self.implicit_plan(target, &mut Vec::new(), false, &mut budget, debug_depth) {
+        match self.implicit_plan(
+            target,
+            &mut Vec::new(),
+            false,
+            &mut budget,
+            debug_depth,
+            branch,
+        ) {
             Ok(None) if budget == 0 => {
                 self.fatal(None, b"rmake: implicit rule search resource limit exceeded");
                 Err(())
@@ -8286,12 +8311,15 @@ impl Engine {
         &mut self,
         target: &[u8],
         depth: usize,
+        branch: Option<usize>,
     ) -> Result<Option<Rule>, ()> {
         let depth = depth + usize::from(self.remaking);
-        Ok(match self.plan_implicit_update(target, depth, false)? {
-            Some(plan) => self.install_implicit_plan(target, plan, true),
-            None => self.default_update_rule(target, depth, true),
-        })
+        Ok(
+            match self.plan_implicit_update(target, depth, false, branch)? {
+                Some(plan) => self.install_implicit_plan(target, plan, true),
+                None => self.default_update_rule(target, depth, true),
+            },
+        )
     }
 
     /// Search is transactional: a rejected branch never installs rules or marks
@@ -8304,6 +8332,7 @@ impl Engine {
         compatibility: bool,
         budget: &mut usize,
         debug_depth: usize,
+        branch: Option<usize>,
     ) -> Result<Option<Vec<ImplicitSelection>>, ExpandError> {
         if active.len() >= 128 {
             *budget = 0;
@@ -8319,6 +8348,7 @@ impl Engine {
             compatibility,
             archive: false,
             intermediate_scope: None,
+            branch,
         };
         for archive_search in [false, true] {
             if archive_search && archive_name.is_none() {
@@ -8492,6 +8522,7 @@ impl Engine {
                                     intermediate,
                                     candidate.rule.stem.clone().unwrap_or_default(),
                                     &mut search.intermediate_scope,
+                                    search.branch,
                                 )?);
                             } else if !stem_set {
                                 variables.as_mut().unwrap().define_literal(
@@ -8517,6 +8548,12 @@ impl Engine {
                                     if scope.shell_status.as_ref() != Some(status) {
                                         scope.shell_status = Some(status.clone());
                                     }
+                                } else if let Some(ordinal) = search.branch {
+                                    // A later branch inherits the head, but its shell
+                                    // completion belongs to its own recipe variables.
+                                    let mut context = self.rule_variables(target, Some(ordinal))?;
+                                    context.retain_local_shell_status(status);
+                                    self.retain_database_context(target, Some(ordinal), &context);
                                 } else if let Some(context) =
                                     self.target_contexts.get_mut(self.aliases.resolve(target))
                                 {
@@ -8617,10 +8654,8 @@ impl Engine {
                             {
                                 intermediate_names.push(name.clone());
                             }
-                            crate::debug::emit(
-                                &self.output,
-                                crate::debug::Event::TryingPrerequisite(name, literal, event_depth),
-                            );
+                            let attempt =
+                                crate::debug::Event::TryingPrerequisite(name, literal, event_depth);
                             let explicit = (self.has_file_record(name)
                                 && self.record_is_target(name))
                                 || self.database.rules.get(target).is_some_and(|rule| {
@@ -8631,6 +8666,9 @@ impl Engine {
                                             })
                                     })
                                 });
+                            if name == b".WAIT" || explicit {
+                                crate::debug::emit(&self.output, attempt);
+                            }
                             if explicit {
                                 crate::debug::emit(
                                     &self.output,
@@ -8641,7 +8679,7 @@ impl Engine {
                                 );
                             }
                             if name != b".WAIT" && !explicit {
-                                let presence = self.implicit_presence(name)?;
+                                let presence = self.implicit_presence(name, attempt)?;
                                 if matches!(presence, ImplicitPresence::Local) {
                                     crate::debug::emit(
                                         &self.output,
@@ -8730,6 +8768,7 @@ impl Engine {
                                         compatibility,
                                         budget,
                                         debug_depth,
+                                        None,
                                     )? {
                                         plan.extend(child);
                                     } else {
@@ -8823,6 +8862,7 @@ impl Engine {
         intermediate: bool,
         stem: Vec<u8>,
         intermediate_scope: &mut Option<ImplicitScope>,
+        branch: Option<usize>,
     ) -> Result<VariableStore, ExpandError> {
         if intermediate && intermediate_scope.is_none() {
             let pattern = self.database.prepare_pattern_scope(
@@ -8864,7 +8904,7 @@ impl Engine {
             }
             context
         } else {
-            self.target_variables(target)?
+            self.rule_variables(target, branch)?
         };
         let mut empty = Rule::default();
         let explicit = if intermediate {
@@ -9291,7 +9331,7 @@ impl Engine {
                 if self.new_double_colon_entry_count(target) > 1 {
                     return self.start_late_double_colon_recipe(target, depth, time, outcome, None);
                 }
-                match self.synthetic_double_colon_recipe(target, depth) {
+                match self.synthetic_double_colon_recipe(target, depth, None) {
                     Ok(Some(rule)) => {
                         return self.start_late_double_colon_recipe(
                             target,
@@ -9369,6 +9409,7 @@ impl Engine {
                 depth,
                 before,
                 phony,
+                assumed_phony_input: false,
                 branches,
                 active: None,
                 last_epoch: None,
@@ -10026,6 +10067,7 @@ impl Engine {
                     depth,
                     before,
                     phony,
+                    assumed_phony_input: false,
                     branches,
                     active: None,
                     last_epoch: None,
@@ -10277,9 +10319,12 @@ impl Engine {
                     }
                     state.combined.database_result = DatabaseResult::ObservedDoubleColon;
                 }
-                state.combined.time = if state.phony {
+                state.combined.time = if state.phony && !state.assumed_phony_input {
                     None
-                } else if state.combined.completion.preserves() || state.combined.failed {
+                } else if state.assumed_phony_input
+                    || state.combined.completion.preserves()
+                    || state.combined.failed
+                {
                     state.combined.time
                 } else {
                     self.modified(target)
@@ -10317,6 +10362,11 @@ impl Engine {
                 .synthetic_tail
                 .as_ref()
                 .and_then(|tail| tail.assumed_time);
+            let implicit_branch = (ordinal != 0
+                && !self.remaking
+                && self.active_makefile_remake.is_none()
+                && assumed_time.is_none())
+            .then_some(ordinal);
             if ordinal != 0 && !declared && !self.remaking && assumed_time.is_none() {
                 // A fresh synthetic branch announces its visit before
                 // implicit search, even when no recipe can be found.
@@ -10343,7 +10393,7 @@ impl Engine {
                         head,
                     }));
                 }
-                match self.synthetic_double_colon_recipe(target, state.depth) {
+                match self.synthetic_double_colon_recipe(target, state.depth, implicit_branch) {
                     Ok(Some(rule)) => rule,
                     Ok(None) => {
                         self.fail_double_colon_input(target, state.depth, &mut state.combined);
@@ -10419,6 +10469,22 @@ impl Engine {
                     );
                 }
             }
+            // A fresh assumed-new entry is appended after declarations
+            // have been marked phony. Its recipe and dependents use the
+            // synthetic entry's own timestamp.
+            let synthetic_time = if state.phony
+                && !declared
+                && implicit_branch.is_some()
+                && (branch.implicit_pattern.is_some() || branch.default_recipe)
+                && branch.group.is_none()
+            {
+                self.assumed_new_double_colon_time(target)
+            } else {
+                None
+            };
+            state.assumed_phony_input = synthetic_time.is_some();
+            let branch_phony = state.phony && !state.assumed_phony_input;
+            let branch_before = synthetic_time.or(branch_before);
             let before = assumed_time.or(branch_before);
             let comparison = self.comparison_time(target, before);
             if declared
@@ -10428,14 +10494,15 @@ impl Engine {
                 && !state.phony
                 && branch.recipes.is_none()
                 && branch.group.is_none()
-                && branch.secondary.is_none()
                 && !self.shuffle.enabled()
                 && !self.terminal_prerequisites.contains(target)
                 && self
                     .database_branch_implicit
                     .insert((target.to_vec(), ordinal))
             {
-                let Ok(plan) = self.plan_implicit_update(target, state.depth, false) else {
+                let Ok(plan) =
+                    self.plan_implicit_update(target, state.depth, false, implicit_branch)
+                else {
                     state.combined.failed = true;
                     state.combined.fatal = true;
                     state.branches.clear();
@@ -10474,7 +10541,7 @@ impl Engine {
                     state.depth,
                     branch_before,
                     comparison,
-                    state.phony,
+                    branch_phony,
                     branch,
                     Some(ordinal),
                     replay_cached_after_recipe,
