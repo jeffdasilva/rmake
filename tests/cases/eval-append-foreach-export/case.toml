@@ -1,0 +1,12 @@
+id = "eval-append-foreach-export"
+requirement = "functions.eval"
+candidate = "required"
+description = "A recipe append reads a foreach value while exporting the new global value to the child."
+provenance = "Original rmake fixture, independently authored against the pinned GNU Make 4.4.1 interface."
+args = ["-rR", "--no-print-directory", "all", "later"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "inside=[inner]\nchild=[inner suffix]\noutside=[inner suffix/file/simple]\n"
+stderr = ""

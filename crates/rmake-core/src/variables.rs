@@ -2189,10 +2189,11 @@ impl VariableStore {
         // it neither changes the value nor promotes an environment origin.
         if assignment == Assignment::Append
             && value.is_empty()
-            && lookup_scope.map_or_else(
-                || self.variables.contains_key(name),
-                |scope| scope.get(name).is_some(),
-            )
+            && (append_base.is_some()
+                || lookup_scope.map_or_else(
+                    || self.variables.contains_key(name),
+                    |scope| scope.get(name).is_some(),
+                ))
         {
             return Ok(());
         }

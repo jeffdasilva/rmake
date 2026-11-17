@@ -1,0 +1,12 @@
+id = "eval-append-let-read"
+requirement = "functions.eval"
+candidate = "required"
+description = "A read-time eval append uses the simple let value and runs the suffix immediately."
+provenance = "Original rmake fixture, independently authored against the pinned GNU Make 4.4.1 interface."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "inside=[local/automatic/simple]\noutside=[local suffix/file/simple]\nRHS=[local]\n"
+stderr = ""
