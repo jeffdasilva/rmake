@@ -1,240 +1,262 @@
-# Localized system diagnostics
+# Use and test localized diagnostics
 
-This slice matches the pinned GNU Make 4.4.1 French catalog for selected
-reader, expansion, and build diagnostics: missing separators, unterminated
-function calls, invalid `intcmp` arguments, undefined variables, missing
-rules, skipped goals, and numeric recipe failures. It also covers the fatal
-stop suffix and the ignored recipe failure suffix. The shipped French data
-comes from the pinned GNU release; older translations that have no matching
-message ID retain the source text. See [catalog provenance](../catalogs/provenance.json)
-for the pinned source and [the complete notice](../catalogs/fr.po) for attribution.
+rmake ships the 30 message catalogs distributed with GNU Make 4.4.1. The Linux
+application uses them for supported system diagnostics. Catalog selection,
+individual messages and locale-dependent behavior have separate tests. This
+guide explains how to stage the catalogs and which profiles the evidence covers.
 
-The core distinguishes system messages from user and native text. The Linux
-adapter selects each template through public `gettext` in the active locale
-and text domain. The formatter checks byte-string and numeric arguments before
-substitution. It does not pass a translated template to C varargs, and never
-looks up a user or module's text as a message ID. Expansion errors that can
-cross a native callback boundary retain the rendered body and stop suffix,
-so restoring the caller's locale cannot change an already established
-diagnostic. Warnings are rendered when published, before output buffering.
+## Stage catalogs for installation
 
-The initial `make` domain is bound to rmake's own catalog directory. A normal
-development build uses the checked-out `catalogs` directory. For installed
-builds, set the logical absolute path with `RMAKE_LOCALEDIR` at build time
-and install that same directory with `make catalog-install`. For example:
+A development build binds the `make` text domain to the checkout's `catalogs`
+directory. For an installed binary, set its absolute catalog path at build time
+and stage the same logical directory.
 
 ```sh
 RMAKE_LOCALEDIR=/usr/local/share/rmake/locale make release
-make catalog-install PREFIX=/usr/local DESTDIR=/path/to/stage
+make catalog-install PREFIX=/usr/local DESTDIR="$PWD/artifacts/catalog-stage"
 ```
 
-The initial binding does not use the reference installation or a system
-Make catalog. Native callers may change their active domain and bindings
-through the public libc interface, including selecting an unbound custom
-domain. Application-owned catalogs are checked against the typed message
-schema at build time. Custom templates may reorder, omit, or reuse compatible
-arguments. Unsupported or mismatched conversions are rejected by the checked
-formatter; malformed GNU templates have not been exercised as reference cases.
+This stages the catalogs, source notices and provenance under
+`artifacts/catalog-stage/usr/local/share/rmake/locale`. The binary's configured
+runtime path remains `/usr/local/share/rmake/locale`. `DESTDIR` supplies the
+packaging prefix. Distribute the executable and staged catalog tree together.
 
-Run `make test-nls` for development and `make test-nls-release` for optimized
-builds. `NLS_CASE` selects one exact case. The gate provisions or verifies the
-pinned Ubuntu Noble x86-64/glibc 2.39 locale in `LOCALE_DATA_ROOT`, verifies the
-reference binary and French catalog, and compares two GNU runs and one
-candidate against fixed expectations for raw stdout, raw stderr, exit status,
-file effects, and process cleanup. The 30 original profiles cover French
-diagnostics, C controls, live private and global `LC_MESSAGES`, and custom
-domains. Native fixtures retain ordered side effects and verify that fatal
-expansion stops later calls. No diagnostic output is normalized. User
-text stays unchanged even when the surrounding system diagnostic is translated.
+| Setting | Default and purpose |
+| --- | --- |
+| `RMAKE_LOCALEDIR` | Build-time environment variable for the absolute runtime catalog directory. Defaults to the checkout's `catalogs` path. |
+| `PREFIX` | `/usr/local`. Supplies the installation prefix. |
+| `CATALOG_INSTALL_DIR` | `$(PREFIX)/share/rmake/locale`. Selects the logical destination for `catalog-install`. Keep it equal to the binary's `RMAKE_LOCALEDIR`. |
+| `DESTDIR` | Empty. Prepends a staging root to `CATALOG_INSTALL_DIR`. |
 
-The remaining diagnostic inventory, additional languages, plural and broader
-character-set formats, output from optional Guile workers, and the database,
-debug, and usage surfaces need separate qualification. This slice
-does not establish general NLS or M3/M6 compatibility.
+Run `make catalog-check` to verify catalog and notice identities. Cargo also
+checks every shipped compiled catalog against the supported typed message
+schemas. The [catalog guide](../catalogs/README.md),
+[staging tool](../tools/catalogs.py) and [build setup](../crates/rmake-app/build.rs)
+record these flows.
+
+## Run locale checks
+
+Run the diagnostic gate and replay an individual case from the repository root.
+
+```sh
+make test-nls
+make test-nls NLS_CASE=nls-private-messages-warning
+```
+
+The NLS gates build the candidate, verify the reference and catalogs, and prepare the
+required locale data. Use the following targets for related checks.
+
+| Command | Coverage and replay setting |
+| --- | --- |
+| `make test-nls-release` | The localized diagnostic gate with the optimized binary. Supports `NLS_CASE`. |
+| `make test-nls-directory` | Localized entering and leaving lines, including deleted working directories. Supports `NLS_DIRECTORY_CASE`. |
+| `make test-nls-directory-release` | The directory gate with the optimized binary. Supports `NLS_DIRECTORY_CASE`. |
+| `make test-catalog-coverage` | Every shipped catalog and language fallback. Supports `CATALOG_COVERAGE_CASE`. |
+| `make test-locales` | Selected C and C.UTF8 parsing, byte and filename behavior. Supports `LOCALE_CASE`. |
+
+The diagnostic reports are `artifacts/nls/development.json` and
+`artifacts/nls/optimized.json`. Directory reports use
+`artifacts/nls/directory-development.json` and
+`artifacts/nls/directory-optimized.json`. Catalog selection reports go to
+`artifacts/catalog-coverage/development.json`.
+
+`LOCALE_DATA_ROOT` defaults to `.tools/locale-data` under the repository. The
+[pinned locale profile](../oracle/locale-data.json) provides private French UTF-8
+data for the recorded Ubuntu Noble x86-64/glibc 2.39 environment. Provisioning
+verifies the package and generated data identities and leaves system locale
+configuration unchanged. `make bootstrap-locale-data` prepares this test data
+on its own.
+
+## Language and profile coverage
+
+The [catalog selection gate](../tests/catalog-coverage/README.md) exercises all
+30 catalogs through glibc. It uses the private French UTF-8 message locale and
+selects each catalog with `LANGUAGE`. Controls cover an unavailable language,
+a partially translated message and the C locale. An independent catalog reader
+checks expected bytes, and a native callback checks actual gettext selection
+alongside a parser diagnostic. This establishes catalog selection and fallback
+for those messages.
+
+The diagnostic models below cover French and C controls, private and global
+`LC_MESSAGES`, custom domains, and selected German, Japanese and Polish
+messages. The [C/C.UTF8 profiles](../tests/locales/README.md) and
+[startup locale guide](startup-locale.md) cover other locale behavior separately.
+The [Guile guide](guile-frontend.md) records its own enabled-profile acceptance.
+Recorded Guile checks include private French messages in a joined worker and
+preservation of that locale through fatal diagnostics and finalizers.
+
+## Diagnostic bytes and ownership
+
+The core distinguishes system messages from user and native text. The
+[Linux gettext adapter](../crates/rmake-linux/src/messages.rs) selects a system
+template in the active locale and text domain. The formatter checks byte-string
+and numeric arguments before substitution. Translated templates never pass
+through C varargs. User and module text remains literal even when it matches
+a catalog message ID.
+
+An expansion error that crosses a native callback boundary retains its rendered
+body and stop suffix. Restoring the caller's locale therefore preserves the
+already-established diagnostic. Warnings are rendered when published, before
+output buffering. File names, target names, OS errors and other byte arguments
+retain their original spelling.
+
+The initial domain uses rmake's catalog directory. Native callers can change
+their domain and bindings through public libc interfaces, including selecting
+an unbound domain. Custom templates can reorder, omit or reuse compatible
+arguments. The checked formatter rejects unsupported or mismatched conversions.
+Malformed GNU templates have not been exercised as reference cases.
+
+## Read the evidence
+
+The [diagnostic runner](../tools/nls_diagnostics.py) compares two GNU runs and
+the candidate against independently specified stdout, stderr, status, ordered
+effects and complete filesystem expectations. Selected restart cases also
+assert timestamps. Process bounds and cleanup remain part of acceptance.
+A new signal, reached bound or leftover process is retained as evidence and
+stops replay. Diagnostic output is compared byte for byte.
+
+Some messages contain details supplied by the operating system. The gate obtains
+errno text through an independent libc call in the selected locale. Loader
+messages use separate `dlopen` and `dlsym` observations. These exact bytes fill
+explicit expected fields. The Make wording, paths, status and effects remain
+independently specified. Reports retain the observations, input models, source
+hashes, reference identity, catalog identity and locale profile.
 
 ## Structural diagnostics
 
-The follow-up adds 16 original cases for absent or empty makefiles, an
-invalid default goal, structural reader errors, recursive and unterminated
-variable references, and duplicate recipes. The warning pair preserves its
-original source lines, order, and raw target bytes. A following user warning
-retains its original bytes. Native controls select private French or C
-`LC_MESSAGES` during include failures and warning publication, then check
-that restoration to the global selection has the expected effect.
-
-These cases extend the same development and release gates to 46 profiles.
-The 16 new expectations were recorded before either engine ran. Both GNU
-observations matched all 16; the previous candidate matched four and
-differed only on stderr in the other 12. The combined diagnostic gate runs all 46 cases.
+The [structural models](../tests/nls/structure.json) cover absent or empty
+Makefiles, invalid default goals, reader syntax, recursive or unterminated
+variable references and duplicate recipes. Paired warnings retain their source
+lines, order and raw target names. A following user warning keeps its own bytes.
+Native controls change private French or C `LC_MESSAGES` during include failures
+and warning publication, then check restoration to the global selection.
 
 ## Directory output
 
-Each entering or leaving line uses the current domain and message locale at
-the point of output. The message arguments keep the base program name,
-recursion depth, and directory separate so translated templates can reorder
-them. Directory framing still uses the existing output synchronization and
-C stdout flush boundaries. Database output adds its literal comment prefix
+Each entering or leaving line uses the domain and message locale active at
+publication. The program name, recursion depth and directory remain separate
+arguments so a template can reorder them. Output synchronization and C stdout
+flush boundaries still apply. Database output adds its literal comment prefix
 outside the template.
 
-A failed `getcwd` reports the OS error and continues. Without `-C`, an initial
-failure leaves `CURDIR` empty. A failure to refresh the directory after a
-successful `-C` retains the earlier `CURDIR` and reports an unknown directory.
-The test launcher creates these states with a genuinely deleted cwd or a
-deleted directory held by an open fd.
-
-Run `make test-nls-directory` or `make test-nls-directory-release` for 17
-additional profiles. `NLS_DIRECTORY_CASE` selects an exact case. The gate
-covers C and French, root and recursive invocations, target and line spools,
-live locale changes, custom templates, and four deleted-cwd cases.
-Expected directory paths come from the fresh test workspace. Expected OS
-error bytes come from an independent public libc call in the selected locale.
-The Make diagnostic wording, streams, exit status and file effects are
-literal expectations. The test drivers write raw observations to the local
-artifact directory.
-
-On the combined application, all 63 NLS cases pass with both development
-and optimized builds, with and without Guile. The Guile checks also cover
-private French messages in a joined worker and preservation of that locale
-through fatal diagnostics and finalizers. The default profile retains the
-restart, stdin, database, and native-module behaviors covered by their
-existing gates.
+A failed `getcwd` reports the OS error and continues. An initial failure without
+`-C` leaves `CURDIR` empty. Failure to refresh the directory after a successful
+`-C` retains the earlier `CURDIR` and reports an unknown directory.
+The [directory models](../tests/nls/directory.json) create deleted
+working directories or hold a deleted directory through an open descriptor.
+They check root and recursive calls, line and target spools, live locale changes
+and custom templates. Expected paths come from the test workspace, and expected
+OS error bytes come from an independent libc call.
 
 ## Scheduler, parser, and file arguments
 
-The diagnostic gate also covers the up-to-date summary, cycle drops,
-static-pattern errors, and warnings about text after directives. The
-`file` function reports typed argument errors for a missing name, an
-extra read argument, or an invalid operation. The tests check source lines,
-side effects, and raw bytes in target names and operation arguments. User and
-native error text can match a catalog message ID byte for byte and still
-retain its original text.
-
-These 18 cases extend `test-nls` and `test-nls-release` to 64 diagnostic
-profiles. Their literal expectations use translations from the pinned
-compiled catalog. The 17 directory profiles run through the separate
-directory gate.
+The [producer models](../tests/nls/producers.json) cover up-to-date summaries,
+cycle drops, static-pattern errors and warnings about text after directives.
+The `file` function has typed errors for a missing name, an extra read argument
+or an invalid operation. Tests preserve source lines, side effects and raw
+argument bytes. [Low-resolution timestamp models](../tests/nls/low-resolution.json)
+use fixed timestamps to check warning publication and effects in C and French.
 
 ## Native loader diagnostics
 
-The loader and registration checks in this gate use checked system templates.
-A missing object still emits the raw loader error before the localized
-failure, and a missing setup symbol passes the raw loader error as one
-template argument. Function names and numeric argument limits retain
-their original values. Private message locales remain active for failures
-reported through an included makefile.
-
-The 15 loader cases bring the diagnostic gate to 79 cases. They include
-optional module handling and custom templates that reorder loader
-arguments. For the raw loader argument, the gate queries the same public
-`dlopen` and `dlsym` interfaces in a separate process before running either
-engine. The remaining diagnostic bytes, exit statuses, and file effects
-come from the literal expectations.
+A missing object emits the raw loader error before the localized failure.
+A missing setup symbol passes the raw loader error as a template argument.
+Function names and numeric argument limits keep their values. Private message
+locales remain active through failures reported in an included Makefile.
+The [loader models](../tests/nls/loader.json) cover optional modules and custom
+templates that reorder arguments.
 
 ## Include and source I/O diagnostics
 
-Makefile open failures retain their resolved search names and error numbers.
-Ordinary failed include remakes keep GNU's fixed colon separator. Skipped
-required makefiles report after the remake recipes, with the active locale
-and domain. Explicit `-f` open failures and fatal stream read failures use
-their respective catalog templates. A stream read error keeps the original
-include operand even if `-I` found the source under another path.
+Makefile open failures retain resolved search names and error numbers. Failed
+include remakes use GNU's fixed colon separator. Explicit `-f` failures and
+fatal stream-read errors use their own templates. A stream-read error retains
+the original include operand even when `-I` found the file elsewhere. The
+[source I/O models](../tests/nls/include.json) also check a changed domain before
+a deferred diagnostic, non-UTF-8 filenames, and the saved errno rendered under
+the locale active at publication.
 
-Twenty additional cases check these boundaries in the diagnostic gate,
-bringing it to 99 profiles. The gate obtains the raw error detail from an
-independent libc call. The paths, translated templates, output, exit status
-and filesystem effects are exact. One remake recipe selects a custom domain
-before a deferred diagnostic. Its template reorders the error and filename
-arguments, and the filename retains its non-UTF-8 byte.
-A separate fixture binds a test-owned libc catalog during a failing remake
-recipe. It records different translations for the saved open error and a
-new, unrelated error, then checks that the deferred diagnostic uses the
-saved error number and the locale active at publication.
+Default lookup chooses the first matching directory entry in GNU's filename
+order. The ordinary reader handles directories, symlinks and open errors. Under
+`-k`, failed required Makefile updates report summaries after the remake chain.
+Optional Makefiles suppress those errors. The blocked-target warning used for
+ordinary goals remains separate. See the [remake models](../tests/nls/remake.json).
 
-Default makefile lookup selects the first matching directory entry in GNU's
-filename order. The ordinary reader then handles directories, symlinks and
-open errors. With `-k`, required makefiles that fail during remake report
-summaries after the remake chain. The summaries retain the include source
-when applicable and use the locale active at publication. Optional
-makefiles suppress these errors. The goal-phase blocked-target warning is
-reserved for ordinary goals.
+A Makefile included more than once runs its remake recipe once, while each
+required read receives its own summary. A failed update can still trigger a
+restart under `-k` if it leaves the required file present with a changed
+timestamp. The summary appears before restarting. Freshness is checked after
+the whole chain, so a later recipe can change or restore the timestamp. A file
+that could not run its own recipe retains its cached timestamp for this decision.
+The [repeated-include models](../tests/nls/repeat.json) preserve these distinctions.
 
-Fourteen cases for default source selection and failed remake summaries
-bring the diagnostic gate to 113 cases.
-
-A required makefile can appear in several include directives. Its remake
-recipe runs once, and each required read gets its own summary at the end of
-the remake pass. With `-k`, a failed update that leaves a required makefile
-present at a changed timestamp can still trigger a restart. The failure
-summary is published before restarting. The timestamp is checked after the
-whole remake chain, so a later recipe can restore or change it. A makefile
-that could not run its own recipe retains its cached timestamp for this
-decision.
-
-Thirteen further cases bring the diagnostic gate to 126. The restart cases
-assert the original and final timestamps, ordered read and recipe markers,
-the output of the next process and its exit status. Controls cover a file
-whose contents change with the same timestamp, an optional makefile, and
-stop mode without `-k`.
-
-An optional include can reach a failed update before a later required
-include of the same file. The required read publishes the cached failure.
-A blocked remake keeps the selected prerequisite and its immediate parent
-from the completed graph. The replay uses that reason without expanding
-prerequisites or executing recipes again. The first open error retains its
-original location and raw errno. Required read sites still get their
-separate summaries, and a failed recipe that changed the file can trigger
-a restart under `-k`.
-
-Eighteen cases for this path bring the diagnostic gate to 144. They cover
-direct and transitive failures, repeated sites, stop mode, secondary
-expansion, and real restarts after changing or creating the file. A missing
-intermediate can report a prerequisite error during inspection. In
-keep-going mode the later required read can report the cached failure too.
-The ordered cases distinguish those publications and confirm the early
-exit when keep-going mode is disabled.
+An optional read can encounter a failed update before a later required read of
+the same file. The required read reports that cached failure. A blocked remake
+retains the selected prerequisite and its immediate parent without re-expanding
+prerequisites or rerunning recipes. The first open error keeps its location and
+raw errno. The [failure replay models](../tests/nls/optional-replay.json) cover
+repeated sites, direct and transitive failures, secondary expansion, early stop
+and real restarts. They also distinguish an early intermediate-prerequisite
+error from a later required-read summary.
 
 ## Touch open failures
 
-Ordinary touch and one-shell recipes that enter touch mode while preparing
-commands use the active catalog's OS error template. Twelve profiles cover
-directory targets, missing parents and non-directory parents. They compare
-French and C diagnostics, language fallbacks, exact paths, the libc errno
-text and the files left after failure. The initial expanded recipe and
-configuration effects remain visible in the live-mode cases.
+Ordinary and one-shell recipes entering touch mode use the active catalog's OS
+error template. The [touch models](../tests/nls/touch-open.json) cover directory
+targets, missing parents and non-directory parents. They retain initial recipe
+and configuration effects, exact paths, errno text and the files left afterward.
 
 ## Recipe cleanup
 
-Recipe cleanup renders removal and archive-member warnings through the active
-catalog, including grouped peers. File names and group owners remain raw byte
-arguments. Twelve profiles cover serial recipes, both jobservers with target
-output sync, non-UTF-8 names, retained archive members, precious siblings, and
-ignored failures.
+Removal and archive-member warnings use the active catalog, including grouped
+peers. File names and group owners remain raw byte arguments. The
+[cleanup models](../tests/nls/cleanup.json) cover serial recipes, both jobservers
+with target output sync, non-UTF-8 names, retained archive members, precious
+siblings and ignored failures.
 
 ## Outstanding recipes
 
 The notice emitted while a failed build drains its remaining recipes uses the
-active catalog. Eight profiles hold a sibling until the failure and wait
-notice are captured. They compare both streams and the released worker's
-files in C and French, with both jobservers and with target output sync.
+active catalog. The [wait-notice models](../tests/nls/wait-notice.json) hold a
+sibling until the failure and notice are captured, then compare both streams
+and the released worker's files. They cover C and French, both jobservers and
+target output sync.
 
 ## Intermediate-file policy
 
-Conflicting intermediate-file declarations use the active catalog for
-global policies and named targets. Twelve profiles check the German,
-Japanese, and Polish messages, C and French fallback, raw target bytes,
-and a nonconflicting control.
+Conflicting global or named intermediate-file declarations use the active
+catalog. The [policy models](../tests/nls/intermediate-policy.json) check German,
+Japanese and Polish messages, C and French fallback, raw target bytes and a
+nonconflicting control.
 
 ## File function I/O
 
-Failures in `$(file ...)` select the active open, read, write, or close
-template. The path and libc error remain raw byte arguments. Twelve
-profiles verify reader and recipe expansion, raw file names, buffered
-write and close failures, and effects completed before the failure.
+Failures in `$(file ...)` select the active open, read, write or close template.
+The path and libc error remain byte arguments. The
+[file I/O models](../tests/nls/file-io.json) check reader and recipe expansion,
+raw filenames, buffered write and close failures, and effects completed before
+the failure.
 
 ## Output lock failures
 
-If a borrowed output lock fails during a spool flush, the warning uses
-the active catalog and the preceding error uses libc's errno text. Eight
-profiles verify Japanese, C, and French fallback, continued recipe output,
-and preservation of the caller's mutex. The diagnostic gate runs 233
-profiles.
+A borrowed output-lock failure during spool flushing emits a localized warning
+after libc's errno detail. The [lock models](../tests/nls/output-lock.json) check
+Japanese, C and French fallback, continued recipe output and preservation of the
+caller's mutex.
+
+## Attribution and remaining work
+
+The shipped PO sources and MO binaries are unchanged declarative data from the
+pinned GNU Make 4.4.1 release. [Catalog provenance](../catalogs/provenance.json)
+records the archive and file hashes. The [French catalog notice](../catalogs/fr.po),
+the notices in each other PO file and [the package license](../catalogs/COPYING)
+retain the original attribution. Older translations with no matching message
+ID use the source text.
+
+Catalog availability does not establish every diagnostic in every language.
+Remaining work includes broader message producers, plural and character-set
+formats, native and Guile interactions, and additional Linux/libc profiles.
+Database, debug, trace and usage output have their own qualification. The
+[M3/M6 audit](m3-m6-audit.md#diagnostics-and-locales) links that evidence and tracks
+the remaining combinations. These selected profiles do not establish complete
+NLS or M3/M6 compatibility.
