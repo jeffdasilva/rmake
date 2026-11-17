@@ -8,6 +8,7 @@ use super::*;
 pub(super) struct State {
     options: std::rc::Rc<RefCell<Options>>,
     dirty: Cell<bool>,
+    remaking: Cell<bool>,
     pub(super) warn_undefined: Cell<bool>,
     output: crate::output::Controller,
     includes: std::rc::Rc<RefCell<IncludeSearch>>,
@@ -79,6 +80,7 @@ impl State {
         Self {
             options: std::rc::Rc::new(RefCell::new(options.clone())),
             dirty: Cell::new(false),
+            remaking: Cell::new(false),
             warn_undefined: Cell::new(options.warn_undefined),
             output,
             includes,
@@ -100,6 +102,12 @@ impl State {
         let mut retained = self.options.borrow_mut();
         retained.files[index].clone_from(&options.files[index]);
         retained.temp_stdin_file = options.temp_stdin_file;
+    }
+
+    pub(super) fn set_makefile_modes(&self, modes: MakefileModes) {
+        // Live decoding starts from the mode of this visit. In particular,
+        // an unrelated assignment must not restore masked startup modes.
+        modes.apply(&mut self.options.borrow_mut());
     }
 
     /// A temporary warning change participates in live decoding. Publish
@@ -151,6 +159,7 @@ impl State {
             origin: request.origin,
             passive,
             file_jobs: None,
+            remaking: self.remaking.get(),
         })))
     }
 
@@ -211,18 +220,20 @@ impl State {
                 Box::new(SearchPreparation::new(
                     self.options.clone(),
                     self.includes.clone(),
+                    self.remaking.get(),
                 )) as Box<dyn rmake_core::diagnostic::IncludePreparation>
             }),
             publish_includes: if let Some(search) = search {
                 Some(Box::new({
                     let includes = self.includes.clone();
                     let options = self.options.clone();
+                    let remaking = self.remaking.get();
                     move || {
                         includes.replace(search);
                         let options = options.borrow();
                         rmake_core::diagnostic::MakeflagsMetadata {
                             eval_reference: !options.evals.is_empty(),
-                            value: options.recursive_flags(),
+                            value: options.recursive_flags_for_phase(true, remaking),
                             origin: origin(options.environment_override),
                             environment_override: options.environment_override,
                         }
@@ -305,6 +316,7 @@ impl InvocationInputs {
 struct SearchPreparation {
     options: std::rc::Rc<RefCell<Options>>,
     includes: std::rc::Rc<RefCell<IncludeSearch>>,
+    remaking: bool,
     cursor: usize,
     reset: bool,
     builder: crate::makefiles::IncludeSearchBuilder,
@@ -314,10 +326,12 @@ impl SearchPreparation {
     fn new(
         options: std::rc::Rc<RefCell<Options>>,
         includes: std::rc::Rc<RefCell<IncludeSearch>>,
+        remaking: bool,
     ) -> Self {
         Self {
             options,
             includes,
+            remaking,
             cursor: 0,
             reset: false,
             builder: Default::default(),
@@ -351,6 +365,7 @@ impl rmake_core::diagnostic::IncludePreparation for SearchPreparation {
         let directories = search.directories().map(<[u8]>::to_vec).collect();
         let options = self.options;
         let includes = self.includes;
+        let remaking = self.remaking;
         rmake_core::diagnostic::PreparedIncludes {
             directories,
             publish: Box::new(move || {
@@ -358,7 +373,7 @@ impl rmake_core::diagnostic::IncludePreparation for SearchPreparation {
                 let options = options.borrow();
                 rmake_core::diagnostic::MakeflagsMetadata {
                     eval_reference: !options.evals.is_empty(),
-                    value: options.recursive_flags(),
+                    value: options.recursive_flags_for_phase(true, remaking),
                     origin: origin(options.environment_override),
                     environment_override: options.environment_override,
                 }
@@ -378,6 +393,7 @@ struct IncludeDecoder {
     origin: Origin,
     passive: bool,
     file_jobs: Option<usize>,
+    remaking: bool,
 }
 
 impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
@@ -492,6 +508,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
         let includes = self.includes.clone();
         let output = self.output.clone();
         let passive = self.passive;
+        let remaking = self.remaking;
         let invocation = self.invocation.take().expect("owned invocation");
         let mut current = options.borrow_mut();
         invocation.restore(&mut current);
@@ -510,7 +527,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
             })?;
         let mut result = rmake_core::diagnostic::MakeflagsResult {
             eval_reference: !current.evals.is_empty(),
-            value: current.recursive_flags(),
+            value: current.recursive_flags_for_phase(true, remaking),
             origin: origin(current.environment_override),
             environment_override: current.environment_override,
             include_dirs: Vec::new(),
@@ -529,8 +546,11 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
                 .iter()
                 .any(|name| name.as_os_str().as_bytes().starts_with(b"~"))
             {
-                result.prepare_includes =
-                    Some(Box::new(SearchPreparation::new(options.clone(), includes)));
+                result.prepare_includes = Some(Box::new(SearchPreparation::new(
+                    options.clone(),
+                    includes,
+                    remaking,
+                )));
                 return Ok(result);
             }
             let search = IncludeSearch::new(&current.include_directories);
@@ -541,7 +561,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
                 let options = captured.borrow();
                 rmake_core::diagnostic::MakeflagsMetadata {
                     eval_reference: !options.evals.is_empty(),
-                    value: options.recursive_flags(),
+                    value: options.recursive_flags_for_phase(true, remaking),
                     origin: origin(options.environment_override),
                     environment_override: options.environment_override,
                 }
@@ -760,6 +780,7 @@ impl Engine {
     }
 
     pub(super) fn publish_phase_makeflags(&mut self, remaking: bool) -> Result<(), ExpandError> {
+        self.flag_state.remaking.set(remaking);
         self.database.variables.update_mflags(
             &self.options.recursive_flags_for_phase(true, remaking),
             self.options.environment_override,
@@ -782,6 +803,11 @@ impl Engine {
         // retain the complete request history for subsequent decoding.
         self.output.set_debug_mask(active_debug);
         Ok(())
+    }
+
+    pub(super) fn set_makefile_modes(&mut self, modes: MakefileModes) {
+        modes.apply(&mut self.options);
+        self.flag_state.set_makefile_modes(modes);
     }
 
     pub(super) fn read_runtime_flags(
@@ -1148,6 +1174,141 @@ impl Engine {
             self.complete_passive_mutex()?;
         }
         Ok(file_jobs)
+    }
+}
+
+#[cfg(test)]
+mod remake_mode_tests {
+    use super::*;
+    use rmake_core::diagnostic::{FlagAction, MakeflagsRequest};
+
+    fn state(options: &Options) -> State {
+        State::new(
+            options,
+            crate::output::Controller::new(crate::output::Mode::None, b"make"),
+            Rc::new(RefCell::new(IncludeSearch::default())),
+        )
+    }
+
+    #[test]
+    fn live_flags_start_from_visit_modes_and_preserve_explicit_changes() {
+        let original = Options {
+            question: true,
+            touch: true,
+            files: vec!["main.mk".into()],
+            goals: vec![b"requested".to_vec()],
+            ..Options::default()
+        };
+        let state = state(&original);
+        state.remaking.set(true);
+        state.set_makefile_modes(MakefileModes::default());
+        assert!(state.take().is_none());
+        let result = state
+            .assigned(MakeflagsRequest {
+                value: b"--no-print-directory",
+                origin: Origin::File,
+            })
+            .unwrap();
+        assert_eq!(
+            result.publish_includes.unwrap()().value,
+            b" --no-print-directory"
+        );
+        let current = state.take().unwrap();
+        assert!(!current.question && !current.touch && !current.dry_run);
+        assert_eq!(current.files, original.files);
+        assert_eq!(current.goals, original.goals);
+
+        let result = state
+            .assigned(MakeflagsRequest {
+                value: b"-nqt",
+                origin: Origin::File,
+            })
+            .unwrap();
+        assert_eq!(
+            result.publish_includes.unwrap()().value,
+            b" --no-print-directory"
+        );
+        let current = state.take().unwrap();
+        assert!(current.question && current.touch && current.dry_run);
+        assert!(original.question && original.touch && !original.dry_run);
+
+        state.set_makefile_modes(MakefileModes::from_options(&original));
+        state.remaking.set(false);
+        let result = state
+            .assigned(MakeflagsRequest {
+                value: b"--no-print-directory",
+                origin: Origin::File,
+            })
+            .unwrap();
+        assert_eq!(
+            result.publish_includes.unwrap()().value,
+            b"qt --no-print-directory"
+        );
+    }
+
+    #[test]
+    fn delayed_search_publication_keeps_phase_and_nested_mode_changes() {
+        let state = state(&Options::default());
+        state.remaking.set(true);
+        let mut result = state
+            .assigned(MakeflagsRequest {
+                value: b"-I~/inc -q",
+                origin: Origin::File,
+            })
+            .unwrap();
+        let mut search = result.prepare_includes.take().unwrap();
+        assert_eq!(search.next().unwrap(), b"~/inc");
+        // HOME expansion can change flags while the outer search is suspended.
+        state
+            .assigned(MakeflagsRequest {
+                value: b"-t",
+                origin: Origin::File,
+            })
+            .unwrap();
+        search.directory(b"resolved/inc".to_vec());
+        assert!(search.next().is_none());
+        let metadata = (search.finish().publish)();
+        assert_eq!(metadata.value, b" -I~/inc");
+        let current = state.take().unwrap();
+        assert!(current.question && current.touch);
+    }
+
+    #[test]
+    fn owned_include_decoder_publishes_phase_flags_and_restores_operands() {
+        let original = Options {
+            touch: true,
+            files: vec!["main.mk".into()],
+            goals: vec![b"requested".to_vec()],
+            ..Options::default()
+        };
+        let state = state(&original);
+        state.remaking.set(true);
+        state.set_makefile_modes(MakefileModes::default());
+        let mut decoder = state
+            .begin_include_decoder(
+                MakeflagsRequest {
+                    value: b"-I~/inc -q",
+                    origin: Origin::File,
+                },
+                false,
+            )
+            .unwrap()
+            .unwrap();
+        let mut cursor = 1;
+        while let Some(step) = decoder.next(cursor).unwrap() {
+            cursor = step.position + 1;
+            if let FlagAction::Filename(name) = step.action {
+                assert_eq!(name, b"~/inc");
+                decoder.filename(b"resolved/inc".to_vec()).unwrap();
+            }
+        }
+        let result = decoder.finish().unwrap();
+        assert_eq!(result.value, b" -Iresolved/inc");
+        assert_eq!(result.publish_includes.unwrap()().value, b" -Iresolved/inc");
+        let current = state.take().unwrap();
+        assert!(current.question && !current.touch);
+        assert_eq!(current.files, original.files);
+        assert_eq!(current.goals, original.goals);
     }
 }
 

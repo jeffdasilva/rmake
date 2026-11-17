@@ -78,3 +78,8 @@ updating before its recipe finishes. The info-only control leaves the debug
 pass unchanged, and the nested-goal control retains the prerequisite trace.
 Each model compares complete streams, status, the ordered file effects, and
 child cleanup.
+
+`recursive-question.toml` checks eight standalone recursive question
+profiles. Forced status one stops the waiting prerequisite trace, including
+nested and double-colon parents. Controls cover `-k`, current children, and
+ordered directory reports when a sub-make reads an include.

@@ -1,0 +1,11 @@
+id = "debug-live-verbose-earlier-phony"
+requirement = "debug.live-verbose-consideration"
+candidate = "required"
+description = "A completed phony target was visited before debug was enabled."
+provenance = "Original rmake fixture checked against GNU Make 4.4.1."
+args = ["-rR"]
+
+[expected]
+exit_code = 0
+stdout = "prior\ncp seed out\n Successfully remade target file 'out'.\n Considering target file 'final'.\n  File 'final' does not exist.\n  Pruning file 'prior'.\n  Pruning file 'out'.\n  Pruning file 'seed'.\n Finished prerequisites of target file 'final'.\n Must remake target 'final'.\ncp out final\n Successfully remade target file 'final'.\nFinished prerequisites of target file 'all'.\nMust remake target 'all'.\nparent\nSuccessfully remade target file 'all'.\n"
+stderr = ""

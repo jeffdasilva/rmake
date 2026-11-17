@@ -1,0 +1,148 @@
+id = "remake-live-flags-required-named"
+description = "Live MAKEFLAGS changes use the current remake mode, keep explicit changes effective, and publish phase flags for named required sources."
+provenance = "Original rmake inputs and exact expectations independently checked with repeated GNU Make 4.4.1 runs. No upstream source or tests were consulted for these cases."
+initial = []
+
+[[steps]]
+name = "query-unchanged"
+args = ["-rR", "-q", "opts.mk"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(info BEFORE=[$(MAKEFLAGS)])$(info AFTER=[$(MAKEFLAGS)])@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 1, "stdout" = "BEFORE=[rR]\nAFTER=[rR]\n", "stderr" = ""}
+unchanged = ["Makefile", "seed", "opts.mk"]
+mtime_order = []
+
+[[steps]]
+name = "query-append-unrelated"
+args = ["-rR", "-q", "opts.mk"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(info BEFORE=[$(MAKEFLAGS)])$(eval MAKEFLAGS += --no-print-directory)$(info AFTER=[$(MAKEFLAGS)])@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 1, "stdout" = "BEFORE=[rR]\nAFTER=[rR --no-print-directory]\n", "stderr" = ""}
+unchanged = ["Makefile", "seed", "opts.mk"]
+mtime_order = []
+
+[[steps]]
+name = "query-replace-unrelated"
+args = ["-rR", "-q", "opts.mk"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(info BEFORE=[$(MAKEFLAGS)])$(eval MAKEFLAGS = --no-print-directory)$(info AFTER=[$(MAKEFLAGS)])@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 1, "stdout" = "BEFORE=[rR]\nAFTER=[rR --no-print-directory]\n", "stderr" = ""}
+unchanged = ["Makefile", "seed", "opts.mk"]
+mtime_order = []
+
+[[steps]]
+name = "query-explicit-query"
+args = ["-rR", "-q", "opts.mk"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(info BEFORE=[$(MAKEFLAGS)])$(eval MAKEFLAGS = -q)$(info AFTER=[$(MAKEFLAGS)])@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 1, "stdout" = "BEFORE=[rR]\nAFTER=[rR]\n", "stderr" = ""}
+unchanged = ["Makefile", "seed", "opts.mk"]
+mtime_order = []
+
+[[steps]]
+name = "query-explicit-touch"
+args = ["-rR", "-q", "opts.mk"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(info BEFORE=[$(MAKEFLAGS)])$(eval MAKEFLAGS = -t)$(info AFTER=[$(MAKEFLAGS)])@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 1, "stdout" = "BEFORE=[rR]\nAFTER=[rR]\n", "stderr" = ""}
+unchanged = ["Makefile", "seed", "opts.mk"]
+mtime_order = []
+
+[[steps]]
+name = "query-explicit-dry-run"
+args = ["-rR", "-q", "opts.mk"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(info BEFORE=[$(MAKEFLAGS)])$(eval MAKEFLAGS = -n)$(info AFTER=[$(MAKEFLAGS)])@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 1, "stdout" = "BEFORE=[rR]\nAFTER=[rR]\n", "stderr" = ""}
+unchanged = ["Makefile", "seed", "opts.mk"]
+mtime_order = []
+
+[[steps]]
+name = "touch-unchanged"
+args = ["-rR", "-t", "opts.mk"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(info BEFORE=[$(MAKEFLAGS)])$(info AFTER=[$(MAKEFLAGS)])@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 0, "stdout" = "touch opts.mk\nmake: 'opts.mk' is up to date.\n", "stderr" = ""}
+unchanged = ["Makefile", "seed"]
+mtime_order = [["opts.mk", ">", "seed"]]
+
+[[steps]]
+name = "touch-append-unrelated"
+args = ["-rR", "-t", "opts.mk"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(info BEFORE=[$(MAKEFLAGS)])$(eval MAKEFLAGS += --no-print-directory)$(info AFTER=[$(MAKEFLAGS)])@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 0, "stdout" = "touch opts.mk\nmake: 'opts.mk' is up to date.\n", "stderr" = ""}
+unchanged = ["Makefile", "seed"]
+mtime_order = [["opts.mk", ">", "seed"]]
+
+[[steps]]
+name = "touch-replace-unrelated"
+args = ["-rR", "-t", "opts.mk"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(info BEFORE=[$(MAKEFLAGS)])$(eval MAKEFLAGS = --no-print-directory)$(info AFTER=[$(MAKEFLAGS)])@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 0, "stdout" = "touch opts.mk\nmake: 'opts.mk' is up to date.\n", "stderr" = ""}
+unchanged = ["Makefile", "seed"]
+mtime_order = [["opts.mk", ">", "seed"]]
+
+[[steps]]
+name = "touch-explicit-query"
+args = ["-rR", "-t", "opts.mk"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(info BEFORE=[$(MAKEFLAGS)])$(eval MAKEFLAGS = -q)$(info AFTER=[$(MAKEFLAGS)])@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 0, "stdout" = "touch opts.mk\nmake: 'opts.mk' is up to date.\n", "stderr" = ""}
+unchanged = ["Makefile", "seed"]
+mtime_order = [["opts.mk", ">", "seed"]]
+
+[[steps]]
+name = "touch-explicit-touch"
+args = ["-rR", "-t", "opts.mk"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(info BEFORE=[$(MAKEFLAGS)])$(eval MAKEFLAGS = -t)$(info AFTER=[$(MAKEFLAGS)])@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 0, "stdout" = "touch opts.mk\nmake: 'opts.mk' is up to date.\n", "stderr" = ""}
+unchanged = ["Makefile", "seed"]
+mtime_order = [["opts.mk", ">", "seed"]]
+
+[[steps]]
+name = "touch-explicit-dry-run"
+args = ["-rR", "-t", "opts.mk"]
+actions = [
+  {"op" = "write", "path" = "Makefile", "content" = "include opts.mk\nall: out\n\t@printf \"parent\\n\"\nout: seed\n\tcp seed out\nopts.mk: seed\n\t$(info BEFORE=[$(MAKEFLAGS)])$(eval MAKEFLAGS = -n)$(info AFTER=[$(MAKEFLAGS)])@printf \"GEN=yes\\n\" >opts.mk\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "opts.mk", "content" = "# stale\n", "mtime_ns" = 1600000000000000000},
+  {"op" = "write", "path" = "seed", "content" = "seed\n", "mtime_ns" = 1600000001000000000},
+]
+expected = {"exit_code" = 0, "stdout" = "touch opts.mk\nmake: 'opts.mk' is up to date.\n", "stderr" = ""}
+unchanged = ["Makefile", "seed"]
+mtime_order = [["opts.mk", ">", "seed"]]

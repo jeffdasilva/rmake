@@ -36,6 +36,13 @@ read owner and peer. They require the same authenticated overlap, one restart
 for a later read peer, and unchanged timestamp checks. Their identifiers begin
 with `implicit-grouped-unchanged`; explicit and implicit coverage stay separate.
 
+Thirty-two grouped double-colon profiles exercise independent branch completion.
+Half hold the grouped recipe itself; half hold a shared prerequisite before
+both peers select a recipe. Each checks the same read-peer restart versus
+owner-only control, exact unchanged source timestamps, and authenticated
+two-worker overlap. These separate identifiers begin with
+`double-grouped-unchanged`.
+
 Run the standalone gate after bootstrapping the pinned GNU Make oracle.
 
 ```sh
@@ -82,7 +89,7 @@ required failure replay and the considered state after an early optional pass.
 Both jobserver transports are covered.
 
 The selector runs 26 duplicate-read profiles separately. The developer gates
-run all 4,162 profiles. Leading `./` spellings share one target record and
+run all 4,199 profiles. Leading `./` spellings share one target record and
 still appear twice in `MAKEFILE_LIST`. A spelling with an internal `../`
 retains a separate target record even when it refers to the same physical file.
 
@@ -125,7 +132,7 @@ visit. A low-load control starts both children during their visits.
 
 ## Remake debug traces
 
-The 1,013 debug profiles check the entire debug trace and the exact trace prefix
+The 1,016 debug profiles check the entire debug trace and the exact trace prefix
 visible at each worker release. They cover basic remake debugging with both
 jobserver transports and combined remake and verbose debugging.
 The 303 authenticated FIFO traces check the controller path against the
@@ -154,7 +161,7 @@ is checked under dry-run, question and touch with both transports.
 
 The standard developer gates include these profiles. The selector runs
 the debug profiles that do not require the load shim. Add `--include-load`
-to include 311 basic and 426 verbose makefile traces with controlled load
+to include 314 basic and 426 verbose makefile traces with controlled load
 and held workers. Thirty-six basic and thirty-six verbose traces cover named
 includes under load. Four verbose profiles hold the named recipe until both
 active roots emit their pending traces.

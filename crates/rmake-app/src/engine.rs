@@ -33,6 +33,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, FileTimes, OpenOptions};
 use std::io::{self, Write};
+use std::num::NonZeroU64;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
@@ -691,8 +692,14 @@ fn emit_getcwd_error(output: &crate::output::Controller, program: &[u8], error: 
     );
 }
 
+struct FileVisit {
+    parent: Option<ScopeParent<Vec<u8>>>,
+    // Ordinary pass plus one, recorded when verbose output was disabled.
+    quiet_consideration: Option<NonZeroU64>,
+}
+
 struct TargetReads<'a> {
-    parents: &'a HashMap<Vec<u8>, Option<ScopeParent<Vec<u8>>>>,
+    visits: &'a HashMap<Vec<u8>, FileVisit>,
     retained_parents: &'a HashMap<Vec<u8>, ScopeParent<Vec<u8>>>,
     aliases: &'a Aliases,
     base: &'a HashMap<Vec<u8>, VariableStore>,
@@ -715,9 +722,12 @@ impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
     }
 
     fn parent(&self, target: &[u8]) -> Option<Option<ScopeParent<&[u8]>>> {
-        self.parents
-            .get(target)
-            .map(|parent| parent.as_ref().map(|parent| self.resolve_parent(parent)))
+        self.visits.get(target).map(|visit| {
+            visit
+                .parent
+                .as_ref()
+                .map(|parent| self.resolve_parent(parent))
+        })
     }
 
     fn has_parent_changes(&self) -> bool {
@@ -1185,7 +1195,7 @@ pub struct Engine {
     commands_started: u64,
     debug_pass: u64,
     visiting: HashSet<Vec<u8>>,
-    scope_parents: HashMap<Vec<u8>, Option<ScopeParent<Vec<u8>>>>,
+    file_visits: HashMap<Vec<u8>, FileVisit>,
     // A later encounter affects declarations that revisit a completed file.
     // Its first traversal context still owns the recipe and diagnostics.
     retained_scope_parents: HashMap<Vec<u8>, ScopeParent<Vec<u8>>>,
@@ -1768,7 +1778,7 @@ impl Engine {
             commands_started: 0,
             debug_pass: 0,
             visiting: HashSet::new(),
-            scope_parents: HashMap::new(),
+            file_visits: HashMap::new(),
             retained_scope_parents: HashMap::new(),
             target_contexts: HashMap::new(),
             implicit_scopes: HashMap::new(),
@@ -1885,7 +1895,7 @@ impl Engine {
     ) -> T {
         let warnings = mute_undefined.then(|| self.flag_state.replace_scoped_warning_policy(false));
         let mut target_reads = TargetReads {
-            parents: &self.scope_parents,
+            visits: &self.file_visits,
             retained_parents: &self.retained_scope_parents,
             aliases: &self.aliases,
             base: &self.target_contexts,
@@ -2194,6 +2204,14 @@ impl Engine {
             outcome.ran = false;
         }
         outcome
+    }
+
+    fn mark_remade_group_peer(&self, target: &[u8], phony: bool, outcome: &mut Outcome) {
+        outcome.remake_group_peer_updated = self.remaking
+            && outcome.completion == CompletionTime::Refresh
+            && !outcome.failed
+            && !phony
+            && self.makefile_names.contains(target);
     }
 
     fn show_makefile_error(&self) {
@@ -3270,7 +3288,7 @@ impl Engine {
             // All other makefile visits can run recipes even under -n/-q/-t.
             let modes = MakefileModes::from_options(&self.options);
             let always = self.options.always;
-            MakefileModes::default().apply(&mut self.options);
+            self.set_makefile_modes(MakefileModes::default());
             if restarts > 0 {
                 self.options.always = false;
             }
@@ -3351,9 +3369,7 @@ impl Engine {
                         && optional_named_sources == 1
                         && matches!(final_named_sources, [(first, _), _, _, (last, _)]
                             if first.optional || last.optional))
-                    || (three_named_two_optional
-                        && (limited_load
-                            || matches!(final_named_sources, [_, _, (last, _)] if last.optional))));
+                    || three_named_two_optional);
             let two_optional_touch = three_named_two_optional
                 && (debug_before_remake.bits() == Mask::NONE.bits() || final_named_touch_debug);
             let optional_pair_before_required = two_optional_touch
@@ -3597,7 +3613,7 @@ impl Engine {
                 } else {
                     MakefileModes::default()
                 };
-                visit_modes.apply(&mut self.options);
+                self.set_makefile_modes(visit_modes);
                 let visit = match visited.entry(name) {
                     std::collections::hash_map::Entry::Vacant(visit) => visit,
                     std::collections::hash_map::Entry::Occupied(first) => {
@@ -3847,6 +3863,11 @@ impl Engine {
                         result.blocked = head.blocked;
                         result.completion = CompletionTime::Refresh;
                         result.time = self.modified(name);
+                        if !optional {
+                            // A failed required declaration revisits the shared
+                            // physical head time, replacing its grouped update.
+                            result.remake_group_peer_updated = false;
+                        }
                     } else if optional {
                         result.fatal = true;
                     }
@@ -3863,6 +3884,9 @@ impl Engine {
                 if !self.parallel_makefile_remakes
                     && settled_chain
                     && (!optional || before == result.time)
+                    && !(optional
+                        && serial_declarations.is_some()
+                        && result.remake_group_peer_updated)
                 {
                     self.debug_double_colon_goal_prunes(name, result);
                 }
@@ -4054,7 +4078,7 @@ impl Engine {
                     self.remake_error_cursor = pending
                         .last()
                         .and_then(|remake| remake.context.open_error.clone());
-                    MakefileModes::default().apply(&mut self.options);
+                    self.set_makefile_modes(MakefileModes::default());
                 }
                 let primary_after_optional_pass = active_primary
                     && final_named_touch
@@ -4171,7 +4195,7 @@ impl Engine {
             if stopped || changed || failed || self.shutdown.get() != Shutdown::Running {
                 self.wait_all_jobs();
             }
-            modes.apply(&mut self.options);
+            self.set_makefile_modes(modes);
             self.options.always = always;
             self.output.set_debug_mask(debug_before_remake);
             self.remaking = false;
@@ -4289,6 +4313,9 @@ impl Engine {
         if restart_pending {
             return self.restart_after_makefiles(restarts.wrapping_add(1));
         }
+        // The ordinary goals decide the final query status. A queried source
+        // still carries its cached verdict if a goal later depends on it.
+        self.would_build = false;
         if let Err(error) = self.publish_phase_makeflags(false) {
             self.expansion_error(None, &error);
             return 2;
@@ -5263,6 +5290,21 @@ impl Engine {
         emit(&self.output, Event::Considering(name, depth));
     }
 
+    fn debug_was_considered(&self, target: &[u8]) -> bool {
+        self.debug_considered
+            .as_ref()
+            .is_some_and(|files| files.contains(target))
+            // A later MAKEFLAGS expansion can enable verbose output after
+            // the file was considered in this same ordinary goal pass.
+            || (!self.remaking
+                && self.output.debug_mask().has(crate::debug::Mask::VERBOSE)
+                && self
+                    .file_visits
+                    .get(target)
+                    .and_then(|visit| visit.quiet_consideration)
+                    .is_some_and(|pass| pass.get() == self.debug_pass.wrapping_add(1)))
+    }
+
     fn debug_cached_prerequisite_visit(&mut self, target: &[u8], depth: usize, outcome: Outcome) {
         use crate::debug::{Event, Mask, emit};
 
@@ -5273,12 +5315,13 @@ impl Engine {
             return;
         }
         let name = self.aliases.resolve(target);
-        let considered = self.debug_considered.get_or_insert_default();
-        if considered.contains(name) {
+        if self.debug_was_considered(name) {
             emit(&self.output, Event::Pruning(name, depth));
             return;
         }
-        considered.insert(name.to_vec());
+        self.debug_considered
+            .get_or_insert_default()
+            .insert(name.to_vec());
         emit(&self.output, Event::Considering(name, depth));
         emit(
             &self.output,
@@ -5802,9 +5845,12 @@ impl Engine {
                 pending: self.pending(target),
             };
         }
-        self.scope_parents
+        self.file_visits
             .entry(target.to_vec())
-            .or_insert_with(|| Some(parent.into_owned()));
+            .or_insert_with(|| FileVisit {
+                parent: Some(parent.into_owned()),
+                quiet_consideration: None,
+            });
         if !self.resolve_implicit_for_intermediate(target, depth) {
             return Inspection {
                 outcome: Outcome {
@@ -6202,7 +6248,7 @@ impl Engine {
                     request.active = false;
                     continue;
                 }
-                request.modes.apply(&mut self.options);
+                self.set_makefile_modes(request.modes);
                 self.remake_error_cursor = request.context.open_error.clone();
                 let needs_visit = if request.duplicate {
                     !request.file.optional
@@ -7294,8 +7340,8 @@ impl Engine {
             }
         }
         self.database.merge_target_scope(from, to);
-        if let Some(parent) = self.scope_parents.remove(from) {
-            self.scope_parents.entry(to.to_vec()).or_insert(parent);
+        if let Some(visit) = self.file_visits.remove(from) {
+            self.file_visits.entry(to.to_vec()).or_insert(visit);
         }
         if let Some(parent) = self.retained_scope_parents.remove(from) {
             self.retained_scope_parents
@@ -9302,9 +9348,9 @@ impl Engine {
                 Rc::new(FailedPrerequisite {
                     target: dependency.name.clone(),
                     parent: self
-                        .scope_parents
+                        .file_visits
                         .get(&dependency.name)
-                        .and_then(Option::as_ref)
+                        .and_then(|visit| visit.parent.as_ref())
                         .map_or_else(|| target.to_vec(), |parent| parent.target.clone()),
                 })
             });
@@ -9749,9 +9795,9 @@ impl Engine {
                     .get(target)
                     .is_some_and(|outcome| outcome.failed && !outcome.fatal)
             {
-                self.scope_parents
+                self.file_visits
                     .get(target)
-                    .and_then(Option::as_ref)
+                    .and_then(|visit| visit.parent.as_ref())
                     .map(|parent| self.aliases.resolve(&parent.target).to_vec())
             } else {
                 None
@@ -9847,10 +9893,7 @@ impl Engine {
                     input,
                 );
             }
-            let pruned = self
-                .debug_considered
-                .as_ref()
-                .is_some_and(|files| files.contains(target));
+            let pruned = self.debug_was_considered(target);
             if !traced_optional_failure {
                 if pruned {
                     crate::debug::emit(
@@ -9964,9 +10007,19 @@ impl Engine {
         }
         // Record first ownership before implicit secondary expansion can ask
         // for this context. Pattern-scope activation itself remains lazy.
-        self.scope_parents
+        let quiet_consideration =
+            if self.remaking || self.output.debug_mask().has(crate::debug::Mask::VERBOSE) {
+                None
+            } else {
+                NonZeroU64::new(self.debug_pass.wrapping_add(1))
+            };
+        self.file_visits
             .entry(target.to_vec())
-            .or_insert_with(|| parent.map(ScopeParent::into_owned));
+            .or_insert_with(|| FileVisit {
+                parent: parent.map(ScopeParent::into_owned),
+                quiet_consideration,
+            })
+            .quiet_consideration = quiet_consideration;
         let phony = self.special(b".PHONY", target, false);
         // Search-time expansion can create or remove this target. GNU decides
         // freshness from the observation made before those effects occur.
@@ -10132,8 +10185,9 @@ impl Engine {
             // retained eager read may have updated this file's local table.
             return;
         }
-        if self.scope_parents.get(target).is_some_and(|first| {
+        if self.file_visits.get(target).is_some_and(|first| {
             first
+                .parent
                 .as_ref()
                 .map(|first| (self.aliases.resolve(&first.target), first.branch))
                 != Some((parent.target, parent.branch))
@@ -10195,8 +10249,16 @@ impl Engine {
             return None;
         }
         let branches = self.database.rules.get(target)?.double_colon.as_ref()?;
-        (branches.len() > 1 && branches.iter().all(|branch| branch.group.is_none()))
-            .then_some(branches.len())
+        // A completed grouped declaration participates in the same serial
+        // head/tail policy as an independent declaration. An active group must
+        // still settle through its own completion path.
+        (branches.len() > 1
+            && branches.iter().all(|branch| {
+                branch
+                    .grouped_double_id()
+                    .is_none_or(|id| self.completed_group_branches.contains_key(&id))
+            }))
+        .then_some(branches.len())
     }
 
     fn resume_double_colon_state(&mut self, target: &[u8], mut state: DoubleColonState) -> Outcome {
@@ -10274,6 +10336,7 @@ impl Engine {
                 state.combined.question_outdated |= result.question_outdated;
                 state.combined.late_input_failed |= result.late_input_failed;
                 state.combined.search_after_update |= result.search_after_update;
+                state.combined.remake_group_peer_updated |= result.remake_group_peer_updated;
                 state.combined.completion = state.combined.completion.max(result.completion);
                 if matches!(
                     result.database_result,
@@ -10448,8 +10511,27 @@ impl Engine {
                     // Commands executed for a previous goal must not suppress
                     // this goal's up-to-date diagnostic.
                     result.ran = false;
+                    self.mark_remade_group_peer(target, state.phony, &mut result);
+                    if serial_remake_root && result.remake_group_peer_updated {
+                        use crate::debug::{Event, emit};
+
+                        // The root announced the first declaration; later
+                        // completed declarations have their own cached visit.
+                        let depth = state.depth + 1;
+                        if ordinal != 0 {
+                            emit(&self.output, Event::Considering(target, depth));
+                        }
+                        emit(&self.output, Event::Already(target, depth));
+                    }
                     state.combined.retain_branch_verdict(result);
                     merge_child(&mut state.combined, result);
+                    // This cached declaration is a completed read-peer occurrence,
+                    // independently of prerequisite outcomes or physical timestamps.
+                    if result.remake_group_peer_updated {
+                        state.combined.remake_group_peer_updated = true;
+                        state.combined.completion =
+                            state.combined.completion.max(result.completion);
+                    }
                     state.combined.time = if state.phony {
                         None
                     } else {
@@ -11496,6 +11578,7 @@ impl Engine {
             // either selected a recipe. Recheck ownership after that wait.
             if let Some(mut result) = self.completed_group_branches.get(&id).copied() {
                 result.ran = false;
+                self.mark_remade_group_peer(target, state.phony, &mut result);
                 result.time = if state.phony {
                     None
                 } else {
@@ -11656,11 +11739,12 @@ impl Engine {
         }
         let debug_depth = depth + usize::from(self.remaking);
         // A stopped graph still settles its blocked frames internally.
-        let stopping_dependency = outcome.blocked
-            && (outcome.fatal
-                || (!self.options.keep_going
-                    && !self.optional_remake()
-                    && (self.graph_abort.is_some() || !self.parallel_graph())));
+        let stopping_dependency = (outcome.question_outdated && self.forced_query_stop)
+            || (outcome.blocked
+                && (outcome.fatal
+                    || (!self.options.keep_going
+                        && !self.optional_remake()
+                        && (self.graph_abort.is_some() || !self.parallel_graph()))));
         if !stopping_dependency {
             crate::debug::emit(
                 &self.output,
@@ -11985,9 +12069,9 @@ impl Engine {
                 if !self.optional_remake() {
                     self.show_makefile_error();
                     let parent = self
-                        .scope_parents
+                        .file_visits
                         .get(target)
-                        .and_then(Option::as_ref)
+                        .and_then(|visit| visit.parent.as_ref())
                         .map(|parent| parent.target.as_slice());
                     self.report_missing_rule(target, parent);
                 }
@@ -12129,7 +12213,7 @@ impl Engine {
                 }
             }
             if !outcome.question_outdated && !outcome.fatal && (!outcome.failed || outcome.ran) {
-                for (peer, _, phony) in group.members {
+                for (peer, before, phony) in group.members {
                     let owner = peer == target;
                     let Some(branches) = self
                         .database
@@ -12156,6 +12240,19 @@ impl Engine {
                     } else {
                         self.observed_modified(&peer, false)
                     };
+                    if self.remaking
+                        && !self.parallel_makefile_remakes
+                        && !outcome.failed
+                        && outcome.completion == CompletionTime::Refresh
+                        && !phony
+                        && self.makefile_names.contains(&peer)
+                        && let Some(time) = before
+                        && completed.time != before
+                    {
+                        self.serial_remake_peer_times
+                            .entry(peer.clone())
+                            .or_insert(time);
+                    }
                     let mut peer_times = (database_requested
                         && !phony
                         && if owner {
@@ -12290,11 +12387,7 @@ impl Engine {
                     && self.makefile_names.contains(&peer));
             completed.optional_group_peer_failure =
                 self.optional_remake() && outcome.failed && !outcome.fatal;
-            completed.remake_group_peer_updated = self.remaking
-                && outcome.completion == CompletionTime::Refresh
-                && !outcome.failed
-                && !phony
-                && self.makefile_names.contains(&peer);
+            self.mark_remade_group_peer(&peer, phony, &mut completed);
             completed.search_after_update = false;
             completed.time = if phony {
                 None
@@ -12363,7 +12456,10 @@ impl Engine {
             self.database.refresh_scoped_variables(&mut variables);
             return Ok(variables);
         }
-        let parent = self.scope_parents.get(target).cloned().flatten();
+        let parent = self
+            .file_visits
+            .get(target)
+            .and_then(|visit| visit.parent.clone());
         let inherited = if let Some(parent) = parent {
             self.rule_variables(&parent.target, parent.branch)?
         } else {
@@ -13151,7 +13247,7 @@ impl Engine {
                 let mut emitted_order = Vec::new();
                 let mut inherited_mflags = false;
                 let mut target_reads = TargetReads {
-                    parents: &self.scope_parents,
+                    visits: &self.file_visits,
                     retained_parents: &self.retained_scope_parents,
                     aliases: &self.aliases,
                     base: &self.target_contexts,

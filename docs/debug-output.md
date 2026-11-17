@@ -164,6 +164,21 @@ cover active target synchronization, serial spool drain, a live `MAKEFLAGS`
 selection, and the quiet BASIC control. The selected Guile gate also checks
 this ordering while a recipe expands a missing file through `gmk-expand`.
 
+## Enable verbose output during a build
+
+A Makefile can append `--debug=v` to `MAKEFLAGS` while expanding a recipe or
+its prerequisites. Later visits in the same goal pass still recognize files
+the build considered before verbose output was enabled. These visits print
+`Pruning file '…'.` instead of announcing another consideration. A later
+goal pass can consider the file again.
+
+The ordinary fixtures cover recipe and secondary expansion, existing and phony
+prerequisites, double-colon rules, and dry-run, touch and question modes.
+The same comparison covers a newly encountered prerequisite and a build with
+verbose output enabled from the start. The
+[GNU Make option summary](https://www.gnu.org/software/make/manual/html_node/Options-Summary.html)
+describes the debug categories.
+
 ## Missing targets in double-colon declarations
 
 The basic and verbose debug streams report an initially missing target

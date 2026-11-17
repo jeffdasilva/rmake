@@ -1,0 +1,11 @@
+id = "debug-live-verbose-query-goals"
+requirement = "debug.live-verbose-consideration"
+candidate = "required"
+description = "Question mode retains the earlier goal visit when later expansion enables debug."
+provenance = "Original rmake fixture checked against GNU Make 4.4.1."
+args = ["-rR", "-q", "earlier", "out", "all"]
+
+[expected]
+exit_code = 1
+stdout = "Target file 'out' needs to be remade under -q.\nConsidering target file 'all'.\n File 'all' does not exist.\n Considering target file 'final'.\n  File 'final' does not exist.\n  Pruning file 'earlier'.\n  Pruning file 'out'.\n Finished prerequisites of target file 'final'.\n Giving up on target file 'final'.\nFinished prerequisites of target file 'all'.\nGiving up on target file 'all'.\n"
+stderr = ""
