@@ -72,5 +72,13 @@ control for other read errors.
 | [extension-history.json](extension-history.json) | The 14 added input and option cases, raw observations, and earlier binary results. |
 | [qualification-v2.json](qualification-v2.json) | Full 54-case debug comparison, native and directory checks, and preceding-binary results. |
 | [qualification-children.json](qualification-children.json) | Both 64-case child-lifecycle runs and the two failures on the preceding debug binary. |
+| [child-history.json](child-history.json) | Original child models, first predictions, corrected traces, and explicit worker completion boundaries. |
 | [performance-v2.json](performance-v2.json) | Elapsed and allocation reports, helper sources, and workload inputs for the earlier debug version. |
 | [performance-children.json](performance-children.json) | Paired timing and allocation reports for the child-lifecycle change, including regressions. |
+
+Historical measurement notes preserve the workloads, compared revisions and
+observed regressions. Read the [earlier debug measurements](../../docs/benchmarks/debug-output.md)
+and [child-lifecycle measurements](../../docs/benchmarks/debug-children.md) with
+their linked reports. The [JOBS measurements](../../docs/benchmarks/job-debug.md)
+and [raw performance archive](../job-debug/performance.json) cover the separately
+held process and token comparisons.
