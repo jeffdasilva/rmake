@@ -524,7 +524,12 @@ fn write_implicit_rule_targets<'a>(
         output.write_all(c_bytes(pattern))?;
     }
     output.write_all(if rule.terminal { b"::" } else { b":" })?;
-    write_prerequisites(output, &rule.dependencies)?;
+    write_prerequisites_with_names(
+        output,
+        &rule.dependencies,
+        rule.secondary.as_deref().map(Vec::as_slice),
+        None,
+    )?;
     if let Some(recipes) = &rule.recipes {
         write_recipes_with_presentation(
             output,
@@ -2052,6 +2057,30 @@ mod tests {
         output.clear();
         write_vpaths(&mut output, &database, &[b"search", b"fallback"]).unwrap();
         assert_eq!(output, b"\n# VPATH Search Paths\n\nvpath %.c search:fallback\nvpath %.h fallback\n\n# 2 'vpath' search paths.\n\n# General ('VPATH' variable) search path:\n# search:fallback\n");
+    }
+
+    #[test]
+    fn implicit_rule_database_trims_deferred_clause_edges() {
+        let mut database = Database::default();
+        database
+            .read(
+                b".SECONDEXPANSION:\n%.out:    $$(subst x,  y,$$(U)) %.in ; @:\n%.stamp:  |    $$(subst x,  y,$$(U)) marker ; @:\n",
+                b"Makefile",
+            )
+            .unwrap();
+        let mut output = Vec::new();
+        write_implicit_rules(&mut output, &database).unwrap();
+        let headers: Vec<_> = output
+            .split(|byte| *byte == b'\n')
+            .filter(|line| line.starts_with(b"%."))
+            .collect();
+        assert_eq!(
+            headers,
+            [
+                b"%.out: $(subst x,  y,$(U)) %.in".as_slice(),
+                b"%.stamp: |    $(subst x,  y,$(U)) marker",
+            ]
+        );
     }
 
     #[test]
