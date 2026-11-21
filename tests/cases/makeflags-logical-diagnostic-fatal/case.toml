@@ -1,0 +1,12 @@
+id = "makeflags-logical-diagnostic-fatal"
+requirement = "runtime.makeflags-logical-append"
+candidate = "required"
+description = "Current global outer flag expansion preserves fatal source attribution and fatal status."
+provenance = "Original black-box Makefile and exact byte/status anchors confirmed by two pinned GNU Make 4.4.1 runs; no upstream code or tests consulted or copied."
+args = ["-rR", "--no-print-directory", "a.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a333a202a2a2a206f757465722e202053746f702e0a"

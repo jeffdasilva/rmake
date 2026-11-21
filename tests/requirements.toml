@@ -3093,3 +3093,13 @@ candidate_required = 12
 reference = "https://www.gnu.org/software/make/manual/html_node/Reading-Makefiles.html"
 fixture_count = 12
 cases = ["prerequisite-tail-space-normal", "prerequisite-tail-tab-order-only", "prerequisite-tail-vertical-tab-normal", "prerequisite-tail-form-feed-order-only", "prerequisite-tail-carriage-return-normal", "prerequisite-tail-newline-order-only", "prerequisite-tail-raw-trailing-quote", "prerequisite-tail-interior-quoted-space", "prerequisite-tail-deferred-quoted-space", "prerequisite-tail-deferred-empty-suffix", "prerequisite-tail-raw-high-byte-control", "prerequisite-tail-utf8-nonbreaking-control"]
+
+[[requirements]]
+id = "runtime.makeflags-logical-append"
+title = "Canonical target MAKEFLAGS logical append ownership"
+status = "fixture-ready"
+candidate_status = "implemented"
+candidate_required = 24
+reference = "https://www.gnu.org/software/make/manual/html_node/Target_002dspecific.html"
+fixture_count = 24
+cases = ["makeflags-logical-append-recipe-add-0-0", "makeflags-logical-append-recipe-repeat-0-0", "makeflags-logical-append-recipe-global-replace-0-0", "makeflags-logical-append-recipe-named-replace-0-0", "makeflags-logical-append-recipe-add-1-0", "makeflags-logical-append-recipe-repeat-1-0", "makeflags-logical-append-recipe-add-0-1", "makeflags-logical-append-recipe-repeat-0-1", "makeflags-logical-append-explicit-add-0-0", "makeflags-logical-append-implicit-add-0-0", "makeflags-logical-append-explicit-global-undefine-0-0", "makeflags-logical-append-implicit-named-simple-0-0", "makeflags-logical-append-recipe-outer-recursive-0-0", "makeflags-logical-append-recipe-outer-simple-0-0", "makeflags-logical-pattern-recipe-add-0-0", "makeflags-logical-inherited-recipe-add-0-0", "makeflags-logical-recursive-recipe-add-0-0", "makeflags-logical-simple-recipe-add-0-0", "makeflags-logical-expression-11", "makeflags-logical-expression-5", "makeflags-logical-expression-9", "makeflags-logical-raw-ff", "makeflags-logical-diagnostic-fatal", "makeflags-logical-diagnostic-nested-intrinsic"]

@@ -708,7 +708,10 @@ mod tests {
             let variables = engine.target_variables(b"a.out").unwrap();
             let before = variables.get(b"MAKEFLAGS").unwrap().clone();
             let statistics = variables.database_stats();
-            assert!(!before.is_outer_append());
+            assert_eq!(
+                before.is_outer_append(),
+                declaration == "a.out: MAKEFLAGS += -k"
+            );
             let snapshot = engine
                 .database_file(
                     b"a.out",
