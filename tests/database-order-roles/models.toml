@@ -682,3 +682,95 @@ all: ; @$(file >>seen,$*):
 records = ["all:"]
 flags = ["-p"]
 seen_hex = "610a"
+
+[[case]]
+id = "implicit-secondary-flags-direct-late"
+makefile = '''
+.SECONDEXPANSION:
+all: a.out ;
+%.out: $$(eval MAKEFLAGS += -p) n ; @:
+'''
+records = ["all: a.out"]
+directory_identity = true
+
+[[case]]
+id = "implicit-secondary-flags-direct-startup"
+makefile = '''
+.SECONDEXPANSION:
+all: a.out ;
+%.out: $$(eval MAKEFLAGS += -p) n ; @:
+'''
+records = ["all: a.out"]
+flags = ["-p"]
+directory_identity = true
+
+[[case]]
+id = "implicit-secondary-flags-direct-question"
+makefile = '''
+.SECONDEXPANSION:
+all: a.out ;
+%.out: $$(eval MAKEFLAGS += -p) n ; @:
+'''
+records = ["all: a.out"]
+flags = ["-q"]
+status = 1
+directory_identity = true
+
+[[case]]
+id = "implicit-secondary-flags-direct-dry"
+makefile = '''
+.SECONDEXPANSION:
+all: a.out ;
+%.out: $$(eval MAKEFLAGS += -p) n ; @:
+'''
+records = ["all: a.out"]
+flags = ["-n"]
+directory_identity = true
+
+[[case]]
+id = "implicit-secondary-flags-rejected-late"
+makefile = '''
+.SECONDEXPANSION:
+all: a.out ;
+%.out: $$(eval MAKEFLAGS += -p) absent ; @:
+%.out: n ; @:
+'''
+records = ["all: a.out"]
+directory_identity = true
+
+[[case]]
+id = "implicit-secondary-flags-rejected-startup"
+makefile = '''
+.SECONDEXPANSION:
+all: a.out ;
+%.out: $$(eval MAKEFLAGS += -p) absent ; @:
+%.out: n ; @:
+'''
+records = ["all: a.out"]
+flags = ["-p"]
+directory_identity = true
+
+[[case]]
+id = "implicit-secondary-flags-rejected-question"
+makefile = '''
+.SECONDEXPANSION:
+all: a.out ;
+%.out: $$(eval MAKEFLAGS += -p) absent ; @:
+%.out: n ; @:
+'''
+records = ["all: a.out"]
+flags = ["-q"]
+status = 1
+directory_identity = true
+
+[[case]]
+id = "implicit-secondary-flags-rejected-dry"
+makefile = '''
+.SECONDEXPANSION:
+all: a.out ;
+%.out: $$(eval MAKEFLAGS += -p) absent ; @:
+%.out: n ; @:
+'''
+records = ["all: a.out"]
+flags = ["-n"]
+directory_identity = true

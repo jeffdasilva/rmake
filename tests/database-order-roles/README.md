@@ -34,3 +34,9 @@ stem, bypasses the recipe's suffix fallback. The cases cover unvisited
 targets, shared and substituted prerequisites, secondary file effects,
 question mode with hidden prerequisites, and a late request for the full
 database.
+
+Eight implicit secondary expansion cases check target-local `MAKEFLAGS` and
+`MFLAGS` after a deferred prerequisite requests `-p`. They cover accepted
+candidates and rejected candidates followed by a usable rule, with startup
+printing, late printing, question mode and dry-run controls. Each compares the
+complete database and checks that the parent target's local table is unchanged.
