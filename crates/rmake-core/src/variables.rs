@@ -1059,6 +1059,17 @@ impl VariableStore {
         }
         self.define(name, value, Assignment::Recursive, origin)?;
         if mark_makeflags {
+            let declared_append = self.variables.get(name).and_then(|binding| {
+                self.declaration_for_flags(0, name, binding)
+                    .map(|declared| declared.scope.append_outer)
+            });
+            if let Some(append) = declared_append {
+                Arc::make_mut(&mut self.variables)
+                    .get_mut(name)
+                    .expect("runtime flag binding")
+                    .scope
+                    .append_outer = append;
+            }
             self.variables
                 .get(name)
                 .expect("runtime flag binding")
@@ -1181,6 +1192,16 @@ impl VariableStore {
         name: &[u8],
         binding: &Variable,
     ) -> Option<&Variable> {
+        self.declaration_layer_for_flags(layer, name, binding)
+            .map(|(_, binding)| binding)
+    }
+
+    fn declaration_layer_for_flags(
+        &self,
+        layer: usize,
+        name: &[u8],
+        binding: &Variable,
+    ) -> Option<(usize, &Variable)> {
         // A canonical flag value may replace a declaration in the same
         // logical file table. Hiding it must hide the stored declaration too.
         if !binding.scope.flags_from_declaration {
@@ -1188,10 +1209,23 @@ impl VariableStore {
         }
         self.layers
             .iter()
+            .enumerate()
             .skip(layer)
-            .take_while(|scope| !scope.file_locals)
-            .find(|scope| scope.target.is_some())
-            .and_then(|scope| scope.variables.get(name))
+            .take_while(|(_, scope)| !scope.file_locals)
+            .find(|(_, scope)| scope.target.is_some())
+            .and_then(|(index, scope)| scope.variables.get(name).map(|value| (index + 1, value)))
+    }
+
+    /// A canonical flag binding replaces its declaration in one logical file
+    /// table. Continue an append outside that table, skipping its old storage.
+    fn outer_append_start(&self, layer: usize, name: &[u8], binding: &Variable) -> Option<usize> {
+        if !binding.scope.append_outer {
+            return None;
+        }
+        self.declaration_layer_for_flags(layer, name, binding)
+            .map_or(Some(layer), |(declaration, binding)| {
+                binding.scope.append_outer.then_some(declaration)
+            })
     }
 
     /// Read the shell status owned by this table rather than an ancestor.
@@ -1377,6 +1411,26 @@ impl VariableStore {
                         .map(|(key, variable)| (key.as_ref(), variable))
                 })
         })
+    }
+
+    /// Canonical runtime flags keep their declaration's printed assignment
+    /// operator. This lookup never restores an outer append during expansion.
+    pub fn database_outer_append(&self, name: &[u8], variable: &Variable) -> bool {
+        if variable.scope.flags_from_declaration {
+            let layer = std::iter::once(&self.variables)
+                .chain(self.layers.iter().map(|layer| &layer.variables))
+                .position(|values| {
+                    values
+                        .get(name)
+                        .is_some_and(|selected| std::ptr::eq(selected, variable))
+                });
+            if let Some(declared) =
+                layer.and_then(|layer| self.declaration_for_flags(layer, name, variable))
+            {
+                return declared.scope.append_outer;
+            }
+        }
+        variable.scope.append_outer
     }
 
     /// The already-materialized backing value of the special root metadata
@@ -2555,7 +2609,9 @@ impl VariableStore {
             return Ok(Vec::new());
         };
         let mut expansion = self.expansion(context);
-        if variable.flavor == Flavor::Recursive && variable.scope.append_outer {
+        if variable.flavor == Flavor::Recursive
+            && self.outer_append_start(layer, name, variable).is_some()
+        {
             // GNU constructs an inherited append by searching the entire file
             // context again. Environment selection may have skipped a private
             // pattern binding that this second, ordinary lookup can see.
@@ -2590,7 +2646,12 @@ impl VariableStore {
             context,
             binding_context: None,
         };
-        if variable.flavor == Flavor::Recursive && variable.scope.append_outer {
+        if variable.flavor == Flavor::Recursive
+            && expansion
+                .store
+                .outer_append_start(layer, name, variable)
+                .is_some()
+        {
             // GNU constructs an inherited append by searching the entire file
             // context again. Environment selection may have skipped a private
             // pattern binding that this second, ordinary lookup can see.
@@ -3346,7 +3407,12 @@ pub(crate) fn expand_environment_database(
         context,
         binding_context: None,
     };
-    let result = if variable.flavor == Flavor::Recursive && variable.scope.append_outer {
+    let result = if variable.flavor == Flavor::Recursive
+        && expansion
+            .store
+            .outer_append_start(layer, name, variable)
+            .is_some()
+    {
         if let Some((first_layer, first)) = expansion.store.lookup_from(name, 0) {
             let first = first.clone();
             expansion.active.push((name.to_vec(), Some(layer)));
@@ -3886,7 +3952,9 @@ impl Expansion<'_, '_> {
             return self.expand_layer(name, &dynamic, layer);
         }
         let mut value = Vec::new();
-        if !variable.scope.append_outer {
+        let mut selected =
+            layer.and_then(|layer| self.store.outer_append_start(layer, name, variable));
+        if selected.is_none() {
             self.append_layer_body(&mut value, variable)?;
             return Ok(value);
         }
@@ -3895,16 +3963,12 @@ impl Expansion<'_, '_> {
         // table after an outer part evaluates a target declaration.
         let revision = self.store.target_scope_revision;
         let mut outers = Vec::new();
-        let mut append = true;
-        let mut selected = layer;
         let mut extra = 0usize;
-        while append {
+        while let Some(index) = selected {
             if self.context.is_cancelled() {
                 return Err(ExpandError::Cancelled);
             }
-            let Some((outer_layer, outer)) =
-                selected.and_then(|index| self.store.lookup_from(name, index + 1))
-            else {
+            let Some((outer_layer, outer)) = self.store.lookup_from(name, index + 1) else {
                 break;
             };
             let mut outer = outer.clone();
@@ -3920,8 +3984,7 @@ impl Expansion<'_, '_> {
                     return Err(ExpandError::ExpansionLimit);
                 }
             }
-            append = outer.scope.append_outer;
-            selected = Some(outer_layer);
+            selected = self.store.outer_append_start(outer_layer, name, &outer);
             outers.push((outer_layer, outer));
         }
         let bodies = outers
@@ -3993,7 +4056,12 @@ impl Expansion<'_, '_> {
                 .exporting
                 .push(name.to_vec());
         }
-        let result = if variable.flavor == Flavor::Recursive && variable.scope.append_outer {
+        let result = if variable.flavor == Flavor::Recursive
+            && self
+                .store
+                .outer_append_start(layer, name, variable)
+                .is_some()
+        {
             let Some((first_layer, first)) = self.store.lookup_from(name, 0) else {
                 if tracked {
                     self.store.database_mut().unwrap().exporting.pop();
@@ -8884,6 +8952,89 @@ mod variable_names_tests {
 #[cfg(test)]
 mod runtime_metadata_scope_tests {
     use super::*;
+
+    #[test]
+    fn flag_presentation_and_expansion_follow_the_same_logical_declaration() {
+        let mut globals = VariableStore::new();
+        globals
+            .define(b"MAKEFLAGS", b"outer", Assignment::Recursive, Origin::File)
+            .unwrap();
+        let mut target = TargetScope::for_target(b"all");
+        target
+            .define_with(
+                &mut globals,
+                b"MAKEFLAGS",
+                b"tail",
+                Assignment::Append,
+                Origin::File,
+                false,
+                None,
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        let mut context = globals.with_target_scopes(&[&target]);
+        for canonical in [b"normalized".as_slice(), b"normalized again"] {
+            context
+                .define_runtime_metadata(b"MAKEFLAGS", canonical, Origin::File)
+                .unwrap();
+            let binding = context.get(b"MAKEFLAGS").unwrap();
+            assert!(context.database_outer_append(b"MAKEFLAGS", binding));
+            assert!(binding.is_outer_append());
+            assert_eq!(
+                context.expand(b"$(MAKEFLAGS)").unwrap(),
+                [b"outer ", canonical].concat()
+            );
+        }
+        target
+            .define_with(
+                &mut globals,
+                b"MAKEFLAGS",
+                b"replacement",
+                Assignment::Simple,
+                Origin::File,
+                false,
+                None,
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        context.refresh_target_scope(&target);
+        let binding = context.get(b"MAKEFLAGS").unwrap();
+        assert!(!context.database_outer_append(b"MAKEFLAGS", binding));
+        assert_eq!(binding.raw_value(), b"normalized again");
+        assert_eq!(
+            context.expand(b"$(MAKEFLAGS)").unwrap(),
+            b"normalized again"
+        );
+    }
+
+    #[test]
+    fn inherited_flag_declarations_do_not_supply_a_childs_local_assignment_operator() {
+        let mut globals = VariableStore::new();
+        let mut target = TargetScope::for_target(b"parent");
+        target
+            .define_with(
+                &mut globals,
+                b"MAKEFLAGS",
+                b"tail",
+                Assignment::Append,
+                Origin::File,
+                false,
+                None,
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        let parent = globals.with_target_scopes(&[&target]);
+        let mut child = parent.with_target_scopes(&[]);
+        child
+            .define_runtime_metadata(b"MAKEFLAGS", b"normalized", Origin::File)
+            .unwrap();
+        let binding = child.get(b"MAKEFLAGS").unwrap();
+        assert!(!child.database_outer_append(b"MAKEFLAGS", binding));
+        assert!(target.get(b"MAKEFLAGS").unwrap().is_outer_append());
+    }
 
     #[test]
     fn rejected_weak_metadata_definition_still_queries_its_file_table() {

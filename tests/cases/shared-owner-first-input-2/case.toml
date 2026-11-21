@@ -1,0 +1,12 @@
+id = "shared-owner-first-input-2"
+requirement = "resolution.shared-implicit-owner"
+candidate = "required"
+description = "Accepted implicit child ownership: first-input-2"
+provenance = "Original rmake fixture independently authored against GNU 4.4.1; no upstream implementation or test material used."
+args = ["-rR", "--no-print-directory", "a.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7365617263687c612e6d69647c310a7365617263687c612e6d69647c320a7265636970657c612e6d69647c612e696e7c612e696e7c612e696e7c612e696e7c0a7265636970657c612e6f75747c612e6d69647c612e6d69647c612e6d696420612e6d69647c612e6d69647c0a"
+stderr_hex = ""

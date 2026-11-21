@@ -1284,6 +1284,8 @@ pub struct FileView<'a> {
     pub target_variables: Option<&'a crate::variables::TargetScope>,
     /// Actual runtime local definitions, when a saved file scope is available.
     pub local_variables: Option<&'a [(&'a [u8], &'a Variable)]>,
+    /// Retained declaration metadata for those runtime definitions.
+    pub local_scope: Option<&'a VariableStore>,
     pub automatic_variables: Option<AutomaticVariables<'a>>,
 }
 
@@ -1311,6 +1313,7 @@ impl<'a> FileView<'a> {
             double_colon: rule.is_some_and(|rule| rule.double_colon.is_some()),
             target_variables: None,
             local_variables: None,
+            local_scope: None,
             automatic_variables: None,
         }
     }
@@ -1391,7 +1394,10 @@ impl<'a, W: Write> FilePrinter<'a, W> {
                         name,
                         variable.raw_value(),
                         variable.flavor(),
-                        variable.is_outer_append(),
+                        file.local_scope.map_or_else(
+                            || variable.is_outer_append(),
+                            |scope| scope.database_outer_append(name, variable),
+                        ),
                     )?;
                 }
             }

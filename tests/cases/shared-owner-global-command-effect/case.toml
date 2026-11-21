@@ -1,0 +1,12 @@
+id = "shared-owner-global-command-effect"
+requirement = "resolution.shared-implicit-owner"
+candidate = "required"
+description = "Accepted implicit child ownership: global-command-effect"
+provenance = "Original rmake fixture independently authored against GNU 4.4.1; no upstream implementation or test material used."
+args = ["-rR", "--no-print-directory", "a.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "636f6d6d616e647c612e6d69647c61667465727c612e696e0a636f6d6d616e647c612e6f75747c61667465727c612e6d696420612e6d69640a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "shared-owner-last-search-shell-status"
+requirement = "resolution.shared-implicit-owner"
+candidate = "required"
+description = "Accepted implicit child ownership: last-search-shell-status"
+provenance = "Original rmake fixture independently authored against GNU 4.4.1; no upstream implementation or test material used."
+args = ["-rR", "--no-print-directory", "a.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d6574617c612e6d69647c327c612e696e0a6d6574617c612e6f75747c7c612e6d696420612e6d69640a"
+stderr_hex = ""

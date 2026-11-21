@@ -1,273 +1,203 @@
-# Structured debug output on the pinned GNU 4.4.1 profile
+# Inspect a build with trace and debug output
 
-The application now emits selected GNU-compatible BASIC, VERBOSE, IMPLICIT,
-MAKEFILE, PRINT and WHY output, including `-d`, `--debug` selection and `--trace`
-interactions. All 64 deterministic profiles pass both current frozen builds;
-the preceding debug build passes 62 and fails two child-lifecycle cases. The
-earlier 54-profile slice and its one-pass/53-fail directory-build control remain
-immutable historical evidence. This is a bounded debug slice, and complete
-debug/database behavior and M3/M6 remain open.
+Use `--trace` to see which recipes run and why their targets need updating.
+Use `--debug` when you need to follow file visits, implicit rule searches,
+Makefile remakes, or child processes.
 
-The application keeps original debug requests in `debug::Requests` separately
-from the effective `debug::Mask`. Unique raw argument values retain byte spelling,
-case and order for MAKEFLAGS serialization; repeated identical values are not
-reinserted. Consequently separate `--debug=b --debug=n --debug=b` selections
-retain the first two raw values, while the single value `b,n,b` contains all
-three operations. Effective category selection follows the first character of
-each word, case-insensitively, with ordered resets. VERBOSE, IMPLICIT and MAKEFILE
-also enable BASIC; JOBS, PRINT and WHY do not. TRACE initially contributes PRINT
-and WHY, and a later reset can clear their effective selection while the original
-request history remains available. Invalid separators diagnose the remaining
-suffix after completed eager effects.
+## Choose an option
 
-Reading and traversal produce borrowed events instead of constructing diagnostic
-strings throughout the interpreter. Core `ReaderEvent` values borrow filenames
-and carry search, optional, default-goal and tilde annotations; the application
-chooses their presentation through its output receiver. Their emission preserves
-actual read/effect order without repeating an expansion or filesystem lookup.
-The selected profiles check annotation order and BASIC BOM notification. BASIC
-header publication precedes command-line `--eval`, while eager argument effects
-retain their earlier phase. MAKEFILE selection controls traversal diagnostics
-while Makefiles are remade, with the previous effective mask restored afterward.
+| Option | Use it to inspect |
+| --- | --- |
+| `--trace` | Rebuild reasons, recipe source locations, and commands, including recipes silenced with `@` or `.SILENT`. |
+| `--debug=b` | Missing or out-of-date targets and the result of updating them. |
+| `--debug=v` | Makefiles read, target visits, and prerequisites that are already current. It also enables basic output. |
+| `--debug=i` | Implicit rule searches and basic output. |
+| `--debug=b,m` | Basic output during both Makefile remakes and the ordinary goal pass. |
+| `--debug=j` | Child process activity. See the [JOBS guide](job-debug.md) for process and token comparisons. |
+| `--debug=p` | Recipe source locations and commands, including silent recipes. |
+| `--debug=w` | The prerequisites that make a target need updating. |
+| `-d` or `--debug=a` | All debug categories. |
 
-Reader and traversal debug records write directly to stdout at their event
-boundaries, retaining GNU's observed ordering relative to synchronized ordinary
-output. PRINT and WHY use the existing command-echo and rebuild-reason paths.
-The event renderer checks its category before allocating indentation or rendering
-text. IMPLICIT rule-label construction runs only when its category is enabled;
-WHY reason construction and its automatic-variable expansion are also guarded.
-These fast-path checks avoid unnecessary debug formatting and evaluation when
-that output is disabled. They do not establish zero overhead or a general
-performance improvement.
+A bare `--debug` enables basic output. Combine categories with commas or spaces.
+`--trace` selects the print and why categories. A later `--debug=n` clears the
+active categories, and subsequent debug options can enable them again.
 
-`$(file <path)` returns an empty value on an absent file. With VERBOSE active,
-GNU Make 4.4.1's `func_file` in `src/function.c` also reports the failed open
-immediately on stdout. The Linux effect exposes the original error to the app
-without retrying the open. The renderer checks the current mask, preserves the
-filename bytes, and uses the active catalog and libc error text. Eleven original
-Makefiles check startup eval, inclusion, secondary expansion, live mask
-activation, recipes, output synchronization and control paths. Two additional
-models check C and French output and unchanged timestamps.
+The `-p` option prints the parsed database, variables, rules, and recorded file
+state. Follow the [database guide](database-output.md) to inspect or compare
+that output. The [GNU Make option summary](https://www.gnu.org/software/make/manual/html_node/Options-Summary.html)
+describes the debug categories and their command-line spelling.
 
+## Try a trace
 
-The remake preflight reports phony makefiles and unconditional double-colon
-recipes before traversal enters its temporary debug mask. This follows GNU
-Make 4.4.1's preflight in `src/main.c`. When a makefile has no recorded rule,
-its graph visit observes freshness and reports consideration before the implicit
-search. It retains the outcome for a later ordinary goal and reports an optional
-missing file's cached failure before the error. Nine ordinary cases cover search
-order, retained secondary-expansion effects, and reuse across the two phases.
-Eight separate ordinary cases and one C/French model cover preflight skip
-decisions, ordering, required and optional includes, and retained recipes.
+This Makefile creates a file containing one line of text.
 
-`make test-debug-output` runs the separate strict gate; `DEBUG_CASE` selects an
-exact ID, including `debug-bare-basic` for the focused self-host flow. Paths come
-only from the predetermined reset workspace and executable alias. All stream
-bytes, status, ordered effects, independent complete filesystem state, GNU repeat
-agreement and process bounds are checked. Observed streams and final files exclude
-dynamic job addresses/PIDs. No compiler or native module is needed by these
-debug fixtures.
-The gate is wired into development, optimized and focused self-host flows.
+```makefile
+result.txt:
+	@printf 'ready\n' > $@
+```
 
-Eight implicit-stem profiles cover short relative names and the Linux stem
-limit. Implicit search counts the bytes of the stem plus any directory prefix
-ignored during matching. An overlong candidate is reported after the attempt
-and skipped before prerequisite expansion, including when debug output is off.
-The fixtures use bounded virtual names, preserving ordinary stat diagnostics
-and comparing the complete filesystem after each run.
+1. In an empty directory, save the example as `Makefile`. Start the recipe line
+   with a tab.
 
-Implicit tracing keeps the full stem when matching the whole archive member
-reference, including slashes in the container or member name. Seven archive
-and ordinary controls distinguish that first search from member-only fallback
-and the directory prefix ignored by an ordinary slashless pattern.
+2. Build the file with tracing enabled.
 
-Automatic debug-triggered version headers are exact GNU protocol, including the
-pinned build identity. Only the case that explicitly requests `--version` with an
-invalid debug selection permits one fixed branding block. Its GNU calibration
-must match the stored original GNU block, and each engine's isolated version is
-checked twice without reader or directory/debug effects. The complete eager
-output, fatal diagnostic, version position, status and file effects remain exact.
-Negative controls reject moved/extra blocks, changed paths, indentation, state,
-headers and boundaries. Ordinary debug headers have no branding exemption, and
-there is no broad stream or job-identity normalization.
+   ```sh
+   rmake -rR --no-print-directory --trace result.txt
+   ```
 
-The earlier [54-profile qualification](../tests/debug-output/qualification-v2.json)
-retains seven historical reports: its selected builds passed debug 54, native
-215 and directory 40, while its preceding-main debug control passed one and
-failed 53. The original
-forty-profile [history](../tests/debug-output/history.json) and fourteen-case
-[review extension](../tests/debug-output/extension-history.json) remain separate
-and immutable. The latter closes twelve v1 differences in eval-header timing,
-BOM reporting, reader annotations and debug separator/suffix errors. Earlier
-incorrect predictions, all observations and the original explicit-version raw
-GNU model are preserved. Original fixtures and adapters include no copied or
-translated GNU implementation, headers or tests.
+   With GNU Make 4.4.1 and the verified rmake release, stdout is identical.
 
-The current [BASIC-child qualification](../tests/debug-output/qualification-children.json)
-retains both C1 builds passing all 64 debug profiles and the preceding debug
-build passing 62 and failing two. Ten new original cases cover serial/parallel
-success, stop-mode and keep-going failures, ignored errors, up-to-date targets
-and a queued three-worker graph. The corrections restore the observed parent
-Missing revisits and omit the serial stop-mode Failed record after a fatal
-child. Serial keep-going retains its legitimate Failed record; parallel failures
-and queued completions do not invent individual Failed/Success records that GNU
-omits. The absence of queued-child Success lines is required behavior in these
-cases, not evidence of an unimplemented feature.
+   ```text
+   Makefile:2: update target 'result.txt' due to: target does not exist
+   printf 'ready\n' > result.txt
+   ```
 
-The queued worker protocol forces START-first, START-second, END-first,
-START-third, END-second, END-third. Its third worker verifies the second worker's
-PID and Linux process starttime while that worker still blocks, then waits for
-its completion and disappearance or replacement of that exact identity. The
-sole temporary PID file is removed before final observation. All final output,
-ordered effects and filesystem bytes remain static; there is no job-identity
-normalizer or broader JOBS comparison. Workers and observation groups have
-explicit deadlines and reject leftovers. The eight original first/corrected
-models and two additive keep-going first predictions remain separately retained
-in [child-history.json](../tests/debug-output/child-history.json), including the
-incorrect first serial-failure expectation. All earlier 54 model fingerprints,
-model files and archives remain unchanged.
+   The command exits with status zero, writes no stderr, and creates
+   `result.txt` containing `ready` followed by a newline. The trace reports the
+   source line and expanded recipe even though the recipe starts with `@`.
 
-Formatting, Clippy, 576 Rust tests and 634 tooling tests pass. The existing 215
-native and 40 directory models/history remain unchanged; their earlier passing
-qualifications are historical references. This C1 archive qualifies debug only;
-new C1 native/directory acceptance awaits the full gate. The ordinary ledger remains
-27,766 required / zero pending across 158 families; the 32 documented safety
-exceptions / 128 separately gated cells are unchanged. These separate debug
-profiles add no ordinary-ledger or safety-exception credit. Full frozen local
-acceptance and exact-head CI remain merge gates. The separate
-[earlier measurement note](benchmarks/debug-output.md) preserves its regressions,
-and the [child-slice measurements](benchmarks/debug-children.md) retain the new
-controls and limits. These compatibility results establish no general GNU parity.
+3. To repeat the comparison with GNU Make 4.4.1, remove `result.txt` and replace
+   `rmake` with `make` in the command. Each run starts with a missing target.
 
-Beyond the separately qualified JOBS profiles below, broader PID/address and
-lifetime relationships and asynchronous traversal diagnostics remain open. The selected
-IMPLICIT and MAKEFILE cases do not establish full implicit-chain, built-in search
-or default-Makefile discovery diagnostics. Database output (`-p`) remains
-unimplemented. Broader recursion, native/debug interactions, stdout/descriptor,
-non-C locale, architecture, Linux/libc, interruption and resource profiles need
-separate acceptance. Enabled Guile/GC integration, persistent cache correctness,
-external-project integration and complete developer-flow coverage also remain
-open. No selected-profile result waives those M3/M6 requirements.
+## Replay a verified comparison
 
-A later bounded [actual-child JOBS slice](job-debug.md) qualifies nine strict
-identity/token profiles on both selected builds. Its complete raw histories,
-rejected observations and independent live-process/token witnesses are separate
-from this deterministic 64-profile evidence. Broader JOBS combinations and
-complete debug/M3/M6 acceptance remain open. Its [measurement page](benchmarks/job-debug.md)
-and [performance archive](../tests/job-debug/performance.json) retain mixed elapsed
-results, unchanged allocation calls/frees and all exact inputs; they establish no
-general performance parity.
+From the repository root, run the debug gate or select one named case.
 
-Verbose output reports the output-sync mutex after the makefile reader completes
-and after any jobserver controller line. Four original named-lock cases
-cover active target synchronization, serial spool drain, a live `MAKEFLAGS`
-selection, and the quiet BASIC control. The selected Guile gate also checks
-this ordering while a recipe expands a missing file through `gmk-expand`.
+```sh
+make test-debug-output
+make test-debug-output DEBUG_CASE=debug-bare-basic
+```
+
+The gate writes `artifacts/debug-output/development.json`. To compare an
+already built release, run the driver directly.
+
+```sh
+python3 tools/debug_output.py --candidate target/release/rmake \
+  --case debug-bare-basic \
+  --case debug-remake-cache-include-current-existing-ordinary \
+  --report artifacts/debug-output/focused-release.json
+```
+
+Each selected case runs GNU Make twice in a reset workspace, then rmake.
+The driver compares stdout, stderr, exit status, ordered effects, and the
+complete expected filesystem. Held-worker cases also check output before a
+real recipe process can finish. A deadline or a leftover child fails the case.
+See the [debug fixture guide](../tests/debug-output/README.md) for case groups,
+reference setup, report interpretation, and historical campaign manifests.
+
+Use the [traversal comparisons](../tests/debug-traversal/README.md) for implicit
+search and cleanup, the [verbose comparisons](../tests/debug-verbose/README.md)
+for timestamp decisions, and the [JOBS guide](job-debug.md) for process identity.
+The [compatibility audit](m3-m6-audit.md) records remaining M3/M6 work.
 
 ## Enable verbose output during a build
 
 A Makefile can append `--debug=v` to `MAKEFLAGS` while expanding a recipe or
 its prerequisites. Later visits in the same goal pass still recognize files
-the build considered before verbose output was enabled. These visits print
-`Pruning file '…'.` instead of announcing another consideration. A later
-goal pass can consider the file again.
+considered before verbose output was enabled. Those visits print
+`Pruning file '…'.` A later goal pass can consider the file again.
 
-The ordinary fixtures cover recipe and secondary expansion, existing and phony
-prerequisites, double-colon rules, and dry-run, touch and question modes.
-The same comparison covers a newly encountered prerequisite and a build with
-verbose output enabled from the start. The
-[GNU Make option summary](https://www.gnu.org/software/make/manual/html_node/Options-Summary.html)
-describes the debug categories.
+The maintained cases cover recipe and secondary expansion, existing and phony
+prerequisites, double-colon rules, and dry-run, touch and question modes. They
+also compare a newly encountered prerequisite and a build that starts with
+verbose output enabled.
+
+With verbose output active, `$(file <path)` reports a failed open immediately
+on stdout and returns an empty value when the file is absent. The report uses
+the error from that open, the active locale, and the original filename bytes.
+Verbose output also reports an output-sync mutex after the reader finishes
+and after any jobserver controller line.
 
 ## Missing targets in double-colon declarations
 
-The basic and verbose debug streams report an initially missing target
-when each declared double-colon branch is visited. Later branches retain
-that observation even when an earlier branch creates the file. Five
-fixtures exercise query, dry-run, touch, normal execution, and an
-initially present target.
+Basic and verbose output report an initially missing target for each declared
+double-colon branch. Later branches retain that observation when an earlier
+branch creates the file. The cases include question, dry-run, touch and
+ordinary execution, with a separate initially present target control.
 
-During a serial makefile remake, the failed source read marks the head
-declaration missing. A later declaration can then observe the file
-created by an earlier recipe and find its own prerequisite older. An
-initially present source retains its original comparison time across the
-declared branches. Five fixtures check exact output and included values
-across required and optional reads, with basic and verbose tracing and
-without debug output. Optional failed-branch replay remains a separate
-case.
+During a serial Makefile remake, a failed source read marks the head
+missing. A later declaration can observe the file created by an earlier recipe
+and find its own prerequisite older. An initially present source retains its
+original comparison time across declarations.
 
-Serial ungrouped double-colon makefile remakes use the optional source
-policy for the first declaration. Later declarations report their own errors.
-A cached prerequisite failure can be reported again when a later declaration
-or required source read revisits the first declaration. With keep-going,
-the first declaration determines the source status and the physical file can
-be reread after either declaration changes it.
+Serial ungrouped double-colon remakes apply the optional source policy to the
+first declaration. Later declarations report their own errors. A cached
+prerequisite failure can be reported again when a later declaration or required
+read revisits the head. Under `-k`, the first declaration determines source
+status, and a physical change by either declaration can cause a reread.
 
-Serial remake tracing reports a failed prerequisite lookup when an optional
-makefile or a required makefile under `-k` returns to the updater. A recipe
-failure also produces a failed-update trace when an optional makefile returns
-to the updater. A required stopping failure exits before that trace. These
-diagnostics also apply when `-n`, `-q`, or `-t` governs a separate build goal.
+An optional source, or a required source under `-k`, reports a failed
+prerequisite lookup when it returns to the updater. An optional recipe failure
+also produces a failed-update trace on that return. A required stopping failure
+exits before that trace. These diagnostics also apply when `-n`, `-q`, or `-t`
+governs a separate ordinary goal.
 
-Under `-k`, a required ungrouped double-colon makefile can finish its
-remaining declarations after the head fails. Verbose tracing then reports
-one cached-head prune per additional declaration. This also applies to the
-default makefile and to a primary file named with `-f`.
+## Follow duplicate includes and cached failures
+
+Under `-k`, a required ungrouped double-colon Makefile can finish its remaining
+declarations after the head fails. Verbose output then reports a cached-head
+prune for each additional declaration. This applies to default Makefiles and
+to a primary file selected with `-f`.
 
 A repeated required read revisits the cached head and every declaration.
 Each duplicate read emits one verbose prune per declaration. If a restart
-removes the declarations, each duplicate of the rule-free source emits one
-prune during the new makefile pass.
-
-A successful optional source with the same observed timestamp also emits a
-prune for each cached declaration on a duplicate read. Grouped double-colon
-declarations contribute individually to that trace.
+removes the declarations, each duplicate of the source emits one prune during
+the new rule-free Makefile pass. A successful optional source with the same
+observed timestamp also prunes each cached declaration on a duplicate read.
+Grouped double-colon declarations contribute individually.
 
 An optional double-colon source under `-k` can revisit every completed
-declaration after its head fails. A retained prerequisite error is reported
-after the cached head trace and before the later declaration traces. A
-directly failed head has one full revisit, followed by prunes for further
-cached goal entries. A later required declaration or makefile can also report
-the cached failure of a prerequisite first visited under the optional policy.
+declaration after its head fails. The retained prerequisite error follows the
+cached-head trace and precedes the later declaration traces. A directly failed
+head has one full revisit, followed by prunes for further cached goal entries.
+A later required declaration or Makefile can also report a prerequisite failure
+first observed under the optional policy.
 
 When a required serial remake first fails as a prerequisite of an optional
-source, its later root visit uses the original dependency edge in the
-diagnostic. Verbose output reports the cached failure before the diagnostic,
-including when the source was blocked by its own missing prerequisite.
-An explicit grouped recipe that fails under the optional policy also records
-its read peers as recently failed for their subsequent verbose visits. Six
-fixtures cover direct and nested edges, keep-going, and required and optional
-grouped peers.
+source, its later root visit uses the original dependency edge in the error.
+Verbose output reports the cached failure before that error, including when the
+source was blocked by its own missing prerequisite. See the
+[remake cache models](../tests/debug-output/remake-cache-phase.toml) for the
+retained traces and [restart guide](restart-state.md) for reread behavior.
 
-Under keep-going, a required explicit grouped recipe can fail after
-rewriting an existing include peer. The later serial root reports the
-cached failure and compares the peer's physical timestamp with its
-pre-recipe observation before deciding whether to reread the makefiles.
-Four fixtures cover ordinary execution, query mode, and the recently
-failed trace for a changed or unchanged peer.
+## Follow grouped Makefile remakes
 
-When the grouped owner is missing, its freshness check can skip the other
-group members. A failed required group under keep-going can still compare an
-existing peer's saved serial read timestamp with its final physical time.
-Four fixtures cover forward and backward timestamp changes, a same-time
-rewrite, and a removed peer.
+An explicit grouped recipe that fails under the optional policy marks its read
+peers as recently failed for their later verbose visits. A required group under
+`-k` can fail after rewriting an existing include peer. The later serial root
+reports the cached failure and compares the peer's physical timestamp with its
+observation before the recipe to decide whether to reread the Makefiles.
 
-A successful missing grouped owner can also remove an existing peer.
-The saved read timestamp and the peer's now-missing observation establish
-the change before the reread. One fixture uses the removed peer's presence
-to enable the original group, so deletion itself ends that remake path.
-Other fixtures cover required failure on reread, query mode and the
-existing case where a missing peer appears.
+A missing owner can stop the freshness scan before it visits the other group
+members. A failed required group under `-k` still compares a read peer's saved
+physical timestamp after the recipe. The controls cover forward and backward
+timestamp changes, same-time rewrites, and removal. A successful missing owner
+can also remove an existing peer and trigger a reread. The cases cover required
+failure on that reread, question mode, and a missing peer that appears.
 
-A present grouped owner can stop scanning peers at a missing third member.
-If the successful recipe removes a previously read peer beyond that point,
-the saved read timestamp also establishes the change. Four fixtures cover
-physical removal with required and optional reads, query mode and the
-reverse declaration order where the ordinary scan already sees the peer.
+A present owner can stop scanning peers at a missing third member. If its
+successful recipe removes or changes a previously read peer beyond that point,
+the saved read timestamp still establishes the change. Required and optional
+reads, verbose output, question mode, and reverse declaration order have
+separate controls. The same comparison applies when the absent group member
+is the optional owner of the recipe.
 
-The saved physical time also establishes a forward or backward timestamp
-change when the same successful group rewrites that read peer. Fixtures
-cover required and optional includes, verbose output, query mode and the
-ordinary observation path in the reverse declaration order.
-The same observation applies when the absent group member is the optional
-owner of the recipe.
+## Implementation and evidence
+
+The reader publishes borrowed [reader events](../crates/rmake-core/src/diagnostic.rs)
+and the application renders them at their actual stdout boundaries. The
+[debug module](../crates/rmake-app/src/debug.rs) keeps serialized request history
+and the active category mask. Reader annotations, Makefile preflight messages,
+recipe output, and synchronized output retain their observed phase order.
+
+The renderer checks its category before formatting indentation or implicit rule
+labels. Rebuild-reason expansion is also guarded by its category. Debug output
+therefore uses the existing visits and effects without repeating an expansion
+or filesystem lookup to explain it. Local measurements and their regressions
+are retained in the [historical reports](../tests/debug-output/README.md#historical-reports).
+
+Automatic version headers emitted by debugging are part of the exact GNU
+transcript. The fixture guide describes the separate explicit `--version`
+branding case and its checks. Historical debug, native-module and directory
+campaigns retain the executable and source identities they tested. Use the
+current replay results and compatibility audit when evaluating a new revision.

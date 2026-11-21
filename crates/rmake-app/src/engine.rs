@@ -24,7 +24,7 @@ use rmake_core::parser::{
     Database, Dependency, Location, Makefile, Recipe, RecipeSource, Rule, words,
 };
 use rmake_core::variables::{
-    Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, Variable, VariableStore,
+    Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, VariableStore,
 };
 use rmake_linux::jobserver::{Jobserver, Permit};
 use std::borrow::Cow;
@@ -1297,7 +1297,7 @@ enum ImplicitFilenames {
 
 struct ImplicitScope {
     pattern: Option<TargetScope>,
-    shell_status: Option<Variable>,
+    runtime_metadata: VariableStore,
 }
 
 struct ImplicitSearch {
@@ -8588,9 +8588,11 @@ impl Engine {
             .collect();
         for selection in &plan {
             let group = selection.rule.group.as_ref();
-            // Detached double-colon roots prepare their own history.
+            // Detached double-colon roots prepare their own stem, but retain
+            // their selected prerequisite and pattern lookups here too.
             // Recipes can request the database after this selection.
-            let retain_history = group.is_some() || (!detach_root && selection.name == target);
+            let retain_stem = group.is_some() || (!detach_root && selection.name == target);
+            let retain_history = retain_stem || (detach_root && selection.name == target);
             for dependency in selection.rule.dependencies.iter().rev() {
                 if let Some(child) = inferred.get(dependency.name.as_slice()) {
                     self.database.file_records.insert(&dependency.name);
@@ -8610,11 +8612,11 @@ impl Engine {
                     }
                 }
             }
-            if retain_history && let Some(history) = self.database.database_history() {
-                if let Some(stem) = &selection.rule.stem {
+            if let Some(history) = self.database.database_history() {
+                if retain_stem && let Some(stem) = &selection.rule.stem {
                     history.intern(stem);
                 }
-                if let Some(pattern) = &selection.rule.implicit_pattern {
+                if retain_history && let Some(pattern) = &selection.rule.implicit_pattern {
                     history.record_file_lookup(pattern);
                 }
             }
@@ -8637,6 +8639,7 @@ impl Engine {
                 .explicit_names
                 .extend(selection.explicit_names.iter().cloned());
         }
+        let mut attached_children = HashSet::new();
         for selection in plan {
             let ImplicitSelection {
                 name,
@@ -8645,6 +8648,20 @@ impl Engine {
                 explicit_names: _,
                 intermediate_names,
             } = selection;
+            if name != target && !attached_children.insert(name.clone()) {
+                // Repeated searches retain their effects, but the first accepted
+                // child owns its rule. A prior inferred rule is not an explicit
+                // prerequisite declaration to append to a later selection.
+                if let Some(scope) = prepared_scope {
+                    self.implicit_scopes.insert(name, *scope);
+                }
+                continue;
+            }
+            // Only accepted recursive selections become searched file records.
+            // A detached root keeps its separate double-colon branch marker.
+            if name != target {
+                self.database_implicit.insert(name.clone());
+            }
             if rule.terminal {
                 // Accepting a terminal rule bars implicit search when
                 // visiting its prerequisites. Explicit recipes and the
@@ -8952,28 +8969,24 @@ impl Engine {
                             explicit_word = !percent;
                             let variables = variables.as_mut().expect("initialized file scope");
                             let value = self.expand(variables, &rewritten, None);
-                            if let Some(status) = variables.local_shell_status() {
-                                if intermediate {
-                                    let scope = search
-                                        .intermediate_scope
-                                        .as_mut()
-                                        .expect("initialized intermediate scope");
-                                    if scope.shell_status.as_ref() != Some(status) {
-                                        scope.shell_status = Some(status.clone());
-                                    }
-                                } else if let Some(ordinal) = search.branch {
-                                    // A later branch inherits the head, but its shell
-                                    // completion belongs to its own recipe variables.
-                                    let mut context = self.rule_variables(target, Some(ordinal))?;
-                                    context.retain_local_shell_status(status);
-                                    self.retain_database_context(target, Some(ordinal), &context);
-                                } else if let Some(context) =
-                                    self.target_contexts.get_mut(self.aliases.resolve(target))
-                                {
-                                    // Later candidates and recursive searches can
-                                    // read a real file even after a rejection.
-                                    context.retain_local_shell_status(status);
-                                }
+                            if intermediate {
+                                let scope = search
+                                    .intermediate_scope
+                                    .as_mut()
+                                    .expect("initialized intermediate scope");
+                                scope
+                                    .runtime_metadata
+                                    .retain_runtime_metadata(variables, true);
+                            } else if let Some(ordinal) = search.branch {
+                                // Each declared branch owns its runtime metadata,
+                                // including effects of a rejected implicit candidate.
+                                let mut context = self.rule_variables(target, Some(ordinal))?;
+                                context.retain_runtime_metadata(variables, true);
+                                self.retain_database_context(target, Some(ordinal), &context);
+                            } else if let Some(context) =
+                                self.target_contexts.get_mut(self.aliases.resolve(target))
+                            {
+                                context.retain_runtime_metadata(variables, true);
                             }
                             let value = value?;
                             ImplicitFilenames::Expanded(self.implicit_filenames(
@@ -9304,7 +9317,7 @@ impl Engine {
             )?;
             *intermediate_scope = Some(ImplicitScope {
                 pattern,
-                shell_status: None,
+                runtime_metadata: VariableStore::default(),
             });
         }
         let mut context = if let Some(prepared) = intermediate_scope.as_ref() {
@@ -9312,9 +9325,7 @@ impl Engine {
                 Some(scope) => self.database.variables.with_target_scopes(&[scope]),
                 None => self.database.variables.with_target_scopes(&[]),
             };
-            if let Some(status) = &prepared.shell_status {
-                context.retain_local_shell_status(status);
-            }
+            context.retain_runtime_metadata(&prepared.runtime_metadata, true);
             context
         } else {
             self.rule_variables(target, branch)?
@@ -9686,11 +9697,10 @@ impl Engine {
             .unwrap_or_else(|| {
                 Rc::new(FailedPrerequisite {
                     target: dependency.name.clone(),
-                    parent: self
-                        .file_traversals
-                        .visit(&dependency.name)
-                        .and_then(|visit| visit.parent.as_ref())
-                        .map_or_else(|| target.to_vec(), |parent| parent.target.clone()),
+                    // This direct failure belongs to the current prerequisite
+                    // edge. The child's inherited variable scope can still
+                    // belong to an earlier parent that visited the same leaf.
+                    parent: target.to_vec(),
                 })
             });
         self.optional_remake_failures
@@ -12354,7 +12364,9 @@ impl Engine {
                         branch,
                         record_suffix_stem_lookup: !implicit_group
                             && (rule.stem.is_none()
-                                || (branch.is_some() && rule.implicit_pattern.is_some())),
+                                || (branch.is_some()
+                                    && rule.implicit_pattern.is_some()
+                                    && rule.stem.as_deref() == Some(b""))),
                         location: recipes.first().map(|recipe| &recipe.location),
                         dependencies: &rule.dependencies,
                         dropped: &dropped,
@@ -12842,9 +12854,7 @@ impl Engine {
                 &inherited,
                 scope.pattern.as_ref(),
             );
-            if let Some(status) = &scope.shell_status {
-                variables.retain_local_shell_status(status);
-            }
+            variables.retain_runtime_metadata(&scope.runtime_metadata, true);
             variables
         } else {
             self.database.variables_for_target_with(
@@ -13049,8 +13059,7 @@ impl Engine {
         self.database.refresh_scoped_variables(&mut variables);
         if record_suffix_stem_lookup && !self.database_stem_prepared(target, branch) {
             self.record_explicit_stem_lookup();
-            if branch.is_none()
-                && let Some(history) = self.database.database_history()
+            if let Some(history) = self.database.database_history()
                 && let Some((_, stem)) = automatic.iter().find(|(name, _)| *name == b"*")
                 && !stem.is_empty()
             {
@@ -14470,6 +14479,94 @@ mod tests {
 
     use super::*;
     use rmake_core::variables::Flavor;
+
+    #[test]
+    fn shared_implicit_child_keeps_first_selection_and_all_search_effects() {
+        for (references, inputs, expected, visits) in [
+            (
+                "%.mid %.mid",
+                "$$(word $$(words $$(VISITS)),first second third)",
+                &["first"][..],
+                b"2".as_slice(),
+            ),
+            (
+                "%.mid %.mid %.mid",
+                "$$(word $$(words $$(VISITS)),first second third)",
+                &["first"][..],
+                b"3".as_slice(),
+            ),
+            (
+                "%.mid %.mid",
+                "first first | second second",
+                &["first", "first", "second", "second"][..],
+                b"2".as_slice(),
+            ),
+            (
+                "%.mid %.mid",
+                "$$(shell exit $$(words $$(VISITS))) first",
+                &["first"][..],
+                b"2".as_slice(),
+            ),
+        ] {
+            let launch = Engine::invocation(
+                [OsString::from("-rR")],
+                b"rmake",
+                OsStr::new("rmake"),
+                None,
+                None,
+            )
+            .unwrap();
+            let mut engine =
+                Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+            let source = format!(
+                ".SECONDEXPANSION:\nfirst second third: ;\n\
+                 %.out: {references} ;\n\
+                 %.mid: $$(eval VISITS += x) {inputs} ;\n"
+            );
+            engine
+                .database
+                .read(source.as_bytes(), b"Makefile")
+                .unwrap();
+            assert!(engine.resolve_implicit_at(b"shared.out", 0, false));
+            assert_eq!(
+                engine
+                    .database
+                    .variables
+                    .expand(b"$(words $(VISITS))")
+                    .unwrap(),
+                visits
+            );
+            let selected = &engine.database.rules[b"shared.mid".as_slice()];
+            assert_eq!(
+                selected
+                    .dependencies
+                    .iter()
+                    .map(|dep| dep.name.as_slice())
+                    .collect::<Vec<_>>(),
+                expected
+                    .iter()
+                    .map(|name| name.as_bytes())
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(
+                engine.database.rules[b"shared.out".as_slice()]
+                    .dependencies
+                    .len(),
+                references.split_whitespace().count()
+            );
+            assert!(engine.file_traversals.outcome(b"shared.mid").is_none());
+            if inputs.contains("shell") {
+                assert_eq!(
+                    engine
+                        .target_variables(b"shared.mid")
+                        .unwrap()
+                        .expand(b"$(.SHELLSTATUS)")
+                        .unwrap(),
+                    b"2"
+                );
+            }
+        }
+    }
 
     #[test]
     fn process_pressure_lookup_does_not_retry_the_launch() {

@@ -151,6 +151,51 @@ class DebugOutputTests(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 identity(1234)
 
+    def test_two_barrier_release_waits_for_tail_and_both_started_workers(self):
+        model = next(row for row in d.models()
+                     if row.id == 'debug-implicit-group-frontier-two-barriers-pipe-all')
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = Path(tmp)
+            work = runtime / 'work'
+            work.mkdir()
+
+            def execute(case, root, binary, *, observe):
+                left = b'LEFT-t.a\nLEFT-t.b\n'
+                (work / 'owner.started').write_bytes(b'started\n')
+                observe(123, left)
+                self.assertFalse((work / 'owner.release').exists())
+                (work / 'peer.started').write_bytes(b'started\n')
+                observe(123, left)
+                self.assertEqual((work / 'owner.release').read_bytes(), b'yes\n')
+                observe(123, left + b'RIGHT-a\nTAIL-a\n')
+                self.assertFalse((work / 'peer.release').exists())
+                (work / 'owner.done').write_bytes(b'done\n')
+                observe(123, left + b'RIGHT-a\n')
+                self.assertFalse((work / 'peer.release').exists())
+                (work / 'seen').write_bytes(b'anchor\nowner:peer-ready\nright-a\ntail-a\n')
+                observe(123, left + b'RIGHT-a\nTAIL-a\n')
+                self.assertEqual((work / 'peer.release').read_bytes(), b'yes\n')
+                return self.good
+
+            with patch.object(d.h, 'execute', side_effect=execute):
+                self.assertIs(d.execute_model(model, self.case, runtime, Path('/engine')), self.good)
+
+    def test_two_barrier_expected_file_order_and_tail_marker_remain_strict(self):
+        model = next(row for row in d.models()
+                     if row.id == 'debug-implicit-group-frontier-two-barriers-pipe-all')
+        with tempfile.TemporaryDirectory() as tmp:
+            runtime = Path(tmp) / 'runtime'
+            case, filesystem = d.prepare(model, Path(tmp) / 'input', runtime)
+            good = h.Observation(bytes.fromhex(model.expected['stdout_template_hex']), b'', 0, None, filesystem)
+            self.assertTrue(d.assess(model, case, runtime, filesystem, [good] * 3)['passed'])
+            changed = model.seen.replace(b'tail-a\npeer\n', b'peer\ntail-a\n')
+            wrong_files = {**filesystem, 'work/seen': {
+                **filesystem['work/seen'], 'content': base64.b64encode(changed).decode(),
+                'sha256': hashlib.sha256(changed).hexdigest()}}
+            for wrong in (replace(good, filesystem=wrong_files),
+                          replace(good, stdout=good.stdout.replace(b'TAIL-a\n', b''))):
+                self.assertFalse(d.assess(model, case, runtime, filesystem, [wrong] * 3)['passed'])
+
     def test_static_inventory_and_retained_history_hashes(self):
         models = d.models()
         self.assertEqual(len(models), 407)

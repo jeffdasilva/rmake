@@ -605,9 +605,10 @@ impl Expansion<'_, '_> {
                     variable.value = self.store.variable_names(false)?;
                     variable.scope.variable_names = false;
                 }
-                if variable.scope.append_outer
-                    && let Some(layer) = layer
-                    && let Some((outer_layer, outer)) = self.store.lookup_from(&name, layer + 1)
+                if let Some(outer_start) =
+                    layer.and_then(|layer| self.store.outer_append_start(layer, &name, &variable))
+                    && let Some((outer_layer, outer)) =
+                        self.store.lookup_from(&name, outer_start + 1)
                 {
                     let outer = outer.clone();
                     m.job(Kind::LayerOuter(variable, nesting), depth, nearest.clone())?;

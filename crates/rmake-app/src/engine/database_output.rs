@@ -455,6 +455,7 @@ impl Engine {
                 view.target_variables
                     .map(|scope| scope.database_definitions().collect())
             });
+        view.local_scope = variables;
         let automatic_stats = variables
             .and_then(VariableStore::database_stats)
             .or_else(|| view.target_variables.and_then(TargetScope::database_stats))
@@ -533,6 +534,88 @@ mod tests {
         )
         .unwrap();
         Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap()
+    }
+
+    #[test]
+    fn accepted_intermediate_search_is_retained_before_its_recipe_runs() {
+        for (rules, children) in [
+            ("%.out: marker.in ;\n", &[][..]),
+            ("%.out: %.mid ;\n%.mid: marker.in ;\n", &["marker.mid"][..]),
+            (
+                "%.out: %.tmp ;\n%.tmp: %.mid ;\n%.mid: marker.in ;\n",
+                &["marker.mid", "marker.tmp"][..],
+            ),
+        ] {
+            let mut engine = engine();
+            let source = format!("marker.in: ;\n{rules}");
+            engine
+                .database
+                .read(source.as_bytes(), b"Makefile")
+                .unwrap();
+            let plan = engine
+                .plan_implicit_update(b"marker.out", 0, true, None)
+                .unwrap()
+                .unwrap();
+            for name in children {
+                assert!(!engine.database_implicit.contains(name.as_bytes()));
+            }
+            engine.install_implicit_plan(b"marker.out", plan, false);
+            for name in std::iter::once("marker.out").chain(children.iter().copied()) {
+                let snapshot = engine
+                    .database_file(
+                        name.as_bytes(),
+                        engine.database.rules.get(name.as_bytes()),
+                        None,
+                    )
+                    .unwrap();
+                assert!(snapshot.view.implicit_tried, "{rules}: {name}");
+                assert!(!snapshot.view.updated);
+                assert!(engine.file_traversals.outcome(name.as_bytes()).is_none());
+            }
+            assert!(!engine.database_implicit.contains(b"marker.in".as_slice()));
+        }
+    }
+
+    #[test]
+    fn rejected_parent_does_not_retain_a_successful_speculative_child_search() {
+        let mut engine = engine();
+        engine
+            .database
+            .read(
+                b"marker.in: ;\n\
+                  %.out: %.mid %.absent ;\n%.mid: marker.in ;\n\
+                  %.out: %.tmp ;\n%.tmp: marker.in ;\n",
+                b"Makefile",
+            )
+            .unwrap();
+        assert!(engine.resolve_implicit_at(b"marker.out", 0, false));
+        assert!(engine.database_implicit.contains(b"marker.tmp".as_slice()));
+        assert!(!engine.database_implicit.contains(b"marker.mid".as_slice()));
+        assert!(!engine.database.rules.contains_key(b"marker.mid".as_slice()));
+    }
+
+    #[test]
+    fn detached_implicit_root_keeps_its_branch_marker_separate_from_children() {
+        let mut engine = engine();
+        engine
+            .database
+            .read(
+                b"marker.in: ;\nmarker.out::\n\
+                  %.out: %.mid ;\n%.mid: marker.in ;\n",
+                b"Makefile",
+            )
+            .unwrap();
+        let plan = engine
+            .plan_implicit_update(b"marker.out", 0, false, Some(0))
+            .unwrap()
+            .unwrap();
+        assert!(
+            engine
+                .install_implicit_plan(b"marker.out", plan, true)
+                .is_some()
+        );
+        assert!(engine.database_implicit.contains(b"marker.mid".as_slice()));
+        assert!(!engine.database_implicit.contains(b"marker.out".as_slice()));
     }
 
     #[test]
@@ -684,6 +767,99 @@ mod tests {
         );
         assert_eq!(snapshot.automatic_stats.filled, 1);
         assert!(!snapshot.view.updated);
+    }
+
+    #[test]
+    fn canonical_flags_print_the_named_assignment_without_changing_runtime_state() {
+        for (declaration, printed) in [
+            ("a.out: MAKEFLAGS += -k", "a.out: MAKEFLAGS += "),
+            ("a.out: MAKEFLAGS = -k", "a.out: MAKEFLAGS = "),
+            ("a.out: MAKEFLAGS := -k", "a.out: MAKEFLAGS = "),
+            ("%.out: MAKEFLAGS += -k", "a.out: MAKEFLAGS = "),
+        ] {
+            let mut engine = engine();
+            let source = format!(
+                ".SECONDEXPANSION:\n{declaration}\na.in: ;\n\
+                 %.out: $$(eval MAKEFLAGS += -p) %.in ;\n"
+            );
+            engine
+                .database
+                .read(source.as_bytes(), b"Makefile")
+                .unwrap();
+            assert!(engine.resolve_implicit_at(b"a.out", 0, false));
+            let variables = engine.target_variables(b"a.out").unwrap();
+            let before = variables.get(b"MAKEFLAGS").unwrap().clone();
+            let statistics = variables.database_stats();
+            assert_eq!(
+                before.is_outer_append(),
+                declaration == "a.out: MAKEFLAGS += -k"
+            );
+            let snapshot = engine
+                .database_file(
+                    b"a.out",
+                    engine.database.rules.get(b"a.out".as_slice()),
+                    None,
+                )
+                .unwrap();
+            let mut view = snapshot.view;
+            view.local_variables = snapshot.automatic.as_deref();
+            let mut output = Vec::new();
+            database::FilePrinter::new(&mut output).write(view).unwrap();
+            let expected = [printed.as_bytes(), before.raw_value(), b"\n"].concat();
+            assert!(output.windows(expected.len()).any(|part| part == expected));
+            assert_eq!(variables.get(b"MAKEFLAGS"), Some(&before));
+            assert_eq!(variables.database_stats(), statistics);
+        }
+    }
+
+    #[test]
+    fn implicit_secondary_flags_remain_in_the_owning_file_scope() {
+        for (rules, owner) in [
+            (
+                b"%.out: $$(eval MAKEFLAGS += -p) %.in ;\n".as_slice(),
+                b"a.out".as_slice(),
+            ),
+            (
+                b"%.out: $$(eval MAKEFLAGS += -p) %.absent ;\n%.out: %.in ;\n",
+                b"a.out",
+            ),
+            (
+                b"%.out: %.mid ;\n%.mid: $$(eval MAKEFLAGS += -p) %.in ;\n",
+                b"a.mid",
+            ),
+        ] {
+            let mut engine = engine();
+            // Keep the expected flag spelling independent of the parent's overrides.
+            let mut source = b"MAKEOVERRIDES :=\n.SECONDEXPANSION:\na.in: ;\nother: ;\n".to_vec();
+            source.extend_from_slice(rules);
+            engine.database.read(&source, b"Makefile").unwrap();
+            assert!(engine.resolve_implicit_at(b"a.out", 0, false));
+            let variables = engine.target_variables(owner).unwrap();
+            let definitions = variables.database_file_definitions();
+            assert!(engine.options.print_database);
+            for (name, origin, expected) in [
+                (
+                    b"MFLAGS".as_slice(),
+                    Origin::Environment,
+                    b"-prR".as_slice(),
+                ),
+                (b"MAKEFLAGS".as_slice(), Origin::File, b"prR".as_slice()),
+            ] {
+                let (_, value) = definitions
+                    .iter()
+                    .find(|(key, _)| *key == name)
+                    .expect("the deferred expansion owns the normalized flag binding");
+                assert_eq!(value.origin(), origin);
+                assert_eq!(value.raw_value(), expected);
+            }
+            assert!(variables.database_lookup(b"@").is_none());
+            let unrelated = engine.target_variables(b"other").unwrap();
+            assert!(unrelated.database_file_definitions().is_empty());
+            if owner != b"a.out" {
+                let parent = engine.target_variables(b"a.out").unwrap();
+                assert!(parent.database_file_definitions().is_empty());
+            }
+        }
     }
 
     #[test]
