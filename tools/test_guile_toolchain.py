@@ -8,6 +8,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+import urllib.error
 from unittest.mock import MagicMock, patch
 
 import guile_frontend_gate as frontend
@@ -56,6 +57,25 @@ class GuileToolchainTests(unittest.TestCase):
             self.assertEqual(list(Path(tmp).iterdir()), [path])
             self.assertEqual(transport.call_count, 2)
             sleep.assert_called_once_with(1)
+
+    def test_forbidden_archive_fallback_verifies_package_before_caching(self):
+        primary = g.oracle.UBUNTU_ARCHIVE + 'pool/test.deb'
+        alternate = g.oracle.UBUNTU_ARCHIVE_ALTERNATE + 'pool/test.deb'
+        for payload in (b'good', b'bad!', b'oversized'):
+            with (self.subTest(payload=payload), tempfile.TemporaryDirectory() as temporary,
+                  patch.object(g.urllib.request, 'build_opener') as network):
+                cache = Path(temporary) / 'package.deb'
+                forbidden = urllib.error.HTTPError(primary, 403, 'Forbidden', {}, None)
+                download = network.return_value.open
+                download.side_effect = [forbidden, io.BytesIO(payload)]
+                if payload == b'good':
+                    self.assertEqual(g.cached_download(cache, primary, g.digest(b'good'), 4), payload)
+                    self.assertEqual(cache.read_bytes(), payload)
+                else:
+                    with self.assertRaises(g.ProfileError):
+                        g.cached_download(cache, primary, g.digest(b'good'), 4)
+                    self.assertEqual(list(cache.parent.iterdir()), [])
+                self.assertEqual([entry.args for entry in download.call_args_list], [(primary,), (alternate,)])
 
     def test_release_retries_response_read_but_never_caches_wrong_digest(self):
         stalled = MagicMock()

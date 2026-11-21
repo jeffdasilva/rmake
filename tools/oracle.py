@@ -183,13 +183,15 @@ def retry_download(attempt):
 
 
 def retry_ubuntu_archive_download(url, attempt):
-    """Use an Ubuntu-listed archive mirror after a transport failure."""
+    """Use the archive mirror after transport failure or public-host denial."""
     try:
         return retry_download(lambda: attempt(url))
     except DOWNLOAD_ERRORS as error:
         reason = error.reason if isinstance(error, urllib.error.URLError) else error
         unresolved = isinstance(reason, socket.gaierror) and reason.errno == socket.EAI_NONAME
-        if not url.startswith(UBUNTU_ARCHIVE) or not (unresolved or transient_download_error(error)):
+        forbidden = isinstance(error, urllib.error.HTTPError) and error.code == 403
+        if not url.startswith(UBUNTU_ARCHIVE) or not (
+                unresolved or forbidden or transient_download_error(error)):
             raise
         alternate = UBUNTU_ARCHIVE_ALTERNATE + url.removeprefix(UBUNTU_ARCHIVE)
         return retry_download(lambda: attempt(alternate))

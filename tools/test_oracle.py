@@ -53,11 +53,29 @@ class DownloadTests(unittest.TestCase):
         self.assertEqual(attempt.call_args_list, [mock.call(primary)] * 3 + [mock.call(alternate)] * 3)
         self.assertEqual(sleep.call_args_list, [mock.call(1), mock.call(2)] * 2)
 
-    def test_ubuntu_archive_failover_requires_pinned_origin_and_transport_error(self):
+    def test_ubuntu_archive_forbidden_uses_one_bounded_mirror_attempt(self):
+        primary = oracle.UBUNTU_ARCHIVE + "pool/universe/g/guile-3.0/package.deb"
+        alternate = oracle.UBUNTU_ARCHIVE_ALTERNATE + primary.removeprefix(oracle.UBUNTU_ARCHIVE)
+        forbidden = urllib.error.HTTPError(primary, 403, "Forbidden", {}, None)
+        for response in (b"pinned package", forbidden):
+            with self.subTest(response=response), mock.patch.object(oracle.time, "sleep") as sleep:
+                attempt = mock.Mock(side_effect=[forbidden, response])
+                if isinstance(response, bytes):
+                    self.assertEqual(oracle.retry_ubuntu_archive_download(primary, attempt), response)
+                else:
+                    with self.assertRaises(urllib.error.HTTPError):
+                        oracle.retry_ubuntu_archive_download(primary, attempt)
+                self.assertEqual(attempt.call_args_list, [mock.call(primary), mock.call(alternate)])
+                sleep.assert_not_called()
+
+    def test_ubuntu_archive_failover_requires_pinned_origin_and_allowed_failure(self):
         primary = oracle.UBUNTU_ARCHIVE + "dists/noble/InRelease"
         for url, error in (
             ("https://archive.ubuntu.com.example.invalid/ubuntu/InRelease",
              urllib.error.URLError(socket.gaierror(socket.EAI_NONAME, "unknown host"))),
+            ("https://example.invalid/ubuntu/InRelease",
+             urllib.error.HTTPError(primary, 403, "Forbidden", {}, None)),
+            (primary, urllib.error.HTTPError(primary, 401, "Unauthorized", {}, None)),
             (primary, urllib.error.HTTPError(primary, 404, "missing file", {}, None)),
             (primary, urllib.error.URLError(ssl.SSLCertVerificationError("bad certificate"))),
         ):
