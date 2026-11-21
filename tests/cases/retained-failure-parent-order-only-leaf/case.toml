@@ -1,0 +1,9 @@
+id = "retained-failure-parent-order-only-leaf"
+requirement = "includes.live-failure-parent"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all", "a.mk"]
+
+[expected]
+exit_code = 2
+stdout = "ordinary\n"
+stderr = "make: *** No rule to make target 'missing', needed by 'b.mk'.\n"

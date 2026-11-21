@@ -1,0 +1,9 @@
+id = "retained-failure-parent-dry-run"
+requirement = "includes.live-failure-parent"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "all", "a.mk"]
+
+[expected]
+exit_code = 2
+stdout = "printf \"ordinary\\n\"\n"
+stderr = "make: *** No rule to make target 'missing', needed by 'b.mk'.\n"
