@@ -8588,9 +8588,11 @@ impl Engine {
             .collect();
         for selection in &plan {
             let group = selection.rule.group.as_ref();
-            // Detached double-colon roots prepare their own history.
+            // Detached double-colon roots prepare their own stem, but retain
+            // their selected prerequisite and pattern lookups here too.
             // Recipes can request the database after this selection.
-            let retain_history = group.is_some() || (!detach_root && selection.name == target);
+            let retain_stem = group.is_some() || (!detach_root && selection.name == target);
+            let retain_history = retain_stem || (detach_root && selection.name == target);
             for dependency in selection.rule.dependencies.iter().rev() {
                 if let Some(child) = inferred.get(dependency.name.as_slice()) {
                     self.database.file_records.insert(&dependency.name);
@@ -8610,11 +8612,11 @@ impl Engine {
                     }
                 }
             }
-            if retain_history && let Some(history) = self.database.database_history() {
-                if let Some(stem) = &selection.rule.stem {
+            if let Some(history) = self.database.database_history() {
+                if retain_stem && let Some(stem) = &selection.rule.stem {
                     history.intern(stem);
                 }
-                if let Some(pattern) = &selection.rule.implicit_pattern {
+                if retain_history && let Some(pattern) = &selection.rule.implicit_pattern {
                     history.record_file_lookup(pattern);
                 }
             }
@@ -12354,7 +12356,9 @@ impl Engine {
                         branch,
                         record_suffix_stem_lookup: !implicit_group
                             && (rule.stem.is_none()
-                                || (branch.is_some() && rule.implicit_pattern.is_some())),
+                                || (branch.is_some()
+                                    && rule.implicit_pattern.is_some()
+                                    && rule.stem.as_deref() == Some(b""))),
                         location: recipes.first().map(|recipe| &recipe.location),
                         dependencies: &rule.dependencies,
                         dropped: &dropped,
@@ -13049,8 +13053,7 @@ impl Engine {
         self.database.refresh_scoped_variables(&mut variables);
         if record_suffix_stem_lookup && !self.database_stem_prepared(target, branch) {
             self.record_explicit_stem_lookup();
-            if branch.is_none()
-                && let Some(history) = self.database.database_history()
+            if let Some(history) = self.database.database_history()
                 && let Some((_, stem)) = automatic.iter().find(|(name, _)| *name == b"*")
                 && !stem.is_empty()
             {
