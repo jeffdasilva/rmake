@@ -455,6 +455,7 @@ impl Engine {
                 view.target_variables
                     .map(|scope| scope.database_definitions().collect())
             });
+        view.local_scope = variables;
         let automatic_stats = variables
             .and_then(VariableStore::database_stats)
             .or_else(|| view.target_variables.and_then(TargetScope::database_stats))
@@ -684,6 +685,46 @@ mod tests {
         );
         assert_eq!(snapshot.automatic_stats.filled, 1);
         assert!(!snapshot.view.updated);
+    }
+
+    #[test]
+    fn canonical_flags_print_the_named_assignment_without_changing_runtime_state() {
+        for (declaration, printed) in [
+            ("a.out: MAKEFLAGS += -k", "a.out: MAKEFLAGS += "),
+            ("a.out: MAKEFLAGS = -k", "a.out: MAKEFLAGS = "),
+            ("a.out: MAKEFLAGS := -k", "a.out: MAKEFLAGS = "),
+            ("%.out: MAKEFLAGS += -k", "a.out: MAKEFLAGS = "),
+        ] {
+            let mut engine = engine();
+            let source = format!(
+                ".SECONDEXPANSION:\n{declaration}\na.in: ;\n\
+                 %.out: $$(eval MAKEFLAGS += -p) %.in ;\n"
+            );
+            engine
+                .database
+                .read(source.as_bytes(), b"Makefile")
+                .unwrap();
+            assert!(engine.resolve_implicit_at(b"a.out", 0, false));
+            let variables = engine.target_variables(b"a.out").unwrap();
+            let before = variables.get(b"MAKEFLAGS").unwrap().clone();
+            let statistics = variables.database_stats();
+            assert!(!before.is_outer_append());
+            let snapshot = engine
+                .database_file(
+                    b"a.out",
+                    engine.database.rules.get(b"a.out".as_slice()),
+                    None,
+                )
+                .unwrap();
+            let mut view = snapshot.view;
+            view.local_variables = snapshot.automatic.as_deref();
+            let mut output = Vec::new();
+            database::FilePrinter::new(&mut output).write(view).unwrap();
+            let expected = [printed.as_bytes(), before.raw_value(), b"\n"].concat();
+            assert!(output.windows(expected.len()).any(|part| part == expected));
+            assert_eq!(variables.get(b"MAKEFLAGS"), Some(&before));
+            assert_eq!(variables.database_stats(), statistics);
+        }
     }
 
     #[test]
