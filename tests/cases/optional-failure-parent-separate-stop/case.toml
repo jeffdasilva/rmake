@@ -1,0 +1,12 @@
+id = "optional-failure-parent-separate-stop"
+requirement = "includes.failure-parent-provenance"
+candidate = "required"
+description = "Retain the direct missing-prerequisite parent independently of inherited variable scope. separate-stop."
+provenance = "Original Makefile and independently authored exact output/status anchors confirmed by three pinned GNU Make 4.4.1 runs. No upstream implementation or tests consulted or copied."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276d697373696e67272c206e65656465642062792027622e6d6b272e202053746f702e0a"

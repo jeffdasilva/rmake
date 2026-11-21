@@ -1,0 +1,12 @@
+id = "optional-failure-parent-required-keep"
+requirement = "includes.failure-parent-provenance"
+candidate = "required"
+description = "Retain the direct missing-prerequisite parent independently of inherited variable scope. required-keep."
+provenance = "Original Makefile and independently authored exact output/status anchors confirmed by three pinned GNU Make 4.4.1 runs. No upstream implementation or tests consulted or copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b652074617267657420276d697373696e67272c206e65656465642062792027612e6d6b272e0a4d616b6566696c653a313a204661696c656420746f2072656d616b65206d616b6566696c652027612e6d6b272e0a4d616b6566696c653a313a204661696c656420746f2072656d616b65206d616b6566696c652027622e6d6b272e0a"
