@@ -24,7 +24,7 @@ use rmake_core::parser::{
     Database, Dependency, Location, Makefile, Recipe, RecipeSource, Rule, words,
 };
 use rmake_core::variables::{
-    Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, Variable, VariableStore,
+    Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, VariableStore,
 };
 use rmake_linux::jobserver::{Jobserver, Permit};
 use std::borrow::Cow;
@@ -1297,7 +1297,7 @@ enum ImplicitFilenames {
 
 struct ImplicitScope {
     pattern: Option<TargetScope>,
-    shell_status: Option<Variable>,
+    runtime_metadata: VariableStore,
 }
 
 struct ImplicitSearch {
@@ -8952,28 +8952,24 @@ impl Engine {
                             explicit_word = !percent;
                             let variables = variables.as_mut().expect("initialized file scope");
                             let value = self.expand(variables, &rewritten, None);
-                            if let Some(status) = variables.local_shell_status() {
-                                if intermediate {
-                                    let scope = search
-                                        .intermediate_scope
-                                        .as_mut()
-                                        .expect("initialized intermediate scope");
-                                    if scope.shell_status.as_ref() != Some(status) {
-                                        scope.shell_status = Some(status.clone());
-                                    }
-                                } else if let Some(ordinal) = search.branch {
-                                    // A later branch inherits the head, but its shell
-                                    // completion belongs to its own recipe variables.
-                                    let mut context = self.rule_variables(target, Some(ordinal))?;
-                                    context.retain_local_shell_status(status);
-                                    self.retain_database_context(target, Some(ordinal), &context);
-                                } else if let Some(context) =
-                                    self.target_contexts.get_mut(self.aliases.resolve(target))
-                                {
-                                    // Later candidates and recursive searches can
-                                    // read a real file even after a rejection.
-                                    context.retain_local_shell_status(status);
-                                }
+                            if intermediate {
+                                let scope = search
+                                    .intermediate_scope
+                                    .as_mut()
+                                    .expect("initialized intermediate scope");
+                                scope
+                                    .runtime_metadata
+                                    .retain_runtime_metadata(variables, true);
+                            } else if let Some(ordinal) = search.branch {
+                                // Each declared branch owns its runtime metadata,
+                                // including effects of a rejected implicit candidate.
+                                let mut context = self.rule_variables(target, Some(ordinal))?;
+                                context.retain_runtime_metadata(variables, true);
+                                self.retain_database_context(target, Some(ordinal), &context);
+                            } else if let Some(context) =
+                                self.target_contexts.get_mut(self.aliases.resolve(target))
+                            {
+                                context.retain_runtime_metadata(variables, true);
                             }
                             let value = value?;
                             ImplicitFilenames::Expanded(self.implicit_filenames(
@@ -9304,7 +9300,7 @@ impl Engine {
             )?;
             *intermediate_scope = Some(ImplicitScope {
                 pattern,
-                shell_status: None,
+                runtime_metadata: VariableStore::default(),
             });
         }
         let mut context = if let Some(prepared) = intermediate_scope.as_ref() {
@@ -9312,9 +9308,7 @@ impl Engine {
                 Some(scope) => self.database.variables.with_target_scopes(&[scope]),
                 None => self.database.variables.with_target_scopes(&[]),
             };
-            if let Some(status) = &prepared.shell_status {
-                context.retain_local_shell_status(status);
-            }
+            context.retain_runtime_metadata(&prepared.runtime_metadata, true);
             context
         } else {
             self.rule_variables(target, branch)?
@@ -12842,9 +12836,7 @@ impl Engine {
                 &inherited,
                 scope.pattern.as_ref(),
             );
-            if let Some(status) = &scope.shell_status {
-                variables.retain_local_shell_status(status);
-            }
+            variables.retain_runtime_metadata(&scope.runtime_metadata, true);
             variables
         } else {
             self.database.variables_for_target_with(
