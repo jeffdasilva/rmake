@@ -48,9 +48,17 @@ class Model:
     special: str = ''
     late: bool = False
     pattern_tail: bool = False
+    single_pattern: bool = False
+    recipe_print: bool = False
+
+    def recipe(self, name):
+        command = recipe(name)
+        return '@$(eval MAKEFLAGS += -p)' + command[1:] if self.recipe_print else command
 
     @property
     def makefile(self):
+        if self.single_pattern:
+            return f'all:: n | gate\nal%: ; {self.recipe("n")}\n'
         head = f'all:: n | gate ; {recipe("n")}\n'
         tail = (f'all:: z | gate\nal%: n ; {recipe("z")}\n' if self.pattern_tail
                 else f'all:: z | gate ; {recipe("z")}\n')
@@ -59,11 +67,11 @@ class Model:
 
     @property
     def flags(self):
-        return ('-rR', '-s', '--no-print-directory', *(() if self.late else ('-p',)), '-f', 'Makefile',
+        return ('-rR', '-s', '--no-print-directory', *(() if self.late or self.recipe_print else ('-p',)), '-f', 'Makefile',
                 *(('all',) if self.goal else ()))
 
     def expected_record(self, ordinal, name):
-        inferred = self.pattern_tail and name == 'z'
+        inferred = self.single_pattern or (self.pattern_tail and name == 'z')
         active = name in self.newer or inferred
         metadata = ((COMMAND,) if self.goal and ordinal == 0 else ())
         metadata += (IMPLICIT_DONE if inferred else IMPLICIT,)
@@ -82,12 +90,18 @@ class Model:
             if ordinal == 0 and ('z' in self.newer or self.pattern_tail):
                 probes += 4
             stats = f'# Load={occupied}/32={28 if local else 25}%, Rehash=0, Collisions=2/{probes}={(200 + probes // 2) // probes}%'
+            if self.recipe_print:
+                # Live option refresh retains local MAKEFLAGS and MFLAGS too.
+                stats = '# Load=10/32=31%, Rehash=0, Collisions=5/25=20%'
         elif ordinal == 0 and (self.newer or local):
             stats = '# Load=1/32=3%, Rehash=0, Collisions=0/6=0%' if local else '# Load=0/32=0%, Rehash=0, Collisions=0/4=0%'
         else:
             stats = None
         declaration = ("# makefile (from 'Makefile', line 1)", 'all: LOCAL = scope') if local else ()
-        prerequisites = 'n z' if inferred else name
+        if self.recipe_print:
+            declaration = ('# environment', 'all: MFLAGS = -prRs --no-print-directory',
+                           '# makefile', 'all: MAKEFLAGS = prRs --no-print-directory')
+        prerequisites = 'n' if self.single_pattern else 'n z' if inferred else name
         first = 'n' if inferred else name
         stem = 'l' if inferred else ''
         automatic = (('@', 'all'), ('*', stem), ('<', first), ('+', prerequisites), ('%', ''),
@@ -97,7 +111,7 @@ class Model:
             'rule': f'all:: {prerequisites} | gate', 'metadata': metadata + COMPLETE,
             'stats': stats, 'declaration': declaration, 'automatic': automatic,
             'recipe': (f"#  recipe to execute (from 'Makefile', line {recipe_line}):",
-                       '\t ' + recipe(name)),
+                       '\t ' + self.recipe(name)),
         }
 
 
@@ -112,6 +126,8 @@ def models():
     yield Model('active-head-local', ('n',), declaration=TARGET_SOURCE)
     yield Model('inactive-head-local', ('z',), declaration=TARGET_SOURCE)
     yield Model('active-tail-pattern-recipe', ('n',), pattern_tail=True)
+    yield Model('single-inferred-branch-startup-print', ('n',), single_pattern=True)
+    yield Model('single-inferred-branch-recipe-print', ('n',), single_pattern=True, recipe_print=True)
 
 
 def describe(model):
@@ -121,7 +137,8 @@ def describe(model):
     if model.pattern_tail:
         witnesses['seen-z'] = f'values[n][n z][n z][n][gate][{local}]\n'
     return {**asdict(model), 'makefile': model.makefile, 'flags': model.flags,
-            'records': [model.expected_record(ordinal, name) for ordinal, name in enumerate(('n', 'z'))],
+            'records': [model.expected_record(ordinal, name)
+                        for ordinal, name in enumerate(('n',) if model.single_pattern else ('n', 'z'))],
             'input_mtimes': {'Makefile': FIXED, **{name: CURRENT if name == 'all' else NEW if name in model.newer else FIXED for name in FILE_INPUTS}},
             'witnesses': witnesses}
 
@@ -154,8 +171,10 @@ def check_stdout(plan, output, start, end, directory):
         raise h.HarnessError('invalid file database section')
     section = output[output.index(header) + len(header):output.index(footer)]
     bodies = list(re.finditer(rb'(?m)^all::[^\n]*\n(?:[^\n]+\n)*?\t[^\n]*$', section))
-    if len(bodies) != 2:
-        raise h.HarnessError(f'expected two consecutive database branch records, observed {bodies!r}')
+    if len(bodies) != len(plan['records']):
+        raise h.HarnessError(f'expected {len(plan["records"])} database branch records, observed {bodies!r}')
+    if plan['single_pattern'] and re.search(rb'(?m)^\.SUFFIXES:', section):
+        raise h.HarnessError('a selected implicit stem must not introduce a suffix file record')
     for record, body in zip(plan['records'], bodies, strict=True):
         lines = body[0].decode().splitlines()
         metadata = (lines[0], *(line for line in lines[1:] if line.startswith('#  ') and not line.startswith('#  recipe')))
