@@ -121,6 +121,12 @@ Named sources must retain the selected operand while startup effects replay.
 
 ## Rules and target state
 
+Accepted implicit plans now keep the first rule selected for a shared child,
+including its repeated prerequisites. Named-target `MAKEFLAGS +=` assignments
+also preserve their current outer global value through live option changes,
+recipe expansion and recursive export. These fixes have dedicated regression
+tests. They leave the wider search and scope interactions below open.
+
 **What remains**
 
 Extend combined rule, resource and profile tests around implicit search, aliases,
@@ -129,8 +135,53 @@ Broader shuffle coverage includes malformed usage and interactions with trace,
 search and live options. Keep declaration order and actual filesystem observations
 in the expected behavior.
 
+One known gap is when an accepted nested rule becomes available to later search.
+GNU can reuse its accepted descendants before the outer rule is accepted, even
+if that outer rule eventually fails. rmake can search those descendants again,
+repeating expansion effects or selecting a different input. Direct repeated
+prerequisites can legitimately expand more than once, so a fix must preserve
+those searches. See GNU Make's
+[implicit rule search algorithm](https://www.gnu.org/software/make/manual/html_node/Implicit-Rule-Search.html)
+and [secondary expansion](https://www.gnu.org/software/make/manual/html_node/Secondary-Expansion.html).
+
+To reproduce the difference, save this as `Makefile` in an empty directory.
+Use GNU Make 4.4.1 for `make` and the rmake build being checked for `rmake`.
+Run without inherited `MAKEFLAGS` or `GNUMAKEFLAGS`.
+
+```makefile
+.SECONDEXPANSION:
+%.out: %.tmp %.mid ; @:
+%.tmp: %.mid ; @:
+%.mid: $$(info searched) %.in ; @:
+```
+
+```sh
+touch a.in
+make -rR --no-print-directory a.out
+rmake -rR --no-print-directory a.out
+```
+
+GNU prints `searched` once. rmake at commit `936b89a` prints it twice. Both exit
+with status 0, write nothing to stderr and leave `a.in` unchanged. The recipes
+create no target files. The extra line comes from a second prerequisite
+expansion. Replacing `$$(info searched)` with `$$(file >>effects,searched)`
+produces one line in GNU's `effects` file and two in rmake's when each starts
+from an empty directory.
+Other verified examples show that this extra expansion can enable dry-run mode
+or cause a fatal error that GNU never evaluates.
+
+Known scope differences also remain in pattern-specific values after repeated
+searches and in metadata changed by extra searches, including `.SHELLSTATUS`
+and `MAKEFLAGS`. Mixed required/optional failure policies remain part of the
+[makefile remake work](#parallel-modes-makefile-remakes-and-jobserver-paths).
+
 **Evidence**
 
+- [Shared-child first selection](../tests/cases/shared-owner-diamond/Makefile)
+  and [named-target flag appends](../tests/cases/makeflags-logical-append-implicit-add-0-0/Makefile)
+  retain the implemented behavior. The [rule guide](rule-resolution.md) explains
+  ordinary selection and the [target-scope guide](target-scopes.md) describes
+  variable inheritance.
 - [Implicit prerequisite spelling](implicit-prerequisite-spelling.md) covers
   directory and read phases, byte/backslash cases and negative rule selection.
 - [Old and what-if file records](assumed-files.md) cover logical ages, physical
