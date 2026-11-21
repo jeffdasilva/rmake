@@ -1,0 +1,12 @@
+id = "shared-owner-fatal-recipe-mutation"
+requirement = "resolution.shared-implicit-owner"
+candidate = "required"
+description = "Accepted implicit child ownership: fatal-recipe-mutation"
+provenance = "Original rmake fixture independently authored against GNU 4.4.1; no upstream implementation or test material used."
+args = ["-rR", "--no-print-directory", "a.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = "7365617263687c612e6d69647c310a7365617263687c612e6d69647c320a"
+stderr_hex = "6d616b653a202a2a2a20707265726571756973697465732063616e6e6f7420626520646566696e656420696e20726563697065732e202053746f702e0a"
