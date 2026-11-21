@@ -8639,6 +8639,7 @@ impl Engine {
                 .explicit_names
                 .extend(selection.explicit_names.iter().cloned());
         }
+        let mut attached_children = HashSet::new();
         for selection in plan {
             let ImplicitSelection {
                 name,
@@ -8647,6 +8648,15 @@ impl Engine {
                 explicit_names: _,
                 intermediate_names,
             } = selection;
+            if name != target && !attached_children.insert(name.clone()) {
+                // Repeated searches retain their effects, but the first accepted
+                // child owns its rule. A prior inferred rule is not an explicit
+                // prerequisite declaration to append to a later selection.
+                if let Some(scope) = prepared_scope {
+                    self.implicit_scopes.insert(name, *scope);
+                }
+                continue;
+            }
             // Only accepted recursive selections become searched file records.
             // A detached root keeps its separate double-colon branch marker.
             if name != target {
@@ -14469,6 +14479,94 @@ mod tests {
 
     use super::*;
     use rmake_core::variables::Flavor;
+
+    #[test]
+    fn shared_implicit_child_keeps_first_selection_and_all_search_effects() {
+        for (references, inputs, expected, visits) in [
+            (
+                "%.mid %.mid",
+                "$$(word $$(words $$(VISITS)),first second third)",
+                &["first"][..],
+                b"2".as_slice(),
+            ),
+            (
+                "%.mid %.mid %.mid",
+                "$$(word $$(words $$(VISITS)),first second third)",
+                &["first"][..],
+                b"3".as_slice(),
+            ),
+            (
+                "%.mid %.mid",
+                "first first | second second",
+                &["first", "first", "second", "second"][..],
+                b"2".as_slice(),
+            ),
+            (
+                "%.mid %.mid",
+                "$$(shell exit $$(words $$(VISITS))) first",
+                &["first"][..],
+                b"2".as_slice(),
+            ),
+        ] {
+            let launch = Engine::invocation(
+                [OsString::from("-rR")],
+                b"rmake",
+                OsStr::new("rmake"),
+                None,
+                None,
+            )
+            .unwrap();
+            let mut engine =
+                Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+            let source = format!(
+                ".SECONDEXPANSION:\nfirst second third: ;\n\
+                 %.out: {references} ;\n\
+                 %.mid: $$(eval VISITS += x) {inputs} ;\n"
+            );
+            engine
+                .database
+                .read(source.as_bytes(), b"Makefile")
+                .unwrap();
+            assert!(engine.resolve_implicit_at(b"shared.out", 0, false));
+            assert_eq!(
+                engine
+                    .database
+                    .variables
+                    .expand(b"$(words $(VISITS))")
+                    .unwrap(),
+                visits
+            );
+            let selected = &engine.database.rules[b"shared.mid".as_slice()];
+            assert_eq!(
+                selected
+                    .dependencies
+                    .iter()
+                    .map(|dep| dep.name.as_slice())
+                    .collect::<Vec<_>>(),
+                expected
+                    .iter()
+                    .map(|name| name.as_bytes())
+                    .collect::<Vec<_>>()
+            );
+            assert_eq!(
+                engine.database.rules[b"shared.out".as_slice()]
+                    .dependencies
+                    .len(),
+                references.split_whitespace().count()
+            );
+            assert!(engine.file_traversals.outcome(b"shared.mid").is_none());
+            if inputs.contains("shell") {
+                assert_eq!(
+                    engine
+                        .target_variables(b"shared.mid")
+                        .unwrap()
+                        .expand(b"$(.SHELLSTATUS)")
+                        .unwrap(),
+                    b"2"
+                );
+            }
+        }
+    }
 
     #[test]
     fn process_pressure_lookup_does_not_retry_the_launch() {

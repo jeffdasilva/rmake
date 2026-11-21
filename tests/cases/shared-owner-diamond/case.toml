@@ -1,0 +1,12 @@
+id = "shared-owner-diamond"
+requirement = "resolution.shared-implicit-owner"
+candidate = "required"
+description = "Accepted implicit child ownership: diamond"
+provenance = "Original rmake fixture independently authored against GNU 4.4.1; no upstream implementation or test material used."
+args = ["-rR", "--no-print-directory", "a.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7265636970657c612e6d69647c612e696e7c612e696e7c612e696e7c612e696e7c0a7265636970657c612e746d707c612e6d69647c612e6d69647c612e6d69647c612e6d69647c0a7265636970657c612e6f75747c612e6d69647c612e6d696420612e746d707c612e6d696420612e746d707c612e6d696420612e746d707c0a"
+stderr_hex = ""

@@ -3103,3 +3103,13 @@ candidate_required = 18
 reference = "https://www.gnu.org/software/make/manual/html_node/Remaking-Makefiles.html"
 fixture_count = 18
 cases = ["optional-failure-parent-grouped-2-stop", "optional-failure-parent-grouped-2-keep", "optional-failure-parent-grouped-3-stop", "optional-failure-parent-grouped-3-keep", "optional-failure-parent-required-stop", "optional-failure-parent-required-keep", "optional-failure-parent-single-control-stop", "optional-failure-parent-single-control-keep", "optional-failure-parent-reverse-control-stop", "optional-failure-parent-reverse-control-keep", "optional-failure-parent-order-only-stop", "optional-failure-parent-order-only-keep", "optional-failure-parent-bridge-control-stop", "optional-failure-parent-bridge-control-keep", "optional-failure-parent-separate-stop", "optional-failure-parent-separate-keep", "optional-failure-parent-ungrouped-stop", "optional-failure-parent-ungrouped-keep"]
+
+[[requirements]]
+id = "resolution.shared-implicit-owner"
+title = "First accepted shared implicit child rule and later search effects"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 20
+reference = "https://www.gnu.org/software/make/manual/html_node/Implicit-Rules.html"
+fixture_count = 20
+cases = ["shared-owner-repeat", "shared-owner-repeat-legitimate-inputs", "shared-owner-diamond", "shared-owner-diamond-reverse", "shared-owner-order-bridge", "shared-owner-order-root", "shared-owner-order-leaf", "shared-owner-mixed-repeated-leaf", "shared-owner-separate-goals", "shared-owner-explicit-child", "shared-owner-existing-child-forced", "shared-owner-first-input-2", "shared-owner-first-input-3", "shared-owner-rejected-parent", "shared-owner-global-command-effect", "shared-owner-fatal-rule-mutation", "shared-owner-fatal-recipe-mutation", "shared-owner-parallel-diamond", "shared-owner-last-search-shell-status", "shared-owner-last-search-runtime-flags"]
