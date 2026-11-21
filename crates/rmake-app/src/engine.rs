@@ -9680,11 +9680,10 @@ impl Engine {
             .unwrap_or_else(|| {
                 Rc::new(FailedPrerequisite {
                     target: dependency.name.clone(),
-                    parent: self
-                        .file_traversals
-                        .visit(&dependency.name)
-                        .and_then(|visit| visit.parent.as_ref())
-                        .map_or_else(|| target.to_vec(), |parent| parent.target.clone()),
+                    // This direct failure belongs to the current prerequisite
+                    // edge. The child's inherited variable scope can still
+                    // belong to an earlier parent that visited the same leaf.
+                    parent: target.to_vec(),
                 })
             });
         self.optional_remake_failures

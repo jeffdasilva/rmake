@@ -1,0 +1,12 @@
+id = "optional-failure-parent-single-control-keep"
+requirement = "includes.failure-parent-provenance"
+candidate = "required"
+description = "Retain the direct missing-prerequisite parent independently of inherited variable scope. single-control-keep."
+provenance = "Original Makefile and independently authored exact output/status anchors confirmed by three pinned GNU Make 4.4.1 runs. No upstream implementation or tests consulted or copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6f7264696e6172790a"
+stderr_hex = ""
