@@ -209,6 +209,11 @@ also retains the result of a failed optional makefile recipe seen earlier,
 including when `-k` is absent. More cases remain for duplicate peers, mixed
 failure policies, and parallel scheduling and tracing.
 
+Cached prerequisite failures already reported by a required remake now retain
+their reporting state through an optional visit, as checked by the
+[shared-failure regression](../tests/cases/optional-cached-failure-required-two/Makefile).
+Later explicit-goal replay remains open.
+
 Local jobserver acceptance also needs broader combinations of transports,
 recursive builds, restarts, loaded modules and resource pressure. Preserve the
 actual token, child and descriptor relationships in those tests.

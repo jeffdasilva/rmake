@@ -1,0 +1,9 @@
+id = "optional-cached-failure-required-bridge"
+requirement = "includes.cached-failure-retention"
+description = "Previously reported and suppressed failures retain distinct replay policy across serial source visits."
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'missing', needed by 'bridge'.\nmake: *** No rule to make target 'bridge', needed by 'b.mk'.\nMakefile:1: Failed to remake makefile 'a.mk'.\n"

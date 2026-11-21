@@ -10053,6 +10053,7 @@ impl Engine {
         // Count only dispatches after the scheduler's previsit reap and
         // load check, even if that check starts this goal's queued recipe.
         let commands_before = self.commands_started;
+        let mut reused_failed_outcome = false;
         let mut outcome = if archive_error {
             Outcome {
                 failed: true,
@@ -10067,6 +10068,7 @@ impl Engine {
                 depth,
                 initial_time,
                 visit,
+                &mut reused_failed_outcome,
             )
         };
         if let Some(started) = goal_started_command {
@@ -10088,7 +10090,10 @@ impl Engine {
             outcome.failed = true;
             outcome.fatal = true;
         }
-        if self.optional_remake() && (outcome.failed || outcome.question_outdated) && !outcome.fatal
+        if self.optional_remake()
+            && !reused_failed_outcome
+            && (outcome.failed || outcome.question_outdated)
+            && !outcome.fatal
         {
             self.optional_remake_failures
                 .entry(target.to_vec())
@@ -10100,6 +10105,7 @@ impl Engine {
         outcome
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn build_inner(
         &mut self,
         target: &[u8],
@@ -10108,6 +10114,7 @@ impl Engine {
         depth: usize,
         initial_time: Option<&mut Option<Option<SystemTime>>>,
         visit: BuildVisit,
+        reused_failed_outcome: &mut bool,
     ) -> Outcome {
         let mut traced_optional_failure = false;
         if !self.optional_remake()
@@ -10331,6 +10338,11 @@ impl Engine {
                 }
                 self.file_traversals.set_outcome(target, outcome);
             }
+            // A settled failure keeps its existing reporting policy. Visiting
+            // it through an optional source does not hide a failure already
+            // reported by an earlier required source. Fresh branch dispatch
+            // and pending work return above without marking this reuse.
+            *reused_failed_outcome = outcome.failed && !outcome.question_outdated;
             return outcome;
         }
         if self.graph_abort.is_some() || self.remake_stopped() {
@@ -14479,6 +14491,116 @@ mod tests {
 
     use super::*;
     use rmake_core::variables::Flavor;
+
+    fn optional_failure_test_engine() -> Engine {
+        let launch = Engine::invocation(
+            ["-rR", "-k"].into_iter().map(OsString::from),
+            b"rmake",
+            OsStr::new("rmake"),
+            None,
+            None,
+        )
+        .unwrap();
+        let mut engine =
+            Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+        engine.remaking = true;
+        engine.active_makefile_remake = Some(MakefileRemake {
+            optional: true,
+            retain_failure: true,
+            stopped: None,
+            open_error: None,
+        });
+        engine
+    }
+
+    #[test]
+    fn optional_cached_failure_keeps_reported_and_suppressed_states_distinct() {
+        for question in [false, true] {
+            for retained in [false, true] {
+                for alias in [false, true] {
+                    let mut engine = optional_failure_test_engine();
+                    let target = b"cached-optional-input";
+                    engine.file_traversals.set_outcome(
+                        target,
+                        Outcome {
+                            failed: !question,
+                            question_outdated: question,
+                            ..Outcome::default()
+                        },
+                    );
+                    if retained {
+                        engine
+                            .optional_remake_failures
+                            .insert(target.to_vec(), None);
+                    }
+                    let name = if alias {
+                        engine.aliases.insert(b"cached-alias", target, false);
+                        b"cached-alias".as_slice()
+                    } else {
+                        target.as_slice()
+                    };
+                    let result = engine.build(name, None, 0);
+                    assert_eq!(result.failed, !question);
+                    assert_eq!(result.question_outdated, question);
+                    assert_eq!(
+                        engine
+                            .optional_remake_failures
+                            .contains_key(target.as_slice()),
+                        retained || question,
+                        "question={question}, retained={retained}, alias={alias}"
+                    );
+                    assert!(
+                        !engine
+                            .optional_remake_failures
+                            .contains_key(b"cached-alias".as_slice())
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn pending_optional_branch_retains_its_new_failure_after_a_cached_result() {
+        let mut engine = optional_failure_test_engine();
+        engine
+            .database
+            .read(b"later:: fresh-missing-input ;\n", b"Makefile")
+            .unwrap();
+        let branch = engine.database.rules[b"later".as_slice()]
+            .double_colon
+            .as_ref()
+            .unwrap()[0]
+            .clone();
+        engine.file_traversals.set_outcome(
+            b"later",
+            Outcome {
+                failed: true,
+                ..Outcome::default()
+            },
+        );
+        engine.pending_double_colon.insert(
+            b"later".to_vec(),
+            DoubleColonState {
+                remake: engine.active_makefile_remake.clone(),
+                synthetic_tail: None,
+                depth: 0,
+                before: None,
+                phony: false,
+                assumed_phony_input: false,
+                branches: std::collections::VecDeque::from([(0, Some(branch))]),
+                active: None,
+                last_epoch: None,
+                combined: Outcome::default(),
+                awaiting_recipe: false,
+            },
+        );
+        assert!(engine.build(b"later", None, 0).failed);
+        let cause = engine.optional_remake_failures[b"later".as_slice()]
+            .as_ref()
+            .unwrap();
+        assert_eq!(cause.target, b"fresh-missing-input");
+        assert_eq!(cause.parent, b"later");
+    }
 
     #[test]
     fn shared_implicit_child_keeps_first_selection_and_all_search_effects() {
