@@ -1,0 +1,9 @@
+id = "retained-failure-parent-later-new-parent"
+requirement = "includes.live-failure-parent"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all", "c", "a.mk"]
+
+[expected]
+exit_code = 2
+stdout = "ordinary\n"
+stderr = "make: *** No rule to make target 'missing', needed by 'c'.\nmake: Target 'c' not remade because of errors.\nmake: *** No rule to make target 'missing', needed by 'c'.\n"

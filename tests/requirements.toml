@@ -3133,3 +3133,13 @@ candidate_required = 10
 reference = "https://www.gnu.org/software/make/manual/html_node/Remaking-Makefiles.html"
 fixture_count = 10
 cases = ["optional-cached-failure-required-two", "optional-cached-failure-required-three", "optional-cached-failure-required-bridge", "optional-cached-failure-required-deep-bridge", "optional-cached-failure-required-single", "optional-cached-failure-optional-two", "optional-cached-failure-optional-three", "optional-cached-failure-optional-before-required", "optional-cached-failure-separate-missing-inputs", "optional-cached-failure-required-dot-alias"]
+
+[[requirements]]
+id = "includes.live-failure-parent"
+title = "Retained missing-rule diagnostics follow the latest actual failing prerequisite edge"
+status = "fixture-ready"
+reference = "https://www.gnu.org/software/make/manual/html_node/Remaking-Makefiles.html"
+candidate_status = "partial"
+fixture_count = 16
+candidate_required = 16
+cases = ["retained-failure-parent-single-shared-later-a", "retained-failure-parent-double-b-later-a", "retained-failure-parent-reverse-include-order", "retained-failure-parent-reverse-declaration-order", "retained-failure-parent-shared-bridge", "retained-failure-parent-distinct-missing", "retained-failure-parent-direct-missing-goal", "retained-failure-parent-third-include", "retained-failure-parent-later-new-parent", "retained-failure-parent-repeated-before-after-new-parent", "retained-failure-parent-aliased-leaf", "retained-failure-parent-order-only-leaf", "retained-failure-parent-no-keep-going", "retained-failure-parent-dry-run", "retained-failure-parent-query", "retained-failure-parent-touch"]
