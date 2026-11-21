@@ -1,0 +1,12 @@
+id = "makeflags-logical-diagnostic-nested-intrinsic"
+requirement = "runtime.makeflags-logical-append"
+candidate = "required"
+description = "Current global outer flag expansion preserves nested-intrinsic source attribution and fatal status."
+provenance = "Original black-box Makefile and exact byte/status anchors confirmed by two pinned GNU Make 4.4.1 runs; no upstream code or tests consulted or copied."
+args = ["-rR", "--no-print-directory", "a.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "4d616b6566696c653a313a202a2a2a206e6f6e2d6e756d6572696320666972737420617267756d656e7420746f2027696e74636d70272066756e6374696f6e3a2027626164272e202053746f702e0a"
