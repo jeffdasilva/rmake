@@ -3123,3 +3123,13 @@ candidate_required = 24
 reference = "https://www.gnu.org/software/make/manual/html_node/Target_002dspecific.html"
 fixture_count = 24
 cases = ["makeflags-logical-append-recipe-add-0-0", "makeflags-logical-append-recipe-repeat-0-0", "makeflags-logical-append-recipe-global-replace-0-0", "makeflags-logical-append-recipe-named-replace-0-0", "makeflags-logical-append-recipe-add-1-0", "makeflags-logical-append-recipe-repeat-1-0", "makeflags-logical-append-recipe-add-0-1", "makeflags-logical-append-recipe-repeat-0-1", "makeflags-logical-append-explicit-add-0-0", "makeflags-logical-append-implicit-add-0-0", "makeflags-logical-append-explicit-global-undefine-0-0", "makeflags-logical-append-implicit-named-simple-0-0", "makeflags-logical-append-recipe-outer-recursive-0-0", "makeflags-logical-append-recipe-outer-simple-0-0", "makeflags-logical-pattern-recipe-add-0-0", "makeflags-logical-inherited-recipe-add-0-0", "makeflags-logical-recursive-recipe-add-0-0", "makeflags-logical-simple-recipe-add-0-0", "makeflags-logical-expression-11", "makeflags-logical-expression-5", "makeflags-logical-expression-9", "makeflags-logical-raw-ff", "makeflags-logical-diagnostic-fatal", "makeflags-logical-diagnostic-nested-intrinsic"]
+
+[[requirements]]
+id = "includes.cached-failure-retention"
+title = "Previously reported failures are not re-armed by optional cache visits"
+status = "fixture-ready"
+candidate_status = "partial"
+candidate_required = 10
+reference = "https://www.gnu.org/software/make/manual/html_node/Remaking-Makefiles.html"
+fixture_count = 10
+cases = ["optional-cached-failure-required-two", "optional-cached-failure-required-three", "optional-cached-failure-required-bridge", "optional-cached-failure-required-deep-bridge", "optional-cached-failure-required-single", "optional-cached-failure-optional-two", "optional-cached-failure-optional-three", "optional-cached-failure-optional-before-required", "optional-cached-failure-separate-missing-inputs", "optional-cached-failure-required-dot-alias"]

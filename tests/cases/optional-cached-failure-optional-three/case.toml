@@ -1,0 +1,9 @@
+id = "optional-cached-failure-optional-three"
+requirement = "includes.cached-failure-retention"
+description = "Previously reported and suppressed failures retain distinct replay policy across serial source visits."
+candidate = "required"
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+[expected]
+exit_code = 0
+stdout = "ordinary\n"
+stderr = "make: *** No rule to make target 'missing', needed by 'b.mk'.\nmake: *** No rule to make target 'missing', needed by 'b.mk'.\nmake: *** No rule to make target 'missing', needed by 'b.mk'.\n"

@@ -4,6 +4,8 @@ For current support, see [GNU Make compatibility](compatibility.md). The
 [M3/M6 audit](m3-m6-audit.md) lists open work, and the
 [implementation plan](implementation-plan.md) defines the milestone gates.
 Entries below record the tests, measurements, and decisions for each change.
+Fixture counts and feature support describe the checkpoint when each entry was
+written.
 
 ## M0 foundation
 
@@ -41,9 +43,10 @@ process-event assertions remain open. The later stateful gate below adds a
 bounded set of multi-step and relational timestamp tests. Current benchmarks report
 wall time only, not the full CPU/memory/I/O profile in the design.
 
-The core semantics milestones M1-M9 are not complete. The corpus and requirement
-inventory are deliberately incomplete; no claim of GNU compatibility or speedup
-is made by a green foundation CI run.
+At the foundation checkpoint, milestones M1–M9 were still open. The
+[implementation plan](implementation-plan.md) records later milestone acceptance.
+The foundation corpus and requirement inventory were incomplete. A green
+foundation CI run covered only that initial inventory.
 
 The implementation keeps the conformance runner in Python initially to avoid
 coupling its expected answers to the Rust engine. Moving it to Rust is optional
