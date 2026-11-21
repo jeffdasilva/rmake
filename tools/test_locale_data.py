@@ -66,6 +66,25 @@ class LocaleDataTests(unittest.TestCase):
                 endpoints = [primary, alternate] if failover else [primary]
                 self.assertEqual(download.call_args_list, [call(url, timeout=30) for url in endpoints])
 
+    def test_forbidden_archive_fallback_verifies_bytes_before_caching(self):
+        primary = data.ARCHIVE + 'pool/test.deb'
+        alternate = data.oracle.UBUNTU_ARCHIVE_ALTERNATE + 'pool/test.deb'
+        for payload in (b'good', b'bad!', b'oversized'):
+            with (self.subTest(payload=payload), tempfile.TemporaryDirectory() as temporary,
+                  patch.object(data.urllib.request, 'build_opener') as opener):
+                cache = Path(temporary) / 'package.deb'
+                forbidden = urllib.error.HTTPError(primary, 403, 'Forbidden', {}, None)
+                download = opener.return_value.open
+                download.side_effect = [forbidden, io.BytesIO(payload)]
+                if payload == b'good':
+                    self.assertEqual(data.download(cache, primary, data.digest(b'good'), 4), payload)
+                    self.assertEqual(cache.read_bytes(), payload)
+                else:
+                    with self.assertRaises(data.ProfileError):
+                        data.download(cache, primary, data.digest(b'good'), 4)
+                    self.assertEqual(list(cache.parent.iterdir()), [])
+                self.assertEqual(download.call_args_list, [call(url, timeout=30) for url in (primary, alternate)])
+
     def test_signed_metadata_rejects_duplicate_fields_and_unsafe_paths(self):
         good = ('Header\nSHA256:\n ' + 'a' * 64 + ' 42 main/binary-amd64/Packages\nNext:\n').encode()
         self.assertEqual(data.release_hashes(good), {'main/binary-amd64/Packages': ('a' * 64, 42)})
