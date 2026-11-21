@@ -537,6 +537,88 @@ mod tests {
     }
 
     #[test]
+    fn accepted_intermediate_search_is_retained_before_its_recipe_runs() {
+        for (rules, children) in [
+            ("%.out: marker.in ;\n", &[][..]),
+            ("%.out: %.mid ;\n%.mid: marker.in ;\n", &["marker.mid"][..]),
+            (
+                "%.out: %.tmp ;\n%.tmp: %.mid ;\n%.mid: marker.in ;\n",
+                &["marker.mid", "marker.tmp"][..],
+            ),
+        ] {
+            let mut engine = engine();
+            let source = format!("marker.in: ;\n{rules}");
+            engine
+                .database
+                .read(source.as_bytes(), b"Makefile")
+                .unwrap();
+            let plan = engine
+                .plan_implicit_update(b"marker.out", 0, true, None)
+                .unwrap()
+                .unwrap();
+            for name in children {
+                assert!(!engine.database_implicit.contains(name.as_bytes()));
+            }
+            engine.install_implicit_plan(b"marker.out", plan, false);
+            for name in std::iter::once("marker.out").chain(children.iter().copied()) {
+                let snapshot = engine
+                    .database_file(
+                        name.as_bytes(),
+                        engine.database.rules.get(name.as_bytes()),
+                        None,
+                    )
+                    .unwrap();
+                assert!(snapshot.view.implicit_tried, "{rules}: {name}");
+                assert!(!snapshot.view.updated);
+                assert!(engine.file_traversals.outcome(name.as_bytes()).is_none());
+            }
+            assert!(!engine.database_implicit.contains(b"marker.in".as_slice()));
+        }
+    }
+
+    #[test]
+    fn rejected_parent_does_not_retain_a_successful_speculative_child_search() {
+        let mut engine = engine();
+        engine
+            .database
+            .read(
+                b"marker.in: ;\n\
+                  %.out: %.mid %.absent ;\n%.mid: marker.in ;\n\
+                  %.out: %.tmp ;\n%.tmp: marker.in ;\n",
+                b"Makefile",
+            )
+            .unwrap();
+        assert!(engine.resolve_implicit_at(b"marker.out", 0, false));
+        assert!(engine.database_implicit.contains(b"marker.tmp".as_slice()));
+        assert!(!engine.database_implicit.contains(b"marker.mid".as_slice()));
+        assert!(!engine.database.rules.contains_key(b"marker.mid".as_slice()));
+    }
+
+    #[test]
+    fn detached_implicit_root_keeps_its_branch_marker_separate_from_children() {
+        let mut engine = engine();
+        engine
+            .database
+            .read(
+                b"marker.in: ;\nmarker.out::\n\
+                  %.out: %.mid ;\n%.mid: marker.in ;\n",
+                b"Makefile",
+            )
+            .unwrap();
+        let plan = engine
+            .plan_implicit_update(b"marker.out", 0, false, Some(0))
+            .unwrap()
+            .unwrap();
+        assert!(
+            engine
+                .install_implicit_plan(b"marker.out", plan, true)
+                .is_some()
+        );
+        assert!(engine.database_implicit.contains(b"marker.mid".as_slice()));
+        assert!(!engine.database_implicit.contains(b"marker.out".as_slice()));
+    }
+
+    #[test]
     fn file_diagnostics_use_retained_times_and_do_not_change_logical_history() {
         let engine = engine();
         let name = b"/rmake-database-unit/never-created";
