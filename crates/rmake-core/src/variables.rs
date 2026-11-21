@@ -1379,6 +1379,26 @@ impl VariableStore {
         })
     }
 
+    /// Canonical runtime flags keep their declaration's printed assignment
+    /// operator. This lookup never restores an outer append during expansion.
+    pub fn database_outer_append(&self, name: &[u8], variable: &Variable) -> bool {
+        if variable.scope.flags_from_declaration {
+            let layer = std::iter::once(&self.variables)
+                .chain(self.layers.iter().map(|layer| &layer.variables))
+                .position(|values| {
+                    values
+                        .get(name)
+                        .is_some_and(|selected| std::ptr::eq(selected, variable))
+                });
+            if let Some(declared) =
+                layer.and_then(|layer| self.declaration_for_flags(layer, name, variable))
+            {
+                return declared.scope.append_outer;
+            }
+        }
+        variable.scope.append_outer
+    }
+
     /// The already-materialized backing value of the special root metadata
     /// binding. Reading a diagnostic must not refresh its membership generation
     /// or initialize a cache that no Make expansion has observed yet.
@@ -8884,6 +8904,82 @@ mod variable_names_tests {
 #[cfg(test)]
 mod runtime_metadata_scope_tests {
     use super::*;
+
+    #[test]
+    fn flag_presentation_follows_the_retained_declaration_without_restoring_append() {
+        let mut globals = VariableStore::new();
+        globals
+            .define(b"MAKEFLAGS", b"outer", Assignment::Recursive, Origin::File)
+            .unwrap();
+        let mut target = TargetScope::for_target(b"all");
+        target
+            .define_with(
+                &mut globals,
+                b"MAKEFLAGS",
+                b"tail",
+                Assignment::Append,
+                Origin::File,
+                false,
+                None,
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        let mut context = globals.with_target_scopes(&[&target]);
+        for canonical in [b"normalized".as_slice(), b"normalized again"] {
+            context
+                .define_runtime_metadata(b"MAKEFLAGS", canonical, Origin::File)
+                .unwrap();
+            let binding = context.get(b"MAKEFLAGS").unwrap();
+            assert!(context.database_outer_append(b"MAKEFLAGS", binding));
+            assert!(!binding.is_outer_append());
+            assert_eq!(context.expand(b"$(MAKEFLAGS)").unwrap(), canonical);
+        }
+        target
+            .define_with(
+                &mut globals,
+                b"MAKEFLAGS",
+                b"replacement",
+                Assignment::Simple,
+                Origin::File,
+                false,
+                None,
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        context.refresh_target_scope(&target);
+        let binding = context.get(b"MAKEFLAGS").unwrap();
+        assert!(!context.database_outer_append(b"MAKEFLAGS", binding));
+        assert_eq!(binding.raw_value(), b"normalized again");
+    }
+
+    #[test]
+    fn inherited_flag_declarations_do_not_supply_a_childs_local_assignment_operator() {
+        let mut globals = VariableStore::new();
+        let mut target = TargetScope::for_target(b"parent");
+        target
+            .define_with(
+                &mut globals,
+                b"MAKEFLAGS",
+                b"tail",
+                Assignment::Append,
+                Origin::File,
+                false,
+                None,
+                None,
+                ExpansionContext::pure(),
+            )
+            .unwrap();
+        let parent = globals.with_target_scopes(&[&target]);
+        let mut child = parent.with_target_scopes(&[]);
+        child
+            .define_runtime_metadata(b"MAKEFLAGS", b"normalized", Origin::File)
+            .unwrap();
+        let binding = child.get(b"MAKEFLAGS").unwrap();
+        assert!(!child.database_outer_append(b"MAKEFLAGS", binding));
+        assert!(target.get(b"MAKEFLAGS").unwrap().is_outer_append());
+    }
 
     #[test]
     fn rejected_weak_metadata_definition_still_queries_its_file_table() {
