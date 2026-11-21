@@ -687,6 +687,55 @@ mod tests {
     }
 
     #[test]
+    fn implicit_secondary_flags_remain_in_the_owning_file_scope() {
+        for (rules, owner) in [
+            (
+                b"%.out: $$(eval MAKEFLAGS += -p) %.in ;\n".as_slice(),
+                b"a.out".as_slice(),
+            ),
+            (
+                b"%.out: $$(eval MAKEFLAGS += -p) %.absent ;\n%.out: %.in ;\n",
+                b"a.out",
+            ),
+            (
+                b"%.out: %.mid ;\n%.mid: $$(eval MAKEFLAGS += -p) %.in ;\n",
+                b"a.mid",
+            ),
+        ] {
+            let mut engine = engine();
+            let mut source = b".SECONDEXPANSION:\na.in: ;\nother: ;\n".to_vec();
+            source.extend_from_slice(rules);
+            engine.database.read(&source, b"Makefile").unwrap();
+            assert!(engine.resolve_implicit_at(b"a.out", 0, false));
+            let variables = engine.target_variables(owner).unwrap();
+            let definitions = variables.database_file_definitions();
+            assert!(engine.options.print_database);
+            for (name, origin, expected) in [
+                (
+                    b"MFLAGS".as_slice(),
+                    Origin::Environment,
+                    b"-prR".as_slice(),
+                ),
+                (b"MAKEFLAGS".as_slice(), Origin::File, b"prR".as_slice()),
+            ] {
+                let (_, value) = definitions
+                    .iter()
+                    .find(|(key, _)| *key == name)
+                    .expect("the deferred expansion owns the normalized flag binding");
+                assert_eq!(value.origin(), origin);
+                assert_eq!(value.raw_value(), expected);
+            }
+            assert!(variables.database_lookup(b"@").is_none());
+            let unrelated = engine.target_variables(b"other").unwrap();
+            assert!(unrelated.database_file_definitions().is_empty());
+            if owner != b"a.out" {
+                let parent = engine.target_variables(b"a.out").unwrap();
+                assert!(parent.database_file_definitions().is_empty());
+            }
+        }
+    }
+
+    #[test]
     fn publishing_flags_keeps_recursive_payloads_raw_and_preserves_remake_debug_mask() {
         let mut engine = engine();
         engine
