@@ -829,7 +829,8 @@ mod tests {
             ),
         ] {
             let mut engine = engine();
-            let mut source = b".SECONDEXPANSION:\na.in: ;\nother: ;\n".to_vec();
+            // Keep the expected flag spelling independent of the parent's overrides.
+            let mut source = b"MAKEOVERRIDES :=\n.SECONDEXPANSION:\na.in: ;\nother: ;\n".to_vec();
             source.extend_from_slice(rules);
             engine.database.read(&source, b"Makefile").unwrap();
             assert!(engine.resolve_implicit_at(b"a.out", 0, false));
