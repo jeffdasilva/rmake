@@ -8647,6 +8647,11 @@ impl Engine {
                 explicit_names: _,
                 intermediate_names,
             } = selection;
+            // Only accepted recursive selections become searched file records.
+            // A detached root keeps its separate double-colon branch marker.
+            if name != target {
+                self.database_implicit.insert(name.clone());
+            }
             if rule.terminal {
                 // Accepting a terminal rule bars implicit search when
                 // visiting its prerequisites. Explicit recipes and the
