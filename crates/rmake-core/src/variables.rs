@@ -3167,10 +3167,11 @@ impl TargetScope {
     pub(crate) fn merge_completed_file_bindings(
         &self,
         destination: Option<&VariableStore>,
-        source: &TargetScope,
+        from: &[u8],
+        source: Option<&TargetScope>,
         source_runtime: &VariableStore,
     ) -> Option<Self> {
-        let source = source.complete_file_bindings(Some(source_runtime))?;
+        let source = Self::incoming_file_bindings(from, source, source_runtime)?;
         let complete = self.complete_file_bindings(destination)?;
         self.merge_file_bindings(complete, source)
     }
@@ -3193,14 +3194,21 @@ impl TargetScope {
             return None;
         }
         let complete = Self::file_bindings_in_table_order(destination.variables.as_ref().clone())?;
-        let source = match source {
-            Some(scope) => scope.complete_file_bindings(Some(source_runtime))?,
-            None => {
-                source_runtime.undeclared_own_file_history(from)?;
-                Self::file_bindings_in_table_order(source_runtime.variables.as_ref().clone())?
-            }
-        };
+        let source = Self::incoming_file_bindings(from, source, source_runtime)?;
         Self::for_target(target).merge_file_bindings(complete, source)
+    }
+
+    fn incoming_file_bindings(
+        from: &[u8],
+        source: Option<&TargetScope>,
+        runtime: &VariableStore,
+    ) -> Option<Bindings> {
+        if let Some(scope) = source {
+            scope.complete_file_bindings(Some(runtime))
+        } else {
+            runtime.undeclared_own_file_history(from)?;
+            Self::file_bindings_in_table_order(runtime.variables.as_ref().clone())
+        }
     }
 
     fn merge_file_bindings(&self, mut complete: Bindings, source: Bindings) -> Option<Self> {

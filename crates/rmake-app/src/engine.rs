@@ -337,6 +337,8 @@ enum DatabaseResult {
     RecipeUnstarted,
     // A completed archive container merged into an unattempted file record.
     MergedArchiveContainer,
+    // A completed ordinary source whose visited destination kept its file stem.
+    MergedVisitedFile,
     // A stopping missing-rule diagnostic precedes update completion.
     UnfinishedMissingRule,
 }
@@ -9163,7 +9165,7 @@ impl Engine {
                             history.intern(path);
                             history.intern(&name);
                         }
-                        self.relocate_search_record(archive, path, Some(owner))?;
+                        self.relocate_search_record(archive, path, Some(owner), None)?;
                     } else {
                         self.database.file_records.rehash(archive, path);
                     }
@@ -9246,7 +9248,7 @@ impl Engine {
     }
 
     fn rename_search_record(&mut self, from: &[u8], to: &[u8]) -> Result<(), ()> {
-        self.relocate_search_record(from, to, None)
+        self.relocate_search_record(from, to, None, None)
     }
 
     fn relocate_search_record(
@@ -9254,6 +9256,7 @@ impl Engine {
         from: &[u8],
         to: &[u8],
         tentative_archive: Option<FileRecordId>,
+        late_goal_owners: Option<MergedGoalOwners>,
     ) -> Result<(), ()> {
         if from == to {
             return Ok(());
@@ -9317,6 +9320,17 @@ impl Engine {
             && !self.target_contexts.contains_key(to)
             && !self.database_contexts.contains_key(to)
             && self.file_traversals.visit(to).is_none();
+        // A recipe-less visit retains the destination declaration table but
+        // has no recipe locals yet. Its top-level scope can receive the source.
+        let visited_declaration_only = late_goal_owners
+            .is_some_and(|owners| !owners.destination_unattempted)
+            && destination_has_scope
+            && !self.database_contexts.contains_key(to)
+            && !self.target_contexts.contains_key(to)
+            && self
+                .file_traversals
+                .visit(to)
+                .is_some_and(|visit| visit.parent.is_none());
         let completed_scope_merge = !self.remaking
             && retained_ordinary
             && self
@@ -9337,11 +9351,12 @@ impl Engine {
                 self.file_traversals
                     .outcome(to)
                     .is_some_and(|outcome| !outcome.failed && !outcome.search_after_update)
-                    && self.database_contexts.contains_key(to)
-                    && self.target_contexts.contains_key(to)
-                    && (destination_has_scope
-                        || (rmake_core::filenames::archive_parts(from).is_none()
-                            && rmake_core::filenames::archive_parts(to).is_none()))
+                    && (visited_declaration_only
+                        || (self.database_contexts.contains_key(to)
+                            && self.target_contexts.contains_key(to)
+                            && (destination_has_scope
+                                || (rmake_core::filenames::archive_parts(from).is_none()
+                                    && rmake_core::filenames::archive_parts(to).is_none()))))
             } else {
                 destination_has_scope
                     && !self.database_contexts.contains_key(to)
@@ -9501,6 +9516,7 @@ impl Engine {
                 source,
                 self.database_contexts.get(to),
                 self.target_contexts.get(to),
+                visited_declaration_only,
             )
         {
             self.database_contexts.insert(to.to_vec(), saved);
@@ -10588,12 +10604,18 @@ impl Engine {
                     && (self.gpath_match(target, &name) || self.other_file_record(&name, target))
                 {
                     let owners = self.late_goal_merge_owners(target, &name);
-                    if self.rename_search_record(target, &name).is_err() {
+                    if self
+                        .relocate_search_record(target, &name, None, owners)
+                        .is_err()
+                    {
                         outcome.failed = true;
                         outcome.fatal = true;
                     } else if let Some(owners) = owners
                         && !self.database.has_detached_file_head(&name)
                     {
+                        if !owners.destination_unattempted {
+                            outcome.database_result = DatabaseResult::MergedVisitedFile;
+                        }
                         self.record_merged_goal_reports(owners, &name);
                     }
                     self.file_traversals.set_outcome(&name, outcome);
