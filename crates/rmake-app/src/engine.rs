@@ -355,6 +355,8 @@ enum RemakeFailure {
     None,
     SettledPrerequisiteOwner,
     DirectExplicitGroupOwner,
+    RequiredSyntheticInput,
+    RequiredSyntheticRecipe,
     Optional,
     RequiredClockUnchanged,
     RequiredClockChanged,
@@ -500,6 +502,7 @@ type MakefileVisits<'a> = HashMap<&'a [u8], (Option<SystemTime>, Option<SharedIn
 struct MakefileRemake {
     optional: bool,
     retain_failure: bool,
+    use_declared_synthetic_head: bool,
     stopped: Option<Rc<Cell<bool>>>,
     open_error: Option<SharedIncludeError>,
 }
@@ -4017,6 +4020,34 @@ impl Engine {
                             ))
                 });
             self.parallel_makefile_remakes = parallel_remakes && !check_primary_before_overlap;
+            let use_required_source_head = parallel_remakes
+                && self.assumptions.is_some()
+                && !modes.active()
+                && read_files
+                    .iter()
+                    .all(|(source, skip)| *skip || !source.optional);
+            let uses_declared_synthetic_head = |engine: &Self, source: &Makefile| {
+                use_required_source_head
+                    && !source.optional
+                    && !source.missing
+                    && source.location.is_some()
+                    && !engine.has_requested_goal_name(rmake_core::filenames::without_dot_prefix(
+                        &source.name,
+                    ))
+            };
+            let source_outcome = |engine: &Self, source: &Makefile, mut outcome: Outcome| {
+                // Keep the synthetic failure for ordinary prerequisite visits.
+                // The remake pass uses the successful declared source.
+                if matches!(
+                    outcome.remake_failure,
+                    RemakeFailure::RequiredSyntheticInput | RemakeFailure::RequiredSyntheticRecipe
+                ) && uses_declared_synthetic_head(engine, source)
+                {
+                    outcome.failed = false;
+                    outcome.first_branch_verdict = None;
+                }
+                outcome
+            };
             let mut loaded_prerequisite_times = HashMap::new();
             if !parallel_remakes {
                 let has_implicit_recipes = !self.database.database_implicit_rules().is_empty();
@@ -4122,6 +4153,9 @@ impl Engine {
                         let context = self.parallel_makefile_remakes.then(|| MakefileRemake {
                             optional: makefile.optional,
                             retain_failure: false,
+                            use_declared_synthetic_head: uses_declared_synthetic_head(
+                                self, makefile,
+                            ),
                             stopped: None,
                             // The diagnostic uses the first read's saved error,
                             // selected by the current occurrence's policy.
@@ -4385,6 +4419,7 @@ impl Engine {
                 self.active_makefile_remake = Some(MakefileRemake {
                     optional,
                     retain_failure: optional,
+                    use_declared_synthetic_head: uses_declared_synthetic_head(self, makefile),
                     stopped: (optional && self.parallel_makefile_remakes)
                         .then(|| Rc::new(Cell::new(false))),
                     open_error: if optional {
@@ -4447,6 +4482,7 @@ impl Engine {
                     build_visit,
                     track_named_source.then_some(&mut source_started_command),
                 );
+                result = source_outcome(self, makefile, result);
                 let chain_failed = result.failed;
                 let refreshed_implicit_time = loaded_implicit_time.filter(|_| {
                     !MakefileModes::from_options(&self.options).active()
@@ -5082,6 +5118,7 @@ impl Engine {
                             .outcome(self.aliases.resolve(name))
                             .copied()
                             .unwrap_or(remake.initial);
+                        let result = source_outcome(self, remake.file, result);
                         if remake.duplicate && (remake.file.optional || !result.failed) {
                             continue;
                         }
@@ -8444,6 +8481,7 @@ impl Engine {
         completion: JobCompletion,
         blocking_reap: bool,
     ) {
+        let recipe_branch = job.continuation.branch;
         let (result, failed_dispatch) = match completion {
             JobCompletion::Child(result) => (Some(result), false),
             JobCompletion::FailedDispatch => (None, true),
@@ -8667,7 +8705,19 @@ impl Engine {
             outcome.completion = CompletionTime::ArchiveUnknown;
         }
         let optional_failure = self.optional_remake() && !outcome.fatal;
-        if !optional_failure {
+        let failed_synthetic_recipe = launched
+            && command_failed
+            && error_code.is_some()
+            && !job.recursive
+            && !pending
+            && !outcome.fatal
+            && !outcome.blocked
+            && self.required_synthetic_recipe(target.as_slice(), recipe_branch);
+        if failed_synthetic_recipe {
+            // The child error is reported and cached. The source pass uses the
+            // declared result, so this child does not fail unrelated goals.
+            outcome.remake_failure = RemakeFailure::RequiredSyntheticRecipe;
+        } else if !optional_failure {
             self.parallel_failed |= failed;
         }
         outcome.ran = true;
@@ -12444,6 +12494,43 @@ impl Engine {
         Some(branches.len())
     }
 
+    fn required_synthetic_recipe(&self, target: &[u8], ordinal: Option<usize>) -> bool {
+        let Some(ordinal) = ordinal else {
+            return false;
+        };
+        self.parallel_makefile_remakes
+            && self.options.keep_going
+            && self.options.no_rules
+            && !MakefileModes::from_options(&self.options).active()
+            && !self.running_groups.contains_key(target)
+            && !self.database.rules.contains_key(b".DEFAULT".as_slice())
+            && self.pending_double_colon.get(target).is_some_and(|state| {
+                state.depth == 0
+                    && state.active == Some(ordinal)
+                    && state.before.is_some()
+                    && state.branches.is_empty()
+                    && state.remake.as_ref().is_some_and(|context| {
+                        context.use_declared_synthetic_head && !context.optional
+                    })
+                    && state.combined.terminal_verdict().is_none()
+                    && !state.combined.fatal
+            })
+            && self
+                .assumed_new_double_colon_entries(target)
+                .is_some_and(|(_, count)| count == 1)
+            && self.database.rules.get(target).is_some_and(|rule| {
+                rule.double_colon.as_ref().is_some_and(|branches| {
+                    branches.len() == ordinal
+                        && branches.iter().all(|branch| {
+                            branch.grouped_targets().is_none()
+                                && branch.implicit_pattern.is_none()
+                                && !branch.default_recipe
+                                && branch.recipes.is_some()
+                        })
+                })
+            })
+    }
+
     fn settled_serial_source_declarations(
         &self,
         name: &[u8],
@@ -12927,6 +13014,12 @@ impl Engine {
                     .as_ref()
                     .and_then(|tail| tail.assumed_time);
                 state.combined.retain_branch_verdict(result);
+                if matches!(
+                    result.remake_failure,
+                    RemakeFailure::RequiredSyntheticRecipe
+                ) {
+                    state.combined.remake_failure = result.remake_failure;
+                }
                 state.combined.time = assumed_time.filter(|_| !result.ran).or(result.time);
                 state.combined.ran |= result.ran;
                 state.combined.failed |= result.failed;
@@ -13088,6 +13181,32 @@ impl Engine {
                 match self.synthetic_double_colon_recipe(target, state.depth, implicit_branch) {
                     Ok(Some(rule)) => rule,
                     Ok(None) => {
+                        if self.parallel_makefile_remakes
+                            && state.depth == 0
+                            && self.options.keep_going
+                            && state.before.is_some()
+                            && state.remake.as_ref().is_some_and(|context| {
+                                !context.optional && context.open_error.is_none()
+                            })
+                            && state.combined.terminal_verdict().is_none()
+                            && !state.combined.fatal
+                            && self
+                                .assumed_new_double_colon_entries(target)
+                                .is_some_and(|(_, count)| count == 1)
+                            && self.no_remake_recipe_fallback()
+                            && self.database.rules.get(target).is_some_and(|rule| {
+                                rule.double_colon.as_ref().is_some_and(|branches| {
+                                    branches.iter().all(|branch| {
+                                        branch.grouped_targets().is_none()
+                                            && branch.implicit_pattern.is_none()
+                                            && !branch.default_recipe
+                                            && branch.recipes.is_some()
+                                    })
+                                })
+                            })
+                        {
+                            state.combined.remake_failure = RemakeFailure::RequiredSyntheticInput;
+                        }
                         self.fail_double_colon_input(
                             target,
                             state.depth + usize::from(self.remaking),
@@ -16939,6 +17058,7 @@ mod tests {
         engine.active_makefile_remake = Some(MakefileRemake {
             optional: true,
             retain_failure: true,
+            use_declared_synthetic_head: false,
             stopped: None,
             open_error: None,
         });
