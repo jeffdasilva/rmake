@@ -1,0 +1,19 @@
+id = "include-serial-source-baseline-optional-double-removal"
+requirement = "includes.serial-source-restart-baseline"
+candidate = "required"
+description = "The only double-colon declaration refreshes the removed optional source."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=0 time=1680300000
+remake=0 time=absent
+read=1 time=absent
+read-payload=
+remake=1 time=absent
+goal=1 time=absent payload=
+'''
+stderr = ""

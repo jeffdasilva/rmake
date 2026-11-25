@@ -4024,6 +4024,30 @@ impl Engine {
                         .contains_key(name)
                         .then(|| self.modified(name))
                 };
+                // A fresh serial visit still sees the local timestamp
+                // retained before earlier remakes wrote or removed the file.
+                let loaded_source_time = if !parallel_remakes
+                    && !modes.active()
+                    && self.assumptions.is_none()
+                    && !makefile.missing
+                    && let Some(current) = before
+                    && let Some(Some((None, Some(time)))) = self.path_observations.get(name)
+                    && current != Some(*time)
+                    && self.aliases.resolve(name) == name
+                    && !self.file_traversals.has_outcome(name)
+                    && !self.pending(name)
+                    && self.database.rules.get(name).is_some_and(|rule| {
+                        let declared = match rule.double_colon.as_deref() {
+                            None => rule,
+                            Some([branch]) => branch,
+                            Some(_) => return false,
+                        };
+                        declared.grouped_targets().is_none() && declared.recipes.is_some()
+                    }) {
+                    Some(*time)
+                } else {
+                    None
+                };
                 let pending_open_error = || {
                     makefile
                         .read_error
@@ -4348,8 +4372,12 @@ impl Engine {
                         && !visit_modes.dry_run
                         && result.ran
                         && !result.question_outdated;
+                    let before_refresh = observed_peer_change
+                        .or(loaded_source_time
+                            .filter(|_| !MakefileModes::from_options(&self.options).active()))
+                        .or(before);
                     let physically_changed = (record_change || check_optional_touch)
-                        && self.modified(&makefile.name) != before;
+                        && self.modified(&makefile.name) != before_refresh;
                     changed |= record_change
                         && (physically_changed
                             || (result.remake_group_peer_updated && !tracked_group_change));

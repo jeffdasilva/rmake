@@ -1,0 +1,19 @@
+id = "include-serial-source-baseline-required-removal"
+requirement = "includes.serial-source-restart-baseline"
+candidate = "required"
+description = "The required source refreshes its old timestamp to absence and rereads."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=0 time=1680300000
+remake=0 time=absent
+read=1 time=absent
+read-payload=
+remake=1 time=absent
+goal=1 time=absent payload=
+'''
+stderr = ""

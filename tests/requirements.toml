@@ -2816,6 +2816,28 @@ cases = [
 ]
 
 [[requirements]]
+id = "includes.serial-source-restart-baseline"
+title = "Compare a refreshed serial source with its retained timestamp"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 11
+fixture_count = 11
+cases = [
+  "include-serial-source-baseline-current",
+  "include-serial-source-baseline-earlier-noop",
+  "include-serial-source-baseline-later-removal",
+  "include-serial-source-baseline-optional-double-removal",
+  "include-serial-source-baseline-optional-empty",
+  "include-serial-source-baseline-optional-failure",
+  "include-serial-source-baseline-required-failure",
+  "include-serial-source-baseline-required-removal",
+  "include-serial-source-baseline-restore-new-time",
+  "include-serial-source-baseline-restore-original-time",
+  "include-serial-source-baseline-retimed",
+]
+
+[[requirements]]
 id = "includes.serial-double-colon-remakes"
 title = "Serial double-colon source remake timestamps and branch tracing"
 status = "fixture-ready"

@@ -1,0 +1,16 @@
+id = "include-serial-source-baseline-earlier-noop"
+requirement = "includes.serial-source-restart-baseline"
+candidate = "required"
+description = "An earlier remake that leaves the source unchanged preserves the first read."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=0 time=1680300000
+remake=0 time=1680300000
+goal=0 time=1680300000 payload=original
+'''
+stderr = ""

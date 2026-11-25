@@ -1,0 +1,13 @@
+id = "include-serial-source-baseline-required-failure"
+requirement = "includes.serial-source-restart-baseline"
+candidate = "required"
+description = "The required failure retains its existing error and prevents ordinary goals."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = '''
+make: *** [Makefile:20: b.mk] Error 1
+Makefile:10: Failed to remake makefile 'b.mk'.
+'''

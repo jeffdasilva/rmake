@@ -1,0 +1,16 @@
+id = "include-serial-source-baseline-optional-failure"
+requirement = "includes.serial-source-restart-baseline"
+candidate = "required"
+description = "The optional failure follows its existing suppression and restart policy."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=0 time=1680300000
+remake=0 time=absent
+goal=0 time=absent payload=original
+'''
+stderr = ""

@@ -248,8 +248,12 @@ check the summary and exit status together.
 returned failures and cached visits to required and optional declarations.
 Existing includes changed or removed by a successful grouped recipe are reread
 when their timestamps change. An already loaded source keeps its earlier file
-observation when an earlier serial recipe removes it. Tests cover unruled,
-explicit, empty, order-only and double-colon forms. The
+observation when an earlier serial recipe removes it. If the later source's
+own recipe refreshes its timestamp, the successful serial restart comparison
+uses that earlier observation. The removal and recreation cases cover
+required and optional sources, empty and single double-colon recipes, and
+recreation at the original timestamp. Existing current-source cases cover
+unruled, explicit and order-only forms. The
 [late timestamp restoration test](../tests/cases/include-failed-group-clock-late-restored-required-owner-first/)
 checks that a required read peer can still trigger a restart based on the time
 observed when the failed grouped recipe finished.
