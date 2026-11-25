@@ -4129,49 +4129,53 @@ impl Engine {
                         &source.name,
                     ))
             };
-            let source_outcome = |engine: &Self,
-                                  source: &Makefile,
-                                  mut outcome: Outcome,
-                                  initial_visit: bool| {
-                // Keep each branch failure for ordinary prerequisite visits.
-                // The remake pass uses the original successful source head.
-                if matches!(
-                    outcome.remake_failure,
-                    RemakeFailure::RequiredDeclaredTailRecipe
-                ) || (matches!(
-                    outcome.remake_failure,
-                    RemakeFailure::RequiredSyntheticInput | RemakeFailure::RequiredSyntheticRecipe
-                ) && (uses_declared_synthetic_head(engine, source)
-                    || trailing_optional_source.as_ref().is_some_and(|trailing| {
-                        std::ptr::eq(trailing.required, source)
-                            && match outcome.remake_failure {
-                                // The child can set this verdict only after
-                                // the optional visit settles.
-                                RemakeFailure::RequiredSyntheticRecipe => true,
-                                // A synchronous no-rule result settles
-                                // before the optional source's visit.
-                                RemakeFailure::RequiredSyntheticInput => {
-                                    initial_visit
-                                        && trailing.kind == TrailingOptionalKind::Unruled
-                                        && !engine.file_traversals.has_outcome(trailing.neighbor)
-                                        && !engine.pending(trailing.neighbor)
-                                        && engine.unruled_remake_source(trailing.neighbor)
-                                        && !engine
-                                            .database
-                                            .rules
-                                            .contains_key(b".DEFAULT".as_slice())
-                                        && fs::symlink_metadata(os(trailing.neighbor))
-                                            .is_ok_and(|file| file.is_file())
-                                }
-                                _ => false,
-                            }
-                    })))
-                {
-                    outcome.failed = false;
-                    outcome.first_branch_verdict = None;
-                }
-                outcome
-            };
+            let source_outcome =
+                |engine: &Self, source: &Makefile, mut outcome: Outcome, initial_visit: bool| {
+                    // Keep each branch failure for ordinary prerequisite visits.
+                    // The remake pass uses the original successful source head.
+                    let declared_tail_failed = matches!(
+                        outcome.remake_failure,
+                        RemakeFailure::RequiredDeclaredTailRecipe
+                    ) && !outcome.fatal
+                        && !outcome.question_outdated;
+                    if declared_tail_failed
+                        || (matches!(
+                            outcome.remake_failure,
+                            RemakeFailure::RequiredSyntheticInput
+                                | RemakeFailure::RequiredSyntheticRecipe
+                        ) && (uses_declared_synthetic_head(engine, source)
+                            || trailing_optional_source.as_ref().is_some_and(|trailing| {
+                                std::ptr::eq(trailing.required, source)
+                                    && match outcome.remake_failure {
+                                        // The child can set this verdict only after
+                                        // the optional visit settles.
+                                        RemakeFailure::RequiredSyntheticRecipe => true,
+                                        // A synchronous no-rule result settles
+                                        // before the optional source's visit.
+                                        RemakeFailure::RequiredSyntheticInput => {
+                                            initial_visit
+                                                && trailing.kind == TrailingOptionalKind::Unruled
+                                                && !engine
+                                                    .file_traversals
+                                                    .has_outcome(trailing.neighbor)
+                                                && !engine.pending(trailing.neighbor)
+                                                && engine.unruled_remake_source(trailing.neighbor)
+                                                && !engine
+                                                    .database
+                                                    .rules
+                                                    .contains_key(b".DEFAULT".as_slice())
+                                                && fs::symlink_metadata(os(trailing.neighbor))
+                                                    .is_ok_and(|file| file.is_file())
+                                        }
+                                        _ => false,
+                                    }
+                            })))
+                    {
+                        outcome.failed = false;
+                        outcome.first_branch_verdict = None;
+                    }
+                    outcome
+                };
             let mut loaded_prerequisite_times = HashMap::new();
             if !parallel_remakes {
                 let has_implicit_recipes = !self.database.database_implicit_rules().is_empty();
@@ -13336,34 +13340,60 @@ impl Engine {
         let Some(ordinal) = ordinal.filter(|&ordinal| ordinal != 0) else {
             return false;
         };
-        self.options.keep_going
-            && !MakefileModes::from_options(&self.options).active()
-            && !self.running_groups.contains_key(target)
-            && self.pending_double_colon.get(target).is_some_and(|state| {
-                state.depth == 0
-                    && state.active == Some(ordinal)
-                    && state.before.is_some()
-                    && !state.phony
-                    && state.branches.is_empty()
-                    && state
-                        .remake
-                        .as_ref()
-                        .is_some_and(|context| context.use_declared_tail_head)
-                    && state.combined.time == state.before
-                    && !state.combined.ran
-                    && !state.combined.fatal
-                    && state.combined.terminal_verdict().is_none()
-            })
-            && self.database.rules.get(target).is_some_and(|rule| {
-                rule.double_colon.as_ref().is_some_and(|branches| {
-                    branches.len() == ordinal + 1
-                        && branches.iter().all(|branch| {
-                            branch.grouped_targets().is_none()
-                                && branch.implicit_pattern.is_none()
-                                && !branch.default_recipe
-                                && branch.recipes.is_some()
-                        })
-                })
+        if !self.options.keep_going
+            || MakefileModes::from_options(&self.options).active()
+            || self.running_groups.contains_key(target)
+        {
+            return false;
+        }
+        let Some(state) = self.pending_double_colon.get(target).filter(|state| {
+            state.depth == 0
+                && state.active == Some(ordinal)
+                && state.before.is_some()
+                && !state.phony
+                && !state.combined.fatal
+                && state
+                    .remake
+                    .as_ref()
+                    .is_some_and(|context| context.use_declared_tail_head)
+        }) else {
+            return false;
+        };
+        let Some(declarations) = self
+            .database
+            .rules
+            .get(target)
+            .and_then(|rule| rule.double_colon.as_ref())
+        else {
+            return false;
+        };
+        if ordinal == declarations.len() {
+            // The same read head owns the verdict when the sole assumed
+            // declaration also runs and fails after the explicit tail.
+            return state.branches.is_empty()
+                && matches!(
+                    state.combined.remake_failure,
+                    RemakeFailure::RequiredDeclaredTailRecipe
+                );
+        }
+        let synthetic_follows = state.branches.len() == 1
+            && state
+                .branches
+                .front()
+                .is_some_and(|(next, branch)| *next == ordinal + 1 && branch.is_none())
+            && self
+                .assumed_new_double_colon_entries(target)
+                .is_some_and(|(_, count)| count == 1);
+        ordinal + 1 == declarations.len()
+            && (state.branches.is_empty() || synthetic_follows)
+            && state.combined.time == state.before
+            && !state.combined.ran
+            && state.combined.terminal_verdict().is_none()
+            && declarations.iter().all(|branch| {
+                branch.grouped_targets().is_none()
+                    && branch.implicit_pattern.is_none()
+                    && !branch.default_recipe
+                    && branch.recipes.is_some()
             })
     }
 
