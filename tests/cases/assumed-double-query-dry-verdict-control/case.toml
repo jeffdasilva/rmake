@@ -1,0 +1,10 @@
+id = "assumed-double-query-dry-verdict-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "An actual query verdict leaves the original source pass and suppresses an unforced recipe."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""

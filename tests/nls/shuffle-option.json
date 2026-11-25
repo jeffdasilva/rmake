@@ -1,0 +1,151 @@
+{
+  "classification": "Invalid startup shuffle operands across argument sources and locale controls.",
+  "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
+  "fixture_sha256": {},
+  "rows": [
+    {
+      "id": "nls-shuffle-option-c-cli",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--shuffle=invalid"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "seen": "anchor\n",
+        "stderr": "make: *** invalid shuffle mode: Invalid value: 'invalid'.  Stop.\n"
+      }
+    },
+    {
+      "id": "nls-shuffle-option-fr-fallback",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--shuffle=invalid"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "seen": "anchor\n",
+        "stderr": "make: *** invalid shuffle mode: Invalid value: 'invalid'. Arr\u00eat.\n"
+      }
+    },
+    {
+      "id": "nls-shuffle-option-de-cli",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--shuffle=invalid"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "seen": "anchor\n",
+        "stderr": "make: *** ung\u00fcltiger Durchmisch-Modus: Invalid value: \u201einvalid\u201c.  Schluss.\n"
+      }
+    },
+    {
+      "id": "nls-shuffle-option-ja-makeflags",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja",
+        "MAKEFLAGS": "--shuffle=invalid"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "seen": "anchor\n",
+        "stderr": "make: *** \u7121\u52b9\u306a\u30b7\u30e3\u30c3\u30d5\u30eb\u30e2\u30fc\u30c9: Invalid value: 'invalid'.  \u4e2d\u6b62.\n"
+      }
+    },
+    {
+      "id": "nls-shuffle-option-de-gnumakeflags-fallback",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx-rmake-missing:de:fr",
+        "GNUMAKEFLAGS": "--shuffle=invalid"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "seen": "anchor\n",
+        "stderr": "make: *** ung\u00fcltiger Durchmisch-Modus: Invalid value: \u201einvalid\u201c.  Schluss.\n"
+      }
+    },
+    {
+      "id": "nls-shuffle-option-de-raw-cli",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--shuffle=invalid-\udcff"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "seen": "anchor\n",
+        "stderr_hex": "6d616b653a202a2a2a20756e67c3bc6c74696765722044757263686d697363682d4d6f6475733a20496e76616c69642076616c75653a20e2809e696e76616c69642dffe2809c2e20205363686c7573732e0a"
+      }
+    }
+  ]
+}

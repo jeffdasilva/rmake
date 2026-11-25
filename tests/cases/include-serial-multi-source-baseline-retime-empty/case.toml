@@ -1,0 +1,17 @@
+id = "include-serial-multi-source-baseline-retime-empty"
+requirement = "includes.serial-multi-source-restart-baseline"
+candidate = "required"
+description = "A stale empty declaration refreshes the stored timestamp."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=1680300000
+read=1 time=1680300010
+read-payload=original
+goal=1 time=1680300010 value=original
+'''
+stderr = ""

@@ -98,10 +98,15 @@ def cases(selection):
     intermediate = json.loads((DATA / "intermediate-policy.json").read_bytes())
     file_io = json.loads((DATA / "file-io.json").read_bytes())
     output_lock = json.loads((DATA / "output-lock.json").read_bytes())
+    debug_options = json.loads((DATA / "debug-options.json").read_bytes())
     suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution,
-              touch_open, cleanup, wait_notice, intermediate, file_io, output_lock)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 18, 15, 20, 14, 13, 18, 16, 12, 12, 8, 12, 12, 8):
+              touch_open, cleanup, wait_notice, intermediate, file_io, output_lock, debug_options)
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 18, 15, 20, 14, 13, 18, 16, 12, 12, 8, 12, 12, 8, 7):
         raise h.HarnessError("unexpected NLS model inventory")
+    shuffle_option = json.loads((DATA / "shuffle-option.json").read_bytes())
+    if len(shuffle_option["rows"]) != 6 or shuffle_option["fixture_sha256"]:
+        raise h.HarnessError("unexpected shuffle option models")
+    suites += (shuffle_option,)
     rows = [row for suite in suites for row in suite["rows"]]
     if len({row["id"] for row in rows}) != len(rows):
         raise h.HarnessError("duplicate NLS model ID")
@@ -133,7 +138,7 @@ def cases(selection):
         raise h.HarnessError("output lock fixture inventory differs")
     fixtures.update(lock_fixtures)
     if any(suite["fixture_sha256"] for suite in (repeat, replay, low_resolution, touch_open, cleanup,
-                                                wait_notice, intermediate, file_io)):
+                                                wait_notice, intermediate, file_io, debug_options)):
         raise h.HarnessError("unexpected source fixtures for later diagnostic cases")
     for name, expected in fixtures.items():
         if h.sha256_file(DATA / name) != expected:
@@ -234,10 +239,12 @@ def main(argv=None):
               "intermediate_policy_sha256": h.sha256_file(DATA / "intermediate-policy.json"),
               "file_io_sha256": h.sha256_file(DATA / "file-io.json"),
               "output_lock_sha256": h.sha256_file(DATA / "output-lock.json"),
+              "debug_options_sha256": h.sha256_file(DATA / "debug-options.json"),
               "tool_sha256": h.sha256_file(Path(__file__)), "locale_profile": profile,
               "oracle": h.executable_identity(oracle, oracle=True), "oracle_profile_id": oracle_profile["profile_id"], "candidate": h.executable_identity(args.candidate) if args.candidate else None,
               "reference_catalog": {"path": str(catalog), "sha256": h.sha256_file(catalog)},
               "owned_catalog_manifest_sha256": h.sha256_file(ROOT / "catalogs/provenance.json"),
+              "shuffle_option_sha256": h.sha256_file(DATA / "shuffle-option.json"),
               "functional_cpu_affinity": sorted(os.sched_getaffinity(0)), "cases": [], "passed": False}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     def publish():

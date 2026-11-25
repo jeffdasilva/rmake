@@ -1028,14 +1028,14 @@ impl Options {
     /// Decode changed file bindings after reading. Existing switches persist;
     /// later file flags can change them, while explicit CLI -j keeps priority.
     #[cfg(test)]
-    pub fn file_flags(&self, flags: &[Vec<u8>]) -> Result<(Self, Option<usize>), String> {
+    pub fn file_flags(&self, flags: &[Vec<u8>]) -> Result<(Self, Option<usize>), Vec<u8>> {
         self.file_flags_with_positions(flags)
             .map(|(options, jobs, _)| (options, jobs))
     }
     pub fn file_flags_with_positions(
         &self,
         flags: &[Vec<u8>],
-    ) -> Result<(Self, Option<usize>, Vec<usize>), String> {
+    ) -> Result<(Self, Option<usize>, Vec<usize>), Vec<u8>> {
         self.decode_file_flags(flags, true, Origin::Environment)
     }
     #[cfg(test)]
@@ -1043,7 +1043,7 @@ impl Options {
         &self,
         flags: &[Vec<u8>],
         origin: Origin,
-    ) -> Result<(Self, Option<usize>), String> {
+    ) -> Result<(Self, Option<usize>), Vec<u8>> {
         self.assigned_flags_with_positions(flags, origin)
             .map(|(options, jobs, _)| (options, jobs))
     }
@@ -1051,7 +1051,7 @@ impl Options {
         &self,
         flags: &[Vec<u8>],
         origin: Origin,
-    ) -> Result<(Self, Option<usize>, Vec<usize>), String> {
+    ) -> Result<(Self, Option<usize>, Vec<usize>), Vec<u8>> {
         self.decode_file_flags(flags, false, origin)
     }
     fn append_internal_jobserver_style(&self, arguments: &mut Vec<OsString>) {
@@ -1112,7 +1112,7 @@ impl Options {
         flags: &[Vec<u8>],
         restore_cli_jobs: bool,
         origin: Origin,
-    ) -> Result<(Self, Option<usize>, Vec<usize>), String> {
+    ) -> Result<(Self, Option<usize>, Vec<usize>), Vec<u8>> {
         let mut arguments = Vec::new();
         self.append_decoder_seed_flags(&mut arguments);
         let prefix_count = arguments.len();
@@ -1188,7 +1188,7 @@ impl Options {
             },
             &mut |_| {},
         )
-        .map_err(|error| Self::incoming_error(flags, error))?;
+        .map_err(|error| Self::incoming_error(flags, error).into_bytes())?;
         for (position, _) in &mut parsed.assignment_context {
             *position = *position - prefix_count + 1;
         }
@@ -1425,7 +1425,7 @@ impl Options {
 
     /// Stored MAKEFLAGS is recursive: literal option dollars need one layer
     /// of make quoting, separate from its encoded command-variable reference.
-    pub fn decode_debug(&mut self) -> Result<(), String> {
+    pub fn decode_debug(&mut self) -> Result<(), Vec<u8>> {
         self.debug_mask = self.debug.decode_from(self.trace, self.debug_mask)?;
         Ok(())
     }

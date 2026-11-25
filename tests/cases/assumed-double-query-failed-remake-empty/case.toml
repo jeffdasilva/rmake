@@ -1,0 +1,10 @@
+id = "assumed-double-query-failed-remake-empty"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A successful empty query recipe can restart an unchanged named source after an optional failure."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

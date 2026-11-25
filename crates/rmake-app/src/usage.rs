@@ -84,6 +84,18 @@ pub(crate) fn jobs() -> Vec<u8> {
     )
 }
 
+pub(crate) fn invalid_shuffle_mode(mode: &[u8]) -> Vec<u8> {
+    let detail: &[u8] = if mode.is_empty() {
+        b"Missing value"
+    } else {
+        b"Invalid value"
+    };
+    format(
+        c"invalid shuffle mode: %s: '%s'",
+        &[Argument::Bytes(detail), Argument::Bytes(mode)],
+    )
+}
+
 pub(crate) fn output_sync_mode(mode: &[u8]) -> Vec<u8> {
     format(c"unknown output-sync type '%s'", &[Argument::Bytes(mode)])
 }

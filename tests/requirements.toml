@@ -1851,12 +1851,12 @@ cases = [
 
 [[requirements]]
 id = "options.assumed-double-colon-simulated-failed-remake"
-title = "Restart a named simulated what-if source after an unrelated optional failure"
+title = "Restart a named simulated what-if source after another source fails"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 8
-fixture_count = 8
+candidate_required = 33
+fixture_count = 33
 cases = [
   "assumed-double-simulated-failed-remake-absent",
   "assumed-double-simulated-failed-remake-current-control",
@@ -1866,6 +1866,31 @@ cases = [
   "assumed-double-simulated-failed-remake-later-required",
   "assumed-double-simulated-failed-remake-successful-control",
   "assumed-double-simulated-failed-remake-unassumed-control",
+  "assumed-double-query-failed-remake-empty",
+  "assumed-double-query-successful-remake-control",
+  "assumed-double-query-forced-remake-control",
+  "assumed-double-query-dry-failed-remake-empty",
+  "assumed-double-query-dry-unassumed-control",
+  "assumed-double-query-dry-verdict-control",
+  "assumed-double-query-dry-successful-sibling-control",
+  "assumed-double-dry-touch-failed-remake-empty",
+  "assumed-double-query-dry-touch-failed-remake-command",
+  "assumed-double-query-dry-touch-silent",
+  "assumed-double-query-dry-touch-forced-empty-tail",
+  "assumed-double-query-dry-touch-forced-only-control",
+  "assumed-double-query-dry-touch-verdict-control",
+  "assumed-double-dry-touch-successful-sibling-control",
+  "assumed-double-query-dry-touch-current-control",
+  "assumed-double-query-dry-touch-unassumed-control",
+  "assumed-double-query-touch-physical-control",
+  "assumed-double-dry-required-failed-remake-later",
+  "assumed-double-dry-required-failed-remake-earlier",
+  "assumed-double-dry-required-failed-remake-command",
+  "assumed-double-dry-required-failed-remake-current-control",
+  "assumed-double-dry-required-failed-remake-forced-control",
+  "assumed-double-dry-required-failed-remake-no-keep-control",
+  "assumed-double-dry-required-failed-remake-unassumed-control",
+  "assumed-double-dry-required-successful-sibling-control",
 ]
 
 [[requirements]]
@@ -2813,6 +2838,70 @@ cases = [
   "debug-double-colon-branch-missing-prior-branch-created-file",
   "debug-double-colon-branch-missing-touch",
   "debug-double-colon-branch-missing-existing-file-control",
+]
+
+[[requirements]]
+id = "includes.serial-source-restart-baseline"
+title = "Compare a refreshed serial source with its retained timestamp"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 11
+fixture_count = 11
+cases = [
+  "include-serial-source-baseline-current",
+  "include-serial-source-baseline-earlier-noop",
+  "include-serial-source-baseline-later-removal",
+  "include-serial-source-baseline-optional-double-removal",
+  "include-serial-source-baseline-optional-empty",
+  "include-serial-source-baseline-optional-failure",
+  "include-serial-source-baseline-required-failure",
+  "include-serial-source-baseline-required-removal",
+  "include-serial-source-baseline-restore-new-time",
+  "include-serial-source-baseline-restore-original-time",
+  "include-serial-source-baseline-retimed",
+]
+
+[[requirements]]
+id = "includes.serial-multi-source-restart-baseline"
+title = "Compare successful serial declarations at their final physical timestamp"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 9
+fixture_count = 9
+cases = [
+  "include-serial-multi-source-baseline-optional-failure",
+  "include-serial-multi-source-baseline-required-failure",
+  "include-serial-multi-source-baseline-retime-current",
+  "include-serial-multi-source-baseline-retime-empty",
+  "include-serial-multi-source-baseline-retime-refresh",
+  "include-serial-multi-source-baseline-tail-new",
+  "include-serial-multi-source-baseline-tail-original",
+  "include-serial-multi-source-baseline-transient-time",
+  "include-serial-multi-source-baseline-without-recipes",
+]
+
+[[requirements]]
+id = "includes.serial-failed-source-restart-baseline"
+title = "Use the read timestamp after a settled failed serial refresh"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 11
+fixture_count = 11
+cases = [
+  "include-serial-failed-source-baseline-blocked-tail-control",
+  "include-serial-failed-source-baseline-head-refresh-blocked-tail",
+  "include-serial-failed-source-baseline-named-dry-control",
+  "include-serial-failed-source-baseline-named-query-control",
+  "include-serial-failed-source-baseline-no-keep-control",
+  "include-serial-failed-source-baseline-optional-head-control",
+  "include-serial-failed-source-baseline-optional-tail",
+  "include-serial-failed-source-baseline-required-head-backward",
+  "include-serial-failed-source-baseline-required-head-restored",
+  "include-serial-failed-source-baseline-required-single-forward",
+  "include-serial-failed-source-baseline-required-tail-restored",
 ]
 
 [[requirements]]

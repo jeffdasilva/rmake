@@ -248,8 +248,19 @@ check the summary and exit status together.
 returned failures and cached visits to required and optional declarations.
 Existing includes changed or removed by a successful grouped recipe are reread
 when their timestamps change. An already loaded source keeps its earlier file
-observation when an earlier serial recipe removes it. Tests cover unruled,
-explicit, empty, order-only and double-colon forms. The
+observation when an earlier serial recipe removes it. If the later source's
+own recipe refreshes its timestamp, the successful serial restart comparison
+uses that earlier observation. The removal and recreation cases cover
+required and optional sources, empty and single double-colon recipes, and
+recreation at the original timestamp. Successful ungrouped declarations
+that leave an existing source share its final physical timestamp. A later
+declaration can restore the original timestamp after an earlier write.
+For a failed serial remake under keep-going, a settled real refresh also
+uses the earlier timestamp when the declared head succeeded or the failed
+source is required. A blocked declaration preserves the earlier observation
+when no branch refreshes it. Multi-declaration remakes that leave the source
+absent need separate qualification. Existing current-source cases cover
+unruled, explicit and order-only forms. The
 [late timestamp restoration test](../tests/cases/include-failed-group-clock-late-restored-required-owner-first/)
 checks that a required read peer can still trigger a restart based on the time
 observed when the failed grouped recipe finished.

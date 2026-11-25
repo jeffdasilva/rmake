@@ -1,0 +1,13 @@
+id = "include-serial-failed-source-baseline-named-dry-control"
+requirement = "includes.serial-failed-source-restart-baseline"
+candidate = "required"
+description = "A named dry run simulates the recipe before ordinary comparison."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = '''
+printf 'branch-0=%s time=%s\n' '0' '1680300010' >> proof && false
+make: 'b.mk' is up to date.
+'''
+stderr = ""

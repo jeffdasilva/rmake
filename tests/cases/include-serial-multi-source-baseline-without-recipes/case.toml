@@ -1,0 +1,15 @@
+id = "include-serial-multi-source-baseline-without-recipes"
+requirement = "includes.serial-multi-source-restart-baseline"
+candidate = "required"
+description = "Declarations with no recipes retain the already-read source."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=1680300000
+goal=0 time=absent value=original
+'''
+stderr = ""

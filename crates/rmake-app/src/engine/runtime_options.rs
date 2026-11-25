@@ -169,9 +169,8 @@ impl State {
     ) -> Result<rmake_core::diagnostic::MakeflagsResult, Vec<u8>> {
         let mut current = self.options.borrow_mut();
         current.debug_mask = self.output.debug_mask();
-        let (mut updated, _, warning_positions) = current
-            .assigned_flags_with_positions(&[request.value.to_vec()], request.origin)
-            .map_err(String::into_bytes)?;
+        let (mut updated, _, warning_positions) =
+            current.assigned_flags_with_positions(&[request.value.to_vec()], request.origin)?;
         let notices = std::mem::take(&mut updated.flag_notices);
         let assignments: Vec<_> = std::mem::take(&mut updated.assignments)
             .into_iter()
@@ -517,7 +516,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
             current.jobs = Some(jobs);
         }
         current.debug_mask = output.debug_mask();
-        current.decode_debug().map_err(String::into_bytes)?;
+        current.decode_debug()?;
         let mode = current
             .output_sync
             .as_deref()
@@ -1064,7 +1063,7 @@ impl Engine {
         {
             Ok(updated) => updated,
             Err(message) => {
-                self.fatal(None, message.as_bytes());
+                self.fatal(None, &message);
                 return Err(());
             }
         };

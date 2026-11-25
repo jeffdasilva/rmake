@@ -1,0 +1,18 @@
+id = "include-serial-source-baseline-restore-new-time"
+requirement = "includes.serial-source-restart-baseline"
+candidate = "required"
+description = "Recreation at a new timestamp rereads the new payload."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=0 time=1680300000
+remake=0 time=absent
+read=1 time=1680300040
+read-payload=restored
+goal=1 time=1680300040 payload=restored
+'''
+stderr = ""

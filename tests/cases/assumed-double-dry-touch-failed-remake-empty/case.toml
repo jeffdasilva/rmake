@@ -1,0 +1,10 @@
+id = "assumed-double-dry-touch-failed-remake-empty"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "An empty simulated touch restarts a named source after an optional remake failure."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-t", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "touch b.mk\ntouch b.mk\n"
+stderr = ""

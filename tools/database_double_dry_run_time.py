@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
-"""Compare exact double-colon database dry-run timestamps and file effects."""
+"""Compare database timestamps and physical effects of recipe simulations."""
 from __future__ import annotations
 
 import argparse
@@ -42,6 +42,8 @@ class Model:
     actual: tuple[str, ...] = ()
     flags: tuple[str, ...] = ('-n',)
     status: int = 0
+    database_at_start: bool = True
+    includes: tuple[str, ...] = ()
 
 
 def models():
@@ -59,6 +61,47 @@ def models():
     yield Model('double-question-stops', stale + simulated, ('all',), (('all:: input', MISSING), ('all:: other', MISSING)), flags=('-q',), status=1)
 
 
+    late_database = '$(eval MAKEFLAGS += -p)'
+    direct = 'all: input ; ' + late_database + '\n'
+    direct_records = (('all: input', SYNTHETIC),)
+    yield Model('late-empty-query-time', direct, ('all',), direct_records,
+                flags=('-q',), database_at_start=False)
+    yield Model('late-empty-query-dry-time', direct, ('all',), direct_records,
+                flags=('-q', '-n'), database_at_start=False)
+    yield Model('late-empty-dry-time-control', direct, ('all',), direct_records,
+                database_at_start=False)
+
+    parent = (
+        'all: child older | other ; +@test "$?" = child && '
+        'test "$^" = "child older" && test "$|" = other && '
+        + FORCE_ALL.replace('; ', ' && ', 1) + '\n'
+    )
+    yield Model('parent-sees-empty-query-child',
+                parent + 'child: input ; ' + late_database + '\n', ('all',),
+                (('all: child older | other', FORCED), ('child: input', SYNTHETIC)),
+                original=(('all', EXISTING), ('child', REAL)), actual=('all',),
+                flags=('-q',), database_at_start=False)
+
+    source_query = (
+        '-include source.mk\nsource.mk: dependency\n'
+        'dependency: ; $(eval MAKEFLAGS += -q)\n'
+        'all: ; ' + late_database + '@' + FORCE_ALL + '\n'
+    )
+    yield Model('restored-query-source-time', source_query, ('all',),
+                (('dependency:', SYNTHETIC), ('all:', FORCED)),
+                actual=('all',), flags=(), database_at_start=False, includes=('source.mk',))
+
+    empty = 'all:: input ; ' + late_database + '\n'
+    for name, body, records in (
+        ('head', empty + inactive, (('all:: input', SYNTHETIC), ('all:: older', SYNTHETIC))),
+        ('tail', inactive + empty, (('all:: older', SYNTHETIC), ('all:: input', SYNTHETIC))),
+    ):
+        yield Model('double-empty-query-' + name, body, ('all',), records,
+                    original=(('all', EXISTING),), flags=('-q',), database_at_start=False)
+    yield Model('double-empty-query-then-forced', empty + forced, ('all',), both_physical,
+                original=(('all', EXISTING),), actual=('all',), flags=('-q',), database_at_start=False)
+
+
 def fixture(model, path):
     path.mkdir()
     (path / 'Makefile').write_text(model.makefile)
@@ -66,7 +109,10 @@ def fixture(model, path):
         (path / name).write_bytes(b'known input\n')
     for name, _ in model.original:
         (path / name).write_bytes(b'physical target\n')
-    args = ('-rR', '-s', '--no-print-directory', '-p', '-f', 'Makefile', *model.flags, *model.goals)
+    for name in model.includes:
+        (path / name).write_bytes(b'# known include\n')
+    database = ('-p',) if model.database_at_start else ()
+    args = ('-rR', '-s', '--no-print-directory', *database, '-f', 'Makefile', *model.flags, *model.goals)
     return h.Case(path, model.id, 'database.dry-run-group-time', 'required', args, 15, {}, {})
 
 

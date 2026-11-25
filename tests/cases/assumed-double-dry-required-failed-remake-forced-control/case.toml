@@ -1,0 +1,10 @@
+id = "assumed-double-dry-required-failed-remake-forced-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A forced recursive command leaving the source unchanged adds no restart."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 2
+stdout = "printf 'forced=%s\\n' '0' >> proof\n"
+stderr = "make: *** No rule to make target 'missing', needed by 'broken.inc'.\nMakefile:8: Failed to remake makefile 'broken.inc'.\n"

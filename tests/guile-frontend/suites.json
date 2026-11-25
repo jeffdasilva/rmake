@@ -82,9 +82,9 @@
     {
       "name": "pair-traversal",
       "plan": "pair-traversal.json",
-      "plan_sha256": "dc94018b89d4fbc3062212ce15ddc346eeb2aaeea30b4d3dee0c6c81013a8c52",
+      "plan_sha256": "a1ebc3b6e25c3549b7b3b109b32047470758ada69721de72e92d621c0584809c",
       "schema": "files",
-      "count": 4
+      "count": 18
     },
     {
       "name": "bridge-effects",

@@ -388,7 +388,7 @@ impl Engine {
         {
             view.time = FileTime::Old;
             None
-        } else if database_result == DatabaseResult::Simulated
+        } else if database_result.has_simulated_time()
             || self
                 .assumptions
                 .as_ref()

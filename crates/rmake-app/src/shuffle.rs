@@ -31,20 +31,9 @@ impl Mode {
             let mut random = Random(0);
             return Ok(Self::Seed(random.next()));
         }
-        unsigned_option(raw).map(Self::Seed).ok_or_else(|| {
-            [
-                b"invalid shuffle mode: ".as_slice(),
-                if raw.is_empty() {
-                    b"Missing value"
-                } else {
-                    b"Invalid value"
-                },
-                b": '",
-                raw,
-                b"'",
-            ]
-            .concat()
-        })
+        unsigned_option(raw)
+            .map(Self::Seed)
+            .ok_or_else(|| crate::usage::invalid_shuffle_mode(raw))
     }
 
     pub fn spelling(self) -> Option<Vec<u8>> {

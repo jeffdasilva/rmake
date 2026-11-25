@@ -1,0 +1,19 @@
+id = "include-serial-multi-source-baseline-transient-time"
+requirement = "includes.serial-multi-source-restart-baseline"
+candidate = "required"
+description = "An intermediate declaration changes the timestamp before the final declaration restores it."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=1680300000
+before-0=absent
+after-0=1680300060
+before-2=1680300060
+after-2=1680300000
+goal=0 time=1680300000 value=original
+'''
+stderr = ""

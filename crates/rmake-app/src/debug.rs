@@ -44,10 +44,10 @@ impl Requests {
         }
     }
     #[cfg(test)]
-    pub fn decode(&mut self, trace: bool) -> Result<Mask, String> {
+    pub fn decode(&mut self, trace: bool) -> Result<Mask, Vec<u8>> {
         self.decode_from(trace, Mask::NONE)
     }
-    pub fn decode_from(&mut self, trace: bool, current: Mask) -> Result<Mask, String> {
+    pub fn decode_from(&mut self, trace: bool, current: Mask) -> Result<Mask, Vec<u8>> {
         // A signal changes the effective mask, not recorded option history.
         // Completed decodes replay requests onto that live selection.
         let mut mask = if self.all { Mask::ALL } else { current };
@@ -78,12 +78,7 @@ impl Requests {
                     b'p' => mask.add(Mask::PRINT),
                     b'w' => mask.add(Mask::WHY),
                     b'n' => mask = Mask::NONE,
-                    _ => {
-                        return Err(format!(
-                            "unknown debug level specification '{}'",
-                            String::from_utf8_lossy(remaining)
-                        ));
-                    }
+                    _ => return Err(localized(msg::UNKNOWN_LEVEL, &[bytes(remaining)])),
                 }
                 cursor += remaining
                     .iter()
@@ -605,7 +600,7 @@ mod tests {
             requests.push(request.as_bytes().to_vec());
             assert_eq!(
                 requests.decode(false).unwrap_err(),
-                format!("unknown debug level specification '{suffix}'")
+                format!("unknown debug level specification '{suffix}'").into_bytes()
             );
         }
         let mut trailing = Requests::default();

@@ -1,0 +1,15 @@
+id = "include-serial-multi-source-baseline-retime-current"
+requirement = "includes.serial-multi-source-restart-baseline"
+candidate = "required"
+description = "Current declarations preserve the original source observation."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=1680300000
+goal=0 time=1680300010 value=original
+'''
+stderr = ""

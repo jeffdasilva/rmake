@@ -1,0 +1,10 @@
+id = "include-serial-failed-source-baseline-named-query-control"
+requirement = "includes.serial-failed-source-restart-baseline"
+candidate = "required"
+description = "A named query preserves its out-of-date verdict and the first read."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "b.mk"]
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""

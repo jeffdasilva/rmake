@@ -1,0 +1,19 @@
+id = "include-serial-source-baseline-retimed"
+requirement = "includes.serial-source-restart-baseline"
+candidate = "required"
+description = "A successful refresh compares the earlier source timestamp after an earlier recipe retimes it."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=0 time=1680300000
+remake=0 time=1680299990
+read=1 time=1680299990
+read-payload=original
+remake=1 time=1680299990
+goal=1 time=1680299990 payload=original
+'''
+stderr = ""

@@ -1,0 +1,10 @@
+id = "include-serial-failed-source-baseline-no-keep-control"
+requirement = "includes.serial-failed-source-restart-baseline"
+candidate = "required"
+description = "Without keep-going, the failed required recipe stops before ordinary goals."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** [Makefile:16: b.mk] Error 1\n"

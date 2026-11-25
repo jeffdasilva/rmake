@@ -1,0 +1,13 @@
+id = "include-serial-failed-source-baseline-required-head-restored"
+requirement = "includes.serial-failed-source-restart-baseline"
+candidate = "required"
+description = "The successful tail restores the original time and the required head failure stays final."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = '''
+make: *** [Makefile:16: b.mk] Error 1
+Makefile:10: Failed to remake makefile 'b.mk'.
+'''

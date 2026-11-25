@@ -1,0 +1,13 @@
+id = "include-serial-multi-source-baseline-required-failure"
+requirement = "includes.serial-multi-source-restart-baseline"
+candidate = "required"
+description = "A failed required declaration still prevents ordinary goals."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = '''
+make: *** [Makefile:16: b.mk] Error 1
+Makefile:10: Failed to remake makefile 'b.mk'.
+'''

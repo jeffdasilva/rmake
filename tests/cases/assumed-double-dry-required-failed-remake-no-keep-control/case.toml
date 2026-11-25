@@ -1,0 +1,10 @@
+id = "assumed-double-dry-required-failed-remake-no-keep-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A stopping required remake failure returns after the original read."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'missing', needed by 'broken.inc'.  Stop.\n"

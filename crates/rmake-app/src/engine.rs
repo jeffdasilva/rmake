@@ -326,9 +326,18 @@ enum DatabaseResult {
     #[default]
     Outcome,
     Simulated,
+    SimulatedQuery,
+    // The settled synthetic branch supplies the failed-source restart verdict.
+    SimulatedTouch,
     ObservedGroup,
     ObservedDoubleColon,
     RecipeUnstarted,
+}
+
+impl DatabaseResult {
+    fn has_simulated_time(self) -> bool {
+        matches!(self, Self::Simulated | Self::SimulatedQuery)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -4024,6 +4033,32 @@ impl Engine {
                         .contains_key(name)
                         .then(|| self.modified(name))
                 };
+                // A fresh serial visit still sees the local timestamp
+                // retained before earlier remakes wrote or removed the file.
+                let loaded_source = if !parallel_remakes
+                    && !modes.active()
+                    && self.assumptions.is_none()
+                    && !makefile.missing
+                    && let Some(current) = before
+                    && let Some(Some((None, Some(time)))) = self.path_observations.get(name)
+                    && current != Some(*time)
+                    && self.aliases.resolve(name) == name
+                    && !self.file_traversals.has_outcome(name)
+                    && !self.pending(name)
+                    && let Some(rule) = self.database.rules.get(name)
+                {
+                    let declared = rule
+                        .double_colon
+                        .as_deref()
+                        .unwrap_or_else(|| std::slice::from_ref(rule));
+                    (!declared.is_empty()
+                        && declared.iter().all(|branch| {
+                            branch.grouped_targets().is_none() && branch.recipes.is_some()
+                        }))
+                    .then_some((*time, declared.len()))
+                } else {
+                    None
+                };
                 let pending_open_error = || {
                     makefile
                         .read_error
@@ -4089,6 +4124,24 @@ impl Engine {
                     track_named_source.then_some(&mut source_started_command),
                 );
                 let chain_failed = result.failed;
+                // The raw branch results retain whether a recipe really
+                // refreshed the source before policy reduces the verdict to
+                // the declared head.
+                let failed_source_time = loaded_source
+                    .filter(|&(_, declarations)| {
+                        chain_failed
+                            && !result.fatal
+                            && !result.question_outdated
+                            && self.options.keep_going
+                            && !MakefileModes::from_options(&self.options).active()
+                            && match declarations {
+                                1 => result.completion == CompletionTime::Refresh,
+                                _ => self
+                                    .settled_serial_source_declarations(name, declarations)
+                                    .is_some_and(|(_, refreshed)| refreshed),
+                            }
+                    })
+                    .map(|(time, _)| time);
                 if track_assumed_remake {
                     // This verdict belongs to the source pass. A later
                     // failure can override a logical timestamp change.
@@ -4322,7 +4375,8 @@ impl Engine {
                             },
                         );
                     } else if !optional && (self.options.keep_going || deferred_peer_failure) {
-                        failed_remakes.insert(name, (before, refresh_timestamp));
+                        let failed_before = observed_peer_change.or(failed_source_time).or(before);
+                        failed_remakes.insert(name, (failed_before, refresh_timestamp));
                     }
                 } else if !result.failed {
                     self.database_unchecked_times
@@ -4348,8 +4402,32 @@ impl Engine {
                         && !visit_modes.dry_run
                         && result.ran
                         && !result.question_outdated;
-                    let physically_changed = (record_change || check_optional_touch)
-                        && self.modified(&makefile.name) != before;
+                    let physically_changed = if record_change || check_optional_touch {
+                        let after = self.modified(&makefile.name);
+                        let loaded_time =
+                            failed_source_time.filter(|_| after.is_some()).or_else(|| {
+                                loaded_source
+                                    .filter(|&(_, declarations)| {
+                                        !MakefileModes::from_options(&self.options).active()
+                                            && (declarations == 1
+                                                || (!chain_failed
+                                                    && after.is_some()
+                                                    && self
+                                                        .settled_serial_source_declarations(
+                                                            name,
+                                                            declarations,
+                                                        )
+                                                        .is_some_and(|(succeeded, _)| succeeded)))
+                                    })
+                                    .map(|(time, _)| time)
+                            });
+                        // Completed declarations share the final physical
+                        // timestamp, including when the last restores it.
+                        let before_refresh = observed_peer_change.or(loaded_time).or(before);
+                        after != before_refresh
+                    } else {
+                        false
+                    };
                     changed |= record_change
                         && (physically_changed
                             || (result.remake_group_peer_updated && !tracked_group_change));
@@ -4681,17 +4759,36 @@ impl Engine {
             changed |= grouped_changes
                 .as_ref()
                 .is_some_and(SerialGroupedRemakeChanges::changed);
-            if !changed
-                && track_assumed_remake
+            // A failed source pass can expose a successful simulated
+            // timestamp. Required failures reach this check in serial dry-run
+            // when keep-going has let the full pass settle.
+            let required_dry_remake_failed = failed
+                && !skipped_required_read
+                && self.options.keep_going
                 && modes.dry_run
-                && optional_remake_failed
-                && !failed
+                && !modes.question
+                && !modes.touch;
+            if !changed
+                && !parallel_remakes
+                && restarts == 0
+                && self.assumptions.is_some()
+                && (modes.dry_run || (modes.question && !modes.touch))
+                && ((optional_remake_failed && !failed) || required_dry_remake_failed)
                 && !remake_question
             {
+                let simulation = if modes.touch {
+                    DatabaseResult::SimulatedTouch
+                } else if modes.question {
+                    DatabaseResult::SimulatedQuery
+                } else {
+                    DatabaseResult::Simulated
+                };
                 changed = self.failed_remake_has_simulated_assumed_source(
                     &read_files,
                     &visited,
                     named_sources.as_ref(),
+                    simulation,
+                    !required_dry_remake_failed,
                 );
             }
             // A skipped required read suppresses an otherwise successful
@@ -11026,6 +11123,26 @@ impl Engine {
         Some(branches.len())
     }
 
+    fn settled_serial_source_declarations(
+        &self,
+        name: &[u8],
+        declarations: usize,
+    ) -> Option<(bool, bool)> {
+        let mut key = (name.to_vec(), 0);
+        let mut succeeded = true;
+        let mut refreshed = false;
+        for ordinal in 0..declarations {
+            key.1 = ordinal;
+            let branch = self.database_branch_outcomes.get(&key)?;
+            if branch.fatal || branch.question_outdated {
+                return None;
+            }
+            succeeded &= !branch.failed;
+            refreshed |= branch.completion == CompletionTime::Refresh;
+        }
+        Some((succeeded, refreshed))
+    }
+
     fn settled_assumed_new_makefile_branch(&self, source: &[u8]) -> Option<(SystemTime, Outcome)> {
         let name = self.aliases.resolve(source);
         let assumed_time = self.single_assumed_new_double_colon_time(name)?;
@@ -11055,12 +11172,15 @@ impl Engine {
         read_files: &[(Makefile, bool)],
         visited: &MakefileVisits<'_>,
         named_sources: Option<&HashSet<&[u8]>>,
+        simulation: DatabaseResult,
+        failed_source_optional: bool,
     ) -> bool {
         let failed = read_files.iter().find_map(|(source, skip)| {
             let name = source.name.as_slice();
             let target = self.aliases.resolve(name);
             (!*skip
-                && source.optional
+                && source.optional == failed_source_optional
+                && (source.optional || !source.missing)
                 && visited.contains_key(name)
                 && self.file_traversals.outcome(target).is_some_and(|outcome| {
                     outcome.failed && !outcome.fatal && !outcome.question_outdated
@@ -11088,7 +11208,7 @@ impl Engine {
                 && self
                     .settled_assumed_new_makefile_branch(target)
                     .is_some_and(|(_, branch)| {
-                        branch.database_result == DatabaseResult::Simulated
+                        branch.database_result == simulation
                             && branch.completion == CompletionTime::AssumeNew
                     })
                 && self.file_traversals.outcome(target).is_some_and(succeeded)
@@ -11180,14 +11300,13 @@ impl Engine {
                 state.combined.search_after_update |= result.search_after_update;
                 state.combined.remake_group_peer_updated |= result.remake_group_peer_updated;
                 state.combined.completion = state.combined.completion.max(result.completion);
-                if matches!(
-                    result.database_result,
-                    DatabaseResult::Simulated | DatabaseResult::ObservedDoubleColon
-                ) {
+                if result.database_result.has_simulated_time()
+                    || result.database_result == DatabaseResult::ObservedDoubleColon
+                {
                     state.combined.database_result = result.database_result;
                 }
                 if !group_observed
-                    && (result.database_result == DatabaseResult::Simulated
+                    && (result.database_result.has_simulated_time()
                         || result.database_result == DatabaseResult::ObservedDoubleColon
                         || result.completion >= CompletionTime::Refresh)
                     && let Some(time) = self
@@ -11234,7 +11353,7 @@ impl Engine {
                 // branch simulated its recipe during the same update.
                 if state.combined.completion >= CompletionTime::Refresh
                     || (state.combined.completion != CompletionTime::AssumeNew
-                        && state.combined.database_result == DatabaseResult::Simulated)
+                        && state.combined.database_result.has_simulated_time())
                 {
                     state.combined.database_result = DatabaseResult::Outcome;
                 }
@@ -12949,6 +13068,31 @@ impl Engine {
                     && execution.status == Status::Success
                 {
                     outcome.database_result = DatabaseResult::Simulated;
+                } else if self.options.question
+                    && !self.options.touch
+                    && !execution.ran
+                    && !execution.pending
+                    && rule.grouped_targets().is_none()
+                    && outcome.completion == CompletionTime::AssumeNew
+                    && execution.status == Status::Success
+                {
+                    outcome.database_result = DatabaseResult::SimulatedQuery;
+                } else if execution.simulated_touch
+                    && self.remaking
+                    && !self.parallel_makefile_remakes
+                    && !execution.pending
+                    && rule.grouped_targets().is_none()
+                    && execution.status == Status::Success
+                    && outcome.completion == CompletionTime::AssumeNew
+                    && branch.is_some_and(|ordinal| {
+                        self.database
+                            .rules
+                            .get(target)
+                            .and_then(|rule| rule.double_colon.as_ref())
+                            .is_some_and(|declarations| ordinal == declarations.len())
+                    })
+                {
+                    outcome.database_result = DatabaseResult::SimulatedTouch;
                 }
                 if rule.grouped_double_id().is_some()
                     && execution.status == Status::Fatal
@@ -14629,6 +14773,7 @@ impl Engine {
             return Execution::success(ran).with_recursion(all_recursive);
         }
         let passes = flow.completion_passes();
+        let mut simulated_touch = false;
         for pass in 0..passes {
             if pass + 1 == passes
                 && let Some(buffer) = &output
@@ -14637,6 +14782,7 @@ impl Engine {
             }
             let mut touched = self.touch_target(target);
             ran |= touched.ran;
+            simulated_touch |= touched.simulated_touch;
             if matches!(touched.status, Status::Failure | Status::Fatal) {
                 // Only dispatch completion can fail before a continuation owner
                 // performs cleanup. The owner's final completion has no such step.
@@ -14647,7 +14793,10 @@ impl Engine {
                 return touched;
             }
         }
-        Execution::success(ran).with_recursion(all_recursive)
+        Execution {
+            simulated_touch,
+            ..Execution::success(ran).with_recursion(all_recursive)
+        }
     }
 
     fn touch_target(&mut self, target: &[u8]) -> Execution {
@@ -14656,7 +14805,10 @@ impl Engine {
             self.stdout(&[b"touch ".as_slice(), target].concat());
         }
         if self.options.dry_run {
-            return Execution::success(true);
+            return Execution {
+                simulated_touch: true,
+                ..Execution::success(true)
+            };
         }
         if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
             return match rmake_linux::archive::touch(archive, member) {

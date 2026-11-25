@@ -1,0 +1,17 @@
+id = "include-serial-source-baseline-optional-empty"
+requirement = "includes.serial-source-restart-baseline"
+candidate = "required"
+description = "A stale empty recipe refreshes the absent optional source timestamp."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=0 time=1680300000
+read=1 time=absent
+read-payload=
+goal=1 time=absent payload=
+'''
+stderr = ""
