@@ -71,8 +71,17 @@ def tree_digest(prefix):
     return digest((json.dumps(tree_inventory(prefix), indent=2) + '\n').encode())
 
 
+
+def lock_path():
+    return LOCK.with_name('aarch64-toolchain.json') if platform.machine() == 'aarch64' else LOCK
+
+
+def multiarch():
+    return platform.machine() + '-linux-gnu'
+
+
 def prefix_for(destination):
-    return destination / 'installs' / digest(LOCK.read_bytes()) / 'prefix'
+    return destination / 'installs' / digest(lock_path().read_bytes()) / 'prefix'
 
 
 def run(command, *, timeout=60, **kwargs):
@@ -153,11 +162,11 @@ def package_stanzas(data):
             yield fields, paragraph + '\n'
 
 
-def validate_package(record, fields):
+def validate_package(record, fields, archive_base=oracle.UBUNTU_ARCHIVE):
     expected = {'Package': record['name'], 'Version': record['version'],
                 'Architecture': record['architecture'], 'SHA256': record['sha256'],
                 'Size': str(record['size']),
-                'Filename': record['url'].removeprefix(oracle.UBUNTU_ARCHIVE)}
+                'Filename': record['url'].removeprefix(archive_base)}
     if any(fields.get(key) != value for key, value in expected.items()):
         raise ProfileError('locked package differs from authenticated index: ' + record['name'])
 
@@ -183,6 +192,8 @@ def authenticate(lock, destination):
         raise ProfileError('noble release has no verified signature')
     (provenance / 'signature-status.txt').write_bytes(signature.stdout + signature.stderr)
     hashes = release_hashes(release.read_bytes())
+    archive_base = lock.get('archive_base', oracle.UBUNTU_ARCHIVE)
+    architecture = lock.get('archive_architecture', 'amd64')
     records = {row['name']: row for row in lock['packages']}
     if len(records) != 17 or len(records) != len(lock['packages']):
         raise ProfileError('unexpected pinned package closure')
@@ -201,7 +212,7 @@ def authenticate(lock, destination):
             packed_name = relative + '.xz'
             identity, size = hashes[packed_name]
             packed = provenance / (relative.split('/')[0] + '-Packages.xz')
-            cached_download(packed, oracle.UBUNTU_ARCHIVE + 'dists/noble/' + packed_name, identity, size)
+            cached_download(packed, archive_base + 'dists/noble/' + packed_name, identity, size)
             with lzma.open(packed, 'rb') as stream:
                 data = stream.read(index['size'] + 1)
         if len(data) != index['size'] or digest(data) != index['sha256']:
@@ -210,10 +221,10 @@ def authenticate(lock, destination):
             raw_cache.write_bytes(gzip.compress(data, mtime=0))
         for fields, paragraph in package_stanzas(data):
             name = fields.get('Package')
-            if name in records and fields.get('Architecture') in ('amd64', 'all'):
+            if name in records and fields.get('Architecture') in (architecture, 'all'):
                 if name in found or records[name]['signed_index'] != relative:
                     raise ProfileError('ambiguous locked package')
-                validate_package(records[name], fields)
+                validate_package(records[name], fields, archive_base)
                 found[name] = paragraph
     if set(found) != set(records):
         raise ProfileError('locked packages missing from authenticated indices')
@@ -225,7 +236,7 @@ def authenticate(lock, destination):
 
 
 def environment(destination):
-    prefix = prefix_for(destination); library = prefix / 'usr/lib/x86_64-linux-gnu'
+    prefix = prefix_for(destination); library = prefix / 'usr/lib' / multiarch()
     return {'PATH': str(destination / 'bin') + ':/usr/bin:/bin', 'LC_ALL': 'C', 'LANG': 'C',
             'TZ': 'UTC', 'HOME': str(destination / 'home'), 'CONFIG_SITE': '/dev/null',
             'RMAKE_GUILE_PREFIX': str(prefix), 'LD_LIBRARY_PATH': str(library),
@@ -234,7 +245,7 @@ def environment(destination):
 
 
 def wrappers(destination):
-    prefix = prefix_for(destination); library = prefix / 'usr/lib/x86_64-linux-gnu'
+    prefix = prefix_for(destination); library = prefix / 'usr/lib' / multiarch()
     binary = destination / 'bin'; binary.mkdir(exist_ok=True)
     for name, target in (('guile', 'guile-3.0'), ('pkg-config', 'pkgconf')):
         script = '#!/bin/sh\nset -eu\n'
@@ -248,9 +259,9 @@ def wrappers(destination):
 
 
 def provision_locked(destination):
-    if platform.machine() != 'x86_64' or platform.libc_ver() != ('glibc', '2.39'):
-        raise ProfileError('this pinned tool profile requires x86_64 glibc2.39')
-    lock = json.loads(LOCK.read_text())
+    if platform.machine() not in ('x86_64', 'aarch64') or platform.libc_ver() != ('glibc', '2.39'):
+        raise ProfileError('pinned Guile SDKs require x86_64 or aarch64 glibc2.39')
+    lock = json.loads(lock_path().read_text())
     if lock.get('schema_version') != 1:
         raise ProfileError('unknown Guile tool lock')
     if not re.fullmatch(r'[0-9a-f]{64}', lock.get('installed_tree_sha256', '')):
@@ -289,7 +300,7 @@ def provision_locked(destination):
     if probe.stdout != b'42\n' or probe.stderr:
         raise ProfileError('extracted Guile runtime capability differs')
     profile = {'schema_version': 1, 'classification': lock['classification'],
-               'lock_sha256': digest(LOCK.read_bytes()), 'authentication': authentication,
+               'lock_sha256': digest(lock_path().read_bytes()), 'authentication': authentication,
                'environment': environment(destination), 'packages': lock['packages'],
                'smoke_stdout_hex': probe.stdout.hex(), 'no_system_install': True, 'maintainer_scripts_run': False}
     profile['installed_tree_sha256'] = lock['installed_tree_sha256']
@@ -323,7 +334,7 @@ def build_reference(destination):
     if not archive.is_file() or digest(archive.read_bytes()) != source_identity:
         raise ProfileError('bootstrap the pinned disabled oracle archive first')
     compiler = Path('/usr/bin/cc').resolve()
-    inputs = {'source_sha256': source_identity, 'tool_lock_sha256': digest(LOCK.read_bytes()),
+    inputs = {'source_sha256': source_identity, 'tool_lock_sha256': digest(lock_path().read_bytes()),
               'compiler_sha256': digest(compiler.read_bytes()), 'destination': str(destination)}
     identity = digest(json.dumps(inputs, sort_keys=True).encode())
     parent = destination / 'references'; parent.mkdir(exist_ok=True)
@@ -347,10 +358,10 @@ def build_reference(destination):
     prefix.mkdir()
     env = environment(destination)
     package_prefix = prefix_for(destination)
-    library = package_prefix / 'usr/lib/x86_64-linux-gnu'
+    library = package_prefix / 'usr/lib' / multiarch()
     env.update({'CFLAGS': '-O2 -g0',
                 'CPPFLAGS': shlex.join(['-I' + str(package_prefix / 'usr/include'),
-                                       '-I' + str(package_prefix / 'usr/include/x86_64-linux-gnu')]),
+                                       '-I' + str(package_prefix / 'usr/include' / multiarch())]),
                 'LDFLAGS': shlex.join(['-Wl,-rpath,' + str(library)]),
                 'PKG_CONFIG': str(destination / 'bin/pkg-config')})
     log_path = parent / (identity + '-build.log')
@@ -411,6 +422,8 @@ def main(argv=None):
     parser.add_argument('--environment', action='store_true')
     parser.add_argument('--components', action='store_true')
     args = parser.parse_args(argv)
+    if platform.machine() == 'aarch64' and (not args.reference or args.components):
+        parser.error('AArch64 Guile qualification supports the GNU reference only')
     destination = args.root.resolve()
     provision(destination)
     if args.reference:

@@ -1,0 +1,71 @@
+name: AArch64 Guile reference
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/guile-aarch64-reference.yml
+      - oracle/guile/aarch64-toolchain.json
+      - oracle/manifest.json
+      - tools/guile_toolchain.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guile-reference:
+    name: Native AArch64 GNU Make with Guile
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify the pinned GNU source and build the private reference
+        run: |
+          test "$(uname -m)" = aarch64
+          PYTHONPATH=tools python3 -c 'import oracle; oracle.download_archive(oracle.load_config(), oracle.ROOT / ".tools/downloads")'
+          python3 tools/guile_toolchain.py --root .tools/guile-aarch64 --reference
+      - name: Check GNU version, Guile feature and scalar result
+        env:
+          PYTHONPATH: tools
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          from guile_frontend import read_profile
+          from guile_toolchain import run
+
+          profile = read_profile(Path('.tools/guile-aarch64/reference-profile.json'))
+          binary = profile['binary']['path']
+          environment = profile['environment']
+          version = run([binary, '--version'], env=environment, timeout=10)
+          assert version.stdout.splitlines()[0] == b'GNU Make 4.4.1' and not version.stderr
+          result = run([binary, '-rR', '--no-print-directory', '-f', '-'],
+                       env=environment, input=bytes.fromhex(profile['smoke_input_hex']), timeout=10)
+          features, value = result.stdout.splitlines()
+          assert not result.stderr and features.startswith(b'FEATURES=[') and features.endswith(b']')
+          assert b'guile' in features[10:-1].split() and value == b'RESULT=[42]'
+          output = Path('artifacts/guile-aarch64-reference/smoke.json')
+          output.parent.mkdir(parents=True, exist_ok=True)
+          output.write_text(json.dumps({'version': version.stdout.decode(), 'stdout_hex': result.stdout.hex()}, indent=2) + '\n')
+          PY
+      - name: Retain reference and provenance
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: guile-aarch64-reference-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            .tools/guile-aarch64/profile.json
+            .tools/guile-aarch64/reference-profile.json
+            .tools/guile-aarch64/references/*-build.log
+            .tools/guile-aarch64/provenance/signature-status.txt
+            .tools/guile-aarch64/provenance/*.package
+            artifacts/guile-aarch64-reference/
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14

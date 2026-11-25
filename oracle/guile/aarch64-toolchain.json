@@ -1,0 +1,214 @@
+{
+  "schema_version": 1,
+  "classification": "Pinned Ubuntu24.04 arm64 Guile SDK for the GNU-only native reference preflight",
+  "distribution": "Ubuntu noble arm64",
+  "release_url": "https://ports.ubuntu.com/ubuntu-ports/dists/noble/InRelease",
+  "release_sha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+  "keyring": "/usr/share/keyrings/ubuntu-archive-keyring.gpg",
+  "archive_base": "https://ports.ubuntu.com/ubuntu-ports/",
+  "archive_architecture": "arm64",
+  "signed_indices": [
+    {
+      "path": "main/binary-arm64/Packages",
+      "sha256": "423c9185185cfc15df7bb3e748afc94b79ed09e0c437a0589aace46b61090d29",
+      "size": 7028761
+    },
+    {
+      "path": "universe/binary-arm64/Packages",
+      "sha256": "adb1c01115c3b11d2a5cde43b17ce3c53fa7cc48f834b930f63910d2c7dc74f5",
+      "size": 72105605
+    }
+  ],
+  "packages": [
+    {
+      "name": "guile-3.0",
+      "version": "3.0.9-1build2",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/guile-3.0/guile-3.0_3.0.9-1build2_arm64.deb",
+      "sha256": "03eb6a96ba81a669e1130109a7f7c29f61b12fb6f4c296c7cec6fa8bab2aae51",
+      "size": 16414,
+      "signed_index": "universe/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/guile-3.0/copyright",
+      "license_sha256": "af1767197572e624ee448d4fec93b28dbca075889a344f4cd964119b38b76eec"
+    },
+    {
+      "name": "guile-3.0-dev",
+      "version": "3.0.9-1build2",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/guile-3.0/guile-3.0-dev_3.0.9-1build2_arm64.deb",
+      "sha256": "d03b4e389b88305379777455bec00ad6786abf080129775fcac6543a5623b9ca",
+      "size": 699926,
+      "signed_index": "universe/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/guile-3.0-dev/copyright",
+      "license_sha256": "af1767197572e624ee448d4fec93b28dbca075889a344f4cd964119b38b76eec"
+    },
+    {
+      "name": "guile-3.0-libs",
+      "version": "3.0.9-1build2",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/guile-3.0/guile-3.0-libs_3.0.9-1build2_arm64.deb",
+      "sha256": "7975e5c05f93ee5f2e4a720ef39380406da08b603988be8d11877b99ee723a7b",
+      "size": 7630006,
+      "signed_index": "universe/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/guile-3.0-libs/copyright",
+      "license_sha256": "af1767197572e624ee448d4fec93b28dbca075889a344f4cd964119b38b76eec"
+    },
+    {
+      "name": "libffi-dev",
+      "version": "3.4.6-1build1",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libf/libffi/libffi-dev_3.4.6-1build1_arm64.deb",
+      "sha256": "887755d6aa91c12ee0eb3404b61f6dc138c4c59234aa2add0264baf270337708",
+      "size": 59476,
+      "signed_index": "main/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/libffi-dev/copyright",
+      "license_sha256": "737ff68f0eb104d3b0d96b291c3a8f40a775a3ec2b53f9b2e4bcfe3188bde118"
+    },
+    {
+      "name": "libffi8",
+      "version": "3.4.6-1build1",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libf/libffi/libffi8_3.4.6-1build1_arm64.deb",
+      "sha256": "a4d4607144bc599328a913d7312761fd8f4a650d67c7d5058f1f3667d771d37c",
+      "size": 22716,
+      "signed_index": "main/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/libffi8/copyright",
+      "license_sha256": "737ff68f0eb104d3b0d96b291c3a8f40a775a3ec2b53f9b2e4bcfe3188bde118"
+    },
+    {
+      "name": "libgc-dev",
+      "version": "1:8.2.6-1build1",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libg/libgc/libgc-dev_8.2.6-1build1_arm64.deb",
+      "sha256": "e624318ea6fe15eff1c2c9ce694d06eb77ef4d0b499cc9935108b316ac51b6d3",
+      "size": 265572,
+      "signed_index": "main/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/libgc-dev/copyright",
+      "license_sha256": "b076c9d513a8fe345d003464684d1b502c348ff94ee8d109078a23aaaf25374d"
+    },
+    {
+      "name": "libgc1",
+      "version": "1:8.2.6-1build1",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libg/libgc/libgc1_8.2.6-1build1_arm64.deb",
+      "sha256": "487546cfdc5c09a86461d245b8a9c7d337e6b24c278d47854a36ca4a60f891a8",
+      "size": 89052,
+      "signed_index": "main/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/libgc1/copyright",
+      "license_sha256": "b076c9d513a8fe345d003464684d1b502c348ff94ee8d109078a23aaaf25374d"
+    },
+    {
+      "name": "libgmp-dev",
+      "version": "2:6.3.0+dfsg-2ubuntu6",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gmp/libgmp-dev_6.3.0+dfsg-2ubuntu6_arm64.deb",
+      "sha256": "9d30f7d717ee695be04f2c920ad4108da44281e3ebf75dfeb3f789f61c41ff95",
+      "size": 333560,
+      "signed_index": "main/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/libgmp-dev/copyright",
+      "license_sha256": "7d366aef5ba325150246de1d7820c4c9926cd27ca61a69948492b26cd3b61601"
+    },
+    {
+      "name": "libgmp10",
+      "version": "2:6.3.0+dfsg-2ubuntu6",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gmp/libgmp10_6.3.0+dfsg-2ubuntu6_arm64.deb",
+      "sha256": "8b09803a6318428836ed522f8891edb2a7cf3197433d6aa1bbdedcd07d4124db",
+      "size": 243082,
+      "signed_index": "main/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/libgmp10/copyright",
+      "license_sha256": "7d366aef5ba325150246de1d7820c4c9926cd27ca61a69948492b26cd3b61601"
+    },
+    {
+      "name": "libgmpxx4ldbl",
+      "version": "2:6.3.0+dfsg-2ubuntu6",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/g/gmp/libgmpxx4ldbl_6.3.0+dfsg-2ubuntu6_arm64.deb",
+      "sha256": "65d942c8ba743323fc7c4966bfb0feb55eb4e312fd97a3d0f40530d386fe99b2",
+      "size": 10106,
+      "signed_index": "main/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/libgmpxx4ldbl/copyright",
+      "license_sha256": "7d366aef5ba325150246de1d7820c4c9926cd27ca61a69948492b26cd3b61601"
+    },
+    {
+      "name": "libltdl-dev",
+      "version": "2.4.7-7build1",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libt/libtool/libltdl-dev_2.4.7-7build1_arm64.deb",
+      "sha256": "89163373c4a1a0926d938e2e6058e0fadb5606049d77b88b860d3fd51c226776",
+      "size": 169824,
+      "signed_index": "main/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/libltdl-dev/copyright",
+      "license_sha256": "89186d1b870fc70e23f3cac2ccfa657c1697a53c1386e85dbaaa2042d4b76048"
+    },
+    {
+      "name": "libltdl7",
+      "version": "2.4.7-7build1",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libt/libtool/libltdl7_2.4.7-7build1_arm64.deb",
+      "sha256": "69f28804222d37670e19417cc21e54d5ec0ca3a149cbdbf0a5714d5e407e30d1",
+      "size": 40402,
+      "signed_index": "main/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/libltdl7/copyright",
+      "license_sha256": "89186d1b870fc70e23f3cac2ccfa657c1697a53c1386e85dbaaa2042d4b76048"
+    },
+    {
+      "name": "libpkgconf3",
+      "version": "1.8.1-2build1",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/p/pkgconf/libpkgconf3_1.8.1-2build1_arm64.deb",
+      "sha256": "f476cb81e1ecec6bf974f21181469cf5edcc749c4ead621469cdbf584dfd3be8",
+      "size": 31226,
+      "signed_index": "main/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/libpkgconf3/copyright",
+      "license_sha256": "676c75e54ff7e3b9892940fbf1b31763cb6f2a6527a5607a3640ac59a2441fba"
+    },
+    {
+      "name": "libunistring-dev",
+      "version": "1.1-2build1",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libu/libunistring/libunistring-dev_1.1-2build1_arm64.deb",
+      "sha256": "8fcba2f06e9d0a2ddd10bdf5e13ce9562065a48431dceb0e9876a0f0e6e85965",
+      "size": 705694,
+      "signed_index": "main/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/libunistring-dev/copyright",
+      "license_sha256": "dbbfee567c5eb53ad1c75ce666779e596b5f794b52be7f5834685ddd633185ea"
+    },
+    {
+      "name": "libunistring5",
+      "version": "1.1-2build1",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/libu/libunistring/libunistring5_1.1-2build1_arm64.deb",
+      "sha256": "d0801a0cd5602d8b4b98d52e3a7682aca63b35f567d1163ee18cfb2f994563df",
+      "size": 529568,
+      "signed_index": "main/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/libunistring5/copyright",
+      "license_sha256": "dbbfee567c5eb53ad1c75ce666779e596b5f794b52be7f5834685ddd633185ea"
+    },
+    {
+      "name": "pkgconf",
+      "version": "1.8.1-2build1",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/p/pkgconf/pkgconf_1.8.1-2build1_arm64.deb",
+      "sha256": "818ac3b4ae09f3747098872c7d5a9e387118798155b0107bb1625c2ab675664b",
+      "size": 16768,
+      "signed_index": "main/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/pkgconf/copyright",
+      "license_sha256": "676c75e54ff7e3b9892940fbf1b31763cb6f2a6527a5607a3640ac59a2441fba"
+    },
+    {
+      "name": "pkgconf-bin",
+      "version": "1.8.1-2build1",
+      "architecture": "arm64",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/main/p/pkgconf/pkgconf-bin_1.8.1-2build1_arm64.deb",
+      "sha256": "bcd0d24c48b8b73ed7ba20ffc21a3575d5d9bdd53c3cee5a8051b7bde5fbf638",
+      "size": 20458,
+      "signed_index": "main/binary-arm64/Packages",
+      "license_file": "prefix/usr/share/doc/pkgconf-bin/copyright",
+      "license_sha256": "676c75e54ff7e3b9892940fbf1b31763cb6f2a6527a5607a3640ac59a2441fba"
+    }
+  ],
+  "no_system_install": true,
+  "maintainer_scripts_run": false,
+  "installed_tree_sha256": "c09bc6371d61041f665c358e3a7662bb7e5dc51228137c4a8e1a86bae2bde2f5"
+}
