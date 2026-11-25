@@ -162,6 +162,7 @@ def models() -> list[Model]:
     result.extend(target_read_models())
     result.extend(secondary_scope_models())
     result.extend(retained_double_branch_models())
+    result.extend(finalizer_shell_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -799,6 +800,54 @@ split:: shared $$(NEXT)
 split:: shared $$(NEXT)
 	@$(eval export TRIGGER = $$(READ)ready)printf 'child=[%s]\\n' "$$TRIGGER"
 ''', b'first=[shared|7]\nretained=[shared|11]\nchild=[ready]\n'),
+    ]
+
+
+def finalizer_shell_models() -> list[Model]:
+    head = b'load finalizer_shell.so\n$(file >>seen,read-$(MAKE_RESTARTS))\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    source = head + goal
+    unload = source + b'.PHONY: FORCE\nfinalizer_shell.so: FORCE\n\t@$(file >>seen,remake):\n'
+    restart = (head + b'include generated.mk\n' + goal
+               + b"generated.mk:\n\t@printf '# rebuilt\\n' >generated.mk\n")
+    opened = (b'stdout-before=[open]\nspawned\nresult=[captured|13|override]\n'
+              b'stdout-after=[open]\n')
+    closed_start = b'stdout-before=[closed]\n'
+    closed_end = b'result=[|127|override]\nstdout-after=[open]\n'
+    closed = closed_start + closed_end
+    failure = b'make: /bin/sh: Bad file descriptor\n'
+
+    def model(name, makefile, seen, stderr, *, args=(), environment=None):
+        return Model(
+            'native-finalizer-shell-' + name,
+            {'Makefile': makefile, 'seen': b'anchor\n'},
+            {'exit_code': 0, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\n' + seen,
+            (Module('finalizer_shell.c', 'finalizer_shell.so'),),
+            args=('-rR', '--no-print-directory', *args),
+            environment=environment or {},
+        )
+
+    ordinary = b'read-\ngoal\n'
+    return [
+        model('closed', source, ordinary + closed, failure),
+        model('assignment', source, ordinary + closed, failure,
+              args=('-j2', '-Oline'),
+              environment={'PROBE_FINALIZER_SHELL_FORM': 'assignment'}),
+        model('reopened-descriptor', source,
+              ordinary + closed_start + b'stdout-reopened=[open]\n' + closed_end, failure,
+              environment={'PROBE_FINALIZER_REOPEN_STDOUT': '1'}),
+        model('before-close', source, ordinary + opened, b'',
+              args=('-j2', '-Otarget'), environment={'PROBE_FINALIZER_ATEXIT': '1'}),
+        model('unload', unload, b'read-\n' + opened + b'remake\ngoal\n' + closed, failure),
+        model('unload-before-close', unload,
+              b'read-\n' + opened + b'remake\ngoal\n' + opened, b'',
+              environment={'PROBE_FINALIZER_ATEXIT': '1'}),
+        model('restart', restart, b'read-\nread-1\ngoal\n' + closed, failure,
+              args=('-j2', '-Orecurse')),
+        model('missing-program', source, ordinary + closed,
+              b'make: rmake-native-finalizer-missing-command: Bad file descriptor\n',
+              environment={'PROBE_FINALIZER_SHELL_FORM': 'missing'}),
     ]
 
 

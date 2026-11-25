@@ -557,6 +557,7 @@ impl MakefileModes {
 enum RemakeWait {
     Command,
     Recipe,
+    TerminalDryRecipe,
     LoadPass,
 }
 
@@ -4796,13 +4797,18 @@ impl Engine {
                                     .is_some_and(|job| job.child.is_some())
                             })));
                 let live_modes = MakefileModes::from_options(&self.options);
-                let terminal_named_dry_reap = modes.only_dry_run()
+                let terminal_named_dry_wait = if modes.only_dry_run()
                     && live_modes.only_dry_run()
                     && !failed
                     && !optional_remake_failed
                     && !remake_question
                     && !debug_before_remake.has(Mask::MAKEFILES)
-                    && self.terminal_named_dry_reap(&read_files, named_sources.as_ref(), &pending);
+                {
+                    self.terminal_named_dry_wait(&read_files, named_sources.as_ref(), &pending)
+                } else {
+                    None
+                };
+                let terminal_named_dry_reap = terminal_named_dry_wait.is_some();
                 if live_modes.active()
                     && !terminal_named_dry_reap
                     && !active_primary
@@ -4845,7 +4851,9 @@ impl Engine {
                 let question_or_failure = remake_question || failed || optional_remake_failed;
                 // A mixed touch pass restores the unnamed root's mode
                 // before refilling its load reservation after a reap.
-                let wait = if optional_named_load
+                let wait = if let Some(wait) = terminal_named_dry_wait {
+                    wait
+                } else if optional_named_load
                     || (named_load_debug && verbose_load_trace)
                     || (active_primary && mixed_named_overlap && modes.touch)
                     || (mixed_named_overlap && final_named_dry)
@@ -5919,15 +5927,15 @@ impl Engine {
             })
     }
 
-    fn terminal_named_dry_reap(
+    fn terminal_named_dry_wait(
         &self,
         read_files: &[(Makefile, bool)],
         named_sources: Option<&HashSet<&[u8]>>,
         pending: &[PendingMakefileRemake<'_>],
-    ) -> bool {
+    ) -> Option<RemakeWait> {
         use rmake_core::filenames::without_dot_prefix;
 
-        let [worker] = pending else { return false };
+        let [worker] = pending else { return None };
         if self.assumptions.is_some()
             || self.options.load_limit.is_some()
             || self.options.goals.len() != 1
@@ -5939,36 +5947,38 @@ impl Engine {
             || worker.file.missing
             || worker.file.location.is_none()
         {
-            return false;
+            return None;
         }
         let target = self.aliases.resolve(&worker.file.name);
+        let job = self.parallel_jobs.primary.get(target)?;
         if self.running_groups.contains_key(target)
-            || !self.parallel_jobs.primary.get(target).is_some_and(|job| {
-                job.child.is_some()
-                    && job.before.is_some()
-                    && !job.phony
-                    && !job.recursive
-                    && job.continuation.branch.is_none()
-                    && !job.continuation.one_shell
-                    && job.continuation.expanded.len() <= 1
-                    && job
-                        .continuation
-                        .expanded
-                        .front()
-                        .is_none_or(|(index, bytes, _)| {
-                            let (command, prefixes) = crate::oneshell::prefixes(bytes);
-                            !prefixes.force
-                                && !job.continuation.flow.recursive(*index)
-                                && !command.contains(&b'\n')
-                                && command.iter().any(|byte| !byte.is_ascii_whitespace())
-                        })
-            })
+            || job.child.is_none()
+            || job.before.is_none()
+            || job.phony
+            || job.recursive
+            || job.continuation.branch.is_some()
+            || job.continuation.one_shell
+            || job.continuation.expanded.len() > 1
         {
-            return false;
+            return None;
         }
-        // The terminal current source supplies the mode for the sole reap.
-        // The worker can finish or report its sole ordinary continuation
-        // before the next visit restores that source's mode.
+        let wait = if let Some((index, bytes, recipe)) = job.continuation.expanded.front() {
+            let (command, prefixes) = crate::oneshell::prefixes(bytes);
+            if command.contains(&b'\n') || command.iter().all(u8::is_ascii_whitespace) {
+                return None;
+            }
+            if prefixes.force && !has_direct_make_reference(&recipe.bytes) {
+                RemakeWait::TerminalDryRecipe
+            } else if !prefixes.force && !job.continuation.flow.recursive(*index) {
+                RemakeWait::Command
+            } else {
+                return None;
+            }
+        } else {
+            RemakeWait::Command
+        };
+        // A current terminal named source supplies the dry-run cursor. A
+        // forced continuation keeps that cursor until its recipe completes.
         read_files
             .iter()
             .rfind(|(_, skip)| !*skip)
@@ -5993,6 +6003,7 @@ impl Engine {
                             && outcome.completion == CompletionTime::Unchanged
                     })
             })
+            .then_some(wait)
     }
 
     fn simple_named_assumed_dry_run(&self, file: &Makefile, name: &[u8]) -> bool {
@@ -7255,7 +7266,9 @@ impl Engine {
                 self.observe_interrupt();
                 self.start_load_waiting();
                 self.poll_child_events(false);
-            } else {
+            } else if !wait || wait_mode != RemakeWait::TerminalDryRecipe {
+                // A blocking terminal reap follows the sole recipe through its
+                // forced continuation before another root can select a mode.
                 self.poll_jobs();
             }
             if wait
@@ -15780,11 +15793,13 @@ fn trim_leading(bytes: &[u8]) -> &[u8] {
 
 /// Prefix markers can appear in any order, interleaved with leading blanks.
 fn recipe_is_recursive(recipe: &Recipe) -> bool {
-    has_force_prefix(&recipe.bytes)
-        || recipe
-            .bytes
-            .windows(7)
-            .any(|part| part == b"$(MAKE)" || part == b"${MAKE}")
+    has_force_prefix(&recipe.bytes) || has_direct_make_reference(&recipe.bytes)
+}
+
+fn has_direct_make_reference(bytes: &[u8]) -> bool {
+    bytes
+        .windows(7)
+        .any(|part| part == b"$(MAKE)" || part == b"${MAKE}")
 }
 
 fn has_force_prefix(bytes: &[u8]) -> bool {

@@ -12,6 +12,8 @@ use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::process::ExitStatusExt;
 use std::process::Command;
 
+const EBADF: i32 = 9;
+
 pub(crate) fn original_environment(name: &[u8]) -> Vec<u8> {
     std::env::var_os(OsStr::from_bytes(name))
         .unwrap_or_default()
@@ -80,8 +82,8 @@ pub fn run(
         .and_then(rmake_linux::output::Spool::child_stderr);
     // GNU creates the capture pair before looking up the executable. A failed
     // lookup keeps the pair just like a failed launch of a selected program.
-    let mut pipe = match CapturePipe::new() {
-        Ok(pipe) => Some(pipe),
+    let pipe = match CapturePipe::new() {
+        Ok(pipe) => pipe,
         Err(error) => {
             drop(spool);
             let detail = crate::engine::os_error(&error);
@@ -100,6 +102,16 @@ pub fn run(
             });
         }
     };
+    // During ELF finalization, GNU's capture redirection uses the closed C
+    // stdout stream even when the finalizer reopened descriptor 1. The
+    // redirection fails before executable lookup.
+    if rmake_linux::native::stdout_closed() {
+        drop(spool);
+        pipe.retain_failed();
+        let error = std::io::Error::from_raw_os_error(EBADF);
+        return Ok(launch_failure(output, program_name, &program, &error));
+    }
+    let mut pipe = Some(pipe);
     let mut retain_failed_pipe = true;
     let launch = crate::engine::launch_child_with_environment(
         &program,

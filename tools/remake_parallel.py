@@ -283,6 +283,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += terminal_named_dry_clock_models(worker, markers)
     results += terminal_named_dry_tail_models(worker, markers)
     results += terminal_named_dry_failed_models(worker, markers)
+    results += terminal_named_dry_forced_models(worker, markers)
     results += parallel_named_mode_models(worker, markers)
     results += primary_named_mode_models(worker, markers)
     results += primary_named_group_models(worker, markers)
@@ -1311,6 +1312,76 @@ def terminal_named_dry_failed_models(worker: bytes, markers: dict[str, bytes]) -
         model = debug.Model(f'terminal-named-dry-failed-{context}-{transport}', files, args,
                             {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
         results.append(HeldModel(model, False, None, before_first=before_first))
+    return results
+
+
+def terminal_named_dry_forced_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    summary = b"make: 'b.mk' is up to date.\n"
+    error = b'make: *** [Makefile:8: left.gen] Error 4\n'
+    report = b"Makefile:4: Failed to remake makefile 'left.gen'.\n"
+    original_clock = b'clock-1000000000 1000000000\n'
+    new_clock = b'clock-1000000001 1000000000\n'
+    before_first = BEFORE_FIRST + original_clock
+    before_second = before_first + b'left\n'
+    results = []
+    for context, transport, prefix, handoff, slots in (
+        ('terminal', 'pipe', '+', True, 2),
+        ('expanded', 'fifo', '$(FORCE)', True, 2),
+        ('physical', 'fifo', '+', True, 2),
+        ('failed-keep', 'pipe', '+', True, 2),
+        ('failed-stop', 'fifo', '+', True, 2),
+        ('ordinary', 'pipe', '+', False, 2),
+        ('serial', 'fifo', '+', False, 1),
+        ('forced-first-later-ordinary', 'pipe', '+', False, 2),
+    ):
+        stopping = context == 'failed-stop'
+        fails = context.startswith('failed')
+        physical = context == 'physical'
+        first_forced = context == 'forced-first-later-ordinary'
+        sources = 'left.gen b.mk tail.inc' if first_forced else 'left.gen b.mk'
+        first_prefix = '+@' if first_forced else '@'
+        action = 'include' if physical else 'quiet'
+        tail = f'python3 worker.py right {"fail" if fails else "quiet"}'
+        source = (
+            'FORCE := +\n'
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            '$(file >>seen,clock-$(shell stat -c %Y left.gen b.mk))\n'
+            f'include {sources}\n'
+            'ifeq ($(MAKE_RESTARTS),)\n'
+            f'left.gen: left.seed\n\t{first_prefix}python3 worker.py left {action}\n'
+            f'\t@{prefix}{tail}\n'
+            'else\n'
+            'left.gen: ;\n'
+            'endif\n'
+            'b.mk: ; @$(file >>seen,named-ran)printf "named\\n"\n'
+            'tail.inc: ;\n'
+        )
+        files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR,
+                 'left.gen': b'# already read\n', 'b.mk': b'# already read\n',
+                 'left.seed': b'new\n', 'tail.inc': b'# unchanged\n'}
+        times = dict.fromkeys(files, INPUT_TIME)
+        times['left.seed'] += 2_000_000_000
+        seen = before_second + b'right\n'
+        if handoff and not stopping:
+            seen += b'read-1\n' + (new_clock if physical else original_clock)
+        updates = markers.copy()
+        if physical:
+            updates['left.gen'] = b'LEFT := loaded\n'
+        prefix_stdout = (tail + '\n').encode() if handoff else b''
+        stdout = prefix_stdout + (b'right\n' if fails else b'') + (b'' if stopping else summary)
+        stderr = error + (b'' if stopping else report) if fails else b''
+        args = ('-rR', '--no-print-directory', f'-j{slots}', '-S' if stopping else '-k',
+                f'--jobserver-style={transport}')
+        if context != 'ordinary':
+            args += ('-n',)
+        if context == 'expanded':
+            args += ('-Otarget',)
+        expected = {'exit_code': 2 if stopping else 0, 'stdout_template_hex': stdout.hex(),
+                    'stderr_template_hex': stderr.hex()}
+        model = debug.Model(f'terminal-named-dry-forced-{context}-{transport}', files, (*args, 'b.mk'),
+                            {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
+        results.append(HeldModel(model, False, before_second, before_first,
+                                 before_second_stdout=prefix_stdout))
     return results
 
 

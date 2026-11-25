@@ -293,6 +293,9 @@ A terminal current named include can also supply dry-run mode when the
 remake pass reaps one earlier required worker. The held cases cover a
 completed command, an ordinary continuation printed under `-n`, and rereads
 with unchanged physical timestamps.
+A forced continuation retains that mode through its own child completion.
+The held observer checks the command line while the second child is live and
+the source clock after it exits.
 
 The [composed validation from PR #374](https://github.com/jeffdasilva/rmake/pull/374)
 and [grouped double-colon database models](../tools/database_grouped_double_output.py)
