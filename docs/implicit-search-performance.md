@@ -79,3 +79,29 @@ remained faster in all four workloads. These measurements include startup.
 - Prior binary SHA-256 `76d6f5edcdef96b01b273c572e24acb1fb84a83cb6a83445a1e3c50e66b0737d`
 - Indexed binary SHA-256 `7902dddec53ffc45b46754481ef27a86f70cbd418e167c3fce0e1764401d5d7b`
 - GNU binary SHA-256 `dc60c90b3fc6fd64be2c2459483de37b96b23a8a18068a95cd50ea7ab5eccd44`
+
+## Permanent aliases in large invocations
+
+Permanent VPATH and GPATH renames update indexed goal membership. Renaming the
+current destination carries its requested aliases to the next name. Redirecting
+an existing alias rebuilds membership if its destination changes. Reobserving
+the same archive container keeps the current index.
+
+The following warm-cache measurements use 4,096 `inputN.out` operands and the
+same pattern rules as the explicit-goals benchmark. Each workspace sets
+`VPATH = cache` and `GPATH = cache`. In the first workload, a leading goal
+`prime` resolves to `cache/prime` and the `inputN.in` files are local. In the
+second, each `cache/inputN.out` exists with a timestamp two seconds newer
+than its corresponding `cache/inputN.in`. Both workloads use empty recipes.
+
+Each engine ran two warmups and seven measured invocations on the same CPU on
+a shared host. Streams, status and input paths and timestamps agreed throughout.
+
+| Workload | Prior rmake median | Indexed rmake median | GNU Make median |
+| --- | --- | --- | --- |
+| One alias before 4,096 output goals | 2,803.170 ms | 191.819 ms | 65.970 ms |
+| All 4,096 output goals aliased | 2,774.800 ms | 172.888 ms | 70.199 ms |
+
+- Prior binary SHA-256 `1d0a52ee72a852e005561110ddd55863cffbfb6206188660ada21d9c347f2ce3`
+- Indexed binary SHA-256 `9455ed7c438dcd866065989dc2b87125e81da47aa05bd92b7c9cd012d7d12f4b`
+- GNU binary SHA-256 `dc60c90b3fc6fd64be2c2459483de37b96b23a8a18068a95cd50ea7ab5eccd44`
