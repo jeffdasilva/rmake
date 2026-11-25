@@ -1,0 +1,10 @@
+id = "include-serial-required-named-dry-removed-source-touch-current"
+requirement = "includes.serial-required-named-dry-removed-source"
+candidate = "required"
+description = "Touch mode preserves its current named result after earlier removal."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-t", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nmake: 'b.mk' is up to date.\n"
+stderr = ""

@@ -1,0 +1,10 @@
+id = "include-serial-required-named-dry-removed-source-single-declaration"
+requirement = "includes.serial-required-named-dry-removed-source"
+candidate = "required"
+description = "A single double-colon declaration retains its dry-run result."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nprintf \"branch-0:%s:%s\\n\" \"0\" \"absent\" >> proof; :\nmake: 'b.mk' is up to date.\n"
+stderr = ""

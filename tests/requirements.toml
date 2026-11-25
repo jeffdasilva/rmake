@@ -3180,6 +3180,90 @@ cases = [
 ]
 
 [[requirements]]
+id = "includes.serial-required-named-dry-removed-source"
+title = "Reread a removed required source after its named dry-run declarations settle"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 15
+fixture_count = 15
+cases = [
+  "include-serial-required-named-dry-removed-source-required-reread",
+  "include-serial-required-named-dry-removed-source-required-stopping",
+  "include-serial-required-named-dry-removed-source-current-head",
+  "include-serial-required-named-dry-removed-source-current-tail",
+  "include-serial-required-named-dry-removed-source-three-declarations",
+  "include-serial-required-named-dry-removed-source-empty-declarations",
+  "include-serial-required-named-dry-removed-source-optional",
+  "include-serial-required-named-dry-removed-source-initially-absent",
+  "include-serial-required-named-dry-removed-source-all-current",
+  "include-serial-required-named-dry-removed-source-single-declaration",
+  "include-serial-required-named-dry-removed-source-forced-original",
+  "include-serial-required-named-dry-removed-source-forced-failure",
+  "include-serial-required-named-dry-removed-source-touch-current",
+  "include-serial-required-named-dry-removed-source-named-primary",
+  "include-serial-required-named-dry-removed-source-later-cleaner-current",
+]
+
+[[requirements]]
+id = "includes.serial-required-named-dry-present-source"
+title = "Reread an unchanged required source after its named dry-run declarations settle"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 14
+fixture_count = 14
+cases = [
+  "include-serial-required-named-dry-present-source-required-reread",
+  "include-serial-required-named-dry-present-source-required-stopping",
+  "include-serial-required-named-dry-present-source-current-head",
+  "include-serial-required-named-dry-present-source-current-tail",
+  "include-serial-required-named-dry-present-source-three-declarations",
+  "include-serial-required-named-dry-present-source-empty-declarations",
+  "include-serial-required-named-dry-present-source-reread-current",
+  "include-serial-required-named-dry-present-source-optional",
+  "include-serial-required-named-dry-present-source-all-current",
+  "include-serial-required-named-dry-present-source-single-declaration",
+  "include-serial-required-named-dry-present-source-forced-head",
+  "include-serial-required-named-dry-present-source-forced-tail",
+  "include-serial-required-named-dry-present-source-forced-tail-failure",
+  "include-serial-required-named-dry-present-source-named-primary",
+]
+
+[[requirements]]
+id = "includes.serial-forced-named-dry-cleaner-clock"
+title = "Use the loaded clock for an ordinary source after a forced named dry-run remake"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 22
+fixture_count = 22
+cases = [
+  "include-serial-forced-named-dry-cleaner-clock-required-removed",
+  "include-serial-forced-named-dry-cleaner-clock-optional-removed",
+  "include-serial-forced-named-dry-cleaner-clock-stopping-removed",
+  "include-serial-forced-named-dry-cleaner-clock-expanded-force",
+  "include-serial-forced-named-dry-cleaner-clock-current-head",
+  "include-serial-forced-named-dry-cleaner-clock-current-tail",
+  "include-serial-forced-named-dry-cleaner-clock-empty-declarations",
+  "include-serial-forced-named-dry-cleaner-clock-single-double",
+  "include-serial-forced-named-dry-cleaner-clock-single-colon",
+  "include-serial-forced-named-dry-cleaner-clock-recreated-original-time",
+  "include-serial-forced-named-dry-cleaner-clock-recreated-new-time",
+  "include-serial-forced-named-dry-cleaner-clock-retimed-present",
+  "include-serial-forced-named-dry-cleaner-clock-unforced-cleaner",
+  "include-serial-forced-named-dry-cleaner-clock-current-cleaner",
+  "include-serial-forced-named-dry-cleaner-clock-current-source",
+  "include-serial-forced-named-dry-cleaner-clock-failed-source-head",
+  "include-serial-forced-named-dry-cleaner-clock-failed-source-tail-stopping",
+  "include-serial-forced-named-dry-cleaner-clock-failed-cleaner-stopping",
+  "include-serial-forced-named-dry-cleaner-clock-cleaner-after-source",
+  "include-serial-forced-named-dry-cleaner-clock-source-is-named",
+  "include-serial-forced-named-dry-cleaner-clock-two-named-goals",
+  "include-serial-forced-named-dry-cleaner-clock-parallel-unforced",
+]
+
+[[requirements]]
 id = "includes.serial-failed-source-restart-baseline"
 title = "Use the read timestamp after a settled failed serial refresh"
 status = "fixture-ready"

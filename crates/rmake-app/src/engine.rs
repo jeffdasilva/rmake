@@ -4258,10 +4258,41 @@ impl Engine {
                         .contains_key(name)
                         .then(|| self.modified(name))
                 };
+                let unchanged_named_dry_source = if self.job_slots() == 1
+                    && visit_modes.only_dry_run()
+                    && !failed
+                    && !optional_remake_failed
+                    && !remake_question
+                {
+                    match before {
+                        Some(None) => self
+                            .removed_required_dry_declaration_count(&read_files, makefile)
+                            .map(|declarations| (None, declarations)),
+                        // A still-present source can retain its prerequisites on reread.
+                        Some(Some(time)) if restarts == 0 => self
+                            .present_required_dry_declaration_count(&read_files, makefile, time)
+                            .map(|declarations| (Some(time), declarations)),
+                        _ => None,
+                    }
+                } else {
+                    None
+                };
                 // A fresh serial visit still sees the local timestamp
                 // retained before earlier remakes wrote or removed the file.
                 let loaded_local_time = if !parallel_remakes
-                    && (!modes.active() || serial_ordinary_source_clocks)
+                    && (!modes.active()
+                        || serial_ordinary_source_clocks
+                        || (self.job_slots() == 1
+                            && modes.only_dry_run()
+                            && !visit_modes.active()
+                            && !failed
+                            && !optional_remake_failed
+                            && !remake_question
+                            && self.follows_forced_named_dry_remake(
+                                &read_files,
+                                makefile,
+                                named_sources.as_ref(),
+                            )))
                     && self.assumptions.is_none()
                     && !makefile.missing
                     && before.is_some()
@@ -4792,6 +4823,22 @@ impl Engine {
                     changed |= record_change
                         && (physically_changed
                             || (result.remake_group_peer_updated && !tracked_group_change));
+                    // Use the simulated clock of a loaded required source after
+                    // all named declarations have settled at the same physical time.
+                    if !changed
+                        && result.completion == CompletionTime::AssumeNew
+                        && result.database_result == DatabaseResult::Simulated
+                        && !result.fatal
+                        && result.terminal_verdict().is_none()
+                        && MakefileModes::from_options(&self.options).only_dry_run()
+                        && let Some((physical_time, declarations)) = unchanged_named_dry_source
+                        && physical_time.is_none_or(|time| result.time == Some(time))
+                        && self
+                            .settled_serial_source_declarations(name, declarations)
+                            .is_some_and(|(succeeded, refreshed)| succeeded && !refreshed)
+                    {
+                        changed = self.modified(name) == physical_time;
+                    }
                     let simulated_change =
                         visit_modes.dry_run && result.completion == CompletionTime::AssumeNew;
                     if self.parallel_makefile_remakes
@@ -12368,6 +12415,150 @@ impl Engine {
             return None;
         }
         sampled.time
+    }
+
+    fn follows_forced_named_dry_remake(
+        &self,
+        read_files: &[(Makefile, bool)],
+        source: &Makefile,
+        named_sources: Option<&HashSet<&[u8]>>,
+    ) -> bool {
+        use rmake_core::filenames::without_dot_prefix;
+
+        let [(primary, false), (earlier, false), (later, false)] = read_files else {
+            return false;
+        };
+        let earlier_name = earlier.name.as_slice();
+        std::ptr::eq(later, source)
+            && source.location.is_some()
+            && !primary.optional
+            && !primary.missing
+            && primary.location.is_none()
+            && !earlier.optional
+            && !earlier.missing
+            && earlier.location.is_some()
+            && self.options.goals.len() == 1
+            && !self.options.check_symlink_times
+            && self.no_remake_recipe_fallback()
+            && !self
+                .database
+                .rules
+                .contains_key(without_dot_prefix(&primary.name))
+            && self.is_makefile_goal(without_dot_prefix(earlier_name), named_sources)
+            && self.aliases.resolve(earlier_name) == earlier_name
+            && self.database.rules.get(earlier_name).is_some_and(|rule| {
+                rule.double_colon.is_none()
+                    && rule.grouped_targets().is_none()
+                    && rule.implicit_pattern.is_none()
+                    && !rule.default_recipe
+                    && rule.recipes.is_some()
+            })
+            && self
+                .file_traversals
+                .outcome(earlier_name)
+                .is_some_and(|outcome| {
+                    // An ordinary simulated cleaner cannot replace the loaded clock.
+                    outcome.ran
+                        && outcome.completion == CompletionTime::Refresh
+                        && outcome.database_result == DatabaseResult::Outcome
+                        && !outcome.blocked
+                        && !outcome.fatal
+                        && outcome.terminal_verdict().is_none()
+                })
+    }
+
+    fn removed_required_dry_declaration_count(
+        &self,
+        read_files: &[(Makefile, bool)],
+        source: &Makefile,
+    ) -> Option<usize> {
+        let [(primary, false), (earlier, false), (named, false)] = read_files else {
+            return None;
+        };
+        let name = source.name.as_slice();
+        if !std::ptr::eq(named, source)
+            || source.optional
+            || source.missing
+            || source.location.is_none()
+            || primary.optional
+            || primary.missing
+            || primary.location.is_some()
+            || earlier.optional
+            || earlier.missing
+            || earlier.location.is_none()
+            || self.options.goals.len() != 1
+            || self.options.check_symlink_times
+            || self.assumptions.is_some()
+            || !self.no_remake_recipe_fallback()
+            || self.database.rules.contains_key(&primary.name)
+            || self.aliases.resolve(name) != name
+            || self.file_traversals.has_outcome(name)
+            || !matches!(
+                self.path_observations.get(name),
+                Some(Some((None, Some(_))))
+            )
+            || !self
+                .file_traversals
+                .outcome(self.aliases.resolve(&earlier.name))
+                .is_some_and(|outcome| {
+                    outcome.ran
+                        && outcome.completion == CompletionTime::Refresh
+                        && outcome.database_result == DatabaseResult::Outcome
+                        && !outcome.fatal
+                        && outcome.terminal_verdict().is_none()
+                })
+        {
+            return None;
+        }
+        self.explicit_named_dry_declaration_count(name)
+    }
+
+    fn present_required_dry_declaration_count(
+        &self,
+        read_files: &[(Makefile, bool)],
+        source: &Makefile,
+        before: SystemTime,
+    ) -> Option<usize> {
+        let [(primary, false), (named, false)] = read_files else {
+            return None;
+        };
+        let name = source.name.as_slice();
+        if !std::ptr::eq(named, source)
+            || source.optional
+            || source.missing
+            || source.location.is_none()
+            || primary.optional
+            || primary.missing
+            || primary.location.is_some()
+            || self.options.goals.len() != 1
+            || self.options.check_symlink_times
+            || self.assumptions.is_some()
+            || !self.no_remake_recipe_fallback()
+            || self.database.rules.contains_key(&primary.name)
+            || self.aliases.resolve(name) != name
+            || self.file_traversals.has_outcome(name)
+            || !matches!(
+                self.path_observations.get(name),
+                Some(Some((None, Some(time)))) if *time == before
+            )
+        {
+            return None;
+        }
+        self.explicit_named_dry_declaration_count(name)
+    }
+
+    fn explicit_named_dry_declaration_count(&self, name: &[u8]) -> Option<usize> {
+        let branches = self.database.rules.get(name)?.double_colon.as_deref()?;
+        (branches.len() > 1
+            && branches.iter().all(|rule| {
+                rule.grouped_targets().is_none()
+                    && rule.implicit_pattern.is_none()
+                    && !rule.default_recipe
+                    && rule.recipes.as_ref().is_some_and(|recipes| {
+                        recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
+                    })
+            }))
+        .then_some(branches.len())
     }
 
     fn settled_named_dry_remake_has_new_clock(

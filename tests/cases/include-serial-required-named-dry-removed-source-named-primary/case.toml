@@ -1,0 +1,10 @@
+id = "include-serial-required-named-dry-removed-source-named-primary"
+requirement = "includes.serial-required-named-dry-removed-source"
+candidate = "required"
+description = "Naming the unruled primary still uses the ordinary included-source clock."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "Makefile"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nread=1 time=absent\ndata=1:\nmake: Nothing to be done for 'Makefile'.\n"
+stderr = ""

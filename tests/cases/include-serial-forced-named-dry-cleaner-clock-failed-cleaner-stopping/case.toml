@@ -1,0 +1,10 @@
+id = "include-serial-forced-named-dry-cleaner-clock-failed-cleaner-stopping"
+requirement = "includes.serial-forced-named-dry-cleaner-clock"
+candidate = "required"
+description = "A failing named cleaner stops before the later source executes."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-n", "clean.inc"]
+
+[expected]
+exit_code = 2
+stdout = "READ:0:1680300000\nDATA:0:original\nprintf \"clean:%s:%s\\n\" \"0\" \"1680300000\" >> proof; rm -f b.mk; false\n"
+stderr = "make: *** [Makefile:17: clean.inc] Error 1\n"

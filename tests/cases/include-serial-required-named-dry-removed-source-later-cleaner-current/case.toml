@@ -1,0 +1,10 @@
+id = "include-serial-required-named-dry-removed-source-later-cleaner-current"
+requirement = "includes.serial-required-named-dry-removed-source"
+candidate = "required"
+description = "A later cleaner leaves the already visited current source in use."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nmake: 'b.mk' is up to date.\n"
+stderr = ""

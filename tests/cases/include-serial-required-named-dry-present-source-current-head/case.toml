@@ -1,0 +1,10 @@
+id = "include-serial-required-named-dry-present-source-current-head"
+requirement = "includes.serial-required-named-dry-present-source"
+candidate = "required"
+description = "A current head still permits a simulated tail to trigger the reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 1680300000\npayload=0:original\nprintf \"branch-1:%s\\n\" \"0\" >> proof; :\nread=1 1680300000\npayload=1:original\nmake: Nothing to be done for 'b.mk'.\n"
+stderr = ""

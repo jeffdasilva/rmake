@@ -5394,6 +5394,7 @@ impl Database {
                     if let Some(open) = name.iter().position(|&byte| byte == b'(')
                         && name.get(open + 1..) == Some(b")")
                     {
+                        self.retain_native_reader_error(&location, context);
                         return Err(ParseError::system(
                             location,
                             Message::EmptyLoadSymbol(&name),

@@ -1,0 +1,10 @@
+id = "include-serial-forced-named-dry-cleaner-clock-parallel-unforced"
+requirement = "includes.serial-forced-named-dry-cleaner-clock"
+candidate = "required"
+description = "The scheduler keeps an unforced named cleaner simulated with multiple slots."
+args = ["-rR", "--no-print-directory", "-j2", "-k", "-n", "clean.inc"]
+
+[expected]
+exit_code = 0
+stdout = "READ:0:1680300000\nDATA:0:original\nprintf \"clean:%s:%s\\n\" \"0\" \"1680300000\" >> proof; rm -f b.mk\nmake: 'clean.inc' is up to date.\n"
+stderr = ""
