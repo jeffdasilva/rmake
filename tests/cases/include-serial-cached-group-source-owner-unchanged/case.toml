@@ -1,0 +1,12 @@
+id = "include-serial-cached-group-source-owner-unchanged"
+requirement = "includes.remake"
+candidate = "required"
+description = "A cached grouped owner retains the original parsed payload when its clock stays at the initial time."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old::Makefile worker.inc payload.mk\nREMAKE:payload.mk:trigger\nALL:old::0\nVALUE := new\n"
+stderr = ""

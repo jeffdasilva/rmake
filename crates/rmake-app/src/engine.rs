@@ -3843,10 +3843,8 @@ impl Engine {
                         {
                             let needs_implicit_recipe =
                                 self.database.rules.get(name).map_or(Some(true), |rule| {
-                                    (rule.double_colon.is_none()
-                                        && rule.grouped_targets().is_none()
-                                        && rule.implicit_pattern.is_none())
-                                    .then_some(rule.recipes.is_none())
+                                    (rule.double_colon.is_none() && rule.implicit_pattern.is_none())
+                                        .then_some(rule.recipes.is_none())
                                 });
                             if let Some(needs_implicit_recipe) = needs_implicit_recipe
                                 && (!needs_implicit_recipe || has_implicit_recipes)
@@ -4052,8 +4050,8 @@ impl Engine {
                     && self.cached_optional_group_peer_failure(name);
                 let pending_peer = self.parallel_makefile_remakes && self.pending(name);
                 // A previous source can have remade this prerequisite.
-                // Preserve the settled clock even if a later recipe retimed
-                // the file before its own source visit.
+                // Preserve the owner's settled clock even if a later recipe
+                // retimed the file. Group peers keep their own update policy.
                 let cached_prerequisite_change = loaded_prerequisite_times.get(name).and_then(
                     |&(time, needs_implicit_recipe)| {
                         let cached = self.file_traversals.outcome(name)?;
@@ -4066,13 +4064,15 @@ impl Engine {
                             && !cached.failed
                             && !cached.fatal
                             && !cached.question_outdated
+                            && !cached.remake_group_peer_updated
                             && cached.ran
                             && cached.completion == CompletionTime::Refresh
                             && (!needs_implicit_recipe
-                                || self.database.rules.get(name).is_some_and(|rule| {
-                                    rule.implicit_pattern.is_some()
-                                        && rule.grouped_targets().is_none()
-                                })))
+                                || self
+                                    .database
+                                    .rules
+                                    .get(name)
+                                    .is_some_and(|rule| rule.implicit_pattern.is_some())))
                         .then_some(cached.time != Some(time))
                     },
                 );
