@@ -1,0 +1,10 @@
+id = "assumed-double-old-new-forced-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A forced recipe leaving the source unchanged adds no restart."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-t", "-o", "b.mk", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

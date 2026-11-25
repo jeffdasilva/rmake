@@ -1,0 +1,10 @@
+id = "assumed-double-old-new-successful-touch-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A successful optional sibling leaves a real query touch in the original pass."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-t", "-o", "b.mk", "-W", "b.mk", "b.mk", "check-clock"]
+
+[expected]
+exit_code = 0
+stdout = "touch b.mk\n"
+stderr = ""

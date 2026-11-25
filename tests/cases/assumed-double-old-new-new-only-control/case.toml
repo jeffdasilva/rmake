@@ -1,0 +1,10 @@
+id = "assumed-double-old-new-new-only-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "The same completed touch with only a new-file entry retains its reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-t", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "touch b.mk\n"
+stderr = ""
