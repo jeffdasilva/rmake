@@ -255,9 +255,18 @@ required and optional sources, empty and single double-colon recipes, and
 recreation at the original timestamp. Successful ungrouped declarations
 that leave an existing source share its final physical timestamp. A later
 declaration can restore the original timestamp after an earlier write.
+The loaded-source comparison also covers a serial explicit declaration
+that inherits an ungrouped pattern recipe. A source already rebuilt as
+an earlier prerequisite contributes its settled timestamp when later
+visited as a source, including after an intervening recipe retimes it.
+The [cached prerequisite fixture](../tests/cases/include-serial-cached-source-transitive-restore/)
+and the [inherited recipe fixture](../tests/cases/include-serial-implicit-source-restore/)
+exercise those boundaries.
 For a failed serial remake under keep-going, a settled real refresh also
 uses the earlier timestamp when the declared head succeeded or the failed
-source is required. A blocked declaration preserves the earlier observation
+source is required. The [failed inherited recipe fixtures](../tests/cases/include-serial-failed-implicit-source-required-retime/)
+cover the initial required visit and the replay of an optional failure as
+required. A blocked declaration preserves the earlier observation
 when no branch refreshes it. Multi-declaration remakes that leave the source
 absent need separate qualification. Existing current-source cases cover
 unruled, explicit and order-only forms. The
@@ -403,6 +412,11 @@ Performance evidence includes [startup retention](startup-retention.md),
 retain their inputs, correctness checks and comparison limits. Their measured
 improvements apply to those workloads. General speed parity requires broader
 evidence.
+
+[Large explicit goal lists](implicit-search-performance.md#large-command-line-goal-lists)
+measure indexed membership during implicit traversal. The 8,192-goal
+workload improved from 2,496 ms to 368 ms on the measured host. Its
+GNU Make median was 136 ms.
 
 ## Approved safety exceptions
 
