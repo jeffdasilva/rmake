@@ -1851,12 +1851,12 @@ cases = [
 
 [[requirements]]
 id = "options.assumed-double-colon-simulated-failed-remake"
-title = "Restart a named simulated what-if source after an unrelated optional failure"
+title = "Restart a named simulated what-if source after another source fails"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 25
-fixture_count = 25
+candidate_required = 33
+fixture_count = 33
 cases = [
   "assumed-double-simulated-failed-remake-absent",
   "assumed-double-simulated-failed-remake-current-control",
@@ -1883,6 +1883,14 @@ cases = [
   "assumed-double-query-dry-touch-current-control",
   "assumed-double-query-dry-touch-unassumed-control",
   "assumed-double-query-touch-physical-control",
+  "assumed-double-dry-required-failed-remake-later",
+  "assumed-double-dry-required-failed-remake-earlier",
+  "assumed-double-dry-required-failed-remake-command",
+  "assumed-double-dry-required-failed-remake-current-control",
+  "assumed-double-dry-required-failed-remake-forced-control",
+  "assumed-double-dry-required-failed-remake-no-keep-control",
+  "assumed-double-dry-required-failed-remake-unassumed-control",
+  "assumed-double-dry-required-successful-sibling-control",
 ]
 
 [[requirements]]

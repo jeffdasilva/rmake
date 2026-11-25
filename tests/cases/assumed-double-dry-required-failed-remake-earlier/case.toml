@@ -1,0 +1,10 @@
+id = "assumed-double-dry-required-failed-remake-earlier"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "An earlier required failure permits the settled simulated source to restart the pass."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'missing', needed by 'broken.inc'.\nMakefile:7: Failed to remake makefile 'broken.inc'.\nmake: *** No rule to make target 'missing', needed by 'broken.inc'.\nMakefile:7: Failed to remake makefile 'broken.inc'.\n"

@@ -1,0 +1,10 @@
+id = "assumed-double-dry-required-failed-remake-command"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "The restarted required failure prevents ordinary goals while the dry recipe prints once."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "b.mk", "ordinary"]
+
+[expected]
+exit_code = 2
+stdout = "printf 'ordinary=%s\\n' '0' >> proof\n"
+stderr = "make: *** No rule to make target 'missing', needed by 'broken.inc'.\nMakefile:8: Failed to remake makefile 'broken.inc'.\nmake: *** No rule to make target 'missing', needed by 'broken.inc'.\nMakefile:8: Failed to remake makefile 'broken.inc'.\n"

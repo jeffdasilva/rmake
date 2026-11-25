@@ -1,0 +1,10 @@
+id = "assumed-double-dry-required-failed-remake-current-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A current synthetic branch adds no simulated restart after a required failure."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'missing', needed by 'broken.inc'.\nMakefile:8: Failed to remake makefile 'broken.inc'.\n"

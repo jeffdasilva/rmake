@@ -4759,15 +4759,21 @@ impl Engine {
             changed |= grouped_changes
                 .as_ref()
                 .is_some_and(SerialGroupedRemakeChanges::changed);
-            // An optional failure can expose a successful simulated source
-            // timestamp under dry-run, query or a simulated touch.
+            // A failed source pass can expose a successful simulated
+            // timestamp. Required failures reach this check in serial dry-run
+            // when keep-going has let the full pass settle.
+            let required_dry_remake_failed = failed
+                && !skipped_required_read
+                && self.options.keep_going
+                && modes.dry_run
+                && !modes.question
+                && !modes.touch;
             if !changed
                 && !parallel_remakes
                 && restarts == 0
                 && self.assumptions.is_some()
                 && (modes.dry_run || (modes.question && !modes.touch))
-                && optional_remake_failed
-                && !failed
+                && ((optional_remake_failed && !failed) || required_dry_remake_failed)
                 && !remake_question
             {
                 let simulation = if modes.touch {
@@ -4782,6 +4788,7 @@ impl Engine {
                     &visited,
                     named_sources.as_ref(),
                     simulation,
+                    !required_dry_remake_failed,
                 );
             }
             // A skipped required read suppresses an otherwise successful
@@ -11166,12 +11173,14 @@ impl Engine {
         visited: &MakefileVisits<'_>,
         named_sources: Option<&HashSet<&[u8]>>,
         simulation: DatabaseResult,
+        failed_source_optional: bool,
     ) -> bool {
         let failed = read_files.iter().find_map(|(source, skip)| {
             let name = source.name.as_slice();
             let target = self.aliases.resolve(name);
             (!*skip
-                && source.optional
+                && source.optional == failed_source_optional
+                && (source.optional || !source.missing)
                 && visited.contains_key(name)
                 && self.file_traversals.outcome(target).is_some_and(|outcome| {
                     outcome.failed && !outcome.fatal && !outcome.question_outdated
