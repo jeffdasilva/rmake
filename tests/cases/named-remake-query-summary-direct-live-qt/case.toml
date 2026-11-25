@@ -1,0 +1,12 @@
+id = "named-remake-query-summary-direct-live-qt"
+requirement = "includes.named-remake-mode"
+candidate = "required"
+description = "The retained live query suppresses a direct goal summary after dry-run mode is restored"
+provenance = "Original rmake regression independently authored against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-n", "all", "b.mk"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "echo all\n"
+stderr = ""

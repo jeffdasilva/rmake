@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-dry-earlier-failure"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "An earlier unrelated optional failure suppresses a named dry-run restart."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

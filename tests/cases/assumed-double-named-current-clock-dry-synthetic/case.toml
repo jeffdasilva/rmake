@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-dry-synthetic"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "A simulated synthetic recipe preserves the assumed timestamp and the initial read."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "printf 'synthetic=%s\\n' '0' >> proof\nmake: 'b.mk' is up to date.\n"
+stderr = ""

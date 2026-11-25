@@ -191,9 +191,9 @@ also retains the result of a failed optional makefile recipe seen earlier,
 including when `-k` is absent. More cases remain for duplicate peers, mixed
 failure policies, and parallel scheduling and tracing.
 
-An unavailable prerequisite during an optional parallel remake now emits the
-failure event under basic debugging. The normal optional diagnostic policy still
-applies. The [remake debug fixtures](../tests/debug-output/remake-cache-phase.toml)
+An unavailable prerequisite during a parallel remake now emits the failure
+event under basic debugging for optional sources and for required remakes with
+`-k`. The [remake debug fixtures](../tests/debug-output/remake-cache-phase.toml)
 cover missing leaves, order-only inputs, shared prerequisites and cache visits.
 
 Cached prerequisite failures already reported by a required remake now retain
@@ -235,6 +235,12 @@ cover the same member scan and its later branch verdict. The
 [parallel models](../tests/debug-output/grouped-single-wait-frontiers.toml)
 also cover live workers, `.WAIT` boundaries and cached debug events. Combined
 query modes and later queued goals still need broader validation.
+
+A retained query verdict suppresses the ordinary success summary after a
+single-colon goal or prerequisite is found out of date. Double-colon goals can
+still report a current head when a later branch supplies the query verdict. The
+[named query fixtures](../tests/cases/named-remake-query-summary-double-head-control/Makefile)
+check the summary and exit status together.
 
 [Serial remake diagnostics](debug-output.md) cover double-colon failure recovery,
 returned failures and cached visits to required and optional declarations.

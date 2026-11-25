@@ -3824,8 +3824,11 @@ impl Engine {
             self.remaking = true;
             self.defer_stopped_remake_load = ordinary_mode;
             let mut changed = false;
-            let track_assumed_remake =
-                !parallel_remakes && !modes.active() && restarts == 0 && self.assumptions.is_some();
+            let named_assumed_mode = !modes.touch && modes.dry_run != modes.question;
+            let track_assumed_remake = !parallel_remakes
+                && (!modes.active() || named_assumed_mode)
+                && restarts == 0
+                && self.assumptions.is_some();
             let mut assumed_remake_changed = false;
             let mut assumed_remake_blocked = false;
             let mut grouped_changes =
@@ -4075,13 +4078,15 @@ impl Engine {
                     && !self.parallel_makefile_remakes
                     && !modes.active()
                     && self.observed_failed_duplicate_peer(name);
+                let track_named_source = track_assumed_remake && named_assumed_mode && named_source;
+                let mut source_started_command = false;
                 let mut result = self.build_recording_initial_time(
                     name,
                     None,
                     0,
                     initial_time,
                     build_visit,
-                    None,
+                    track_named_source.then_some(&mut source_started_command),
                 );
                 let chain_failed = result.failed;
                 if track_assumed_remake {
@@ -4091,11 +4096,26 @@ impl Engine {
                         chain_failed || result.fatal || result.question_outdated;
                     if !assumed_remake_blocked
                         && !assumed_remake_changed
-                        && !visit_modes.active()
                         && !makefile.missing
-                        && before.flatten().is_some()
+                        && let Some(before) = before.flatten()
                     {
-                        assumed_remake_changed = self.settled_assumed_new_makefile_clock(name);
+                        let regular_visit = !modes.active()
+                            && !visit_modes.active()
+                            && !MakefileModes::from_options(&self.options).active();
+                        // A named dry-run or query can leave every branch
+                        // current. A simulated declaration can propagate its
+                        // assumed-new time to the entire chain.
+                        let current_named_source = track_named_source
+                            && !source_started_command
+                            && !result.ran
+                            && matches!(
+                                result.completion,
+                                CompletionTime::Unchanged | CompletionTime::Preserve
+                            )
+                            && self.modified(name) == Some(before);
+                        if regular_visit || current_named_source {
+                            assumed_remake_changed = self.settled_assumed_new_makefile_clock(name);
+                        }
                     }
                 }
                 if let Some(changes) = &mut grouped_changes {
@@ -5924,7 +5944,14 @@ impl Engine {
             && !self.globally_silent()
         {
             let identity = self.aliases.resolve(goal);
-            let has_recipe = self.database.rules.get(identity).is_some_and(|rule| {
+            let rule = self.database.rules.get(identity);
+            // A live query can leave a verdict after makefile remaking restores
+            // the invocation mode. A double-colon head can still be current
+            // while a later declaration returns a query verdict.
+            if outcome.question_outdated && rule.is_none_or(|rule| rule.double_colon.is_none()) {
+                return;
+            }
+            let has_recipe = rule.is_some_and(|rule| {
                 rule.recipes.is_some()
                     || rule
                         .double_colon
@@ -10838,10 +10865,7 @@ impl Engine {
                 self.show_makefile_error();
                 self.report_missing_rule(target, parent.map(|parent| parent.target));
             }
-            let serial_remake = self.remaking && !self.parallel_makefile_remakes;
-            if self.optional_remake()
-                || (self.options.keep_going && (!self.remaking || serial_remake))
-            {
+            if self.optional_remake() || self.options.keep_going {
                 crate::debug::emit(
                     &self.output,
                     crate::debug::Event::Failed(target, debug_depth),
@@ -10988,14 +11012,19 @@ impl Engine {
         let Some(assumed_time) = self.single_assumed_new_double_colon_time(name) else {
             return false;
         };
-        let Some(ordinal) = self.serial_double_colon_branch_count(name) else {
+        let Some(declarations) = self
+            .database
+            .rules
+            .get(name)
+            .and_then(|rule| rule.double_colon.as_ref())
+        else {
             return false;
         };
         // An existing source's synthetic entry can settle on a physical
         // timestamp even if its recipe did not need to run. Compare it
         // with that entry's own initial assumed timestamp.
         self.database_branch_outcomes
-            .get(&(name.to_vec(), ordinal))
+            .get(&(name.to_vec(), declarations.len()))
             .is_some_and(|branch| {
                 !branch.failed
                     && !branch.fatal

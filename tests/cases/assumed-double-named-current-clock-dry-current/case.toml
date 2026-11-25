@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-dry-current"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "A named current synthetic entry restarts during dry-run after its timestamp settles."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

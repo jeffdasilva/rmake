@@ -82,7 +82,11 @@ can settle on a physical timestamp even when no recipe runs. The
 comparison uses the entry's initial assumed timestamp, so this logical
 change can cause a restart. Failures can suppress that verdict while
 physical timestamp changes still follow the source remake rules.
-Multiple assumed entries, missing sources, parallel scheduling and named
+A serial source named under dry-run or query can also restart when every
+declaration and the synthetic entry stay current at the same physical
+timestamp. A simulated declaration can leave the entire chain logically
+new, preserving the synthetic entry's assumed timestamp. Multiple assumed
+entries, missing sources, parallel scheduling and changes during named
 nonexecuting modes need separate coverage.
 
 ## Qualification and limits
