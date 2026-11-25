@@ -4962,6 +4962,7 @@ impl Engine {
             if !changed
                 && parallel_remakes
                 && !modes.active()
+                && !MakefileModes::from_options(&self.options).active()
                 && restarts == 0
                 && self.assumptions.is_some()
                 && self.parallel_jobs.is_empty()

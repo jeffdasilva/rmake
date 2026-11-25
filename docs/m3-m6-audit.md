@@ -274,6 +274,13 @@ unruled, explicit and order-only forms. The
 checks that a required read peer can still trigger a restart based on the time
 observed when the failed grouped recipe finished.
 
+An earlier failed prerequisite visit retains the settled time of ordinary,
+implicit grouped, and explicit grouped owners. A directly visited explicit
+group owner also retains its completion sample. A directly visited implicit
+owner uses the final physical comparison. The
+[restored explicit owner fixture](../tests/cases/include-serial-failed-direct-explicit-group-owner-restore/)
+checks the restart after a later source restores the old timestamp.
+
 The [composed validation from PR #374](https://github.com/jeffdasilva/rmake/pull/374)
 and [grouped double-colon database models](../tools/database_grouped_double_output.py)
 record secondary prerequisites, stems, branch ownership, physical timestamps,
