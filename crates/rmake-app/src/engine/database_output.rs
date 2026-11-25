@@ -483,9 +483,15 @@ impl Engine {
             view.updated = outcome.database_result != DatabaseResult::UnfinishedMissingRule;
             view.status = if !view.updated {
                 FileStatus::Unattempted
-            } else if detached_head {
+            } else if detached_head
+                || outcome.database_result == DatabaseResult::MergedArchiveContainer
+            {
                 // Rehash copies the updated flag onto the unvisited physical
                 // destination and leaves its update result untouched.
+                if outcome.database_result == DatabaseResult::MergedArchiveContainer {
+                    // Its file stem is separate from the source's recipe locals.
+                    view.stem = None;
+                }
                 FileStatus::Unattempted
             } else if outcome.failed {
                 FileStatus::Failed
