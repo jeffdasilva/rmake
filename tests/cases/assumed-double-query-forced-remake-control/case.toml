@@ -1,0 +1,10 @@
+id = "assumed-double-query-forced-remake-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A forced recipe with no physical change keeps the original source pass."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

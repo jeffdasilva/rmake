@@ -1,0 +1,15 @@
+id = "include-serial-failed-source-baseline-blocked-tail-control"
+requirement = "includes.serial-failed-source-restart-baseline"
+candidate = "required"
+description = "A blocked tail leaves the earlier observation in place when every declaration skips refresh."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=0 time=1680300000
+goal=0 time=1680300010 value=original
+'''
+stderr = "make: *** No rule to make target 'missing', needed by 'b.mk'.\n"

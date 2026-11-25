@@ -1,0 +1,17 @@
+id = "include-serial-multi-source-baseline-tail-original"
+requirement = "includes.serial-multi-source-restart-baseline"
+candidate = "required"
+description = "A successful tail restores the originally read timestamp and keeps the first payload."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=1680300000
+before-1=absent
+after-1=1680300000
+goal=0 time=1680300000 value=original
+'''
+stderr = ""

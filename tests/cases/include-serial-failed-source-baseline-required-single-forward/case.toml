@@ -1,0 +1,21 @@
+id = "include-serial-failed-source-baseline-required-single-forward"
+requirement = "includes.serial-failed-source-restart-baseline"
+candidate = "required"
+description = "A required failed recipe reports its error before rereading the retimed source."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=0 time=1680300000
+branch-0=0 time=1680300010
+read=1 time=1680300010
+read-payload=original
+goal=1 time=1680300010 value=original
+'''
+stderr = '''
+make: *** [Makefile:16: b.mk] Error 1
+Makefile:10: Failed to remake makefile 'b.mk'.
+'''

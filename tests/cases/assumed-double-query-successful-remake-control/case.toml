@@ -1,0 +1,10 @@
+id = "assumed-double-query-successful-remake-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A successful empty query without an optional failure keeps the original source pass."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

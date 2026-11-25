@@ -1,0 +1,18 @@
+id = "include-serial-failed-source-baseline-optional-tail"
+requirement = "includes.serial-failed-source-restart-baseline"
+candidate = "required"
+description = "A successful head observes the earlier retime after the failed optional tail refreshes."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0 time=1680300000
+read-payload=original
+clean=0 time=1680300000
+branch-1=0 time=1680300010
+read=1 time=1680300010
+read-payload=original
+goal=1 time=1680300010 value=original
+'''
+stderr = "make: *** [Makefile:18: b.mk] Error 1\n"
