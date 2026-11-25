@@ -1408,6 +1408,9 @@ pub struct Engine {
     remake_error_cursor: Option<SharedIncludeError>,
     // A missing cause here marks a direct, suppressed failure.
     optional_remake_failures: HashMap<Vec<u8>, Option<Rc<FailedPrerequisite>>>,
+    // Missing-rule leaves retain their latest actual prerequisite edge for
+    // later diagnostics. Successful files keep no additional record.
+    missing_rule_parents: HashMap<Vec<u8>, Option<Vec<u8>>>,
     // Existing read peers can change before their own serial remake visit.
     serial_remake_peer_times: HashMap<Vec<u8>, SystemTime>,
     vpath_dirs: Vec<Vec<u8>>,
@@ -1985,6 +1988,7 @@ impl Engine {
             active_makefile_remake: None,
             remake_error_cursor: None,
             optional_remake_failures: HashMap::new(),
+            missing_rule_parents: HashMap::new(),
             serial_remake_peer_times: HashMap::new(),
             vpath_dirs: Vec::new(),
             gpath_dirs: HashSet::new(),
@@ -7674,6 +7678,9 @@ impl Engine {
         }
         self.database.merge_target_scope(from, to);
         self.file_traversals.rename_visit(from, to);
+        // The source identity is retired. An existing destination can keep
+        // its own failed verdict and diagnostic edge.
+        self.missing_rule_parents.remove(from);
         if let Some(parent) = self.retained_scope_parents.remove(from) {
             self.retained_scope_parents
                 .entry(to.to_vec())
@@ -9674,6 +9681,43 @@ impl Engine {
         }
     }
 
+    fn prepare_missing_rule_visit(&mut self, target: &[u8], parent: Option<&[u8]>) {
+        if self.missing_rule_parents.is_empty() {
+            return;
+        }
+        let settled_failure =
+            self.file_traversals.outcome(target).is_some_and(|outcome| {
+                outcome.failed && !outcome.fatal && !outcome.question_outdated
+            }) && !self.pending(target);
+        if !settled_failure {
+            self.missing_rule_parents.remove(target);
+        } else if let Some(parent) = parent
+            && let Some(previous) = self.missing_rule_parents.get_mut(target)
+            && previous.as_deref() != Some(parent)
+        {
+            *previous = Some(parent.to_vec());
+        }
+    }
+
+    fn missing_rule_parent<'a>(
+        &'a self,
+        target: &[u8],
+        fallback: Option<&'a [u8]>,
+    ) -> Option<&'a [u8]> {
+        let target = self.aliases.resolve(target);
+        if self.missing_rule_parents.is_empty()
+            || !self.file_traversals.outcome(target).is_some_and(|outcome| {
+                outcome.failed && !outcome.fatal && !outcome.question_outdated
+            })
+            || self.pending(target)
+        {
+            return fallback;
+        }
+        self.missing_rule_parents
+            .get(target)
+            .map_or(fallback, |parent| parent.as_deref())
+    }
+
     fn remember_optional_prerequisite(
         &mut self,
         target: &[u8],
@@ -9722,7 +9766,7 @@ impl Engine {
         let (target, parent) = cause.as_ref().map_or((name, None), |cause| {
             (cause.target.as_slice(), Some(cause.parent.as_slice()))
         });
-        self.report_missing_rule(target, parent);
+        self.report_missing_rule(target, self.missing_rule_parent(target, parent));
         // A direct complaint is emitted once. Blocked goals retain their cause
         // and can be revisited by another required read of the same makefile.
         self.optional_remake_failures.remove(target);
@@ -9876,11 +9920,14 @@ impl Engine {
     ) {
         self.show_makefile_error();
         if let Some(cause) = cause {
-            self.report_missing_rule(&cause.target, Some(&cause.parent));
+            self.report_missing_rule(
+                &cause.target,
+                self.missing_rule_parent(&cause.target, Some(&cause.parent)),
+            );
             self.optional_remake_failures
                 .remove(cause.target.as_slice());
         } else {
-            self.report_missing_rule(target, parent);
+            self.report_missing_rule(target, self.missing_rule_parent(target, parent));
         }
     }
 
@@ -10116,6 +10163,7 @@ impl Engine {
         visit: BuildVisit,
         reused_failed_outcome: &mut bool,
     ) -> Outcome {
+        self.prepare_missing_rule_visit(target, parent.map(|parent| parent.target));
         let mut traced_optional_failure = false;
         if !self.optional_remake()
             && let Some(cause) = self.optional_remake_failures.get(target).cloned()
@@ -10488,6 +10536,8 @@ impl Engine {
                 &self.output,
                 crate::debug::Event::MustRemake(target, debug_depth),
             );
+            self.missing_rule_parents
+                .insert(target.to_vec(), parent.map(|parent| parent.target.to_vec()));
             if !self.optional_remake() {
                 self.show_makefile_error();
                 self.report_missing_rule(target, parent.map(|parent| parent.target));
@@ -14511,6 +14561,142 @@ mod tests {
             open_error: None,
         });
         engine
+    }
+
+    #[test]
+    fn missing_rule_diagnostic_parent_changes_without_changing_variable_scope() {
+        let mut engine = optional_failure_test_engine();
+        let leaf = b"missing-diagnostic-leaf";
+        engine.file_traversals.remember_visit(leaf, || FileVisit {
+            parent: Some(ScopeParent {
+                target: b"first".to_vec(),
+                branch: None,
+            }),
+            quiet_consideration: None,
+        });
+        engine.file_traversals.set_outcome(
+            leaf,
+            Outcome {
+                failed: true,
+                ..Outcome::default()
+            },
+        );
+        engine
+            .missing_rule_parents
+            .insert(leaf.to_vec(), Some(b"first".to_vec()));
+        engine.aliases.insert(b"leaf-alias", leaf, false);
+        assert!(
+            engine
+                .build(
+                    b"leaf-alias",
+                    Some(ScopeParent {
+                        target: b"latest",
+                        branch: None,
+                    }),
+                    1
+                )
+                .failed
+        );
+        assert_eq!(
+            engine.missing_rule_parent(leaf, None),
+            Some(b"latest".as_slice())
+        );
+        assert_eq!(
+            engine
+                .file_traversals
+                .visit(leaf)
+                .unwrap()
+                .parent
+                .as_ref()
+                .unwrap()
+                .target,
+            b"first"
+        );
+        // Replaying a blocked parent reads its leaf without visiting that leaf.
+        assert_eq!(
+            engine.missing_rule_parent(leaf, Some(b"blocked")),
+            Some(b"latest".as_slice())
+        );
+        assert!(
+            !engine
+                .missing_rule_parents
+                .contains_key(b"leaf-alias".as_slice())
+        );
+    }
+
+    #[test]
+    fn missing_rule_parent_is_retired_when_its_failed_verdict_is_replaced() {
+        for replacement in [
+            None,
+            Some(Outcome::default()),
+            Some(Outcome {
+                failed: true,
+                question_outdated: true,
+                ..Outcome::default()
+            }),
+            Some(Outcome {
+                failed: true,
+                fatal: true,
+                ..Outcome::default()
+            }),
+        ] {
+            let mut engine = optional_failure_test_engine();
+            let leaf = b"replaced-missing-leaf";
+            engine.file_traversals.set_outcome(
+                leaf,
+                Outcome {
+                    failed: true,
+                    ..Outcome::default()
+                },
+            );
+            engine
+                .missing_rule_parents
+                .insert(leaf.to_vec(), Some(b"old".to_vec()));
+            if let Some(outcome) = replacement {
+                engine.file_traversals.set_outcome(leaf, outcome);
+            } else {
+                engine.file_traversals.remove_outcome(leaf);
+            }
+            // A blocked replay can occur before the leaf is visited again.
+            assert_eq!(
+                engine.missing_rule_parent(leaf, Some(b"fallback")),
+                Some(b"fallback".as_slice())
+            );
+            engine.prepare_missing_rule_visit(leaf, Some(b"new"));
+            assert!(!engine.missing_rule_parents.contains_key(leaf.as_slice()));
+        }
+    }
+
+    #[test]
+    fn renamed_failure_retires_source_and_preserves_destination_verdict() {
+        let mut engine = optional_failure_test_engine();
+        for (name, parent) in [
+            (b"old-name".as_slice(), b"old-parent".as_slice()),
+            (b"new-name", b"new-parent"),
+        ] {
+            engine.file_traversals.set_outcome(
+                name,
+                Outcome {
+                    failed: true,
+                    ..Outcome::default()
+                },
+            );
+            engine
+                .missing_rule_parents
+                .insert(name.to_vec(), Some(parent.to_vec()));
+        }
+        engine
+            .rename_search_record(b"old-name", b"new-name")
+            .unwrap();
+        assert!(
+            !engine
+                .missing_rule_parents
+                .contains_key(b"old-name".as_slice())
+        );
+        assert_eq!(
+            engine.missing_rule_parent(b"new-name", None),
+            Some(b"new-parent".as_slice())
+        );
     }
 
     #[test]

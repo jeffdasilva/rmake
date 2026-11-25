@@ -212,7 +212,10 @@ failure policies, and parallel scheduling and tracing.
 Cached prerequisite failures already reported by a required remake now retain
 their reporting state through an optional visit, as checked by the
 [shared-failure regression](../tests/cases/optional-cached-failure-required-two/Makefile).
-Later explicit-goal replay remains open.
+Retained missing-rule messages now follow the latest actual prerequisite edge,
+including a [later ordinary-goal visit](../tests/cases/retained-failure-parent-later-new-parent/Makefile),
+while variable inheritance keeps its first owner. Later explicit-goal replay
+counts and verbose event order remain open.
 
 Local jobserver acceptance also needs broader combinations of transports,
 recursive builds, restarts, loaded modules and resource pressure. Preserve the
