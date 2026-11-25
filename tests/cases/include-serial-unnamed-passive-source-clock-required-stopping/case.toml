@@ -1,0 +1,10 @@
+id = "include-serial-unnamed-passive-source-clock-required-stopping"
+requirement = "includes.serial-unnamed-query-touch-source-clock"
+candidate = "required"
+description = "A required source reports its failed open on the reread before the query goal."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q"]
+
+[expected]
+exit_code = 2
+stdout = "read=0 clock=1680300000\npayload=0:original\nread=1 clock=absent\npayload=1:\n"
+stderr = "Makefile:8: b.mk: No such file or directory\nmake: *** No rule to make target 'b.mk'.  Stop.\n"

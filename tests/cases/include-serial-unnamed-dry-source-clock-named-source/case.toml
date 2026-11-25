@@ -1,0 +1,10 @@
+id = "include-serial-unnamed-dry-source-clock-named-source"
+requirement = "includes.serial-unnamed-dry-source-clock"
+candidate = "required"
+description = "An explicitly requested removed source retains its own dry-run recipe behavior."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original:\nprintf \"branch-0:%s:%s\\n\" \"0\" \"absent\" >> proof; :\nprintf \"branch-1:%s:%s\\n\" \"0\" \"absent\" >> proof; :\nmake: 'b.mk' is up to date.\necho goal=0:absent:original: > actual.goal\n"
+stderr = ""

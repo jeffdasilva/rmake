@@ -1,0 +1,10 @@
+id = "include-serial-unnamed-passive-source-clock-query-reread-current"
+requirement = "includes.serial-unnamed-query-touch-source-clock"
+candidate = "required"
+description = "The reread selects an existing query leaf in stopping traversal."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\npayload=0:original\nread=1 clock=absent\npayload=1:\n"
+stderr = ""

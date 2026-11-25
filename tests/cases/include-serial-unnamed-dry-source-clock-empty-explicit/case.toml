@@ -1,0 +1,10 @@
+id = "include-serial-unnamed-dry-source-clock-empty-explicit"
+requirement = "includes.serial-unnamed-dry-source-clock"
+candidate = "required"
+description = "An explicit empty declaration can settle the clock of an already removed include."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original:\nread=1 time=absent\ndata=1::\necho goal=1:absent:: > actual.goal\n"
+stderr = ""

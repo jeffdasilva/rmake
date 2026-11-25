@@ -1,0 +1,10 @@
+id = "include-serial-unnamed-passive-source-clock-failed-stopping"
+requirement = "includes.serial-unnamed-query-touch-source-clock"
+candidate = "required"
+description = "A failed optional head stops the remake before the query leaf."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q"]
+
+[expected]
+exit_code = 2
+stdout = "read=0 clock=1680300000\npayload=0:original\n"
+stderr = "make: *** No rule to make target 'b.mk'.  Stop.\n"

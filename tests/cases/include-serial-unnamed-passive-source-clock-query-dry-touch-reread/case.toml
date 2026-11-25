@@ -1,0 +1,10 @@
+id = "include-serial-unnamed-passive-source-clock-query-dry-touch-reread"
+requirement = "includes.serial-unnamed-query-touch-source-clock"
+candidate = "required"
+description = "The combined flags print the touch selected by the reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-qnt"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\npayload=0:original\nread=1 clock=absent\npayload=1:\ntouch result.1\n"
+stderr = ""

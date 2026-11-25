@@ -1,0 +1,10 @@
+id = "include-serial-dry-named-primary-source-clock-optional-absent"
+requirement = "includes.serial-dry-named-primary-source-clock"
+candidate = "required"
+description = "Requesting an unruled primary in dry-run still allows the removed optional source to be reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-Otarget", "Makefile"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nread=1 time=absent\ndata=1:\nmake: Nothing to be done for 'Makefile'.\n"
+stderr = ""

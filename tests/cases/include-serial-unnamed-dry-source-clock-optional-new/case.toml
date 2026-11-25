@@ -1,0 +1,10 @@
+id = "include-serial-unnamed-dry-source-clock-optional-new"
+requirement = "includes.serial-unnamed-dry-source-clock"
+candidate = "required"
+description = "A real newer source recreation still supplies the reread clock."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original:\nread=1 time=1680300020\ndata=1:new:\necho goal=1:1680300020:new: > actual.goal\n"
+stderr = ""

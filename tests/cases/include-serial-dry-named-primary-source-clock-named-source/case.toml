@@ -1,0 +1,10 @@
+id = "include-serial-dry-named-primary-source-clock-named-source"
+requirement = "includes.serial-dry-named-primary-source-clock"
+candidate = "required"
+description = "An explicitly named optional source retains dry-run across its own declarations."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nprintf \"branch-0:%s:%s\\n\" \"0\" \"absent\" >> proof; :\nprintf \"branch-1:%s:%s\\n\" \"0\" \"absent\" >> proof; :\nmake: 'b.mk' is up to date.\n"
+stderr = ""

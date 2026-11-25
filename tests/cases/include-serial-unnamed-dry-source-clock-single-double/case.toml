@@ -1,0 +1,10 @@
+id = "include-serial-unnamed-dry-source-clock-single-double"
+requirement = "includes.serial-unnamed-dry-source-clock"
+candidate = "required"
+description = "A single ordinary double-colon declaration uses the original loaded timestamp."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original:\nread=1 time=absent\ndata=1::\necho goal=1:absent:: > actual.goal\n"
+stderr = ""

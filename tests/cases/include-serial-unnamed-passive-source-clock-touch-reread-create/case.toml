@@ -1,0 +1,10 @@
+id = "include-serial-unnamed-passive-source-clock-touch-reread-create"
+requirement = "includes.serial-unnamed-query-touch-source-clock"
+candidate = "required"
+description = "Touch creates the missing goal selected by the reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-t"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\npayload=0:original\nread=1 clock=absent\npayload=1:\ntouch result.1\n"
+stderr = ""
