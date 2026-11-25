@@ -720,6 +720,10 @@ impl NativeHost for NoHost {
     }
 }
 impl NativeRuntime for Runtime {
+    fn needs_fatal_expansion_context(&self) -> bool {
+        !self.0.exiting.get() && self.has_modules()
+    }
+
     #[cfg(feature = "guile")]
     fn service_waiting_workers(&self, host: &mut dyn NativeHost) -> Result<(), ExpandError> {
         self.run(7, 0, None, 0, None, &[], None, host).map(|_| ())

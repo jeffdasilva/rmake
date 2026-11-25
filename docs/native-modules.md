@@ -128,6 +128,13 @@ remake, the module reloads without a restart. A query verdict leaves it
 unloaded for the ordinary goals. Dropping the runtime does not
 prematurely run shared-library finalizers. At process exit, the interpreter
 stays alive while libc invokes module finalizers through the request bridge.
+After libc closes stdout, a finalizer's shell capture reports a bad file
+descriptor and records `.SHELLSTATUS` as 127. The capture follows the C stream
+state even when the finalizer reopens descriptor 1. Captures in an earlier
+`atexit` callback or unload use the open stream.
+For a direct `$(error ...)`, finalizers can read the active source location,
+target variables, and lexical bindings from the failing expansion. Ordinary
+child failure and successful completion use the normal exit context.
 [Startup exit owners](native-startup-exits.md) retain the actual decoder,
 constructor or restart state for the covered exit phases.
 

@@ -553,6 +553,22 @@ pub struct Makefile {
     pub read_error: Option<IncludeError>,
 }
 
+#[derive(Clone)]
+pub(crate) struct NativeUserErrorContext {
+    pub location: Option<Location>,
+    pub scope: Option<VariableStore>,
+    pub bindings: Vec<crate::variables::LocalFrame>,
+    pub active: Option<std::sync::Arc<crate::variables::ActiveContext>>,
+}
+
+impl NativeUserErrorContext {
+    fn swap_evaluation(&mut self, database: &mut Database) {
+        std::mem::swap(&mut self.scope, &mut database.evaluation_scope);
+        std::mem::swap(&mut self.bindings, &mut database.evaluation_bindings);
+        std::mem::swap(&mut self.active, &mut database.evaluation_active);
+    }
+}
+
 #[derive(Clone, Default)]
 pub struct Database {
     database_history: Option<crate::database::History>,
@@ -596,6 +612,7 @@ pub struct Database {
     wait_warnings: u8,
     pub(crate) evaluation_bindings: Vec<crate::variables::LocalFrame>,
     pub(crate) evaluation_active: Option<std::sync::Arc<crate::variables::ActiveContext>>,
+    pub(crate) native_user_error: Option<Box<NativeUserErrorContext>>,
     // Active only while parsing a potentially recursive HOME filename. Owned
     // bytes preserve shared-name overwrites without aliased or dangling pointers.
     filename_scratch: Option<Vec<u8>>,
@@ -4195,13 +4212,26 @@ impl Database {
         let runtime = context
             .native_runtime()
             .ok_or_else(|| ExpandError::Unsupported(b"native process termination".to_vec()))?;
-        runtime.terminate(
+        let mut retained = self.native_user_error.take();
+        if let Some(retained) = &mut retained {
+            retained.swap_evaluation(self);
+        }
+        let location = retained
+            .as_ref()
+            .map_or(context.location, |retained| retained.location.as_ref());
+        let result = runtime.terminate(
             status,
             &mut LoadHost {
                 database: self,
-                context: context.reborrow(),
+                context: context.at(location),
             },
-        )
+        );
+        if let Some(retained) = &mut retained {
+            // A failed finalizer may return before the engine retries exit.
+            retained.swap_evaluation(self);
+        }
+        self.native_user_error = retained;
+        result
     }
 
     /// Preserve the same actual interpreter host during platform signal exit.

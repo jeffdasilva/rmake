@@ -4397,6 +4397,31 @@ impl Expansion<'_, '_> {
         result
     }
 
+    fn retain_native_user_error(&mut self) {
+        if !self.context.needs_fatal_expansion_context() {
+            return;
+        }
+        // Make finalizers see the scope at the error, while normal evaluator
+        // unwinding still restores its active variable and lexical frames.
+        let active = self.snapshot_active();
+        let (database, scope) = match &mut self.store {
+            StoreAccess::Database(database) => (database, None),
+            StoreAccess::Scoped {
+                database,
+                variables,
+            } => (database, Some((**variables).clone())),
+            _ => return,
+        };
+        if database.native_user_error.is_none() {
+            database.native_user_error = Some(Box::new(crate::parser::NativeUserErrorContext {
+                location: self.context.location.cloned(),
+                scope,
+                bindings: self.bindings.clone(),
+                active,
+            }));
+        }
+    }
+
     fn evaluate_buffer(&mut self, first: &[u8]) -> Result<Vec<u8>, ExpandError> {
         let location = self.context.location;
         self.evaluate_buffer_at(first, location)
@@ -4637,6 +4662,7 @@ impl Expansion<'_, '_> {
             b"error" => args.first().map_or_else(
                 || Ok(Vec::new()),
                 |message| {
+                    self.retain_native_user_error();
                     Err(match &self.binding_context {
                         Some(location) => ExpandError::ContextualUserError {
                             message: message.clone(),
