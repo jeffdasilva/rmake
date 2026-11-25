@@ -1,0 +1,10 @@
+id = "assumed-double-unnamed-source-clock-query-dry-touch"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "Query with dry touch simulates the caller update after the source reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-t", "-W", "b.mk", "all", "check-clock"]
+
+[expected]
+exit_code = 0
+stdout = "touch all\ntest \"$(stat -c %Y all)\" -eq 1680300045 && printf 'caller-clock=preserved\\n' >> proof\n"
+stderr = ""

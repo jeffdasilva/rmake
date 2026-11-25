@@ -1,0 +1,10 @@
+id = "assumed-double-unnamed-source-clock-physical-control"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "A real source timestamp change follows the existing physical restart."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = "printf 'caller=%s\\n' '1' >> proof\n"
+stderr = ""

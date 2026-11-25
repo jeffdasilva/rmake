@@ -42,8 +42,10 @@ same initial comparison time. A stopping query can search multiple synthetic
 branches for each ordinary goal. The first out-of-date result stops that
 chain when keep-going is disabled. Four additional fixtures cover a prior
 query verdict, a prior current goal, an indirect visit, and a cached chain
-after a restart. The stopping-query makefile remake phase uses at most one
-synthetic branch. GNU can hang when an earlier goal has returned an out-of-date
+after a restart. During a serial stopping query for one explicitly named
+source, each current synthetic branch can contribute its settled clock to the
+reread decision. A query verdict stops the chain. GNU can hang when an earlier
+goal has returned an out-of-date
 query result and a later double-colon chain has additional unvisited inputs.
 rmake bounds this traversal by stopping the chain at its out-of-date result.
 

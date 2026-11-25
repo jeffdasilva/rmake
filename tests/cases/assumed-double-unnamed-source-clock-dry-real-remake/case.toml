@@ -1,0 +1,10 @@
+id = "assumed-double-unnamed-source-clock-dry-real-remake"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "The unnamed source recipe runs in ordinary mode before the caller dry run."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = "printf 'caller=%s\\n' '1' >> proof\n"
+stderr = ""

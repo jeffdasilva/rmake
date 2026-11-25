@@ -1,0 +1,12 @@
+id = "include-serial-failed-implicit-group-owner-optional-worker"
+requirement = "includes.remake"
+candidate = "required"
+description = "The required failed owner uses its settled clock when its earlier dependent source was optional."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile worker.inc payload.mk\nREMAKE:payload.mk:trigger\nREAD:1:new:Makefile worker.inc payload.mk\nALL:new:1\nVALUE := new\n"
+stderr = "make: *** No rule to make target 'payload.mk', needed by 'worker.inc'.\nMakefile:9: Failed to remake makefile 'payload.mk'.\n"

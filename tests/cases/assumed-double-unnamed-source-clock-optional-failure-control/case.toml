@@ -1,0 +1,10 @@
+id = "assumed-double-unnamed-source-clock-optional-failure-control"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "An optional failure suppresses the unnamed current-clock reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

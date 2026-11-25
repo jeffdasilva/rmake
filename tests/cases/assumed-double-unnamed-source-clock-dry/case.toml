@@ -1,0 +1,10 @@
+id = "assumed-double-unnamed-source-clock-dry"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "An unchanged unnamed source rereads before the ordinary dry-run recipe is printed."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = "printf 'caller=%s\\n' '1' >> proof\n"
+stderr = ""

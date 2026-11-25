@@ -1,0 +1,12 @@
+id = "include-serial-failed-implicit-group-owner-original-time-recreation"
+requirement = "includes.remake"
+candidate = "required"
+description = "A failed grouped owner recreates the loaded source at its original time."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:0:old:Makefile worker.inc payload.mk\nEARLY\nREMAKE:payload.mk:trigger\n"
+stderr = "make: *** [Makefile:16: payload.mk] Error 1\nMakefile:8: Failed to remake makefile 'worker.inc'.\nMakefile:9: Failed to remake makefile 'payload.mk'.\n"
