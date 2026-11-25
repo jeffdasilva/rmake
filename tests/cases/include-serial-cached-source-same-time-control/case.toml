@@ -1,0 +1,12 @@
+id = "include-serial-cached-source-same-time-control"
+requirement = "includes.remake"
+candidate = "required"
+description = "A cached prerequisite rewriting at its original time does not invalidate a loaded source."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile worker.inc payload.mk\nREMAKE:payload.mk:trigger\nALL:old:0\nVALUE := new\n"
+stderr = ""

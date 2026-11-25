@@ -3819,8 +3819,9 @@ impl Engine {
             let parallel_remakes =
                 self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
             self.parallel_makefile_remakes = parallel_remakes && !check_primary_before_overlap;
+            let mut loaded_prerequisite_times = HashMap::new();
             if !parallel_remakes {
-                for (makefile, skip) in &read_files {
+                for (source_index, (makefile, skip)) in read_files.iter().enumerate() {
                     let name = makefile.name.as_slice();
                     if !skip
                         && !makefile.missing
@@ -3833,6 +3834,19 @@ impl Engine {
                         self.check_clock_skew(name, Some(time));
                         self.path_observations
                             .insert(name.to_vec(), Some((None, Some(time))));
+                        if source_index != 0
+                            && !modes.active()
+                            && self.assumptions.is_none()
+                            && !self.special(b".PHONY", name, false)
+                            && self.database.rules.get(name).is_some_and(|rule| {
+                                rule.double_colon.is_none()
+                                    && rule.grouped_targets().is_none()
+                                    && rule.implicit_pattern.is_none()
+                                    && rule.recipes.is_some()
+                            })
+                        {
+                            loaded_prerequisite_times.insert(name, time);
+                        }
                     }
                 }
             }
@@ -4029,6 +4043,25 @@ impl Engine {
                     && !self.options.keep_going
                     && self.cached_optional_group_peer_failure(name);
                 let pending_peer = self.parallel_makefile_remakes && self.pending(name);
+                // A previous source can have remade this prerequisite.
+                // Preserve the settled clock even if a later recipe retimed
+                // the file before its own source visit.
+                let cached_prerequisite_change =
+                    loaded_prerequisite_times.get(name).and_then(|&time| {
+                        let cached = self.file_traversals.outcome(name)?;
+                        (self.aliases.resolve(name) == name
+                            && !self.pending(name)
+                            && self
+                                .file_traversals
+                                .visit(name)
+                                .is_some_and(|visit| visit.parent.is_some())
+                            && !cached.failed
+                            && !cached.fatal
+                            && !cached.question_outdated
+                            && cached.ran
+                            && cached.completion == CompletionTime::Refresh)
+                            .then_some(cached.time != Some(time))
+                    });
                 // Keep the existing snapshot for recorded rules. A makefile
                 // without a rule uses the timestamp of its first graph visit.
                 let mut before = if failed_opens.contains(name) {
@@ -4417,7 +4450,13 @@ impl Engine {
                         && !visit_modes.dry_run
                         && result.ran
                         && !result.question_outdated;
-                    let physically_changed = if record_change || check_optional_touch {
+                    let physically_changed = if record_change
+                        && observed_peer_change.is_none()
+                        && !MakefileModes::from_options(&self.options).active()
+                        && let Some(changed) = cached_prerequisite_change
+                    {
+                        changed
+                    } else if record_change || check_optional_touch {
                         let after = self.modified(&makefile.name);
                         let loaded_time =
                             failed_source_time.filter(|_| after.is_some()).or_else(|| {
