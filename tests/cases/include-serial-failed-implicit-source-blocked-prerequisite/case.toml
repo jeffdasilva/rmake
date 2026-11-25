@@ -1,0 +1,12 @@
+id = "include-serial-failed-implicit-source-blocked-prerequisite"
+description = "A failed prerequisite prevents the inherited source recipe from refreshing its clock."
+candidate = "required"
+requirement = "includes.remake"
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:0:old:Makefile worker.inc payload.mk\nWORKER\nBLOCKED\n"
+stderr = "make: *** [Makefile:18: trigger] Error 1\nMakefile:9: Failed to remake makefile 'payload.mk'.\n"

@@ -4172,6 +4172,18 @@ impl Engine {
                     track_named_source.then_some(&mut source_started_command),
                 );
                 let chain_failed = result.failed;
+                let refreshed_implicit_time = loaded_implicit_time.filter(|_| {
+                    !MakefileModes::from_options(&self.options).active()
+                        && !result.fatal
+                        && !result.question_outdated
+                        && !result.blocked
+                        && result.ran
+                        && result.completion == CompletionTime::Refresh
+                        && self.aliases.resolve(name) == name
+                        && self.database.rules.get(name).is_some_and(|rule| {
+                            rule.implicit_pattern.is_some() && rule.grouped_targets().is_none()
+                        })
+                });
                 // The raw branch results retain whether a recipe really
                 // refreshed the source before policy reduces the verdict to
                 // the declared head.
@@ -4395,6 +4407,10 @@ impl Engine {
                 failed |= result.failed && !optional;
                 optional_remake_failed |= result.failed && optional;
                 if result.failed && !result.fatal {
+                    // Keep the loaded clock for the required failure pass,
+                    // even if an optional occurrence performed the remake.
+                    let failed_implicit_time =
+                        refreshed_implicit_time.filter(|_| chain_failed && self.options.keep_going);
                     // A serial declaration may change the file after a
                     // blocked head. Other roots use their own recipe result.
                     let refresh_timestamp =
@@ -4418,12 +4434,15 @@ impl Engine {
                             name,
                             OptionalMakefileFailure {
                                 open_error: pending_open_error(),
-                                before,
+                                before: failed_implicit_time.or(before),
                                 refresh_timestamp,
                             },
                         );
                     } else if !optional && (self.options.keep_going || deferred_peer_failure) {
-                        let failed_before = observed_peer_change.or(failed_source_time).or(before);
+                        let failed_before = observed_peer_change
+                            .or(failed_source_time)
+                            .or(failed_implicit_time)
+                            .or(before);
                         failed_remakes.insert(name, (failed_before, refresh_timestamp));
                     }
                 } else if !result.failed {
@@ -4475,17 +4494,7 @@ impl Engine {
                                     })
                                     .map(|(time, _)| time)
                             });
-                        let implicit_time = loaded_implicit_time.filter(|_| {
-                            !MakefileModes::from_options(&self.options).active()
-                                && !chain_failed
-                                && result.ran
-                                && result.completion == CompletionTime::Refresh
-                                && self.aliases.resolve(name) == name
-                                && self.database.rules.get(name).is_some_and(|rule| {
-                                    rule.implicit_pattern.is_some()
-                                        && rule.grouped_targets().is_none()
-                                })
-                        });
+                        let implicit_time = refreshed_implicit_time.filter(|_| !chain_failed);
                         // Completed declarations share the final physical
                         // timestamp, including when the last restores it.
                         let before_refresh = observed_peer_change
