@@ -613,12 +613,19 @@ impl Clone for NamesCache {
     }
 }
 
+#[derive(Debug)]
+struct ShellStatusOrder {
+    owner: Arc<[u8]>,
+    declaration_position: usize,
+}
+
 #[derive(Clone, Debug)]
 struct Bindings {
     database_history: Option<crate::database::TableHistory>,
     values: std::collections::HashMap<Arc<[u8]>, Variable>,
     order: crate::variable_order::NameOrder,
     reserved_exports: Vec<Vec<u8>>,
+    shell_status_order: Option<Arc<ShellStatusOrder>>,
     generation: u64,
     names_cache: OnceLock<Arc<NamesCache>>,
 }
@@ -634,6 +641,7 @@ impl Bindings {
             values: std::collections::HashMap::new(),
             order: crate::variable_order::NameOrder::deferred(size, size < 1024),
             reserved_exports: Vec::new(),
+            shell_status_order: None,
             generation: 0,
             names_cache: OnceLock::new(),
         }
@@ -1256,7 +1264,34 @@ impl VariableStore {
         }
         if retain_shell_status && let Some(status) = expanded.local_shell_status() {
             self.retain_local_shell_status(status);
+            if self.variables.shell_status_order.is_none()
+                && let Some(order) = &expanded.variables.shell_status_order
+            {
+                Arc::make_mut(&mut self.variables).shell_status_order = Some(Arc::clone(order));
+            }
         }
+    }
+
+    fn define_shell_status(&mut self, status: &[u8]) -> Result<(), ExpandError> {
+        let first = self.local_shell_status().is_none();
+        self.define_literal(b".SHELLSTATUS", status, Origin::Override)?;
+        if first
+            && self.local_shell_status().is_some()
+            && self.file_locals
+            && self.double_colon_ordinal == 0
+            && let Some(layer) = self.layers.first()
+            && let Some(owner) = &layer.target
+            && let Some(declaration_position) = layer.variables.order.recorded_len()
+        {
+            // The declaration and runtime locals share one logical file table.
+            // Keep the shell insertion ahead of declarations added by later eval.
+            Arc::make_mut(&mut self.variables).shell_status_order =
+                Some(Arc::new(ShellStatusOrder {
+                    owner: Arc::clone(owner),
+                    declaration_position,
+                }));
+        }
+        Ok(())
     }
 
     /// GNU's legacy switch variable excludes command overrides and retains
@@ -2012,7 +2047,22 @@ impl VariableStore {
                         !explicit.is_empty() && !global && !locals && !pattern
                     });
             let merged = paired.then(|| {
-                let mut order = sources[index + 1].0.order.clone();
+                let declarations = &sources[index + 1].0.order;
+                if let Some(status) = &bindings.shell_status_order
+                    && bindings.contains_key(b".SHELLSTATUS".as_slice())
+                    && self.layers[index]
+                        .target
+                        .as_ref()
+                        .is_some_and(|target| Arc::ptr_eq(target, &status.owner))
+                    && let Some(order) = declarations.merge_at_first_insert(
+                        &bindings.order,
+                        status.declaration_position,
+                        b".SHELLSTATUS",
+                    )
+                {
+                    return order;
+                }
+                let mut order = declarations.clone();
                 bindings.order.replay_into(&mut order);
                 order
             });
@@ -4342,7 +4392,7 @@ impl Expansion<'_, '_> {
                 self.store
                     .writable()
                     .expect("mutable shell host")
-                    .define_literal(b".SHELLSTATUS", status.as_bytes(), Origin::Override)?;
+                    .define_shell_status(status.as_bytes())?;
             }
         }
         if result.stdout.len() > MAX_OUTPUT {

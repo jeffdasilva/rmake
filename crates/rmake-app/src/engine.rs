@@ -3887,6 +3887,9 @@ impl Engine {
                         || optional_dependency_load_debug
                         || named_load_debug
                         || optional_named_load));
+            let assumed_double_colon_dry_run = !debug_before_remake.has(Mask::MAKEFILES)
+                && self.job_slots() > 1
+                && self.qualified_assumed_double_colon_dry_run(&read_files, modes);
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
                     || (final_named_touch && final_named_touch_debug)
@@ -3900,12 +3903,13 @@ impl Engine {
                                 &read_files,
                                 named_sources.as_ref(),
                             ))))
-                    && self.ordinary_mode_remakes_settle(
-                        &read_files,
-                        named_sources.as_ref(),
-                        modes,
-                        optional_named_load,
-                    ));
+                    && (assumed_double_colon_dry_run
+                        || self.ordinary_mode_remakes_settle(
+                            &read_files,
+                            named_sources.as_ref(),
+                            modes,
+                            optional_named_load,
+                        )));
             let parallel_remakes =
                 self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
             self.parallel_makefile_remakes = parallel_remakes && !check_primary_before_overlap;
@@ -5049,7 +5053,7 @@ impl Engine {
             changed |= assumed_remake_changed && !assumed_remake_blocked && !unsuccessful_remake;
             if !changed
                 && parallel_remakes
-                && !modes.active()
+                && (!modes.active() || assumed_double_colon_dry_run)
                 && settled_in_ordinary_mode
                 && restarts == 0
                 && self.assumptions.is_some()
@@ -5088,7 +5092,10 @@ impl Engine {
                 });
             }
             if !changed
-                && !parallel_remakes
+                && (!parallel_remakes
+                    || (assumed_double_colon_dry_run
+                        && settled_in_ordinary_mode
+                        && self.parallel_jobs.is_empty()))
                 && restarts == 0
                 && self.assumptions.is_some()
                 && (modes.dry_run || modes.question)
@@ -5715,6 +5722,86 @@ impl Engine {
                                         })))
                     }))
         })
+    }
+
+    fn qualified_assumed_double_colon_dry_run(
+        &self,
+        read_files: &[(Makefile, bool)],
+        modes: MakefileModes,
+    ) -> bool {
+        use rmake_core::filenames::{archive_parts, without_dot_prefix};
+
+        let [name] = self.options.goals.as_slice() else {
+            return false;
+        };
+        let name = name.as_slice();
+        if !modes.only_dry_run()
+            || !self.options.keep_going
+            || self.options.always
+            || !self.options.no_rules
+            || self.options.check_symlink_times
+            || self.options.load_limit.is_some()
+            || !self.options.include_directories.is_empty()
+            || !self.options.old_files.is_empty()
+            || self.options.new_files.len() != 1
+            || self.database.has_vpaths()
+            || !self.vpath_dirs.is_empty()
+            || !self.gpath_dirs.is_empty()
+            || self.database.rules.contains_key(b".DEFAULT".as_slice())
+            || name.contains(&b'/')
+            || name.starts_with(b"~")
+            || name.starts_with(b"-l")
+            || archive_parts(name).is_some()
+            || self.database.loaded_modules.contains_key(name)
+            || self
+                .assumed_new_double_colon_entries(name)
+                .is_none_or(|(_, count)| count != 1)
+        {
+            return false;
+        }
+        let mut sources = read_files
+            .iter()
+            .filter_map(|(file, skip)| (!skip).then_some(file));
+        if sources.clone().any(|file| file.optional || file.missing) {
+            return false;
+        }
+        let Some(source) = sources.find(|file| without_dot_prefix(&file.name) == name) else {
+            return false;
+        };
+        // A later ordinary source visit restores the mode before reaping.
+        if source.location.is_none()
+            || sources.clone().next().is_none()
+            || sources.any(|file| without_dot_prefix(&file.name) == name)
+        {
+            return false;
+        }
+        let [(_, implicit)] = self.database.database_implicit_rules() else {
+            return false;
+        };
+        // The synthetic entry can check freshness without starting a child
+        // or expanding a second-stage prerequisite.
+        implicit.group.is_none()
+            && implicit.secondary.is_none()
+            && !implicit.terminal
+            && matches!(implicit.dependencies.as_slice(), [dep]
+                if !dep.order_only
+                    && !dep.name.contains(&b'%')
+                    && self.simple_remake_prerequisite(dep, &[]))
+            && implicit.recipes.as_ref().is_some_and(|recipes| {
+                recipes
+                    .iter()
+                    .all(|recipe| recipe.bytes.iter().all(u8::is_ascii_whitespace))
+            })
+            && self.database.rules.get(name).is_some_and(|rule| {
+                matches!(rule.double_colon.as_deref(), Some([branch])
+                    if branch.group.is_none()
+                        && branch.secondary.is_none()
+                        && matches!(branch.dependencies.as_slice(), [dep]
+                            if dep.order_only && self.simple_remake_prerequisite(dep, &[]))
+                        && matches!(branch.recipes.as_deref(), Some([recipe])
+                            if !recipe_is_recursive(recipe)))
+            })
+            && !self.database.implicit_candidates(name).is_empty()
     }
 
     fn qualified_debug_remake_sources(

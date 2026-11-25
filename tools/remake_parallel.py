@@ -280,6 +280,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += named_double_colon_dry_run_models(worker, markers)
     results += failed_required_named_dry_models(worker, markers)
     results += assumed_named_dry_run_models(worker, markers)
+    results += assumed_named_double_colon_dry_models(worker, markers)
     results += terminal_named_dry_clock_models(worker, markers)
     results += terminal_named_dry_tail_models(worker, markers)
     results += terminal_named_dry_failed_models(worker, markers)
@@ -1312,6 +1313,70 @@ def terminal_named_dry_failed_models(worker: bytes, markers: dict[str, bytes]) -
         model = debug.Model(f'terminal-named-dry-failed-{context}-{transport}', files, args,
                             {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
         results.append(HeldModel(model, False, None, before_first=before_first))
+    return results
+
+
+def assumed_named_double_colon_dry_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    summary = b"make: 'b.mk' is up to date.\n"
+    original_clock = b'clock-1000000000 1000000000 1000000000\n'
+    before_first = BEFORE_FIRST + original_clock
+    before_second = before_first + b'left\n'
+    results = []
+    for context, transport, stale, optional, dry, slots in (
+        ('current', 'pipe', False, False, True, 2),
+        ('stale', 'fifo', True, False, True, 2),
+        ('physical', 'pipe', True, False, True, 2),
+        ('stale-failed', 'fifo', True, False, True, 2),
+        ('current-failed', 'pipe', False, False, True, 2),
+        ('optional-current', 'fifo', False, True, True, 2),
+        ('ordinary-current', 'pipe', False, False, False, 2),
+        ('serial-current', 'pipe', False, False, True, 1),
+    ):
+        fails = context.endswith('failed')
+        physical = context == 'physical'
+        action = 'fail' if fails else 'include' if physical else 'quiet'
+        directive = '-include' if optional else 'include'
+        source = (
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            '$(file >>seen,clock-$(shell stat -c %Y left.gen b.mk right.gen))\n'
+            f'{directive} left.gen b.mk right.gen\n'
+            'ifeq ($(MAKE_RESTARTS),)\n'
+            'left.gen: left.seed ; @python3 worker.py left quiet\n'
+            f'right.gen: right.seed ; @python3 worker.py right {action}\n'
+            'else\n'
+            'left.gen right.gen: ;\n'
+            'endif\n'
+            'b.mk:: | stable ; @false\n'
+            '%.mk: b.seed ;\n'
+        )
+        files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR,
+                 'left.gen': b'# already read\n', 'b.mk': b'# already read\n',
+                 'right.gen': b'# already read\n', 'left.seed': b'new\n', 'right.seed': b'new\n',
+                 'b.seed': b'prerequisite\n', 'stable': b'present\n'}
+        times = dict.fromkeys(files, INPUT_TIME)
+        times.update(dict.fromkeys(('left.seed', 'right.seed'), INPUT_TIME + 2_000_000_000))
+        times['b.seed'] += 2_000_000_000 if stale else -2_000_000_000
+        restart = physical or optional or not dry or (stale if fails else not stale)
+        status = 2 if fails and not restart else 0
+        stdout = (b'right\n' if fails else b'') + (summary if status == 0 else b'')
+        stderr = (b"make: *** [Makefile:6: right.gen] Error 4\n"
+                  b"Makefile:3: Failed to remake makefile 'right.gen'.\n") if fails else b''
+        seen = before_second + b'right\n'
+        updates = markers.copy()
+        if physical:
+            updates['right.gen'] = b'RIGHT := loaded\n'
+        if restart:
+            clock = b'clock-1000000000 1000000000 1000000001\n' if physical else original_clock
+            seen += b'read-1\n' + clock
+        args = ('-rR', '--no-print-directory', f'-j{slots}', '-k', f'--jobserver-style={transport}')
+        if dry:
+            args += ('-n',)
+        expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(), 'stderr_template_hex': stderr.hex()}
+        model = debug.Model(f'assumed-named-double-dry-{context}-{transport}', files,
+                            (*args, '-W', 'b.mk', 'b.mk'), {'GNUMAKEFLAGS': ''}, expected, seen,
+                            updates=updates, mtimes_ns=times)
+        results.append(HeldModel(model, slots > 1 and not optional, before_second, before_first,
+                                 before_second_stdout=b''))
     return results
 
 
