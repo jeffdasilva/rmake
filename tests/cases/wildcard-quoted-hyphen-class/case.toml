@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "wildcard-quoted-hyphen-class"
+requirement = "functions.filesystem"
+candidate = "required"
+description = "A quoted hyphen is a literal member in simple wildcard classes"
+provenance = "Original inputs and repeated GNU Make 4.4.1 observations on glibc and dynamic musl."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d656d6265723d5b63686172732f2d2063686172732f612063686172732f785d0a6578636c756465643d5b63686172732f625d0a"
+stderr_hex = ""
