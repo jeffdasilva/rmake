@@ -179,6 +179,7 @@ def models() -> list[Model]:
     result.extend(empty_name_finalizer_models())
     result.extend(declaration_close_finalizer_models())
     result.extend(target_empty_name_finalizer_models())
+    result.extend(empty_load_symbol_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -1914,6 +1915,81 @@ def target_empty_name_finalizer_models() -> list[Model]:
         model('inactive', target + b'ifeq (a,b)\nthing: ' + empty
               + b'endif\n$(file >>seen,after)\n', b'make', read=None,
               after=b'after\ngoal\n', status=0),
+    ]
+
+
+def empty_load_symbol_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    after = b'$(file >>seen,after)\n'
+    invalid = b'load missing.so()\n'
+    lexical = (b'RUN = $(foreach .LOADED,lexical,$(eval $(file <payload.txt)))\n'
+               b'$(call RUN,arg)\n')
+    live = b'load $(file >>seen,live-$(.LOADED)-$(1))missing.so()\n'
+    loaded = b'load fatal_scope.so\nload probe_api.so\n.LOADED := global\n$(file >>seen,read)\n'
+    message = b'Empty symbol name for load: missing.so()'
+    global_scope = b'scope=[||file|global||]\n'
+    lexical_scope = b'scope=[||automatic|lexical|RUN|arg]\n'
+    finalizer_module = Module('fatal_scope.c', 'fatal_scope.so')
+    api_module = Module(defines=('PROBE_TRACE_SETUP',))
+
+    def model(name, body, location=b'Makefile:4', *, files=None, anonymous=False,
+              prefix=head, marks=b'read\n', scope=global_scope, error=message,
+              status=2, api=False, finalizer=True, tail=after + goal):
+        source = goal if anonymous else prefix + body + tail
+        args = ('--eval', (prefix + body + after).decode('ascii')) if anonymous else ()
+        fatal = location + b': *** ' + error + b'.  Stop.\n' if status else b''
+        diagnostic = fatal + (location + b': finalizer-location\n' if finalizer else b'')
+        return Model(
+            'native-empty-load-symbol-finalizer-' + name,
+            {'Makefile': source, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': diagnostic.hex()},
+            b'anchor\n' + marks + (scope if finalizer else b''),
+            (finalizer_module, api_module) if api else (finalizer_module,),
+            args=('-rR', '--no-print-directory', '-f', 'Makefile', *args, 'all'),
+        )
+
+    return [
+        model('required', invalid),
+        model('optional', b'-' + invalid),
+        model('continued', b'load \\\n missing.so()\n'),
+        model('expanded', b'BAD := ./missing.so()\nload $(file >>seen,operand)$(BAD)\n',
+              b'Makefile:5', marks=b'read\noperand\n'),
+        model('physical-include', b'include child.mk\n', b'child.mk:3',
+              files={'child.mk': b'# first\n$(file >>seen,child)\n' + invalid},
+              marks=b'read\nchild\n'),
+        model('named-lexical', lexical, b'Makefile:5', files={'payload.txt': live},
+              scope=lexical_scope, marks=b'read\nlive-lexical-arg\n'),
+        model('anonymous-lexical', lexical, b'make', anonymous=True, files={'payload.txt': live},
+              scope=lexical_scope, marks=b'read\nlive-lexical-arg\n'),
+        model('anonymous-physical-include', lexical, b'child.mk:2', anonymous=True,
+              files={'payload.txt': b'include child.mk\n', 'child.mk': b'# first\n' + live},
+              scope=lexical_scope, marks=b'read\nlive-lexical-arg\n'),
+        model('recipe-lexical', b'all: .LOADED := target\nall: dep\n\t@'
+              b'$(let .LOADED,lexical,$(eval $(file <payload.txt))):\ndep:;@:\n',
+              b'Makefile:6', tail=b'',
+              files={'payload.txt': b'-load $(file >>seen,live-$(.LOADED)-$@-$<)missing.so()\n'},
+              scope=b'scope=[all|dep|automatic|lexical||]\n', marks=b'read\nlive-lexical-all-dep\n'),
+        model('native-explicit-location',
+              b'$(let .LOADED,lexical,$(probe_eval_location $(file <payload.txt)))\n',
+              b'module-eval.mk:23', anonymous=True, prefix=loaded, api=True,
+              files={'payload.txt': live}, scope=b'scope=[||automatic|lexical||]\n',
+              marks=b'setup\nread\nlive-lexical-\n'),
+        model('first-module-on-line', b'load fatal_scope.so missing.so()\n',
+              b'Makefile:1', prefix=b'', scope=b'scope=[||file|fatal_scope.so||]\n', marks=b''),
+        model('invalid-before-valid', b'load missing.so() probe_api.so\n', api=True),
+        model('operand-error', b'load $(file >>seen,operand)$(error operand-stop)missing.so()\n',
+              error=b'operand-stop', marks=b'read\noperand\n'),
+        model('optional-success', b'-load probe_api.so\n$(file >>seen,callback-$(probe_args ok))\n',
+              b'make', status=0, api=True, scope=b'scope=[||file|global probe_api.so||]\n',
+              marks=b'read\nsetup\ncallback-argc=1[ok]\nafter\ngoal\n'),
+        model('optional-empty-list', b'-load $(file >>seen,operand)\n',
+              b'make', status=0, marks=b'read\noperand\nafter\ngoal\n'),
+        model('anonymous-unscoped', invalid, b'make', anonymous=True),
+        model('no-module-at-error', invalid + b'load fatal_scope.so\n',
+              b'Makefile:1', prefix=b'', marks=b'', finalizer=False),
+        model('dormant', b'$(if ,$(eval load $(file >>seen,forbidden)missing.so()))\n',
+              b'make', status=0, marks=b'read\nafter\ngoal\n'),
     ]
 
 
