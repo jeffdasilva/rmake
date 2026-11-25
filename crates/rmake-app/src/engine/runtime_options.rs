@@ -72,9 +72,7 @@ impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
     }
 
     fn set_warning_policy(&mut self, enabled: bool) {
-        self.0.options.borrow_mut().warn_undefined = enabled;
-        self.0.warn_undefined.set(enabled);
-        self.0.dirty.set(true);
+        self.0.publish_warning_policy(enabled);
     }
 }
 
@@ -118,6 +116,12 @@ impl State {
         // Live decoding starts from the mode of this visit. In particular,
         // an unrelated assignment must not restore masked startup modes.
         modes.apply(&mut self.options.borrow_mut());
+    }
+
+    fn publish_warning_policy(&self, enabled: bool) {
+        self.options.borrow_mut().warn_undefined = enabled;
+        self.warn_undefined.set(enabled);
+        self.dirty.set(true);
     }
 
     /// A temporary warning change participates in live decoding. Publish
@@ -200,6 +204,12 @@ impl State {
             .as_deref()
             .map_or(Some(crate::output::Mode::None), crate::output::Mode::parse);
         if mode.is_none() && assignments.is_empty() && notices.is_empty() {
+            // This source completed flag decoding before mode validation.
+            // With no replay, publish its warning switch before returning.
+            if !warning_positions.is_empty() && current.warn_undefined != updated.warn_undefined {
+                drop(current);
+                self.publish_warning_policy(updated.warn_undefined);
+            }
             return Err(MakeflagsDecodeError::InvalidOutputSync(
                 crate::usage::output_sync_mode(updated.output_sync.as_deref().unwrap_or_default()),
             ));
@@ -1160,6 +1170,12 @@ impl Engine {
         if let Some(value) = updated.output_sync.as_deref()
             && crate::output::Mode::parse(value).is_none()
         {
+            if !warning_positions.is_empty()
+                && self.flag_state.warn_undefined.get() != updated.warn_undefined
+            {
+                self.flag_state
+                    .publish_warning_policy(updated.warn_undefined);
+            }
             self.fatal(None, &crate::usage::output_sync_mode(value));
             return Err(());
         }

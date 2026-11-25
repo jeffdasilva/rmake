@@ -8447,6 +8447,18 @@ impl Engine {
             self.database.file_records.rename(from, to);
             return Ok(());
         }
+        // An unseen destination without a declaration table can adopt the
+        // completed ordinary file's whole variable table.
+        let adopt_retained_scope = self.database_contexts.contains_key(from)
+            && self
+                .database
+                .rules
+                .get(from)
+                .is_none_or(|rule| rule.double_colon.is_none())
+            && !self.database.target_scopes.contains_key(to)
+            && !self.target_contexts.contains_key(to)
+            && !self.database_contexts.contains_key(to)
+            && self.file_traversals.visit(to).is_none();
         let completion = self.archive_completion_times.remove(from);
         self.archive_completion_times.remove(to);
         if let Some(completion) = completion {
@@ -8585,7 +8597,8 @@ impl Engine {
                 self.database.rules.insert(to.to_vec(), source);
             }
         }
-        self.database.merge_target_scope(from, to);
+        self.database
+            .rename_target_scope(from, to, adopt_retained_scope);
         self.file_traversals.rename_visit(from, to);
         // The source identity is retired. An existing destination can keep
         // its own failed verdict and diagnostic edge.
@@ -8670,7 +8683,17 @@ impl Engine {
                 flags.insert(to.to_vec());
             }
         }
-        if let Some(scope) = self.database.target_scopes.get(to)
+        let scope = self.database.target_scopes.get(to);
+        if adopt_retained_scope {
+            for context in self
+                .target_contexts
+                .get_mut(to)
+                .into_iter()
+                .chain(self.database_contexts.get_mut(to))
+            {
+                context.rename_retained_file_scope(from, to, scope);
+            }
+        } else if let Some(scope) = scope
             && let Some(context) = self.target_contexts.get_mut(to)
         {
             context.refresh_target_scope(scope);

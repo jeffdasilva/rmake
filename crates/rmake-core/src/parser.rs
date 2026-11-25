@@ -892,11 +892,23 @@ impl Database {
     }
 
     pub fn merge_target_scope(&mut self, from: &[u8], to: &[u8]) {
-        if let Some(scope) = self.target_scopes.remove(from) {
-            self.target_scopes
-                .entry(to.to_vec())
-                .or_insert_with(|| TargetScope::for_target(to))
-                .merge_missing(&scope);
+        self.rename_target_scope(from, to, false);
+    }
+
+    /// Rebind the declarations of a renamed file. A destination adopting the
+    /// source file's retained context also adopts the declaration table intact.
+    pub fn rename_target_scope(&mut self, from: &[u8], to: &[u8], adopt_source: bool) {
+        if let Some(mut scope) = self.target_scopes.remove(from) {
+            use std::collections::hash_map::Entry;
+            match self.target_scopes.entry(to.to_vec()) {
+                Entry::Vacant(entry) if adopt_source => {
+                    scope.rename(to);
+                    entry.insert(scope);
+                }
+                entry => entry
+                    .or_insert_with(|| TargetScope::for_target(to))
+                    .merge_missing(&scope),
+            }
             self.target_scope_revision = self.target_scope_revision.wrapping_add(1);
         }
     }

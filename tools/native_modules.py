@@ -167,6 +167,7 @@ def models() -> list[Model]:
     result.extend(reader_syntax_finalizer_models())
     result.extend(flag_finalizer_models())
     result.extend(fast_sync_finalizer_models())
+    result.extend(sync_warning_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -1096,6 +1097,67 @@ def fast_sync_finalizer_models() -> list[Model]:
               marks=b'read\ngoal\n', status=0),
         model('recoverable-jobs', head + assign(b'--jobs=0') + goal,
               message=jobs_notice, marks=b'read\ngoal\n', status=0),
+    ]
+
+
+def sync_warning_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    recipe = b'.PHONY: all dep\nall: .LOADED := local\nall: dep\n\t@'
+    tail = b':\ndep:;@:\n'
+    warning = b'--warn-undefined-variables'
+    sync = b'--output-sync=z'
+    flags = warning + b' ' + sync
+    sync_error = b"make: *** unknown output-sync type 'z'.  Stop.\n"
+    global_references = (b'@', b'<', b'0', b'1')
+    global_scope = b'scope=[||file|global||]\n'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def model(name, text, location=b'make', *, variables=global_references, scope=global_scope,
+              marks=b'read\n', args=(), env=None, status=2, message=sync_error):
+        stderr = message + location + b': finalizer-location\n'
+        for variable in variables:
+            stderr += location + b": warning: undefined variable '" + variable + b"'\n"
+        return Model(
+            'native-sync-warning-finalizer-' + name,
+            {'Makefile': text, 'seen': b'anchor\n'},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\n' + marks + scope,
+            (module,),
+            args=('-rR', '--no-print-directory', *args),
+            environment={'MAKEFLAGS': '', 'GNUMAKEFLAGS': '', **(env or {})},
+        )
+
+    def assign(value):
+        return b'MAKEFLAGS := ' + value + b'\n'
+
+    ordinary = (b'.LOADED := global\n$(file >>seen,read)\n$(warning before-fatal)\n'
+                + assign(flags) + b'$(warning unreachable)\n' + goal)
+    return [
+        model('reader-before', head + assign(flags) + goal, b'Makefile:4'),
+        model('reader-after', head + assign(sync + b' ' + warning) + goal, b'Makefile:4'),
+        model('lexical-recipe', head + recipe
+              + b'$(foreach .LOADED,lexical,$(eval MAKEFLAGS := ' + warning + b' -Oz))'
+              + tail, b'Makefile:7', variables=(b'0', b'1'),
+              scope=b'scope=[all|dep|automatic|lexical||]\n'),
+        model('anonymous-eval', goal, args=('--eval', (head + assign(flags)).decode('ascii'))),
+        model('post-read', head + b'GNUMAKEFLAGS := ' + flags + b'\n' + goal),
+        model('prior-live', head + assign(warning) + assign(sync) + goal, b'Makefile:5'),
+        model('prior-startup-post-read', head + b'GNUMAKEFLAGS := ' + sync + b'\n' + goal,
+              args=(warning.decode('ascii'),)),
+        model('inherited-makeflags', goal, marks=b'', scope=b'scope=[||file|fatal_scope.so||]\n',
+              env={'MAKEFLAGS': '$(eval load fatal_scope.so) ' + flags.decode('ascii')}),
+        model('inherited-gnumakeflags', goal, marks=b'', scope=b'scope=[||file|fatal_scope.so||]\n',
+              env={'GNUMAKEFLAGS': '$(eval load fatal_scope.so) ' + flags.decode('ascii')}),
+        model('ignored-operand', head + assign(warning + b'=invalid ' + sync) + goal,
+              b'Makefile:4', variables=()),
+        model('valid-replacement', head + assign(flags + b' --output-sync=none') + goal,
+              status=0, message=b'', marks=b'read\ngoal\n'),
+        Model('native-sync-warning-finalizer-ordinary-fatal',
+              {'Makefile': ordinary, 'seen': b'anchor\n'},
+              {'exit_code': 2, 'stdout_hex': '',
+               'stderr_hex': (b'Makefile:3: before-fatal\n' + sync_error).hex()},
+              b'anchor\nread\n', ()),
     ]
 
 
