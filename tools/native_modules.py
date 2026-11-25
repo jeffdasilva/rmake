@@ -165,6 +165,7 @@ def models() -> list[Model]:
     result.extend(finalizer_shell_models())
     result.extend(fatal_scope_models())
     result.extend(reader_syntax_finalizer_models())
+    result.extend(flag_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -943,6 +944,81 @@ def reader_syntax_finalizer_models() -> list[Model]:
               message=separator + b' (ifeq/ifneq must be followed by whitespace)'),
         model('logical-line', head + b'not\\\n  a rule\n' + goal, b'Makefile:4'),
         model('anonymous-eval', goal, b'make', args=('--eval', (head + invalid).decode('ascii'))),
+    ]
+
+
+def flag_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    recipe = b'.PHONY: all dep\nall: .LOADED := local\nall: dep\n\t@'
+    tail = b':\ndep:;@:\n'
+    global_scope = b'scope=[||file|global||]\n'
+    target_scope = b'scope=[all|dep|file|local||]\n'
+    lexical_scope = b'scope=[all|dep|automatic|lexical||]\n'
+    prefix = b'MAKEFLAGS := '
+    debug = b'--debug=z'
+    owned_sync = b'-I~/absent --output-sync=z'
+    debug_error = b"make: *** unknown debug level specification 'z'.  Stop.\n"
+    sync_error = b"make: *** unknown output-sync type 'z'.  Stop.\n"
+    first = rb'FIRST:=$$(file\ >>seen,first)'
+    last = rb'LAST:=$$(file\ >>seen,last)'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def assign(flags):
+        return prefix + flags + b'\n'
+
+    def evaluate(flags):
+        return b'$(eval ' + (prefix + flags).replace(b'$', b'$$') + b')'
+
+    def model(name, text, location=b'make', *, message=debug_error, scope=global_scope,
+              marks=b'read\n', args=(), env=None, files=None, status=2):
+        stderr = message + location + b': finalizer-location\n'
+        return Model(
+            'native-live-flag-finalizer-' + name,
+            {'Makefile': text, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\n' + marks + scope,
+            (module,),
+            args=('-rR', '--no-print-directory', *args),
+            environment=env or {},
+        )
+
+    debug_payload = b' '.join((first, debug, last))
+    payload_error = rb'LAST:=$$(error\ payload-stop)'
+    return [
+        model('reader-payload', head + assign(debug_payload) + goal, b'Makefile:4',
+              marks=b'read\nfirst\nlast\n'),
+        model('include', head + b'include child.mk\n' + goal, b'child.mk:2',
+              files={'child.mk': b'# first\n' + assign(debug)}),
+        model('reader-eval', head + evaluate(debug) + b'\n' + goal, b'Makefile:4'),
+        model('preload', goal, b'preload.mk:4', env={'MAKEFILES': 'preload.mk'},
+              files={'preload.mk': head + assign(debug)}),
+        model('recipe', head + recipe + evaluate(debug) + tail, b'Makefile:7',
+              scope=target_scope),
+        model('recipe-foreach', head + recipe
+              + b'$(foreach .LOADED,lexical,' + evaluate(debug_payload) + b')' + tail,
+              b'Makefile:7', scope=lexical_scope, marks=b'read\nfirst\nlast\n'),
+        model('recipe-call', head + b'SET = ' + evaluate(debug) + b'\n'
+              + recipe + b'$(call SET,actual)' + tail, b'Makefile:8',
+              scope=b'scope=[all|dep|file|local|SET|actual]\n'),
+        model('owned-output-sync', head + assign(owned_sync) + goal, b'Makefile:4',
+              message=sync_error),
+        model('recipe-owned-output-sync', head + recipe + evaluate(owned_sync) + tail,
+              b'Makefile:7', message=sync_error, scope=target_scope),
+        model('payload-error', head + assign(b' '.join((first, debug, payload_error))) + goal,
+              b'Makefile:4', message=b'Makefile:4: *** payload-stop.  Stop.\n',
+              marks=b'read\nfirst\n'),
+        model('post-read', head + b'GNUMAKEFLAGS := ' + debug_payload + b'\n' + goal,
+              marks=b'read\nfirst\nlast\n'),
+        model('anonymous-eval', goal, args=('--eval', (head + assign(debug)).decode('ascii'))),
+        model('inherited-makeflags', goal,
+              env={'MAKEFLAGS': '$(eval load fatal_scope.so) --debug=z'}, marks=b'',
+              scope=b'scope=[||file|fatal_scope.so||]\n'),
+        model('inherited-gnumakeflags', goal,
+              env={'GNUMAKEFLAGS': '$(eval load fatal_scope.so) --debug=z'}, marks=b'',
+              scope=b'scope=[||file|fatal_scope.so||]\n'),
+        model('valid', head + assign(b'--debug=none') + goal, message=b'',
+              marks=b'read\ngoal\n', status=0),
     ]
 
 

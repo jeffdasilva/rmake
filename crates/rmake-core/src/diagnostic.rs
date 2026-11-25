@@ -790,7 +790,24 @@ impl<'a> ExpansionContext<'a> {
                     .map_err(ExpandError::UnlocatedError)?
                 else {
                     let jobs = decoder.requested_jobs();
-                    let result = decoder.finish().map_err(ExpandError::UnlocatedError)?;
+                    let result = decoder.finish().map_err(|error| {
+                        // Option diagnostics use the program name, while a
+                        // finalizer still runs in the active source and scope.
+                        if let Some(location) =
+                            self.location.filter(|location| !location.file.is_null())
+                            && database.native_fatal_context.is_none()
+                            && self.needs_fatal_expansion_context()
+                        {
+                            database.native_fatal_context =
+                                Some(Box::new(crate::parser::NativeFatalContext {
+                                    location: Some(location.clone()),
+                                    scope: database.evaluation_scope.clone(),
+                                    bindings: database.evaluation_bindings.clone(),
+                                    active: database.evaluation_active.clone(),
+                                }));
+                        }
+                        ExpandError::UnlocatedError(error)
+                    })?;
                     cursor.set(cursor.get().max(result.next_argument));
                     self.makeflags
                         .as_mut()
