@@ -4479,18 +4479,24 @@ impl Database {
         result
     }
 
-    fn retain_native_reader_error(&mut self, location: &Location, context: &ExpansionContext<'_>) {
+    fn retain_native_reader_error(
+        &mut self,
+        location: &Location,
+        evaluated_at: Option<usize>,
+        context: &ExpansionContext<'_>,
+    ) {
         let evaluating = self.evaluation_depth != 0;
         if self.native_fatal_context.is_some()
             || (evaluating
                 && (location.file.is_null()
-                    || context.location.is_none_or(|caller| caller.file.is_null())))
+                    || (evaluated_at.is_some()
+                        && context.location.is_none_or(|caller| caller.file.is_null()))))
             || !context.needs_fatal_expansion_context()
         {
             return;
         }
-        // The frame owns the location, including an included source. Named
-        // eval also owns the caller's scopes until evaluate_in returns.
+        // A physical include owns its source even inside an anonymous eval.
+        // An active eval also owns the caller's scopes until evaluate_in returns.
         let mut retained = NativeFatalContext {
             location: Some(location.clone()),
             ..NativeFatalContext::default()
@@ -4644,7 +4650,7 @@ impl Database {
                         file: source_name.clone(),
                         line: evaluated_at.unwrap_or(*last_line + 1),
                     };
-                    self.retain_native_reader_error(&location, context);
+                    self.retain_native_reader_error(&location, evaluated_at, context);
                     return Err(ParseError::system(location, Message::MissingEndif, context));
                 }
                 self.finish_declaration(
@@ -4746,7 +4752,7 @@ impl Database {
             }
             if let Some(rest) = directive(text, b"else") {
                 let Some(top) = conditions.last_mut() else {
-                    self.retain_native_reader_error(&location, context);
+                    self.retain_native_reader_error(&location, evaluated_at, context);
                     return Err(ParseError::system(
                         location,
                         Message::ExtraneousConditional(b"else"),
@@ -4754,7 +4760,7 @@ impl Database {
                     ));
                 };
                 if top.otherwise {
-                    self.retain_native_reader_error(&location, context);
+                    self.retain_native_reader_error(&location, evaluated_at, context);
                     return Err(ParseError::system(
                         location,
                         Message::DuplicateElse,
@@ -4791,7 +4797,7 @@ impl Database {
                     );
                 }
                 if conditions.pop().is_none() {
-                    self.retain_native_reader_error(&location, context);
+                    self.retain_native_reader_error(&location, evaluated_at, context);
                     return Err(ParseError::system(
                         location,
                         Message::ExtraneousConditional(b"endif"),
@@ -4883,6 +4889,7 @@ impl Database {
                                 file: source_name.clone(),
                                 line: body_line,
                             },
+                            evaluated_at,
                             context,
                         );
                         return Err(ParseError::system(location, Message::MissingEndef, context));
@@ -5202,7 +5209,7 @@ impl Database {
             // Assignments and directives have already been handled. A raw
             // prefix here is an orphan, even if folding changed the first byte.
             if leading_prefix.matches(stripped_bom) {
-                self.retain_native_reader_error(&location, context);
+                self.retain_native_reader_error(&location, evaluated_at, context);
                 return Err(ParseError::system(location, Message::OrphanRecipe, context));
             }
             self.finish_declaration(declaration, &location, context)?;
@@ -5375,7 +5382,7 @@ impl Database {
                 } else {
                     Message::MissingSeparator { tabs: false }
                 };
-                self.retain_native_reader_error(&location, context);
+                self.retain_native_reader_error(&location, evaluated_at, context);
                 return Err(ParseError::system(location, message, context));
             };
             declaration.location = Some(location.clone());
@@ -5421,7 +5428,7 @@ impl Database {
                     } else {
                         Message::TargetPatternWithoutPercent
                     };
-                    self.retain_native_reader_error(&location, context);
+                    self.retain_native_reader_error(&location, evaluated_at, context);
                     return Err(ParseError::system(location, message, context));
                 }
                 let pattern = Pattern::new(&patterns[0]);

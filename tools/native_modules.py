@@ -172,6 +172,7 @@ def models() -> list[Model]:
     result.extend(conditional_finalizer_models())
     result.extend(raw_syntax_finalizer_models())
     result.extend(named_eval_syntax_finalizer_models())
+    result.extend(anonymous_include_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -1400,6 +1401,76 @@ def named_eval_syntax_finalizer_models() -> list[Model]:
               b'else\n', b'', status=0, marks=b'read\ngoal\n'),
         model('successful-recipe', head + define + recipe + evaluate + tail,
               b'$(file >>seen,complete)\n', b'', status=0, marks=b'read\nouter\ncomplete\n'),
+    ]
+
+
+def anonymous_include_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    child = b'# first\n$(file >>seen,child)\nelse\n'
+    include = b'$(eval include child.mk)'
+    foreach = b'$(foreach .LOADED,lexical,' + include + b')'
+    let = b'$(let .LOADED,lexical,' + include + b')'
+    lexical = b'scope=[||automatic|lexical||]\n'
+    global_scope = b'scope=[||file|global||]\n'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+    extra = b"extraneous 'else'"
+
+    def model(name, expression, location=b'make', *, message=extra, final_location=None,
+              files=None, args=(), scope=global_scope, marks=b'read\n', status=2, source=goal):
+        fatal = location + b': *** ' + message + b'.  Stop.\n' if status else b''
+        stderr = fatal + (final_location or location) + b': finalizer-location\n'
+        return Model(
+            'native-anonymous-include-finalizer-' + name,
+            {'Makefile': source, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\n' + marks + scope,
+            (module,),
+            args=('-rR', '--no-print-directory', '-f', 'Makefile', *args,
+                  '--eval', (head + expression).decode('ascii'), 'all'),
+        )
+
+    restart = (b'$(file >>seen,eval-$(MAKE_RESTARTS))\n'
+               b'GO = $(foreach .LOADED,lexical,$(eval include entry.mk))\n'
+               b'$(call GO,arg)')
+    remake = goal + b"generated.mk:\n\t@$(file >>seen,remake)printf '%s\\n' "
+    entry = {'entry.mk': b'# first\ninclude generated.mk\n'}
+    restarted = b'read\neval-\nremake\nread\neval-1\n'
+    valid = {'child.mk': b'# first\n$(file >>seen,child-$(.LOADED))\n'}
+    return [
+        model('direct', b'include child.mk', b'child.mk:3',
+              files={'child.mk': child}, marks=b'read\nchild\n'),
+        model('nested-grandchild', include, b'grandchild.mk:4', message=b'missing separator',
+              files={'child.mk': b'include grandchild.mk\n',
+                     'grandchild.mk': b'# first\n# second\n$(file >>seen,grandchild)\nbad syntax\n'},
+              marks=b'read\ngrandchild\n'),
+        model('foreach', foreach, b'child.mk:3', files={'child.mk': child},
+              scope=lexical, marks=b'read\nchild\n'),
+        model('let-continued-endef', let, b'child.mk:3', final_location=b'child.mk:6',
+              message=b"missing 'endef', unterminated 'define'", scope=lexical,
+              files={'child.mk': b'# first\n$(file >>seen,child)\ndefine BROKEN \\\n'
+                                 b' continued\nfirst \\\n second\nthird\n'},
+              marks=b'read\nchild\n'),
+        model('call-searched', b'GO = ' + include + b'\n$(call GO,arg)', b'child.mk:3',
+              args=('-I', 'inc'), files={'inc/child.mk': child},
+              scope=b'scope=[||file|global|GO|arg]\n', marks=b'read\nchild\n'),
+        model('sibling-endif', b'$(eval include first.mk child.mk)', b'child.mk:5',
+              message=b"missing 'endif'",
+              files={'first.mk': b'$(file >>seen,first)\n',
+                     'child.mk': b'# first\n$(file >>seen,child)\nifneq (a,b)\n# end\n'},
+              marks=b'read\nfirst\nchild\n'),
+        model('restart-fatal', restart, b'generated.mk:1', files=entry,
+              source=remake + b"'else' >generated.mk\n", marks=restarted,
+              scope=b'scope=[||automatic|lexical|GO|arg]\n'),
+        model('restart-success', restart, files=entry, status=0,
+              source=remake + b"'# regenerated' >generated.mk\n", marks=restarted + b'goal\n'),
+        model('named-eval-in-child', include, b'child.mk:2',
+              files={'child.mk': b'# first\n$(eval else)\n'}),
+        model('anonymous-only', b'$(eval else)'),
+        model('success', foreach, files=valid, status=0, marks=b'read\nchild-lexical\ngoal\n'),
+        model('after-success', foreach + b'\nelse', files=valid, marks=b'read\nchild-lexical\n'),
+        model('dormant', b'$(if ,' + include + b')', files={'child.mk': child},
+              status=0, marks=b'read\ngoal\n'),
     ]
 
 
