@@ -1,0 +1,16 @@
+id = "assumed-double-source-clock-command"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "A completed synthetic recipe restarts the read before ordinary goals."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-W", "b.mk", "all", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0
+synthetic=0
+read=1
+goal=1
+b.mk=1680300000
+'''
+stderr = ""

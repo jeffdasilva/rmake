@@ -1811,6 +1811,26 @@ cases = [
 ]
 
 [[requirements]]
+id = "options.assumed-double-colon-source-clock"
+title = "Restart serial existing sources after a synthetic what-if timestamp changes"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/assumed-files.md"
+candidate_required = 9
+fixture_count = 9
+cases = [
+  "assumed-double-source-clock-command",
+  "assumed-double-source-clock-earlier-failure",
+  "assumed-double-source-clock-failed-declaration",
+  "assumed-double-source-clock-imported",
+  "assumed-double-source-clock-later-failure",
+  "assumed-double-source-clock-older",
+  "assumed-double-source-clock-order-only",
+  "assumed-double-source-clock-physical",
+  "assumed-double-source-clock-unassumed",
+]
+
+[[requirements]]
 id = "options.assumed-new-restart"
 title = "Assumed-new file publication across makefile restarts"
 status = "fixture-ready"

@@ -1,0 +1,17 @@
+id = "assumed-double-source-clock-imported"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "An imported restart publishes the what-if entry for ordinary goals."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-W", "b.mk", "all", "b.mk"]
+
+[environment]
+MAKE_RESTARTS = "1"
+
+[expected]
+exit_code = 0
+stdout = '''
+read=1
+goal=1
+b.mk=1680300000
+'''
+stderr = ""

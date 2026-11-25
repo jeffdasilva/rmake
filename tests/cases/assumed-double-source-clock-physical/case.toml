@@ -1,0 +1,17 @@
+id = "assumed-double-source-clock-physical"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "An actual source timestamp change still restarts after a failed optional source."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0
+declared=0
+synthetic=0
+read=1
+goal=1
+b.mk=1680300040
+'''
+stderr = ""

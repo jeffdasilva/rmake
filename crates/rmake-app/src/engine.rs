@@ -3824,6 +3824,10 @@ impl Engine {
             self.remaking = true;
             self.defer_stopped_remake_load = ordinary_mode;
             let mut changed = false;
+            let track_assumed_remake =
+                !parallel_remakes && !modes.active() && restarts == 0 && self.assumptions.is_some();
+            let mut assumed_remake_changed = false;
+            let mut assumed_remake_blocked = false;
             let mut grouped_changes =
                 (!parallel_remakes && !ordinary_mode).then(SerialGroupedRemakeChanges::default);
             let mut ran_remake_recipe = false;
@@ -4080,6 +4084,20 @@ impl Engine {
                     None,
                 );
                 let chain_failed = result.failed;
+                if track_assumed_remake {
+                    // This verdict belongs to the source pass. A later
+                    // failure can override a logical timestamp change.
+                    assumed_remake_blocked |=
+                        chain_failed || result.fatal || result.question_outdated;
+                    if !assumed_remake_blocked
+                        && !assumed_remake_changed
+                        && !visit_modes.active()
+                        && !makefile.missing
+                        && before.flatten().is_some()
+                    {
+                        assumed_remake_changed = self.settled_assumed_new_makefile_clock(name);
+                    }
+                }
                 if let Some(changes) = &mut grouped_changes {
                     changes.failed |= chain_failed;
                 }
@@ -4639,6 +4657,7 @@ impl Engine {
                     }
                 }
             }
+            changed |= assumed_remake_changed && !assumed_remake_blocked && !unsuccessful_remake;
             changed |= grouped_changes
                 .as_ref()
                 .is_some_and(SerialGroupedRemakeChanges::changed);
@@ -10820,7 +10839,7 @@ impl Engine {
                 self.report_missing_rule(target, parent.map(|parent| parent.target));
             }
             let serial_remake = self.remaking && !self.parallel_makefile_remakes;
-            if (self.optional_remake() && (depth == 0 || serial_remake))
+            if self.optional_remake()
                 || (self.options.keep_going && (!self.remaking || serial_remake))
             {
                 crate::debug::emit(
@@ -10962,6 +10981,31 @@ impl Engine {
         }
         let branches = self.database.rules.get(target)?.double_colon.as_ref()?;
         Some(branches.len())
+    }
+
+    fn settled_assumed_new_makefile_clock(&self, source: &[u8]) -> bool {
+        let name = self.aliases.resolve(source);
+        let Some(assumed_time) = self.single_assumed_new_double_colon_time(name) else {
+            return false;
+        };
+        let Some(ordinal) = self.serial_double_colon_branch_count(name) else {
+            return false;
+        };
+        // An existing source's synthetic entry can settle on a physical
+        // timestamp even if its recipe did not need to run. Compare it
+        // with that entry's own initial assumed timestamp.
+        self.database_branch_outcomes
+            .get(&(name.to_vec(), ordinal))
+            .is_some_and(|branch| {
+                !branch.failed
+                    && !branch.fatal
+                    && !branch.question_outdated
+                    && !matches!(
+                        branch.completion,
+                        CompletionTime::AssumeNew | CompletionTime::AssumeNewPhony
+                    )
+                    && branch.time.is_some_and(|time| time != assumed_time)
+            })
     }
 
     fn resume_double_colon_state(&mut self, target: &[u8], mut state: DoubleColonState) -> Outcome {

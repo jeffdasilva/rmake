@@ -1,0 +1,15 @@
+id = "assumed-double-source-clock-failed-declaration"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "A failed declaration suppresses restart even when the declared head succeeded."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0
+synthetic=0
+goal=0
+b.mk=1680300000
+'''
+stderr = "make: *** No rule to make target 'missing', needed by 'b.mk'.\n"

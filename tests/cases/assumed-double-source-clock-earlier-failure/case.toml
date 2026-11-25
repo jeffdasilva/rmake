@@ -1,0 +1,15 @@
+id = "assumed-double-source-clock-earlier-failure"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "A failure before the source blocks its logical restart."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0
+synthetic=0
+goal=0
+b.mk=1680300000
+'''
+stderr = ""

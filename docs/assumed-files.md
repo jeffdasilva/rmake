@@ -75,8 +75,15 @@ Without keep-going, an old-file or active what-if entry can revisit the
 blocked head of a serial optional makefile's double-colon chain. This
 visit reports the retained missing-prerequisite error and stops before
 ordinary goals. After a restart, what-if entries publish in the ordinary
-goal phase. Successful synthetic recipes and their restart decisions
-still need broader qualification.
+goal phase.
+
+For an existing serial source in regular mode, a fresh what-if entry
+can settle on a physical timestamp even when no recipe runs. The
+comparison uses the entry's initial assumed timestamp, so this logical
+change can cause a restart. Failures can suppress that verdict while
+physical timestamp changes still follow the source remake rules.
+Multiple assumed entries, missing sources, parallel scheduling and named
+nonexecuting modes need separate coverage.
 
 ## Qualification and limits
 

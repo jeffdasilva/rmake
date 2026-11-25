@@ -191,6 +191,11 @@ also retains the result of a failed optional makefile recipe seen earlier,
 including when `-k` is absent. More cases remain for duplicate peers, mixed
 failure policies, and parallel scheduling and tracing.
 
+An unavailable prerequisite during an optional parallel remake now emits the
+failure event under basic debugging. The normal optional diagnostic policy still
+applies. The [remake debug fixtures](../tests/debug-output/remake-cache-phase.toml)
+cover missing leaves, order-only inputs, shared prerequisites and cache visits.
+
 Cached prerequisite failures already reported by a required remake now retain
 their reporting state through an optional visit, as checked by the
 [shared-failure regression](../tests/cases/optional-cached-failure-required-two/Makefile).
