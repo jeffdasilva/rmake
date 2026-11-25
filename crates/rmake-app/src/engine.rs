@@ -16409,6 +16409,12 @@ mod tests {
         assert!(engine.intermediate(b"unrequested"));
         assert!(engine.has_requested_goal_name(b"requested-a"));
         assert!(!engine.has_requested_goal_name(b"cache/c"));
+
+        engine
+            .rename_search_record(b"requested-b", b"requested-a")
+            .unwrap();
+        assert!(engine.intermediate(b"cache/b"));
+        assert!(!engine.intermediate(b"cache/c"));
     }
 
     #[test]
