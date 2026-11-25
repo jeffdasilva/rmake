@@ -4041,7 +4041,7 @@ impl Engine {
                 };
                 // A fresh serial visit still sees the local timestamp
                 // retained before earlier remakes wrote or removed the file.
-                let loaded_source = if !parallel_remakes
+                let (loaded_source, loaded_implicit_time) = if !parallel_remakes
                     && !modes.active()
                     && self.assumptions.is_none()
                     && !makefile.missing
@@ -4057,13 +4057,22 @@ impl Engine {
                         .double_colon
                         .as_deref()
                         .unwrap_or_else(|| std::slice::from_ref(rule));
-                    (!declared.is_empty()
-                        && declared.iter().all(|branch| {
-                            branch.grouped_targets().is_none() && branch.recipes.is_some()
-                        }))
-                    .then_some((*time, declared.len()))
+                    if rule.double_colon.is_none()
+                        && rule.grouped_targets().is_none()
+                        && rule.recipes.is_none()
+                    {
+                        // Its visit can still select an implicit recipe.
+                        (None, Some(*time))
+                    } else {
+                        let declared_time = (!declared.is_empty()
+                            && declared.iter().all(|branch| {
+                                branch.grouped_targets().is_none() && branch.recipes.is_some()
+                            }))
+                        .then_some((*time, declared.len()));
+                        (declared_time, None)
+                    }
                 } else {
-                    None
+                    (None, None)
                 };
                 let pending_open_error = || {
                     makefile
@@ -4427,9 +4436,23 @@ impl Engine {
                                     })
                                     .map(|(time, _)| time)
                             });
+                        let implicit_time = loaded_implicit_time.filter(|_| {
+                            !MakefileModes::from_options(&self.options).active()
+                                && !chain_failed
+                                && result.ran
+                                && result.completion == CompletionTime::Refresh
+                                && self.aliases.resolve(name) == name
+                                && self.database.rules.get(name).is_some_and(|rule| {
+                                    rule.implicit_pattern.is_some()
+                                        && rule.grouped_targets().is_none()
+                                })
+                        });
                         // Completed declarations share the final physical
                         // timestamp, including when the last restores it.
-                        let before_refresh = observed_peer_change.or(loaded_time).or(before);
+                        let before_refresh = observed_peer_change
+                            .or(loaded_time)
+                            .or(implicit_time)
+                            .or(before);
                         after != before_refresh
                     } else {
                         false

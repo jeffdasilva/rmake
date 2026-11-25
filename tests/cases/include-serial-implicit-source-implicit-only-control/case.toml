@@ -1,0 +1,12 @@
+id = "include-serial-implicit-source-implicit-only-control"
+requirement = "includes.remake"
+candidate = "required"
+description = "An implicit-only remake already uses the graph observation as its baseline."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile worker.inc payload.mk\nWORKER\nREMAKE:payload.mk:trigger\nALL:old:0\nVALUE := new\n"
+stderr = ""

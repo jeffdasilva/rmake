@@ -1,0 +1,12 @@
+id = "include-serial-implicit-source-empty-recipe-control"
+requirement = "includes.remake"
+candidate = "required"
+description = "An explicit empty recipe suppresses the implicit source recipe."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile worker.inc payload.mk\nWORKER\nALL:old:0\nVALUE := old\n"
+stderr = ""
