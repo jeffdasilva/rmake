@@ -4297,9 +4297,10 @@ impl Engine {
                             let allow_stopping_repeats = if regular_visit {
                                 !result.ran && result.time == Some(before)
                             } else {
-                                modes.dry_run
-                                    && live_modes.dry_run
-                                    && !live_modes.question
+                                repeated_named_clock_mode
+                                    && (modes.dry_run || self.options.goals.len() == 1)
+                                    && live_modes.dry_run == modes.dry_run
+                                    && live_modes.question == modes.question
                                     && !live_modes.touch
                             };
                             assumed_remake_changed = self
@@ -11200,13 +11201,13 @@ impl Engine {
                 && !self.parallel_makefile_remakes
                 && self.active_makefile_remake.is_some()
                 && self.options.question
-                && self.options.touch
+                && (self.options.touch || (!self.options.dry_run && self.options.goals.len() == 1))
                 && !self.options.keep_going
                 && self.has_requested_goal_name(rmake_core::filenames::without_dot_prefix(target))
                 && let Some((_, count)) = self.assumed_new_double_colon_entries(target)
             {
-                // A named query with touch can complete successive synthetic
-                // entries. An actual query verdict still stops the chain.
+                // A named query can complete successive synthetic entries.
+                // A query verdict still stops the chain.
                 synthetic_count = count;
             }
             for _ in 0..synthetic_count {

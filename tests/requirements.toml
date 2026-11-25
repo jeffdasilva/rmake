@@ -1853,8 +1853,8 @@ title = "Restart after current synthetic entries settle for a named serial dry-r
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 27
-fixture_count = 27
+candidate_required = 36
+fixture_count = 36
 cases = [
   "assumed-double-named-current-clock-dry-current",
   "assumed-double-named-current-clock-dry-declared",
@@ -1883,6 +1883,15 @@ cases = [
   "assumed-double-named-current-clock-query-touch-stale-control",
   "assumed-double-named-current-clock-query-touch-verdict-control",
   "assumed-double-named-current-clock-touch-current",
+  "assumed-double-stopping-query-clock-repeated-current",
+  "assumed-double-stopping-query-clock-reverse-alias",
+  "assumed-double-stopping-query-clock-repeated-equal",
+  "assumed-double-stopping-query-clock-second-simulated",
+  "assumed-double-stopping-query-clock-second-query-verdict",
+  "assumed-double-stopping-query-clock-required-failure",
+  "assumed-double-stopping-query-clock-optional-failure",
+  "assumed-double-stopping-query-clock-single-query-verdict",
+  "assumed-double-stopping-query-clock-unassumed",
 ]
 
 [[requirements]]

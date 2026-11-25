@@ -1,0 +1,12 @@
+id = "assumed-double-stopping-query-clock-repeated-equal"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "Two equal physical times still settle the synthetic clock."
+provenance = "Original finite serial what-if query fixture with fixed source and branch clocks."
+args = ["-rR", "--no-print-directory", "-j1", "-q", "-S", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""
