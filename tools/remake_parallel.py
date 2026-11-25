@@ -284,6 +284,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += optional_assumed_dry_handoff_models(worker, markers)
     results += assumed_unnamed_dry_source_models(worker, markers)
     results += terminal_named_dry_clock_models(worker, markers)
+    results += terminal_unrelated_assumption_dry_models(worker, markers)
     results += terminal_named_dry_tail_models(worker, markers)
     results += terminal_named_dry_failed_models(worker, markers)
     results += terminal_named_dry_forced_models(worker, markers)
@@ -1192,6 +1193,90 @@ def terminal_named_dry_clock_models(worker: bytes, markers: dict[str, bytes]) ->
         expected = {'exit_code': 0, 'stdout_template_hex': summary.hex(), 'stderr_template_hex': ''}
         model = debug.Model(f'terminal-named-dry-clock-{context}-{transport}', files, args,
                             {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
+        results.append(HeldModel(model, False, None, before_first=before_first))
+    return results
+
+
+def terminal_unrelated_assumption_dry_models(
+        worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    summary = b"make: 'tail.inc' is up to date.\n"
+    clock = b'clock-1000000000 1000000000\n'
+    refreshed_clock = b'clock-1000000001 1000000000\n'
+    error = b'make: *** [Makefile:6: left.gen] Error 3\n'
+    report = b"Makefile:3: Failed to remake makefile 'left.gen'.\n"
+    left_markers = {name: value for name, value in markers.items() if name.startswith('left.')}
+    results = []
+    for context, transport in (
+        ('clock', 'pipe'),
+        ('continue', 'fifo'),
+        ('simulate-write', 'pipe'),
+        ('physical', 'fifo'),
+        ('failed-keep', 'pipe'),
+        ('failed-stop', 'fifo'),
+        ('expanded-empty', 'pipe'),
+        ('later-ordinary', 'fifo'),
+        ('named-first', 'pipe'),
+        ('prerequisite-physical', 'fifo'),
+        ('no-assumption', 'pipe'),
+    ):
+        rewrite = context in ('physical', 'prerequisite-physical')
+        fails = context.startswith('failed')
+        stopping = context == 'failed-stop'
+        expanded_empty = context == 'expanded-empty'
+        sources = {
+            'named-first': 'tail.inc left.gen',
+            'later-ordinary': 'left.gen tail.inc other.inc',
+        }.get(context, 'left.gen tail.inc')
+        action = 'fail' if fails else 'include' if rewrite else 'quiet'
+        tail = {
+            'continue': b'printf "tail-ran\\n" >> seen',
+            'simulate-write': b'touch -d @1000000001 left.gen',
+            'expanded-empty': b'$(file >>seen,tail-expanded)',
+        }.get(context, b'')
+        continuation = f'\t@{tail.decode()}\n' if tail else ''
+        source = (
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            '$(file >>seen,clock-$(shell stat -c %Y left.gen tail.inc))\n'
+            f'include {sources}\n'
+            'ifeq ($(MAKE_RESTARTS),)\n'
+            'left.gen: left.seed\n'
+            f'\t@python3 worker.py left {action}\n'
+            f'{continuation}'
+            'else\n'
+            'left.gen: ;\n'
+            'endif\n'
+            'tail.inc other.inc: ;\n'
+        )
+        files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR,
+                 'left.gen': b'# already read\n', 'left.seed': b'prerequisite\n',
+                 'tail.inc': b'# named source\n', 'other.inc': b'# ordinary source\n'}
+        times = dict.fromkeys(files, INPUT_TIME)
+        times['left.seed'] += 2_000_000_000
+        before_first = BEFORE_FIRST + clock
+        if expanded_empty:
+            before_first += b'tail-expanded\n'
+        seen = before_first + b'left\n'
+        updates = left_markers.copy()
+        restart = context not in ('failed-stop', 'expanded-empty', 'later-ordinary', 'named-first')
+        if restart:
+            seen += b'read-1\n' + (refreshed_clock if rewrite else clock)
+        if rewrite:
+            updates['left.gen'] = b'LEFT := loaded\n'
+        stdout = b'left\n' if fails else b''
+        if tail and not expanded_empty:
+            stdout += tail + b'\n'
+        if not stopping:
+            stdout += summary
+        stderr = error + (b'' if stopping else report) if fails else b''
+        args = ('-rR', '--no-print-directory', '-n', '-j2', '-S' if stopping else '-k',
+                f'--jobserver-style={transport}')
+        if context != 'no-assumption':
+            args += ('-W', 'left.seed' if context == 'prerequisite-physical' else 'unused')
+        expected = {'exit_code': 2 if stopping else 0, 'stdout_template_hex': stdout.hex(),
+                    'stderr_template_hex': stderr.hex()}
+        model = debug.Model(f'terminal-unrelated-assumption-dry-{context}-{transport}', files,
+                            (*args, 'tail.inc'), {'GNUMAKEFLAGS': ''}, expected, seen,
+                            updates=updates, mtimes_ns=times)
         results.append(HeldModel(model, False, None, before_first=before_first))
     return results
 

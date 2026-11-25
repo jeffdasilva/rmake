@@ -3901,6 +3901,10 @@ impl Engine {
                 };
             let optional_assumed_dry_handoff =
                 assumed_double_colon_dry_run == Some(AssumedDoubleColonDryRemake::OptionalHandoff);
+            let unrelated_assumption_dry_handoff = modes.only_dry_run()
+                && !debug_before_remake.has(Mask::MAKEFILES)
+                && self.job_slots() > 1
+                && self.qualified_unrelated_assumption_dry_handoff(&read_files);
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
                     || (final_named_touch && final_named_touch_debug)
@@ -3915,6 +3919,7 @@ impl Engine {
                                 named_sources.as_ref(),
                             ))))
                     && (assumed_double_colon_dry_run.is_some()
+                        || unrelated_assumption_dry_handoff
                         || self.ordinary_mode_remakes_settle(
                             &read_files,
                             named_sources.as_ref(),
@@ -4845,7 +4850,12 @@ impl Engine {
                     && !remake_question
                     && !debug_before_remake.has(Mask::MAKEFILES)
                 {
-                    self.terminal_named_dry_wait(&read_files, named_sources.as_ref(), &pending)
+                    self.terminal_named_dry_wait(
+                        &read_files,
+                        named_sources.as_ref(),
+                        &pending,
+                        unrelated_assumption_dry_handoff,
+                    )
                 } else {
                     None
                 };
@@ -5894,27 +5904,7 @@ impl Engine {
             && !self.database.rules.contains_key(b".ONESHELL".as_slice())
             && !self.database.rules.contains_key(primary_name)
             && self.database.implicit_candidates(primary_name).is_empty()
-            && self
-                .database
-                .rules
-                .get(predecessor_name)
-                .is_some_and(|rule| {
-                    rule.double_colon.is_none()
-                        && rule.group.is_none()
-                        && rule.secondary.is_none()
-                        && matches!(rule.dependencies.as_slice(), [dep]
-                        if !dep.order_only && self.simple_remake_prerequisite(dep, &[]))
-                        && rule.recipes.as_ref().is_some_and(|recipes| {
-                            (1..=2).contains(&recipes.len())
-                                && recipes.iter().all(|recipe| {
-                                    let (command, _) = crate::oneshell::prefixes(&recipe.bytes);
-                                    !recipe_is_recursive(recipe)
-                                        && !command.contains(&b'$')
-                                        && !command.contains(&b'\n')
-                                        && command.iter().any(|byte| !byte.is_ascii_whitespace())
-                                })
-                        })
-                })
+            && self.simple_dry_remake_worker(predecessor_name, None)
             && self.database.rules.get(tail_name).is_some_and(|rule| {
                 rule.double_colon.is_none()
                     && rule.group.is_none()
@@ -5926,6 +5916,28 @@ impl Engine {
                             .all(|recipe| recipe.bytes.iter().all(u8::is_ascii_whitespace))
                     })
             })
+    }
+
+    fn simple_dry_remake_worker(&self, target: &[u8], assumed: Option<&[u8]>) -> bool {
+        self.database.rules.get(target).is_some_and(|rule| {
+            rule.double_colon.is_none()
+                && rule.group.is_none()
+                && rule.secondary.is_none()
+                && matches!(rule.dependencies.as_slice(), [dep]
+                    if !dep.order_only
+                        && assumed != Some(dep.name.as_slice())
+                        && self.simple_remake_prerequisite(dep, &[]))
+                && rule.recipes.as_ref().is_some_and(|recipes| {
+                    (1..=2).contains(&recipes.len())
+                        && recipes.iter().all(|recipe| {
+                            let (command, _) = crate::oneshell::prefixes(&recipe.bytes);
+                            !recipe_is_recursive(recipe)
+                                && !command.contains(&b'$')
+                                && !command.contains(&b'\n')
+                                && command.iter().any(|byte| !byte.is_ascii_whitespace())
+                        })
+                })
+        })
     }
 
     fn qualified_debug_remake_sources(
@@ -6138,15 +6150,75 @@ impl Engine {
             })
     }
 
+    fn qualified_unrelated_assumption_dry_handoff(&self, read_files: &[(Makefile, bool)]) -> bool {
+        use rmake_core::filenames::{archive_parts, without_dot_prefix};
+
+        let ([assumed], [goal], [(primary, false), (worker, false), (terminal, false)]) = (
+            self.options.new_files.as_slice(),
+            self.options.goals.as_slice(),
+            read_files,
+        ) else {
+            return false;
+        };
+        let assumed = without_dot_prefix(assumed.as_os_str().as_bytes());
+        let primary_name = without_dot_prefix(&primary.name);
+        let worker_name = without_dot_prefix(&worker.name);
+        let terminal_name = without_dot_prefix(&terminal.name);
+        if goal.as_slice() != terminal_name
+            || !self.options.old_files.is_empty()
+            || self.options.always
+            || self.options.check_symlink_times
+            || self.options.load_limit.is_some()
+            || !self.options.include_directories.is_empty()
+            || self.database.has_vpaths()
+            || !self.vpath_dirs.is_empty()
+            || !self.gpath_dirs.is_empty()
+            || !self.no_remake_recipe_fallback()
+            || self.database.rules.contains_key(b".ONESHELL".as_slice())
+            || primary.location.is_some()
+            || worker.location.is_none()
+            || terminal.location.is_none()
+            || [primary, worker, terminal]
+                .iter()
+                .any(|file| file.optional || file.missing)
+            || [assumed, primary_name, worker_name, terminal_name]
+                .iter()
+                .any(|name| {
+                    name.is_empty()
+                        || name.contains(&b'/')
+                        || name.starts_with(b"~")
+                        || name.starts_with(b"-l")
+                        || archive_parts(name).is_some()
+                        || self.database.loaded_modules.contains_key(*name)
+                })
+            || self.database.rules.contains_key(assumed)
+            || self.database.rules.contains_key(primary_name)
+            || [primary_name, worker_name, terminal_name].contains(&assumed)
+            || [primary_name, worker_name, terminal_name]
+                .iter()
+                .any(|name| self.special(b".PHONY", name, false))
+        {
+            return false;
+        }
+        self.database.rules.get(terminal_name).is_some_and(|rule| {
+            rule.double_colon.is_none()
+                && rule.group.is_none()
+                && rule.secondary.is_none()
+                && rule.dependencies.is_empty()
+                && rule.recipes.is_some()
+        }) && self.simple_dry_remake_worker(worker_name, Some(assumed))
+    }
+
     fn terminal_named_dry_wait(
         &self,
         read_files: &[(Makefile, bool)],
         named_sources: Option<&HashSet<&[u8]>>,
         pending: &[PendingMakefileRemake<'_>],
+        unrelated_assumption: bool,
     ) -> Option<RemakeWait> {
         use rmake_core::filenames::without_dot_prefix;
 
-        if self.assumptions.is_some()
+        if (self.assumptions.is_some() && !unrelated_assumption)
             || self.options.load_limit.is_some()
             || self.options.goals.len() != 1
         {
