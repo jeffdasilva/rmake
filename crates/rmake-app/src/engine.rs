@@ -8277,20 +8277,25 @@ impl Engine {
             self.intermediates.insert(to.to_vec());
         }
         self.intermediate_policy.renamed(from, to, merged);
-        let replaces_alias = self.requested_goal_names.is_some() && self.aliases.contains(from);
-        if let Some(goals) = &self.requested_goal_names
-            && !replaces_alias
-        {
-            // An earlier requested alias can already resolve to this source.
+        let rebuild_goal_aliases = if let Some(goals) = &self.requested_goal_names {
+            let previous = self.aliases.resolve(from);
             let destination = self.aliases.resolve(to);
-            if from != destination
-                && (self.requested_goal_aliases.remove(from) || goals.contains(from))
-            {
-                self.requested_goal_aliases.insert(destination.to_vec());
+            if previous == destination {
+                false
+            } else if previous != from {
+                true
+            } else {
+                // An earlier requested alias can already resolve to this source.
+                if self.requested_goal_aliases.remove(from) || goals.contains(from) {
+                    self.requested_goal_aliases.insert(destination.to_vec());
+                }
+                false
             }
-        }
+        } else {
+            false
+        };
         self.aliases.insert(from, to, merged);
-        if replaces_alias {
+        if rebuild_goal_aliases {
             // A redirected alias can leave other requested names at its old
             // destination. Recompute those resolutions for the new map.
             self.requested_goal_aliases = self
