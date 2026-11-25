@@ -1,0 +1,10 @@
+id = "include-serial-multi-source-baseline-removed-recreated-original"
+requirement = "includes.serial-multi-source-restart-baseline"
+candidate = "required"
+description = "A recreation at the original timestamp keeps the loaded source variables."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nremove:0:1680300000\nbranch-0:0:absent\nbranch-1:0:absent\ngoal=0:1680300000:original\n"
+stderr = ""

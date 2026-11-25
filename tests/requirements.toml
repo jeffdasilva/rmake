@@ -3079,10 +3079,21 @@ title = "Compare successful serial declarations at their final physical timestam
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/m3-m6-audit.md"
-candidate_required = 9
-fixture_count = 9
+candidate_required = 20
+fixture_count = 20
 cases = [
   "include-serial-multi-source-baseline-optional-failure",
+  "include-serial-multi-source-baseline-removed-optional-absent",
+  "include-serial-multi-source-baseline-removed-required-absent",
+  "include-serial-multi-source-baseline-removed-required-stopping",
+  "include-serial-multi-source-baseline-removed-optional-three",
+  "include-serial-multi-source-baseline-removed-current-head",
+  "include-serial-multi-source-baseline-removed-current-tail",
+  "include-serial-multi-source-baseline-removed-recreated-then-removed",
+  "include-serial-multi-source-baseline-removed-current-chain",
+  "include-serial-multi-source-baseline-removed-recreated-new",
+  "include-serial-multi-source-baseline-removed-recreated-original",
+  "include-serial-multi-source-baseline-removed-single-declaration",
   "include-serial-multi-source-baseline-required-failure",
   "include-serial-multi-source-baseline-retime-current",
   "include-serial-multi-source-baseline-retime-empty",
@@ -3099,8 +3110,8 @@ title = "Use the read timestamp after a settled failed serial refresh"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/m3-m6-audit.md"
-candidate_required = 11
-fixture_count = 11
+candidate_required = 23
+fixture_count = 23
 cases = [
   "include-serial-failed-source-baseline-blocked-tail-control",
   "include-serial-failed-source-baseline-head-refresh-blocked-tail",
@@ -3109,10 +3120,45 @@ cases = [
   "include-serial-failed-source-baseline-no-keep-control",
   "include-serial-failed-source-baseline-optional-head-control",
   "include-serial-failed-source-baseline-optional-tail",
+  "include-serial-failed-source-baseline-removed-optional-tail",
+  "include-serial-failed-source-baseline-removed-required-tail",
+  "include-serial-failed-source-baseline-removed-current-head",
+  "include-serial-failed-source-baseline-removed-blocked-tail",
+  "include-serial-failed-source-baseline-removed-failed-middle",
+  "include-serial-failed-source-baseline-removed-recreated-then-removed",
+  "include-serial-failed-source-baseline-removed-required-stopping",
+  "include-serial-failed-source-baseline-removed-optional-stopping",
+  "include-serial-failed-source-baseline-removed-required-failed-head",
+  "include-serial-failed-source-baseline-removed-optional-failed-head",
+  "include-serial-failed-source-baseline-removed-recreated-original",
+  "include-serial-failed-source-baseline-removed-recreated-new",
   "include-serial-failed-source-baseline-required-head-backward",
   "include-serial-failed-source-baseline-required-head-restored",
   "include-serial-failed-source-baseline-required-single-forward",
   "include-serial-failed-source-baseline-required-tail-restored",
+]
+
+[[requirements]]
+id = "includes.serial-grouped-double-named-peer-clock"
+title = "Restart a failed dry-run pass from a successful named grouped double-colon peer"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 12
+fixture_count = 12
+cases = [
+  "include-serial-grouped-double-named-peer-optional-after",
+  "include-serial-grouped-double-named-peer-optional-before",
+  "include-serial-grouped-double-named-peer-required-after",
+  "include-serial-grouped-double-named-peer-required-before",
+  "include-serial-grouped-double-named-peer-restore-before-peer",
+  "include-serial-grouped-double-named-peer-physical-no-restore",
+  "include-serial-grouped-double-named-peer-ordinary-owner",
+  "include-serial-grouped-double-named-peer-single-colon",
+  "include-serial-grouped-double-named-peer-no-failure",
+  "include-serial-grouped-double-named-peer-unchanged-sample",
+  "include-serial-grouped-double-named-peer-unnamed-peer",
+  "include-serial-grouped-double-named-peer-required-stopping",
 ]
 
 [[requirements]]

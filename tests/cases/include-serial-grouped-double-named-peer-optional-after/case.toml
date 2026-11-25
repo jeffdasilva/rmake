@@ -1,0 +1,10 @@
+id = "include-serial-grouped-double-named-peer-optional-after"
+requirement = "includes.serial-grouped-double-named-peer-clock"
+candidate = "required"
+description = "A settled named grouped read peer exercises optional after."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "owner.inc", "peer.inc", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0:old:1600000000:Makefile owner.inc peer.inc restore.inc fail.inc\necho execute=owner.inc; printf \"VALUE := new\\n\" > peer.inc; printf \"%s\\n\" \"owner.inc\" >> executed; touch -d @1600000007 peer.inc\nexecute=owner.inc\nrestore\nfailure\nread=1:new:1600000000:Makefile owner.inc peer.inc restore.inc fail.inc\nmake: Nothing to be done for 'owner.inc'.\nmake: Nothing to be done for 'peer.inc'.\necho goal=new:1\n"
+stderr = ""

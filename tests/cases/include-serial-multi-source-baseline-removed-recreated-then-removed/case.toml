@@ -1,0 +1,10 @@
+id = "include-serial-multi-source-baseline-removed-recreated-then-removed"
+requirement = "includes.serial-multi-source-restart-baseline"
+candidate = "required"
+description = "A transient recreation does not replace the final absent observation."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nremove:0:1680300000\nbranch-0:0:absent\nbranch-1:0:1680300000\nread=1 time=absent\ndata=1:\ngoal=1:absent:\n"
+stderr = ""

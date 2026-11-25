@@ -1,0 +1,10 @@
+id = "include-serial-grouped-double-named-peer-ordinary-owner"
+requirement = "includes.serial-grouped-double-named-peer-clock"
+candidate = "required"
+description = "A settled named grouped read peer exercises ordinary owner."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "peer.inc", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0:old:1600000000:Makefile owner.inc peer.inc restore.inc fail.inc\nexecute=owner.inc\nrestore\nfailure\nread=1:new:1600000000:Makefile owner.inc peer.inc restore.inc fail.inc\nmake: Nothing to be done for 'peer.inc'.\necho goal=new:1\n"
+stderr = ""

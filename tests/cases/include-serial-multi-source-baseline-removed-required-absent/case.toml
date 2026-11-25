@@ -1,0 +1,10 @@
+id = "include-serial-multi-source-baseline-removed-required-absent"
+requirement = "includes.serial-multi-source-restart-baseline"
+candidate = "required"
+description = "A required source absent after two successes reports its failed open on the reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 2
+stdout = "read=0 time=1680300000\ndata=0:original\nremove:0:1680300000\nbranch-0:0:absent\nbranch-1:0:absent\nread=1 time=absent\ndata=1:\n"
+stderr = "Makefile:8: b.mk: No such file or directory\nmake: *** No rule to make target 'b.mk'.\nMakefile:8: Failed to remake makefile 'b.mk'.\n"

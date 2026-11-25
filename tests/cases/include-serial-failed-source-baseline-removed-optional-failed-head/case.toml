@@ -1,0 +1,10 @@
+id = "include-serial-failed-source-baseline-removed-optional-failed-head"
+requirement = "includes.serial-failed-source-restart-baseline"
+candidate = "required"
+description = "A failed optional head retains the original read after a successful tail."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nremove:0:1680300000\nbranch-0:0:absent\nbranch-1:0:absent\ngoal=0:absent:original\n"
+stderr = "make: *** No rule to make target 'b.mk'.\n"
