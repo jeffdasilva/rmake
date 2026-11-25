@@ -169,6 +169,7 @@ def models() -> list[Model]:
     result.extend(fast_sync_finalizer_models())
     result.extend(sync_warning_finalizer_models())
     result.extend(mutex_finalizer_models())
+    result.extend(conditional_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -1225,6 +1226,52 @@ def mutex_finalizer_models() -> list[Model]:
               files={'lock': b''}, status=0, message=b'', marks=b'read\ngoal\n'),
         model('recoverable-tag', head + prefix + b'--sync-mutex=broken\n' + goal,
               status=0, message=mutex_notice * 2, marks=b'read\ngoal\n'),
+    ]
+
+
+def conditional_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    opened = b'ifeq (yes,yes)\n$(file >>seen,inside)\n'
+    missing = b"missing 'endif'"
+    extra = b"extraneous 'endif'"
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def model(name, source, location=b'make', *, message=missing, marks=b'read\n',
+              files=None, args=(), env=None, notice=b'', status=2):
+        fatal = location + b': *** ' + message + b'.  Stop.\n' if status else b''
+        stderr = notice + fatal + location + b': finalizer-location\n'
+        return Model(
+            'native-reader-conditional-finalizer-' + name,
+            {'Makefile': source, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\n' + marks + b'scope=[||file|global||]\n',
+            (module,),
+            args=('-rR', '--no-print-directory', *args),
+            environment=env or {},
+        )
+
+    return [
+        model('missing', head + opened + goal, b'Makefile:8', marks=b'read\ninside\n'),
+        model('missing-inactive',
+              head + opened.replace(b'(yes,yes)', b'(yes,no)') + goal, b'Makefile:8'),
+        model('missing-include', head + b'include child.mk\n' + goal, b'child.mk:4',
+              files={'child.mk': b'# first\n' + opened}, marks=b'read\ninside\n'),
+        model('missing-preload', goal, b'preload.mk:6', files={'preload.mk': head + opened},
+              env={'MAKEFILES': 'preload.mk'}, marks=b'read\ninside\n'),
+        model('extra', head + b'endif\n' + goal, b'Makefile:4', message=extra),
+        model('extra-include', head + b'include child.mk\n' + goal,
+              b'grandchild.mk:2', message=extra,
+              files={'child.mk': b'include grandchild.mk\n',
+                     'grandchild.mk': b'# first\nendif\n'}),
+        model('extra-tail', head + b'endif stray\n' + goal, b'Makefile:4',
+              message=extra, notice=b"Makefile:4: extraneous text after 'endif' directive\n"),
+        model('anonymous-missing', goal, args=('--eval', (head + opened).decode('ascii')),
+              marks=b'read\ninside\n'),
+        model('anonymous-extra', goal, args=('--eval', (head + b'endif\n').decode('ascii')),
+              message=extra),
+        model('balanced', head + opened + b'endif\n' + goal,
+              status=0, marks=b'read\ninside\ngoal\n'),
     ]
 
 
