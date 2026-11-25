@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
-"""Control one borrowed lease and observe bytes at independently held stages."""
+"""Observe borrowed lease bytes at independently held stages."""
 import array
 import fcntl
 import os
@@ -12,8 +12,9 @@ import time
 
 mode = sys.argv[1]
 seed = bytes.fromhex(sys.argv[2])
-if len(seed) != 1:
-    raise SystemExit('fixture requires exactly one original byte')
+two_workers = mode in ('held-dispatch-two-paid-first', 'held-dispatch-two-implicit-first')
+if len(seed) != (2 if two_workers else 1):
+    raise SystemExit('fixture seed does not match its worker count')
 reader, writer = os.pipe()
 stderr_reader, stderr_writer = os.pipe()
 if (reader, writer) != (3, 4):
@@ -27,7 +28,8 @@ if child == 0:
     for fd in (reader, writer):
         os.set_inheritable(fd, True)
     os.environ['MAKEFLAGS'] = ' -j --jobserver-auth=3,4'
-    resource.setrlimit(resource.RLIMIT_NOFILE, (8, 8))
+    if not two_workers:
+        resource.setrlimit(resource.RLIMIT_NOFILE, (8, 8))
     os.execv(sys.argv[3], sys.argv[3:])
 os.close(stderr_writer)
 os.set_blocking(stderr_reader, False)
@@ -80,6 +82,17 @@ while time.monotonic() < deadline:
                 and b'make: *** [Makefile:6: b] Error 127\n' in errors):
             events.append('one-byte-after-dispatch-before-a-release')
             Path('a.release').touch(exist_ok=False)
+    elif two_workers:
+        first, second = ('a', 'b') if mode.endswith('implicit-first') else ('b', 'a')
+        if (not events and Path('a.ready').exists() and Path('b.ready').exists()
+                and available() == 1 and b'make: *** [Makefile:5: fail] Error 127\n' in errors):
+            assert not Path('a.done').exists() and not Path('b.done').exists()
+            events.append(f'bytes-before-{first}-release=1')
+            Path(f'{first}.release').touch(exist_ok=False)
+        if len(events) == 1 and Path(f'{first}.done').exists() and available() == 2:
+            assert not Path(f'{second}.done').exists()
+            events.append(f'bytes-before-{second}-release=2')
+            Path(f'{second}.release').touch(exist_ok=False)
     elif mode in ('body-abort', 'config-abort', 'continuation-abort'):
         if mode == 'continuation-abort' and not events and Path('b.held').exists():
             events.append(f'bytes-before-b-release={available()}')

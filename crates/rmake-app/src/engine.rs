@@ -14908,7 +14908,7 @@ impl Engine {
             self.retain_database_context(target, branch, variables);
             // An ordinary parallel executable lookup failure still occupies its
             // recipe's graph frame until the next dispatch or goal sweep.
-            // This first attempt can coexist with one ordinary real worker.
+            // This first attempt can coexist with registered ordinary workers.
             let failed_dispatch = parallel
                 && !self.remaking
                 && remake.is_none()
@@ -14924,12 +14924,10 @@ impl Engine {
                             | io::ErrorKind::NotADirectory
                     )
                 })
-                && (self.parallel_jobs.is_empty()
-                    || (self.parallel_jobs.len() == 1
-                        && self
-                            .parallel_jobs
-                            .values()
-                            .any(|job| job.child.is_some() && job.continuation.remake.is_none())));
+                && self
+                    .parallel_jobs
+                    .values()
+                    .all(|job| job.child.is_some() && job.continuation.remake.is_none());
             if failed_dispatch && let Err(error) = &process {
                 self.stderr(&[program.as_slice(), b": ", os_error(error).as_bytes()].concat());
             }

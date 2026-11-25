@@ -356,6 +356,50 @@
       },
       "observer": "one-byte-after-dispatch-before-a-release\nfinal-count=1\nreturned=2b\n",
       "seed": "58"
+    },
+    {
+      "id": "failed-dispatch-during-two-held-workers-paid-first",
+      "mode": "held-dispatch-two-paid-first",
+      "args": [],
+      "makefile": ".SECONDEXPANSION:\nall: a b fail after\na: ; @: > a.ready; while test ! -e a.release; do sleep 0.02; done; printf 'a:done\\n'; : > a.done\nb: ; @: > b.ready; while test ! -e b.release; do sleep 0.02; done; printf 'b:done\\n'; : > b.done\nfail: ; @./missing-program\nafter: $$(file >after-seen,yes)\n",
+      "stdout": "b:done\na:done\n",
+      "stderr": "make: ./missing-program: No such file or directory\nmake: *** [Makefile:5: fail] Error 127\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release",
+        "a.done",
+        "b.ready",
+        "b.release",
+        "b.done"
+      ],
+      "other_files": {
+        "after-seen": "yes\n"
+      },
+      "observer": "bytes-before-b-release=1\nbytes-before-a-release=2\nfinal-count=2\nreturned=2b2b\n",
+      "seed": "585a"
+    },
+    {
+      "id": "failed-dispatch-during-two-held-workers-implicit-first",
+      "mode": "held-dispatch-two-implicit-first",
+      "args": [],
+      "makefile": ".SECONDEXPANSION:\nall: a b fail after\na: ; @: > a.ready; while test ! -e a.release; do sleep 0.02; done; printf 'a:done\\n'; : > a.done\nb: ; @: > b.ready; while test ! -e b.release; do sleep 0.02; done; printf 'b:done\\n'; : > b.done\nfail: ; @./missing-program\nafter: $$(file >after-seen,yes)\n",
+      "stdout": "a:done\nb:done\n",
+      "stderr": "make: ./missing-program: No such file or directory\nmake: *** [Makefile:5: fail] Error 127\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release",
+        "a.done",
+        "b.ready",
+        "b.release",
+        "b.done"
+      ],
+      "other_files": {
+        "after-seen": "yes\n"
+      },
+      "observer": "bytes-before-a-release=1\nbytes-before-b-release=2\nfinal-count=2\nreturned=2b2b\n",
+      "seed": "585a"
     }
   ]
 }
