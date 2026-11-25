@@ -13081,7 +13081,7 @@ impl Engine {
                     && self.remaking
                     && !self.parallel_makefile_remakes
                     && !execution.pending
-                    && !grouped
+                    && rule.grouped_targets().is_none()
                     && execution.status == Status::Success
                     && outcome.completion == CompletionTime::AssumeNew
                     && branch.is_some_and(|ordinal| {
