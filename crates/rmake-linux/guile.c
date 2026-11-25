@@ -213,6 +213,9 @@ static SCM default_scalar_converter;
 static SCM render_number_or_symbol;
 static SCM render_character;
 static SCM check_printable_string;
+static SCM conversion_is_pair;
+static SCM conversion_car;
+static SCM conversion_cdr;
 static SCM finish_conversion;
 static SCM lookup_scalar_error;
 static atomic_int guile_entered;
@@ -250,7 +253,7 @@ static SCM convert_scalar(SCM value) {
     return scm_call_1(converter, value);
 }
 static SCM object_text(SCM value) {
-    if (!scm_is_pair(value)) {
+    if (scm_is_false(scm_call_1(conversion_is_pair, value))) {
         SCM text = convert_scalar(value);
         SCM parts = scm_is_false(text) ? SCM_EOL : scm_list_1(text);
         return scm_call_1(finish_conversion, parts);
@@ -258,7 +261,10 @@ static SCM object_text(SCM value) {
     const SCM visit = SCM_BOOL_F;
     const SCM follow_tail = SCM_UNSPECIFIED;
     const SCM leave_pair = SCM_BOOL_T;
-    SCM work=scm_list_1(scm_cons(visit,value));
+    const SCM first_pair = SCM_EOL;
+    // The first frame retains the root predicate result. Each public datum
+    // sees exactly one predicate call, including a nonpair or empty tail.
+    SCM work=scm_list_1(scm_cons(first_pair,value));
     SCM active_pairs=scm_make_hash_table(scm_from_int(31));
     SCM parts=SCM_EOL;
     unsigned int ticks=0;
@@ -272,7 +278,7 @@ static SCM object_text(SCM value) {
             // The Scheme converter can mutate this pair while visiting its car.
             // Read the live cdr now and reuse this frame for leaving the pair.
             scm_set_car_x(item, leave_pair);
-            work = scm_cons(scm_cons(visit, scm_cdr(current)), frame);
+            work = scm_cons(scm_cons(visit, scm_call_1(conversion_cdr, current)), frame);
             continue;
         }
         if ((ticks++ & 63) == 0)
@@ -281,12 +287,13 @@ static SCM object_text(SCM value) {
             scm_hashq_remove_x(active_pairs, current);
             continue;
         }
-        if(scm_is_pair(current)) {
+        if(scm_is_eq(phase,first_pair)
+           || scm_is_true(scm_call_1(conversion_is_pair,current))) {
             if(scm_is_true(scm_hashq_ref(active_pairs,current,SCM_BOOL_F)))
                 scm_misc_error("guile","circular value conversion",SCM_EOL);
             scm_hashq_set_x(active_pairs,current,SCM_BOOL_T);
             work = scm_cons(scm_cons(follow_tail, current), work);
-            work = scm_cons(scm_cons(visit, scm_car(current)), work);
+            work = scm_cons(scm_cons(visit, scm_call_1(conversion_car, current)), work);
         }else {
             SCM text=convert_scalar(current);
             if (scm_is_true(text))
@@ -327,6 +334,9 @@ static void define_module(void *unused) {
         "(lambda (value) (string value))");
     check_printable_string = scm_c_eval_string(
         "(lambda (value) (string-every char-set:printing value))");
+    conversion_is_pair = scm_c_eval_string("(lambda (value) (pair? value))");
+    conversion_car = scm_c_eval_string("(lambda (value) (car value))");
+    conversion_cdr = scm_c_eval_string("(lambda (value) (cdr value))");
     // Guile resolves the lexical references when the closure first uses
     // them. Keep that resolution and select join before reverse can run.
     // Resolve error on the first failed scalar conversion. Guile retains
