@@ -104,6 +104,11 @@ finishes. The reread decision uses the settled result after the other remake
 workers drain. The held remake models cover pipe and FIFO jobservers and writes
 on either side of the order-only prerequisite's completion.
 
+A required named double-colon source under `-k -n -W` can overlap ordinary
+remake workers when its single synthetic entry selects an empty implicit
+recipe. The held checks cover current and simulated entries, physical
+sibling changes, and a required worker failure.
+
 ## Qualification and limits
 
 631 independently modeled required cases cover 405 ordinary graph/mode cells,

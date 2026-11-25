@@ -95,6 +95,34 @@ impl NameOrder {
     pub(crate) fn names(&self) -> impl Iterator<Item = &[u8]> {
         self.layout().names()
     }
+    pub(crate) fn recorded_len(&self) -> Option<usize> {
+        self.record.then_some(self.changes.len())
+    }
+
+    pub(crate) fn merge_at_first_insert(
+        &self,
+        locals: &Self,
+        position: usize,
+        name: &[u8],
+    ) -> Option<Self> {
+        if !self.record || !locals.record || position >= self.changes.len() {
+            return None;
+        }
+        let local_position = locals
+            .changes
+            .iter()
+            .position(|(entry, insert)| *insert && entry.as_ref() == name)?;
+        let mut order = Self::deferred(self.initial, self.record);
+        order.changes = self.changes[..position]
+            .iter()
+            .chain(&locals.changes[..=local_position])
+            .chain(&self.changes[position..])
+            .chain(&locals.changes[local_position + 1..])
+            .cloned()
+            .collect();
+        Some(order)
+    }
+
     pub(crate) fn replay_into(&self, destination: &mut Self) {
         if self.record {
             for (name, insert) in &self.changes {

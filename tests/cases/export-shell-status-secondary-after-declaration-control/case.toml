@@ -1,0 +1,12 @@
+id = "export-shell-status-secondary-after-declaration-control"
+requirement = "variables.export-bindings"
+candidate = "required"
+description = "Observe the child's environment ordering after an ordinary file-local shell completion."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "ANCHOR_3190|named\n.SHELLSTATUS|7\n"
+stderr = ""

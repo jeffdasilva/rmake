@@ -24,6 +24,9 @@ forwarded after `unexport` or `undefine`. An active recursive export falls back
 to the process value, or an empty value when absent. Evaluation and its effects
 remain ordered; cached recipe environments retain their selected vector across
 residual commands and `.ONESHELL` boundaries.
+An ordinary file's first `.SHELLSTATUS` insertion can precede target-specific
+declarations made by a later expansion. The child environment preserves that
+position when it assembles the file's logical variable table.
 
 `.EXPORT_ALL_VARIABLES` activates when dependencies are frozen after reading,
 including activation through `.PHONY`; merely naming it as a prerequisite does
