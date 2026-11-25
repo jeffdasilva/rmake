@@ -3958,6 +3958,7 @@ impl Engine {
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
             let mut settled_failed_source_changes = HashSet::new();
+            let mut settled_named_peer_times = Vec::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
             let mut visited = MakefileVisits::new();
             let mut optional_remake_failed = false;
@@ -4610,6 +4611,24 @@ impl Engine {
                             && self.options.touch
                             && !result.question_outdated
                             && MakefileModes::from_options(&self.options).check_update(result));
+                    // A real group recipe can complete a named peer even
+                    // while its own dry-run or query suppresses this restart.
+                    if !parallel_remakes
+                        && (visit_modes.dry_run || visit_modes.question)
+                        && !visit_modes.touch
+                        && self.assumptions.is_none()
+                        && observed_peer_change.is_some_and(|time| result.time != Some(time))
+                        && result.remake_group_peer_updated
+                        && result.ran
+                        && !result.question_outdated
+                        && self.database.rules.get(name).is_some_and(|rule| {
+                            rule.double_colon.is_none()
+                                && rule.grouped_targets().is_some()
+                                && rule.implicit_pattern.is_none()
+                        })
+                    {
+                        settled_named_peer_times.push((name, result.time));
+                    }
                     // Question mode suppresses the restart verdict, but a
                     // physical optional touch can still end this visit pass.
                     let check_optional_touch = optional
@@ -5010,13 +5029,28 @@ impl Engine {
             // simulated or touched source in the same settled pass.
             let required_remake_failed =
                 failed && !skipped_required_read && self.options.keep_going;
+            let use_failed_source_clocks =
+                !remake_question && ((optional_remake_failed && !failed) || required_remake_failed);
+            if !changed && use_failed_source_clocks {
+                // The failed pass also compares successful source records.
+                // Preserve the group's sample through later physical writes.
+                changed = settled_named_peer_times.iter().any(|&(name, time)| {
+                    self.aliases.resolve(name) == name
+                        && self.file_traversals.outcome(name).is_some_and(|outcome| {
+                            outcome.remake_group_peer_updated
+                                && !outcome.failed
+                                && !outcome.fatal
+                                && !outcome.question_outdated
+                                && outcome.time == time
+                        })
+                });
+            }
             if !changed
                 && !parallel_remakes
                 && restarts == 0
                 && self.assumptions.is_some()
                 && (modes.dry_run || modes.question)
-                && ((optional_remake_failed && !failed) || required_remake_failed)
-                && !remake_question
+                && use_failed_source_clocks
             {
                 let completion = if modes.touch {
                     if modes.dry_run {
@@ -5035,6 +5069,33 @@ impl Engine {
                     named_sources.as_ref(),
                     completion,
                     !required_remake_failed,
+                );
+            }
+            if !changed
+                && required_remake_failed
+                && !remake_question
+                && modes.dry_run
+                && !modes.question
+                && !modes.touch
+                && self.assumptions.is_none()
+                && read_files.iter().any(|(source, skip)| {
+                    !*skip
+                        && !source.optional
+                        && !source.missing
+                        && source.location.is_some()
+                        && failed_remakes.contains_key(source.name.as_slice())
+                        && self
+                            .file_traversals
+                            .outcome(self.aliases.resolve(&source.name))
+                            .is_some_and(|outcome| {
+                                outcome.failed && !outcome.remake_failure.is_optional()
+                            })
+                })
+            {
+                changed = self.settled_named_dry_remake_has_new_clock(
+                    &read_files,
+                    &visited,
+                    named_sources.as_ref(),
                 );
             }
             // A skipped required read suppresses an otherwise successful
@@ -11615,12 +11676,15 @@ impl Engine {
         named_sources: Option<&HashSet<&[u8]>>,
     ) -> bool {
         // A source can settle on the second visit after its order-only
-        // prerequisites finish. Its completion and synthetic entry retain that
-        // clock while other workers drain.
+        // prerequisites finish. The synthetic entry retains the visit clock
+        // even when settling the root refreshes its physical time.
         read_files.iter().any(|(source, skip)| {
             let name = source.name.as_slice();
             let target = self.aliases.resolve(name);
             let Some(before) = visited.get(name).and_then(|(before, _)| *before) else {
+                return false;
+            };
+            let Some((assumed_time, 1)) = self.assumed_new_double_colon_entries(target) else {
                 return false;
             };
             !*skip
@@ -11629,9 +11693,6 @@ impl Engine {
                     rmake_core::filenames::without_dot_prefix(name),
                     named_sources,
                 )
-                && self
-                    .assumed_new_double_colon_entries(target)
-                    .is_some_and(|(_, count)| count == 1)
                 && self.file_traversals.outcome(target).is_some_and(|outcome| {
                     outcome.terminal_verdict().is_none()
                         && !outcome.fatal
@@ -11639,9 +11700,54 @@ impl Engine {
                             outcome.completion,
                             CompletionTime::Unchanged | CompletionTime::Preserve
                         )
-                        && outcome.time == Some(before)
+                        && outcome.time.is_some_and(|time| time != assumed_time)
                 })
                 && self.settled_assumed_new_makefile_clock(target, false, Some(before))
+        })
+    }
+
+    fn settled_named_dry_remake_has_new_clock(
+        &self,
+        read_files: &[(Makefile, bool)],
+        visited: &MakefileVisits<'_>,
+        named_sources: Option<&HashSet<&[u8]>>,
+    ) -> bool {
+        // A failed remake pass compares the logical clock of each successful
+        // read source, including a named source that completed in dry-run.
+        read_files.iter().any(|(source, skip)| {
+            let name = source.name.as_slice();
+            let target = self.aliases.resolve(name);
+            let Some(before) = visited.get(name).and_then(|(before, _)| *before) else {
+                return false;
+            };
+            !*skip
+                && !source.optional
+                && !source.missing
+                && source.location.is_some()
+                && self.is_makefile_goal(
+                    rmake_core::filenames::without_dot_prefix(name),
+                    named_sources,
+                )
+                && self.file_traversals.outcome(target).is_some_and(|outcome| {
+                    outcome.terminal_verdict().is_none()
+                        && !outcome.fatal
+                        && outcome.time == Some(before)
+                        && outcome.completion == CompletionTime::AssumeNew
+                        && outcome.database_result == DatabaseResult::Simulated
+                })
+                && self.database.rules.get(target).is_some_and(|rule| {
+                    let rule = match rule.double_colon.as_deref() {
+                        None => rule,
+                        Some([branch]) => branch,
+                        Some(_) => return false,
+                    };
+                    rule.group.is_none()
+                        && rule.implicit_pattern.is_none()
+                        && !rule.default_recipe
+                        && rule.recipes.as_ref().is_some_and(|recipes| {
+                            recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
+                        })
+                })
         })
     }
 

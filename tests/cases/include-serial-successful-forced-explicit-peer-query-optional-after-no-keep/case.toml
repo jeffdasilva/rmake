@@ -1,0 +1,12 @@
+id = "include-serial-successful-forced-explicit-peer-query-optional-after-no-keep"
+requirement = "includes.remake"
+candidate = "required"
+description = "A later optional failure exposes the successful forced query peer sample without keep-going."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-q", "payload.owner", "payload.mk", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "READ:0:old:old:Makefile payload.owner payload.mk tail.inc other.inc\nEXEC:payload.owner\nTAIL\nOTHER\nREAD:1:written:old:Makefile payload.owner payload.mk tail.inc other.inc\n"
+stderr = ""

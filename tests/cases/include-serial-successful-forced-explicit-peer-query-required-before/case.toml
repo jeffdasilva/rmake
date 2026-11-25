@@ -1,0 +1,12 @@
+id = "include-serial-successful-forced-explicit-peer-query-required-before"
+requirement = "includes.remake"
+candidate = "required"
+description = "An earlier required failure under keep-going exposes the successful physical query peer sample."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "payload.owner", "payload.mk", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "READ:0:old:old:Makefile other.inc payload.owner payload.mk tail.inc\nOTHER\nEXEC:payload.owner\nTAIL\nREAD:1:written:old:Makefile other.inc payload.owner payload.mk tail.inc\n"
+stderr = "make: *** [Makefile:18: other.inc] Error 1\nMakefile:7: Failed to remake makefile 'other.inc'.\n"

@@ -1,0 +1,12 @@
+id = "include-serial-successful-forced-explicit-peer-dry-optional-before"
+requirement = "includes.remake"
+candidate = "required"
+description = "An earlier optional recipe failure exposes a successful physical dry-run peer sample."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "payload.owner", "payload.mk", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:old:Makefile other.inc payload.owner payload.mk tail.inc\nOTHER\necho EXEC:\"payload.owner\"; echo \"payload.owner\" >> executed; printf \"VALUE := written\\n\" > payload.mk; touch -d @1600000007 payload.mk\nEXEC:payload.owner\nTAIL\nREAD:1:written:old:Makefile other.inc payload.owner payload.mk tail.inc\nmake: Nothing to be done for 'payload.owner'.\nmake: Nothing to be done for 'payload.mk'.\necho ALL:written:old:1\n"
+stderr = ""
