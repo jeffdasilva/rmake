@@ -161,8 +161,19 @@ class DebugOutputTests(unittest.TestCase):
 
             def execute(case, root, binary, *, observe):
                 left = b'LEFT-t.a\nLEFT-t.b\n'
-                (work / 'owner.started').write_bytes(b'started\n')
+                (work / 'owner.started').write_bytes(b'')
                 observe(123, left)
+                self.assertFalse((work / 'owner.release').exists())
+                (work / 'peer.started').write_bytes(b'started\n')
+                observe(123, left)
+                self.assertFalse((work / 'owner.release').exists())
+                (work / 'owner.started').write_bytes(b'started\n')
+                (work / 'peer.started').write_bytes(b'star')
+                observe(123, left)
+                self.assertFalse((work / 'owner.release').exists())
+                (work / 'peer.started').write_bytes(b'unexpected\n')
+                with self.assertRaisesRegex(d.h.HarnessError, 'worker was not held'):
+                    observe(123, left)
                 self.assertFalse((work / 'owner.release').exists())
                 (work / 'peer.started').write_bytes(b'started\n')
                 observe(123, left)
