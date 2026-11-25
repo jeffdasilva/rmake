@@ -164,6 +164,7 @@ def models() -> list[Model]:
     result.extend(retained_double_branch_models())
     result.extend(finalizer_shell_models())
     result.extend(fatal_scope_models())
+    result.extend(reader_syntax_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -900,6 +901,48 @@ def fatal_scope_models() -> list[Model]:
               b'make: *** [Makefile:6: all] Error 13\nmake' + finalizer, global_scope),
         model('success', header + recipe + b'$(foreach .LOADED,local,$(file >>seen,body)):' + tail,
               b'make' + finalizer, b'body\n' + global_scope, status=0),
+    ]
+
+
+def reader_syntax_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,before)\n'
+    goal = b'.PHONY: all\nall:;@:\n'
+    invalid = b'not a rule\n'
+    separator = b'missing separator'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def model(name, text, location, *, args=(), env=None, files=None, message=separator):
+        stderr = (location + b': *** ' + message + b'.  Stop.\n'
+                  + location + b': finalizer-location\n')
+        return Model(
+            'native-reader-syntax-finalizer-' + name,
+            {'Makefile': text, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': 2, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\nbefore\nscope=[||file|global||]\n',
+            (module,),
+            args=('-rR', '--no-print-directory', *args),
+            environment=env or {},
+        )
+
+    return [
+        model('default', head + invalid + goal, b'Makefile:4'),
+        model('explicit-file', goal, b'explicit.mk:4',
+              args=('-f', 'explicit.mk'), files={'explicit.mk': head + invalid + goal}),
+        model('include', head + b'include child.mk\n' + goal, b'child.mk:2',
+              files={'child.mk': b'# first\n' + invalid}),
+        model('nested-include', head + b'include child.mk\n' + goal, b'grandchild.mk:3',
+              files={'child.mk': b'include grandchild.mk\n',
+                     'grandchild.mk': b'# first\n# second\n' + invalid}),
+        model('optional-include', head + b'-include child.mk\n' + goal, b'child.mk:2',
+              files={'child.mk': b'# first\n' + invalid}),
+        model('preload', goal, b'preload.mk:4', env={'MAKEFILES': 'preload.mk'},
+              files={'preload.mk': head + invalid}),
+        model('tabs-hint', head + b'        echo misplaced\n' + goal, b'Makefile:4',
+              message=separator + b' (did you mean TAB instead of 8 spaces?)'),
+        model('conditional-hint', head + b'ifeq(no space)\n' + goal, b'Makefile:4',
+              message=separator + b' (ifeq/ifneq must be followed by whitespace)'),
+        model('logical-line', head + b'not\\\n  a rule\n' + goal, b'Makefile:4'),
+        model('anonymous-eval', goal, b'make', args=('--eval', (head + invalid).decode('ascii'))),
     ]
 
 

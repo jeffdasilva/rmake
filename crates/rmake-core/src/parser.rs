@@ -553,15 +553,15 @@ pub struct Makefile {
     pub read_error: Option<IncludeError>,
 }
 
-#[derive(Clone)]
-pub(crate) struct NativeUserErrorContext {
+#[derive(Clone, Default)]
+pub(crate) struct NativeFatalContext {
     pub location: Option<Location>,
     pub scope: Option<VariableStore>,
     pub bindings: Vec<crate::variables::LocalFrame>,
     pub active: Option<std::sync::Arc<crate::variables::ActiveContext>>,
 }
 
-impl NativeUserErrorContext {
+impl NativeFatalContext {
     fn swap_evaluation(&mut self, database: &mut Database) {
         std::mem::swap(&mut self.scope, &mut database.evaluation_scope);
         std::mem::swap(&mut self.bindings, &mut database.evaluation_bindings);
@@ -612,7 +612,7 @@ pub struct Database {
     wait_warnings: u8,
     pub(crate) evaluation_bindings: Vec<crate::variables::LocalFrame>,
     pub(crate) evaluation_active: Option<std::sync::Arc<crate::variables::ActiveContext>>,
-    pub(crate) native_user_error: Option<Box<NativeUserErrorContext>>,
+    pub(crate) native_fatal_context: Option<Box<NativeFatalContext>>,
     // Active only while parsing a potentially recursive HOME filename. Owned
     // bytes preserve shared-name overwrites without aliased or dangling pointers.
     filename_scratch: Option<Vec<u8>>,
@@ -4212,7 +4212,7 @@ impl Database {
         let runtime = context
             .native_runtime()
             .ok_or_else(|| ExpandError::Unsupported(b"native process termination".to_vec()))?;
-        let mut retained = self.native_user_error.take();
+        let mut retained = self.native_fatal_context.take();
         if let Some(retained) = &mut retained {
             retained.swap_evaluation(self);
         }
@@ -4230,7 +4230,7 @@ impl Database {
             // A failed finalizer may return before the engine retries exit.
             retained.swap_evaluation(self);
         }
-        self.native_user_error = retained;
+        self.native_fatal_context = retained;
         result
     }
 
@@ -5328,6 +5328,18 @@ impl Database {
                 } else {
                     Message::MissingSeparator { tabs: false }
                 };
+                // A physical reader frame still owns this source when GNU
+                // stops. Preserve it for finalizer diagnostics after the
+                // parser returns, including when the frame is an include.
+                if self.evaluation_depth == 0
+                    && self.native_fatal_context.is_none()
+                    && context.needs_fatal_expansion_context()
+                {
+                    self.native_fatal_context = Some(Box::new(NativeFatalContext {
+                        location: Some(location.clone()),
+                        ..NativeFatalContext::default()
+                    }));
+                }
                 return Err(ParseError::system(location, message, context));
             };
             declaration.location = Some(location.clone());

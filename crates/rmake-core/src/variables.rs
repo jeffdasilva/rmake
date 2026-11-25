@@ -4462,8 +4462,8 @@ impl Expansion<'_, '_> {
             } => (database, Some((**variables).clone())),
             _ => return,
         };
-        if database.native_user_error.is_none() {
-            database.native_user_error = Some(Box::new(crate::parser::NativeUserErrorContext {
+        if database.native_fatal_context.is_none() {
+            database.native_fatal_context = Some(Box::new(crate::parser::NativeFatalContext {
                 location: self.context.location.cloned(),
                 scope,
                 bindings: self.bindings.clone(),

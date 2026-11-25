@@ -135,6 +135,9 @@ state even when the finalizer reopens descriptor 1. Captures in an earlier
 For a direct `$(error ...)`, finalizers can read the active source location,
 target variables, and lexical bindings from the failing expansion. Ordinary
 child failure and successful completion use the normal exit context.
+After a missing separator in a physical reader frame, a finalizer's diagnostic
+uses that frame's file and line, including for a nested include or `MAKEFILES`
+preload.
 [Startup exit owners](native-startup-exits.md) retain the actual decoder,
 constructor or restart state for the covered exit phases.
 
