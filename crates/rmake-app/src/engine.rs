@@ -367,6 +367,7 @@ enum RemakeFailure {
     DirectExplicitGroupOwner,
     RequiredSyntheticInput,
     RequiredSyntheticRecipe,
+    RequiredDeclaredTailRecipe,
     Optional,
     RequiredClockUnchanged,
     RequiredClockChanged,
@@ -526,6 +527,7 @@ struct MakefileRemake {
     optional: bool,
     retain_failure: bool,
     use_declared_synthetic_head: bool,
+    use_declared_tail_head: bool,
     stopped: Option<Rc<Cell<bool>>>,
     open_error: Option<SharedIncludeError>,
 }
@@ -4131,9 +4133,12 @@ impl Engine {
                                   source: &Makefile,
                                   mut outcome: Outcome,
                                   initial_visit: bool| {
-                // Keep the synthetic failure for ordinary prerequisite visits.
-                // The remake pass uses the successful declared source.
+                // Keep each branch failure for ordinary prerequisite visits.
+                // The remake pass uses the original successful source head.
                 if matches!(
+                    outcome.remake_failure,
+                    RemakeFailure::RequiredDeclaredTailRecipe
+                ) || (matches!(
                     outcome.remake_failure,
                     RemakeFailure::RequiredSyntheticInput | RemakeFailure::RequiredSyntheticRecipe
                 ) && (uses_declared_synthetic_head(engine, source)
@@ -4160,7 +4165,7 @@ impl Engine {
                                 }
                                 _ => false,
                             }
-                    }))
+                    })))
                 {
                     outcome.failed = false;
                     outcome.first_branch_verdict = None;
@@ -4275,6 +4280,7 @@ impl Engine {
                             use_declared_synthetic_head: uses_declared_synthetic_head(
                                 self, makefile,
                             ),
+                            use_declared_tail_head: false,
                             stopped: None,
                             // The diagnostic uses the first read's saved error,
                             // selected by the current occurrence's policy.
@@ -4562,6 +4568,10 @@ impl Engine {
                     optional,
                     retain_failure: optional,
                     use_declared_synthetic_head: uses_declared_synthetic_head(self, makefile),
+                    use_declared_tail_head: self.parallel_makefile_remakes
+                        && !modes.active()
+                        && !optional
+                        && !makefile.missing,
                     stopped: (optional && self.parallel_makefile_remakes)
                         .then(|| Rc::new(Cell::new(false))),
                     open_error: if optional {
@@ -8974,15 +8984,20 @@ impl Engine {
             outcome.completion = CompletionTime::ArchiveUnknown;
         }
         let optional_failure = self.optional_remake() && !outcome.fatal;
-        let failed_synthetic_recipe = launched
+        let failed_source_recipe = launched
             && command_failed
             && error_code.is_some()
             && !job.recursive
             && !pending
             && !outcome.fatal
-            && !outcome.blocked
-            && self.required_synthetic_recipe(target.as_slice(), recipe_branch);
-        if failed_synthetic_recipe {
+            && !outcome.blocked;
+        if failed_source_recipe
+            && self.required_declared_tail_recipe(target.as_slice(), recipe_branch)
+        {
+            outcome.remake_failure = RemakeFailure::RequiredDeclaredTailRecipe;
+        } else if failed_source_recipe
+            && self.required_synthetic_recipe(target.as_slice(), recipe_branch)
+        {
             // The child error is reported and cached. The source pass uses the
             // declared result, so this child does not fail unrelated goals.
             outcome.remake_failure = RemakeFailure::RequiredSyntheticRecipe;
@@ -13317,6 +13332,41 @@ impl Engine {
         false
     }
 
+    fn required_declared_tail_recipe(&self, target: &[u8], ordinal: Option<usize>) -> bool {
+        let Some(ordinal) = ordinal.filter(|&ordinal| ordinal != 0) else {
+            return false;
+        };
+        self.options.keep_going
+            && !MakefileModes::from_options(&self.options).active()
+            && !self.running_groups.contains_key(target)
+            && self.pending_double_colon.get(target).is_some_and(|state| {
+                state.depth == 0
+                    && state.active == Some(ordinal)
+                    && state.before.is_some()
+                    && !state.phony
+                    && state.branches.is_empty()
+                    && state
+                        .remake
+                        .as_ref()
+                        .is_some_and(|context| context.use_declared_tail_head)
+                    && state.combined.time == state.before
+                    && !state.combined.ran
+                    && !state.combined.fatal
+                    && state.combined.terminal_verdict().is_none()
+            })
+            && self.database.rules.get(target).is_some_and(|rule| {
+                rule.double_colon.as_ref().is_some_and(|branches| {
+                    branches.len() == ordinal + 1
+                        && branches.iter().all(|branch| {
+                            branch.grouped_targets().is_none()
+                                && branch.implicit_pattern.is_none()
+                                && !branch.default_recipe
+                                && branch.recipes.is_some()
+                        })
+                })
+            })
+    }
+
     fn required_synthetic_recipe(&self, target: &[u8], ordinal: Option<usize>) -> bool {
         let Some(ordinal) = ordinal else {
             return false;
@@ -13846,6 +13896,7 @@ impl Engine {
                 if matches!(
                     result.remake_failure,
                     RemakeFailure::RequiredSyntheticRecipe
+                        | RemakeFailure::RequiredDeclaredTailRecipe
                 ) {
                     state.combined.remake_failure = result.remake_failure;
                 }
@@ -17915,6 +17966,7 @@ mod tests {
             optional: true,
             retain_failure: true,
             use_declared_synthetic_head: false,
+            use_declared_tail_head: false,
             stopped: None,
             open_error: None,
         });
