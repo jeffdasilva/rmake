@@ -1,0 +1,12 @@
+id = "include-serial-implicit-source-include-search"
+requirement = "includes.remake"
+candidate = "required"
+description = "A searched include uses its own pre-remake clock with an implicit GPATH input."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-I", "inc", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile worker.inc inc/payload.mk\nWORKER\nREMAKE:inc/payload.mk:inputs/trigger\nREAD:1:new:Makefile worker.inc inc/payload.mk\nALL:new:1\nVALUE := new\n"
+stderr = ""

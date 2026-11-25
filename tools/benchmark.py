@@ -232,6 +232,8 @@ def selected_workloads(suite):
         yield from binding_workloads()
     if suite in ("implicit-search", "all"):
         yield from implicit_search_workloads()
+    if suite in ("explicit-goals", "all"):
+        yield from explicit_goal_workloads()
     if suite in ("parallel-branches", "all"):
         yield from parallel_branch_workloads()
     if suite in ("target-contexts", "all"):
@@ -503,6 +505,9 @@ def workload_arguments(name):
         arguments.append('-L')
     if name.startswith('parallel-branches-'):
         arguments += ["-j4", "--jobserver-style=pipe"]
+    if name.startswith('explicit-goals-'):
+        count = int(name.removeprefix('explicit-goals-'))
+        arguments.extend(f"input{index}.out" for index in range(count))
     return arguments
 
 
@@ -513,6 +518,14 @@ def implicit_search_workloads():
         patterns = ''.join(f'ignored{i}%.unused{i}:;\n' for i in range(count))
         yield f'implicit-unmatched-{count}', (
             f'all: {targets}\n' + patterns + '%.out:;\n').encode()
+
+
+def explicit_goal_workloads():
+    """Independent command-line goals resolve overlapping implicit prerequisites."""
+    source = (b".SECONDEXPANSION:\n%.mid: VALUE = literal\n%.out: %.tmp %.mid ;\n"
+              b"%.tmp: %.mid ;\n%.mid: %.in ;\n")
+    for count in (64, 512, 2048, 8192):
+        yield f'explicit-goals-{count}', source
 
 
 def binding_workloads():
@@ -582,6 +595,13 @@ def prepare_archive_names(path, kind, count):
 
 
 def prepare_files(path, workload):
+    if workload.startswith('explicit-goals-'):
+        count = int(workload.removeprefix('explicit-goals-'))
+        for index in range(count):
+            source = path / f'input{index}.in'
+            source.write_bytes(b'')
+            os.utime(source, ns=(1600000000000000000,) * 2)
+        return {'inputs': count, 'mtime_ns': 1600000000000000000, 'recipe_subprocesses': 0}
     if workload.startswith('runtime-arguments-'):
         directory = path / 'counter-$(info tick)'
         directory.mkdir(exist_ok=True)
@@ -821,6 +841,8 @@ def validate_workload(root, name, source, arguments, environment, executables):
     expected = None
     original_inputs = None
     labels = ["oracle", *executables]
+    max_files = (int(name.removeprefix("explicit-goals-")) + 16
+                 if name.startswith("explicit-goals-") else None)
     for label in labels:
         for directory in (work, scratch):
             if directory.exists():
@@ -829,7 +851,7 @@ def validate_workload(root, name, source, arguments, environment, executables):
         fixture = prepare_files(work, name)
         (work / "Makefile").write_bytes(source)
         roots = {"work": work, "tmp": scratch}
-        inputs = conformance.snapshot(roots)
+        inputs = conformance.snapshot(roots, max_files=max_files)
         if original_inputs is None:
             original_inputs = inputs
         elif inputs != original_inputs:
@@ -843,7 +865,8 @@ def validate_workload(root, name, source, arguments, environment, executables):
         if status or limit or leftovers:
             raise RuntimeError(f"benchmark validation failed: {name} ({label}), "
                                f"status={status}, limit={limit}, leftover processes={leftovers}")
-        observation = conformance.Observation(out, err, status, limit, conformance.snapshot(roots), leftovers)
+        state = conformance.snapshot(roots, max_files=max_files)
+        observation = conformance.Observation(out, err, status, limit, state, leftovers)
         if expected is not None:
             differences = conformance.differences(expected, observation)
             if differences:
@@ -863,7 +886,7 @@ def main():
     parser.add_argument("--candidate", type=Path)
     parser.add_argument("--baseline", type=Path, help="optional previous candidate for paired before/after timing")
     parser.add_argument("--repeat", type=int, default=15)
-    parser.add_argument("--suite", choices=("core", "startup-arguments", "eval-arguments", "startup-effects", "initial-flags", "include-operands", "literal-chains", "text-frames", "linear-leaves", "function-bodies", "deep-appends", "nested-evals", "runtime-includes", "runtime-arguments", "builtin-transitions", "word-spans", "wildcard", "wildcard-locale", "bindings", "implicit-search", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
+    parser.add_argument("--suite", choices=("core", "startup-arguments", "eval-arguments", "startup-effects", "initial-flags", "include-operands", "literal-chains", "text-frames", "linear-leaves", "function-bodies", "deep-appends", "nested-evals", "runtime-includes", "runtime-arguments", "builtin-transitions", "word-spans", "wildcard", "wildcard-locale", "bindings", "implicit-search", "explicit-goals", "parallel-branches", "target-contexts", "archives", "archive-sequences", "vpath-search", "secondary", "implicit-rejections", "gpath", "intermediates", "lazy-records", "vpath-records", "directory-search", "archive-names", "symlink-times", "rule-filenames", "rule-tilde", "libraries", "all"), default="core")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--validate-only", action="store_true", help="check fresh workload runs without timing")
     parser.add_argument("--locale", default="C", help="libc locale for every measured engine")

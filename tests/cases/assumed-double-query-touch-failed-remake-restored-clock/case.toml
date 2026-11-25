@@ -1,0 +1,10 @@
+id = "assumed-double-query-touch-failed-remake-restored-clock"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A later optional failure restores the original timestamp after a completed touch."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-t", "-W", "b.mk", "b.mk", "check-clock"]
+
+[expected]
+exit_code = 0
+stdout = "touch b.mk\ntouch b.mk\n"
+stderr = ""

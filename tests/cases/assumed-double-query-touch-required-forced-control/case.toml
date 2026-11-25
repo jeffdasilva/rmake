@@ -1,0 +1,10 @@
+id = "assumed-double-query-touch-required-forced-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A forced recipe leaving the source timestamp unchanged adds no reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-t", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'missing', needed by 'broken.inc'.\nMakefile:8: Failed to remake makefile 'broken.inc'.\n"

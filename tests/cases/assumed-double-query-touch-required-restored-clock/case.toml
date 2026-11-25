@@ -1,0 +1,10 @@
+id = "assumed-double-query-touch-required-restored-clock"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A required failure after restoring the touched clock still causes the reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-t", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 2
+stdout = "touch b.mk\n"
+stderr = "make: *** [Makefile:15: restore-clock] Error 1\nMakefile:8: Failed to remake makefile 'broken.inc'.\nmake: *** [Makefile:15: restore-clock] Error 1\nMakefile:8: Failed to remake makefile 'broken.inc'.\n"

@@ -1,0 +1,54 @@
+id = "gpath-many-goals-live-flags"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "A live flag change, ordered command-line goals and an indexed GPATH alias share the same invocation."
+provenance = "Original rmake differential fixture with fixed timestamps."
+args = [
+  "-rR",
+  "--no-print-directory",
+  "-j1",
+  "before",
+  "foo.out",
+  "n00",
+  "n01",
+  "n02",
+  "n03",
+  "n04",
+  "n05",
+  "n06",
+  "n07",
+  "n08",
+  "n09",
+  "n10",
+  "n11",
+  "n12",
+  "n13",
+  "n14",
+  "n15",
+  "n16",
+  "n17",
+  "n18",
+  "n19",
+  "n20",
+  "n21",
+  "n22",
+  "n23",
+  "n24",
+  "n25",
+  "n26",
+  "n27",
+  "n28",
+  "n29",
+  "n30",
+  "n31",
+  "middle",
+  "src/foo.out",
+  "foo.out",
+  "verify"
+]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "before:38\nupdate:src/foo.out\nn00\nn01\nn02\nn03\nn04\nn05\nn06\nn07\nn08\nn09\nn10\nn11\nn12\nn13\nn14\nn15\nn16\nn17\nn18\nn19\nn20\nn21\nn22\nn23\nn24\nn25\nn26\nn27\nn28\nn29\nn30\nn31\nmiddle\nmake: 'src/foo.out' is up to date.\nverify\n"
+stderr = ""

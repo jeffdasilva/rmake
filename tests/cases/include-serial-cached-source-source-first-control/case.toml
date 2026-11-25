@@ -1,0 +1,12 @@
+id = "include-serial-cached-source-source-first-control"
+requirement = "includes.remake"
+candidate = "required"
+description = "A source remade before another source consumes it keeps its normal restart behavior."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile payload.mk worker.inc\nREMAKE:payload.mk:trigger\nWORKER:payload.mk\nREAD:1:new:Makefile payload.mk worker.inc\nALL:new:1\nVALUE := new\n"
+stderr = ""

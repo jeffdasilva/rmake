@@ -49,3 +49,33 @@ not future revisions; GNU remained faster on both workloads.
 
 Candidate SHA256: `282dafc48e02f72d6e339a9564165b9d9192f2714be020727289d4fdb7b3378d`.
 Raw evidence: local ignored `artifacts/bench/implicit-filter-defaults.json`.
+
+## Large command-line goal lists
+
+Large invocations index their requested names for repeated membership checks
+during implicit search and intermediate traversal. The engine keeps the ordered
+operands for execution. A live GPATH alias still uses canonical goal names
+during intermediate checks.
+
+`make bench-compare BENCH_SUITE=explicit-goals BENCH_SILENT=1 BENCH_REPEAT=17`
+uses four workloads with overlapping implicit prerequisites and empty recipes.
+Set `BENCH_BASELINE` to a previous optimized build to compare it in the same
+campaign. `BENCH_VALIDATE=1` checks the streams, exit status and filesystem state
+on fresh inputs.
+
+An alternating warm-cache campaign pinned all engines to the same CPU on a
+shared host. The validation gate passed all four workloads.
+
+| Goals | Prior rmake median | Indexed rmake median | GNU Make median |
+| --- | --- | --- | --- |
+| 64 | 4.211 ms | 3.688 ms | 2.276 ms |
+| 512 | 23.851 ms | 16.592 ms | 5.404 ms |
+| 2,048 | 177.197 ms | 71.528 ms | 23.833 ms |
+| 8,192 | 2,495.696 ms | 368.488 ms | 136.377 ms |
+
+The largest workload ran 6.8 times as fast as the prior rmake. GNU Make
+remained faster in all four workloads. These measurements include startup.
+
+- Prior binary SHA-256 `76d6f5edcdef96b01b273c572e24acb1fb84a83cb6a83445a1e3c50e66b0737d`
+- Indexed binary SHA-256 `7902dddec53ffc45b46754481ef27a86f70cbd418e167c3fce0e1764401d5d7b`
+- GNU binary SHA-256 `dc60c90b3fc6fd64be2c2459483de37b96b23a8a18068a95cd50ea7ab5eccd44`

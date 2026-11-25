@@ -1,0 +1,10 @@
+id = "assumed-double-dry-touch-required-failure"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "Dry touch suppresses the ordinary recipe and the required failure prevents ordinary goals."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-t", "-W", "b.mk", "b.mk", "ordinary"]
+
+[expected]
+exit_code = 2
+stdout = "touch b.mk\n"
+stderr = "make: *** No rule to make target 'missing', needed by 'broken.inc'.\nMakefile:8: Failed to remake makefile 'broken.inc'.\nmake: *** No rule to make target 'missing', needed by 'broken.inc'.\nMakefile:8: Failed to remake makefile 'broken.inc'.\n"

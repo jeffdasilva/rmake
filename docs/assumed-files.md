@@ -88,9 +88,13 @@ timestamp. A simulated declaration can leave the entire chain logically
 new, preserving the synthetic entry's assumed timestamp. Multiple assumed
 entries, missing sources, parallel scheduling and other changes during
 named nonexecuting modes need separate coverage. After an unrelated
-optional source fails, serial dry-run can restart when a simulated
-synthetic entry leaves its logical timestamp on the successful named
-source head. The comparison uses the source's original timestamp.
+optional source fails, a single assumed entry can restart a serial
+invocation when a completed dry-run, question or touch update leaves
+its result on the successful named source head. A physical touch under
+`-qt` retains its completion result when a later optional recipe
+restores the original timestamp. Under `-k`, a settled required failure
+can also cause a reread through these completion results. The required
+source then determines the failure status.
 
 ## Qualification and limits
 

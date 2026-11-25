@@ -1,0 +1,10 @@
+id = "assumed-double-query-touch-failed-remake-empty"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "An actual touch of a named source is followed by a reread after an optional failure."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-t", "-W", "b.mk", "b.mk", "check-clock"]
+
+[expected]
+exit_code = 0
+stdout = "touch b.mk\ntouch b.mk\n"
+stderr = ""

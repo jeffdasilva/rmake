@@ -15,7 +15,7 @@ pub use startup_exit::{Failure, NativeExit};
 use crate::cli::Options;
 use crate::file_aliases::Aliases;
 use crate::makefiles::{IncludeSearch, source_open_exhausted};
-use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status};
+use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status, TouchCompletion};
 use rmake_core::diagnostic::{
     Diagnostic, ExpansionContext, IncludeError, IncludeFailure, Output, OutputReceiver, ScopeParent,
 };
@@ -327,8 +327,9 @@ enum DatabaseResult {
     Outcome,
     Simulated,
     SimulatedQuery,
-    // The settled synthetic branch supplies the failed-source restart verdict.
+    // A settled touch can supply the failed-source restart verdict.
     SimulatedTouch,
+    PhysicalTouch,
     ObservedGroup,
     ObservedDoubleColon,
     RecipeUnstarted,
@@ -1376,6 +1377,7 @@ struct FailedOwner {
 
 pub struct Engine {
     options: Options,
+    requested_goal_names: Option<HashSet<Vec<u8>>>,
     clock_skew: Cell<ClockSkew>,
     delay_clock_checks: bool,
     deferred_clock_checks: RefCell<Vec<(Vec<u8>, SystemTime)>>,
@@ -1960,7 +1962,12 @@ impl Engine {
                 .map_err(|message| StartupError::from(Diagnostic::from(message.to_vec())))
         );
         let initial_plan = Some(plan);
+        // Preserve the ordered operands for execution. Large invocations also
+        // need repeated membership checks during implicit graph traversal.
+        let requested_goal_names =
+            (options.goals.len() >= 32).then(|| options.goals.iter().cloned().collect());
         let mut engine = Self {
+            requested_goal_names,
             initial_plan,
             assumptions,
             clock_skew: Cell::new(ClockSkew::Unchecked),
@@ -3813,8 +3820,10 @@ impl Engine {
             let parallel_remakes =
                 self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
             self.parallel_makefile_remakes = parallel_remakes && !check_primary_before_overlap;
+            let mut loaded_prerequisite_times = HashMap::new();
             if !parallel_remakes {
-                for (makefile, skip) in &read_files {
+                let has_implicit_recipes = !self.database.database_implicit_rules().is_empty();
+                for (source_index, (makefile, skip)) in read_files.iter().enumerate() {
                     let name = makefile.name.as_slice();
                     if !skip
                         && !makefile.missing
@@ -3827,6 +3836,25 @@ impl Engine {
                         self.check_clock_skew(name, Some(time));
                         self.path_observations
                             .insert(name.to_vec(), Some((None, Some(time))));
+                        if source_index != 0
+                            && !modes.active()
+                            && self.assumptions.is_none()
+                            && !self.special(b".PHONY", name, false)
+                        {
+                            let needs_implicit_recipe =
+                                self.database.rules.get(name).map_or(Some(true), |rule| {
+                                    (rule.double_colon.is_none()
+                                        && rule.grouped_targets().is_none()
+                                        && rule.implicit_pattern.is_none())
+                                    .then_some(rule.recipes.is_none())
+                                });
+                            if let Some(needs_implicit_recipe) = needs_implicit_recipe
+                                && (!needs_implicit_recipe || has_implicit_recipes)
+                            {
+                                loaded_prerequisite_times
+                                    .insert(name, (time, needs_implicit_recipe));
+                            }
+                        }
                     }
                 }
             }
@@ -4023,6 +4051,31 @@ impl Engine {
                     && !self.options.keep_going
                     && self.cached_optional_group_peer_failure(name);
                 let pending_peer = self.parallel_makefile_remakes && self.pending(name);
+                // A previous source can have remade this prerequisite.
+                // Preserve the settled clock even if a later recipe retimed
+                // the file before its own source visit.
+                let cached_prerequisite_change = loaded_prerequisite_times.get(name).and_then(
+                    |&(time, needs_implicit_recipe)| {
+                        let cached = self.file_traversals.outcome(name)?;
+                        (self.aliases.resolve(name) == name
+                            && !self.pending(name)
+                            && self
+                                .file_traversals
+                                .visit(name)
+                                .is_some_and(|visit| visit.parent.is_some())
+                            && !cached.failed
+                            && !cached.fatal
+                            && !cached.question_outdated
+                            && cached.ran
+                            && cached.completion == CompletionTime::Refresh
+                            && (!needs_implicit_recipe
+                                || self.database.rules.get(name).is_some_and(|rule| {
+                                    rule.implicit_pattern.is_some()
+                                        && rule.grouped_targets().is_none()
+                                })))
+                        .then_some(cached.time != Some(time))
+                    },
+                );
                 // Keep the existing snapshot for recorded rules. A makefile
                 // without a rule uses the timestamp of its first graph visit.
                 let mut before = if failed_opens.contains(name) {
@@ -4035,7 +4088,7 @@ impl Engine {
                 };
                 // A fresh serial visit still sees the local timestamp
                 // retained before earlier remakes wrote or removed the file.
-                let loaded_source = if !parallel_remakes
+                let (loaded_source, loaded_implicit_time) = if !parallel_remakes
                     && !modes.active()
                     && self.assumptions.is_none()
                     && !makefile.missing
@@ -4051,13 +4104,22 @@ impl Engine {
                         .double_colon
                         .as_deref()
                         .unwrap_or_else(|| std::slice::from_ref(rule));
-                    (!declared.is_empty()
-                        && declared.iter().all(|branch| {
-                            branch.grouped_targets().is_none() && branch.recipes.is_some()
-                        }))
-                    .then_some((*time, declared.len()))
+                    if rule.double_colon.is_none()
+                        && rule.grouped_targets().is_none()
+                        && rule.recipes.is_none()
+                    {
+                        // Its visit can still select an implicit recipe.
+                        (None, Some(*time))
+                    } else {
+                        let declared_time = (!declared.is_empty()
+                            && declared.iter().all(|branch| {
+                                branch.grouped_targets().is_none() && branch.recipes.is_some()
+                            }))
+                        .then_some((*time, declared.len()));
+                        (declared_time, None)
+                    }
                 } else {
-                    None
+                    (None, None)
                 };
                 let pending_open_error = || {
                     makefile
@@ -4124,6 +4186,18 @@ impl Engine {
                     track_named_source.then_some(&mut source_started_command),
                 );
                 let chain_failed = result.failed;
+                let refreshed_implicit_time = loaded_implicit_time.filter(|_| {
+                    !MakefileModes::from_options(&self.options).active()
+                        && !result.fatal
+                        && !result.question_outdated
+                        && !result.blocked
+                        && result.ran
+                        && result.completion == CompletionTime::Refresh
+                        && self.aliases.resolve(name) == name
+                        && self.database.rules.get(name).is_some_and(|rule| {
+                            rule.implicit_pattern.is_some() && rule.grouped_targets().is_none()
+                        })
+                });
                 // The raw branch results retain whether a recipe really
                 // refreshed the source before policy reduces the verdict to
                 // the declared head.
@@ -4347,6 +4421,10 @@ impl Engine {
                 failed |= result.failed && !optional;
                 optional_remake_failed |= result.failed && optional;
                 if result.failed && !result.fatal {
+                    // Keep the loaded clock for the required failure pass,
+                    // even if an optional occurrence performed the remake.
+                    let failed_implicit_time =
+                        refreshed_implicit_time.filter(|_| chain_failed && self.options.keep_going);
                     // A serial declaration may change the file after a
                     // blocked head. Other roots use their own recipe result.
                     let refresh_timestamp =
@@ -4370,12 +4448,15 @@ impl Engine {
                             name,
                             OptionalMakefileFailure {
                                 open_error: pending_open_error(),
-                                before,
+                                before: failed_implicit_time.or(before),
                                 refresh_timestamp,
                             },
                         );
                     } else if !optional && (self.options.keep_going || deferred_peer_failure) {
-                        let failed_before = observed_peer_change.or(failed_source_time).or(before);
+                        let failed_before = observed_peer_change
+                            .or(failed_source_time)
+                            .or(failed_implicit_time)
+                            .or(before);
                         failed_remakes.insert(name, (failed_before, refresh_timestamp));
                     }
                 } else if !result.failed {
@@ -4402,7 +4483,13 @@ impl Engine {
                         && !visit_modes.dry_run
                         && result.ran
                         && !result.question_outdated;
-                    let physically_changed = if record_change || check_optional_touch {
+                    let physically_changed = if record_change
+                        && observed_peer_change.is_none()
+                        && !MakefileModes::from_options(&self.options).active()
+                        && let Some(changed) = cached_prerequisite_change
+                    {
+                        changed
+                    } else if record_change || check_optional_touch {
                         let after = self.modified(&makefile.name);
                         let loaded_time =
                             failed_source_time.filter(|_| after.is_some()).or_else(|| {
@@ -4421,9 +4508,13 @@ impl Engine {
                                     })
                                     .map(|(time, _)| time)
                             });
+                        let implicit_time = refreshed_implicit_time.filter(|_| !chain_failed);
                         // Completed declarations share the final physical
                         // timestamp, including when the last restores it.
-                        let before_refresh = observed_peer_change.or(loaded_time).or(before);
+                        let before_refresh = observed_peer_change
+                            .or(loaded_time)
+                            .or(implicit_time)
+                            .or(before);
                         after != before_refresh
                     } else {
                         false
@@ -4759,36 +4850,35 @@ impl Engine {
             changed |= grouped_changes
                 .as_ref()
                 .is_some_and(SerialGroupedRemakeChanges::changed);
-            // A failed source pass can expose a successful simulated
-            // timestamp. Required failures reach this check in serial dry-run
-            // when keep-going has let the full pass settle.
-            let required_dry_remake_failed = failed
-                && !skipped_required_read
-                && self.options.keep_going
-                && modes.dry_run
-                && !modes.question
-                && !modes.touch;
+            // Keep-going can leave a required failure and a completed
+            // simulated or touched source in the same settled pass.
+            let required_remake_failed =
+                failed && !skipped_required_read && self.options.keep_going;
             if !changed
                 && !parallel_remakes
                 && restarts == 0
                 && self.assumptions.is_some()
-                && (modes.dry_run || (modes.question && !modes.touch))
-                && ((optional_remake_failed && !failed) || required_dry_remake_failed)
+                && (modes.dry_run || modes.question)
+                && ((optional_remake_failed && !failed) || required_remake_failed)
                 && !remake_question
             {
-                let simulation = if modes.touch {
-                    DatabaseResult::SimulatedTouch
+                let completion = if modes.touch {
+                    if modes.dry_run {
+                        DatabaseResult::SimulatedTouch
+                    } else {
+                        DatabaseResult::PhysicalTouch
+                    }
                 } else if modes.question {
                     DatabaseResult::SimulatedQuery
                 } else {
                     DatabaseResult::Simulated
                 };
-                changed = self.failed_remake_has_simulated_assumed_source(
+                changed = self.failed_remake_has_updated_assumed_source(
                     &read_files,
                     &visited,
                     named_sources.as_ref(),
-                    simulation,
-                    !required_dry_remake_failed,
+                    completion,
+                    !required_remake_failed,
                 );
             }
             // A skipped required read suppresses an otherwise successful
@@ -5223,6 +5313,13 @@ impl Engine {
         }
     }
 
+    fn has_requested_goal_name(&self, name: &[u8]) -> bool {
+        self.requested_goal_names.as_ref().map_or_else(
+            || self.options.goals.iter().any(|goal| goal == name),
+            |goals| goals.contains(name),
+        )
+    }
+
     fn index_named_remake_sources<'files>(
         &self,
         read_files: &'files [(Makefile, bool)],
@@ -5231,15 +5328,14 @@ impl Engine {
         if read_files.len() < 16 || self.options.goals.len() < 32 {
             return None;
         }
-        let goals: HashSet<_> = self.options.goals.iter().map(Vec::as_slice).collect();
-        // Keep only source-name borrows so runtime option updates can still
-        // take ownership of the original goal vector while remakes run.
+        // A file-name subset keeps each remake lookup independent of the
+        // number of sources and of changes to runtime flags.
         Some(
             read_files
                 .iter()
                 .filter(|(_, skip)| !skip)
                 .map(|(file, _)| rmake_core::filenames::without_dot_prefix(&file.name))
-                .filter(|name| goals.contains(name))
+                .filter(|name| self.has_requested_goal_name(name))
                 .collect(),
         )
     }
@@ -5248,10 +5344,7 @@ impl Engine {
         if let Some(indexed) = indexed {
             indexed.contains(name)
         } else {
-            self.options
-                .goals
-                .iter()
-                .any(|goal| goal.as_slice() == name)
+            self.has_requested_goal_name(name)
         }
     }
 
@@ -6085,7 +6178,7 @@ impl Engine {
                     self.aliases.merged(goal)
                 } else {
                     self.database.explicit_names.contains(reported_goal)
-                        || self.options.goals.iter().any(|name| name == reported_goal)
+                        || self.has_requested_goal_name(reported_goal)
                 })
             {
                 return;
@@ -6166,10 +6259,14 @@ impl Engine {
                     && !self.special_for_rule(b".NOTINTERMEDIATE", target))
         };
         let explicitly_requested = || {
-            self.options
-                .goals
-                .iter()
-                .any(|goal| self.aliases.resolve(goal) == target)
+            if self.aliases.is_empty() {
+                self.has_requested_goal_name(target)
+            } else {
+                self.options
+                    .goals
+                    .iter()
+                    .any(|goal| self.aliases.resolve(goal) == target)
+            }
         };
         if self.intermediate_policy.all_secondary || !self.aliases.is_empty() {
             // Broad eligibility and live aliases can make the policy check
@@ -7803,7 +7900,7 @@ impl Engine {
         self.database.file_records.rename(from, to);
         let merged = self.database.explicit_names.contains(to)
             || self.database.target_scopes.contains_key(to)
-            || self.options.goals.iter().any(|goal| goal == to);
+            || self.has_requested_goal_name(to);
         self.invalidate_phony_names(from);
         self.invalidate_phony_names(to);
         let source = self.database.rules.remove(from);
@@ -9063,7 +9160,7 @@ impl Engine {
         }
         if descendant
             && !self.database.explicit_names.contains(&name)
-            && !self.options.goals.contains(&name)
+            && !self.has_requested_goal_name(&name)
         {
             self.intermediates.insert(name.clone());
         }
@@ -11167,12 +11264,12 @@ impl Engine {
             })
     }
 
-    fn failed_remake_has_simulated_assumed_source(
+    fn failed_remake_has_updated_assumed_source(
         &self,
         read_files: &[(Makefile, bool)],
         visited: &MakefileVisits<'_>,
         named_sources: Option<&HashSet<&[u8]>>,
-        simulation: DatabaseResult,
+        completion: DatabaseResult,
         failed_source_optional: bool,
     ) -> bool {
         let failed = read_files.iter().find_map(|(source, skip)| {
@@ -11192,8 +11289,8 @@ impl Engine {
         };
 
         // The failed remake pass compares successful source heads. A
-        // simulated synthetic entry can leave its newest time on the head
-        // even when that source's physical timestamp has not changed.
+        // synthetic entry can leave its newest time on the head. A settled
+        // physical touch keeps that result if a later source restores its age.
         let succeeded = |outcome: &Outcome| outcome.terminal_verdict().is_none() && !outcome.fatal;
         read_files.iter().any(|(source, skip)| {
             let name = source.name.as_slice();
@@ -11208,7 +11305,7 @@ impl Engine {
                 && self
                     .settled_assumed_new_makefile_branch(target)
                     .is_some_and(|(_, branch)| {
-                        branch.database_result == simulation
+                        branch.database_result == completion
                             && branch.completion == CompletionTime::AssumeNew
                     })
                 && self.file_traversals.outcome(target).is_some_and(succeeded)
@@ -11219,7 +11316,10 @@ impl Engine {
                 && visited
                     .get(name)
                     .and_then(|(before, _)| *before)
-                    .is_some_and(|before| self.modified(target) == Some(before))
+                    .is_some_and(|before| {
+                        completion == DatabaseResult::PhysicalTouch
+                            || self.modified(target) == Some(before)
+                    })
         })
     }
 
@@ -13077,7 +13177,7 @@ impl Engine {
                     && execution.status == Status::Success
                 {
                     outcome.database_result = DatabaseResult::SimulatedQuery;
-                } else if execution.simulated_touch
+                } else if execution.touch != TouchCompletion::None
                     && self.remaking
                     && !self.parallel_makefile_remakes
                     && !execution.pending
@@ -13092,7 +13192,11 @@ impl Engine {
                             .is_some_and(|declarations| ordinal == declarations.len())
                     })
                 {
-                    outcome.database_result = DatabaseResult::SimulatedTouch;
+                    outcome.database_result = match execution.touch {
+                        TouchCompletion::None => DatabaseResult::Outcome,
+                        TouchCompletion::Simulated => DatabaseResult::SimulatedTouch,
+                        TouchCompletion::Physical => DatabaseResult::PhysicalTouch,
+                    };
                 }
                 if rule.grouped_double_id().is_some()
                     && execution.status == Status::Fatal
@@ -14773,7 +14877,7 @@ impl Engine {
             return Execution::success(ran).with_recursion(all_recursive);
         }
         let passes = flow.completion_passes();
-        let mut simulated_touch = false;
+        let mut touch = TouchCompletion::None;
         for pass in 0..passes {
             if pass + 1 == passes
                 && let Some(buffer) = &output
@@ -14782,7 +14886,7 @@ impl Engine {
             }
             let mut touched = self.touch_target(target);
             ran |= touched.ran;
-            simulated_touch |= touched.simulated_touch;
+            touch = touched.touch;
             if matches!(touched.status, Status::Failure | Status::Fatal) {
                 // Only dispatch completion can fail before a continuation owner
                 // performs cleanup. The owner's final completion has no such step.
@@ -14794,7 +14898,7 @@ impl Engine {
             }
         }
         Execution {
-            simulated_touch,
+            touch,
             ..Execution::success(ran).with_recursion(all_recursive)
         }
     }
@@ -14806,7 +14910,7 @@ impl Engine {
         }
         if self.options.dry_run {
             return Execution {
-                simulated_touch: true,
+                touch: TouchCompletion::Simulated,
                 ..Execution::success(true)
             };
         }
@@ -14852,7 +14956,10 @@ impl Engine {
             );
             return Execution::failure(true, Cleanup::None);
         }
-        Execution::success(true)
+        Execution {
+            touch: TouchCompletion::Physical,
+            ..Execution::success(true)
+        }
     }
 
     fn archive_recipe_fatal(&self, message: &[u8]) {
