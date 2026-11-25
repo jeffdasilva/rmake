@@ -1,0 +1,10 @@
+id = "assumed-double-query-dry-touch-required-verdict-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "An actual query verdict selects status one and stops before touch completion."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-t", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 1
+stdout = ":\n"
+stderr = "make: *** No rule to make target 'missing', needed by 'broken.inc'.\n"

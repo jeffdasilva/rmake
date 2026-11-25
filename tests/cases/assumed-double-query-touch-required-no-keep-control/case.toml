@@ -1,0 +1,10 @@
+id = "assumed-double-query-touch-required-no-keep-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A stopping required failure returns after the first read."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q", "-t", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 2
+stdout = "touch b.mk\n"
+stderr = "make: *** No rule to make target 'missing', needed by 'broken.inc'.  Stop.\n"

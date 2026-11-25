@@ -4837,21 +4837,16 @@ impl Engine {
             changed |= grouped_changes
                 .as_ref()
                 .is_some_and(SerialGroupedRemakeChanges::changed);
-            // A failed source pass can expose a successful simulated
-            // timestamp. Required failures reach this check in serial dry-run
-            // when keep-going has let the full pass settle.
-            let required_dry_remake_failed = failed
-                && !skipped_required_read
-                && self.options.keep_going
-                && modes.dry_run
-                && !modes.question
-                && !modes.touch;
+            // Keep-going can leave a required failure and a completed
+            // simulated or touched source in the same settled pass.
+            let required_remake_failed =
+                failed && !skipped_required_read && self.options.keep_going;
             if !changed
                 && !parallel_remakes
                 && restarts == 0
                 && self.assumptions.is_some()
                 && (modes.dry_run || modes.question)
-                && ((optional_remake_failed && !failed) || required_dry_remake_failed)
+                && ((optional_remake_failed && !failed) || required_remake_failed)
                 && !remake_question
             {
                 let completion = if modes.touch {
@@ -4870,7 +4865,7 @@ impl Engine {
                     &visited,
                     named_sources.as_ref(),
                     completion,
-                    !required_dry_remake_failed,
+                    !required_remake_failed,
                 );
             }
             // A skipped required read suppresses an otherwise successful
