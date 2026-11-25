@@ -1,0 +1,12 @@
+id = "include-serial-failed-direct-explicit-peer-optional-owner-duplicate"
+requirement = "includes.remake"
+candidate = "required"
+description = "A required duplicate peer uses the sample from an optional owner and an optional first occurrence."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile worker.inc payload.other payload.mk payload.mk tail.inc\nWORKER\nREMAKE:payload.other:trigger\nTAIL\nREAD:1:new:Makefile worker.inc payload.other payload.mk payload.mk tail.inc\nALL:new:1\nVALUE := new\n"
+stderr = "Makefile:11: Failed to remake makefile 'payload.mk'.\n"

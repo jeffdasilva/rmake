@@ -1,0 +1,12 @@
+id = "include-serial-failed-direct-explicit-peer-removed-after-visit"
+requirement = "includes.remake"
+candidate = "required"
+description = "The changed peer sample still causes rereading after a later source removes the peer."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:0:old:Makefile worker.inc payload.other payload.mk tail.inc\nWORKER\nREMAKE:payload.other:trigger\nTAIL\nREAD:1::Makefile worker.inc payload.other tail.inc\n"
+stderr = "make: *** [Makefile:17: payload.other] Error 1\nMakefile:9: Failed to remake makefile 'payload.other'.\nMakefile:10: Failed to remake makefile 'payload.mk'.\nMakefile:10: payload.mk: No such file or directory\nmake: *** No rule to make target 'payload.mk'.\nMakefile:10: Failed to remake makefile 'payload.mk'.\n"

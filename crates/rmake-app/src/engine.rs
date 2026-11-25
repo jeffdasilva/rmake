@@ -13863,7 +13863,11 @@ impl Engine {
             && self.assumptions.is_none()
             && !self.options.check_symlink_times
             && self.makefile_names.contains(target);
-        let failed_implicit_prerequisite = group.implicit && failed_prerequisite;
+        let track_failed_peer_clock = (group.implicit && failed_prerequisite)
+            || matches!(
+                outcome.remake_failure,
+                RemakeFailure::DirectExplicitGroupOwner
+            );
         let trace_failed_read_peers = serial_explicit_remake
             && (self.optional_remake() || self.options.keep_going)
             && outcome.failed
@@ -13934,9 +13938,9 @@ impl Engine {
                 completed.debug_time_changed |= retain_debug_time && completed.time != time;
                 completed.time = time;
             }
-            // A failed pattern group settles this peer's physical time here.
-            // The required read reports it without refreshing over this sample.
-            completed.remake_failure = if failed_implicit_prerequisite
+            // This failed group has already sampled the peer's physical time.
+            // The required read keeps that observation through later changes.
+            completed.remake_failure = if track_failed_peer_clock
                 && !phony
                 && self.makefile_names.contains(&peer)
                 && !self.file_traversals.has_outcome(&peer)
