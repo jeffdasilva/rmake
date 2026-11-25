@@ -5606,7 +5606,7 @@ impl Engine {
         if has_optional_sources && !self.optional_mode_sources_settle(read_files, named_sources) {
             return false;
         }
-        let named_double_colon_dry_run = modes.dry_run
+        let direct_required_dry_run = modes.dry_run
             && !modes.question
             && !modes.touch
             && !has_optional_sources
@@ -5614,8 +5614,12 @@ impl Engine {
             && self.options.keep_going
             && self.options.load_limit.is_none()
             && !self.options.check_symlink_times
-            && self.assumptions.is_none()
             && self.no_remake_recipe_fallback();
+        let named_double_colon_dry_run = direct_required_dry_run && self.assumptions.is_none();
+        let named_assumed_dry_run = direct_required_dry_run
+            && !self.options.always
+            && self.options.old_files.is_empty()
+            && self.options.new_files.len() == 1;
         let mut named = HashMap::new();
         let mut load_sources_without_fallback = None;
         read_files.iter().enumerate().all(|(index, (file, skip))| {
@@ -5634,12 +5638,10 @@ impl Engine {
                     && archive_parts(name).is_none()
                     && (!self.is_makefile_goal(name, named_sources) || {
                         let include_policy = file.location.as_ref().map(|_| file.optional);
-                        let compatible_read =
-                            named
-                                .insert(name, include_policy)
-                                .is_none_or(|earlier_policy| {
-                                    include_policy.is_some() && include_policy == earlier_policy
-                                });
+                        let earlier_policy = named.insert(name, include_policy);
+                        let compatible_read = earlier_policy.is_none_or(|earlier_policy| {
+                            include_policy.is_some() && include_policy == earlier_policy
+                        });
                         compatible_read
                             && (!file.optional
                                 || self.options.load_limit.is_none()
@@ -5655,7 +5657,20 @@ impl Engine {
                                 }))
                             && (self.simple_named_remake(file, name, &read_files[..index], modes)
                                 || (named_double_colon_dry_run
-                                    && self.simple_named_double_colon_dry_run(file, name)))
+                                    && self.simple_named_double_colon_dry_run(file, name))
+                                || (named_assumed_dry_run
+                                    && earlier_policy.is_none()
+                                    && self.simple_named_assumed_dry_run(file, name)
+                                    && read_files[index + 1..]
+                                        .iter()
+                                        .find(|(_, skip)| !*skip)
+                                        .is_some_and(|(source, _)| {
+                                            !source.missing
+                                                && !self.is_makefile_goal(
+                                                    without_dot_prefix(&source.name),
+                                                    named_sources,
+                                                )
+                                        })))
                     }))
         })
     }
@@ -5867,6 +5882,25 @@ impl Engine {
                                     || self.simple_remake_prerequisite(dep, earlier_sources)
                             })))
                     && rule.recipes.is_some()
+            })
+    }
+
+    fn simple_named_assumed_dry_run(&self, file: &Makefile, name: &[u8]) -> bool {
+        // An existing leaf with an active new time stays current. The caller
+        // requires a later ordinary visit to restore the mode before reaping.
+        file.location.is_some()
+            && !file.missing
+            && !name.contains(&b'/')
+            && self.assumed_time(name).is_some()
+            && !self.special(b".PHONY", name, false)
+            && !self.database.loaded_modules.contains_key(name)
+            && self.database.rules.get(name).is_some_and(|rule| {
+                rule.dependencies.is_empty()
+                    && rule.secondary.is_none()
+                    && rule.group.is_none()
+                    && rule.double_colon.is_none()
+                    && matches!(rule.recipes.as_deref(),
+                        Some([recipe]) if !recipe_is_recursive(recipe))
             })
     }
 
@@ -11961,7 +11995,10 @@ impl Engine {
                 } else if state.assumed_phony_input
                     || state.combined.completion.preserves()
                     || state.combined.failed
+                    || (!state.combined.ran && self.resolved_names.contains_key(target))
                 {
+                    // Current VPATH branches share the timestamp from their
+                    // selected path. A rebuild discards that path before running.
                     state.combined.time
                 } else {
                     self.modified(target)

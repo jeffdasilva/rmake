@@ -16,6 +16,12 @@ searched record retains its recipe, bindings and metadata; source prerequisites
 are appended and missing bindings filled. Conflicting recipes retain GNU's three
 warnings. Mixed single/double-colon records fail after those warnings.
 
+When every double-colon declaration is current, the parent and database use
+the timestamp observed on the selected VPATH file. That sample still applies
+if secondary expansion later retimes or removes the file or creates a local
+file with the same name. A recipe that rebuilds the target discards the
+tentative path and can establish a local timestamp.
+
 Ordinary VPATH search without an existing destination record remains tentative.
 GPATH additionally retains new searched identities. Archive containers use the
 same declared-record eligibility before member lookup; implicit viability still

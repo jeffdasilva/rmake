@@ -279,6 +279,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += assumed_source_write_models(worker, markers)
     results += named_double_colon_dry_run_models(worker, markers)
     results += failed_required_named_dry_models(worker, markers)
+    results += assumed_named_dry_run_models(worker, markers)
     results += parallel_named_mode_models(worker, markers)
     results += primary_named_mode_models(worker, markers)
     results += primary_named_group_models(worker, markers)
@@ -1084,6 +1085,55 @@ def failed_required_named_dry_models(worker: bytes, markers: dict[str, bytes]) -
                             {'GNUMAKEFLAGS': ''}, expected, seen, updates=left_markers, mtimes_ns=times)
         results.append(HeldModel(model, False, None, before_first=before_first,
                                  before_first_stdout=first_command if expands_under_hold else b''))
+    return results
+
+
+def assumed_named_dry_run_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    results = []
+    summary = b"make: 'b.mk' is up to date.\n"
+    before_first = BEFORE_FIRST + b'clock-1000000000 1000000000 1000000000\n'
+    before_second = before_first + b'left\n'
+    for context, transport, assumed, dry, slots, rewrite in (
+        ('held', 'pipe', True, True, 2, False),
+        ('physical', 'fifo', True, True, 2, True),
+        ('unassumed', 'pipe', False, True, 2, False),
+        ('ordinary', 'fifo', True, False, 2, False),
+        ('serial', 'pipe', True, True, 1, False),
+    ):
+        action = 'include' if rewrite else 'quiet'
+        sources = 'b.mk left.gen right.gen' if rewrite else 'left.gen b.mk right.gen'
+        source = (
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            '$(file >>seen,clock-$(shell stat -c %Y left.gen b.mk right.gen))\n'
+            f'include {sources}\n'
+            'ifeq ($(MAKE_RESTARTS),)\n'
+            'left.gen: left.seed ; @python3 worker.py left quiet\n'
+            f'right.gen: right.seed ; @python3 worker.py right {action}\n'
+            'else\n'
+            'left.gen right.gen: ;\n'
+            'endif\n'
+            'b.mk: ; @$(file >>seen,named-ran)printf "named\\n"\n'
+        )
+        files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR,
+                 'left.gen': b'# already read\n', 'b.mk': b'# already read\n',
+                 'right.gen': b'# already read\n', 'left.seed': b'new\n', 'right.seed': b'new\n'}
+        times = dict.fromkeys(files, INPUT_TIME)
+        times.update(dict.fromkeys(('left.seed', 'right.seed'), INPUT_TIME + 2_000_000_000))
+        updates = markers.copy()
+        seen = before_second + b'right\n'
+        if rewrite:
+            updates['right.gen'] = b'RIGHT := loaded\n'
+            seen += b'read-1\nclock-1000000000 1000000000 1000000001\n'
+        args = ('-rR', '--no-print-directory', f'-j{slots}', '-k', f'--jobserver-style={transport}')
+        if dry:
+            args += ('-n',)
+        if assumed:
+            args += ('-W', 'b.mk')
+        expected = {'exit_code': 0, 'stdout_template_hex': summary.hex(), 'stderr_template_hex': ''}
+        model = debug.Model(f'assumed-named-dry-run-{context}-{transport}', files, (*args, 'b.mk'),
+                            {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
+        results.append(HeldModel(model, slots > 1, before_second, before_first,
+                                 before_second_stdout=b''))
     return results
 
 
