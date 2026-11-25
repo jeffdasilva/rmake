@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-query-failed-remake"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "Two empty query completions permit a reread after an optional failure."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

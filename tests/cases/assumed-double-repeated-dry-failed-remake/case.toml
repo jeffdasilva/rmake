@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-dry-failed-remake"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "Two active aliases with successful dry completions permit the failed-source reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

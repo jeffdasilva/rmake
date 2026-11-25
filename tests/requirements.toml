@@ -1855,8 +1855,8 @@ title = "Restart a named what-if source after another source fails"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 51
-fixture_count = 51
+candidate_required = 63
+fixture_count = 63
 cases = [
   "assumed-double-simulated-failed-remake-absent",
   "assumed-double-simulated-failed-remake-current-control",
@@ -1909,6 +1909,18 @@ cases = [
   "assumed-double-query-touch-required-no-keep-control",
   "assumed-double-query-dry-touch-required-unassumed-control",
   "assumed-double-query-touch-required-forced-control",
+  "assumed-double-repeated-dry-failed-remake",
+  "assumed-double-repeated-query-failed-remake",
+  "assumed-double-repeated-query-dry-touch-failed-remake",
+  "assumed-double-repeated-query-touch-restored-clock",
+  "assumed-double-repeated-query-dry-touch-required-failure",
+  "assumed-double-repeated-query-dry-touch-reverse-control",
+  "assumed-double-repeated-query-dry-touch-duplicate-control",
+  "assumed-double-repeated-query-dry-touch-distinct-control",
+  "assumed-double-repeated-query-dry-touch-successful-control",
+  "assumed-double-repeated-query-dry-touch-current-control",
+  "assumed-double-repeated-query-dry-touch-forced-control",
+  "assumed-double-repeated-query-dry-touch-verdict-control",
 ]
 
 [[requirements]]

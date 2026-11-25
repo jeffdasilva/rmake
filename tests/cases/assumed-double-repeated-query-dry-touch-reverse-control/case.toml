@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-query-dry-touch-reverse-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "Naming the dot-prefixed operand first keeps one synthetic entry."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-t", "-W", "./b.mk", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "touch b.mk\ntouch b.mk\n"
+stderr = ""

@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-query-dry-touch-forced-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "Two forced commands without a physical edit add no reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-t", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "printf 'forced=%s\\n' '0' >> proof\nprintf 'forced=%s\\n' '0' >> proof\n"
+stderr = ""
