@@ -133,6 +133,55 @@ def assumed_current_source_models(worker: bytes, markers: dict[str, bytes]) -> l
     return results
 
 
+def assumed_late_source_write_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    results = []
+    before_first = BEFORE_FIRST + b'clock-1000000000\nloaded-\n'
+    marker = b'settled-b\n'
+    before_second = before_first + b'right\nsearch-0\n' + marker
+    for context, transport, worker_mode, clock in (
+        ('late-write', 'pipe', 'write-assumed-source', b'1000000002'),
+        ('late-write', 'fifo', 'write-assumed-source', b'1000000002'),
+        ('late-restore', 'pipe', 'restore-assumed-source', b'1000000000'),
+    ):
+        source = (
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            '$(file >>seen,clock-$(shell stat -c %Y b.mk))\n'
+            '-include left.gen b.mk marker.gen\n'
+            '$(file >>seen,loaded-$(AFTER))\n'
+            'ifeq ($(MAKE_RESTARTS),)\n'
+            f'left.gen: left.seed ; @python3 worker.py left {worker_mode}\n'
+            'right: ; @python3 worker.py right quiet\n'
+            'marker.gen: marker.seed | b.mk ; @$(file >>seen,settled-b)printf "settled-b\\n"\n'
+            'else\n'
+            'left.gen: ;\n'
+            'right: ;\n'
+            'marker.gen: ;\n'
+            'endif\n'
+            'b.mk:: | right stable ; @false\n'
+            '.SECONDEXPANSION:\n'
+            '%.mk: b.seed $$(file >>seen,search-$$(or $$(MAKE_RESTARTS),0)) ;\n'
+        )
+        files = {'Makefile': source.encode(), 'seen': ANCHOR, 'worker.py': worker,
+                 'left.gen': b'# loaded\n', 'b.mk': b'# loaded\n', 'left.seed': b'new\n',
+                 'b.seed': b'old\n', 'stable': b'current\n',
+                 'marker.gen': b'# marker\n', 'marker.seed': b'# marker\n'}
+        mtimes = dict.fromkeys(files, INPUT_TIME)
+        mtimes.update({'left.seed': INPUT_TIME + 2_000_000_000, 'b.seed': INPUT_TIME - 1_000_000_000,
+                       'marker.seed': INPUT_TIME + 2_000_000_000})
+        seen = before_second + b'left\nread-1\nclock-' + clock + b'\nloaded-settled\nsearch-1\n'
+        stdout = marker + b"make: 'b.mk' is up to date.\n"
+        updates = {**markers, 'b.mk': b'AFTER := settled\n'}
+        args = ('-rR', '--no-print-directory', '-j2', '-k', f'--jobserver-style={transport}',
+                '-W', 'b.mk', 'b.mk')
+        expected = {'exit_code': 0, 'stdout_template_hex': stdout.hex(), 'stderr_template_hex': ''}
+        model = debug.Model(f'assumed-source-clock-{context}-{transport}', files, args,
+                            {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=mtimes)
+        results.append(HeldModel(model, True, before_second, before_first=before_first,
+                                 before_second_stdout=marker, second_stdout_barrier=marker,
+                                 release_order=('right', 'left')))
+    return results
+
+
 def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list[HeldModel]:
     worker = (SOURCES / 'worker.py').read_bytes()
     markers = {f'{name}.{suffix}': content for name in WORKERS
@@ -211,6 +260,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
         results += grouped_optional_mode_models(worker, markers, suffix, prerequisite)
     results += named_source_mode_models(worker, markers)
     results += assumed_current_source_models(worker, markers)
+    results += assumed_late_source_write_models(worker, markers)
     results += parallel_named_mode_models(worker, markers)
     results += primary_named_mode_models(worker, markers)
     results += primary_named_group_models(worker, markers)

@@ -4337,8 +4337,11 @@ impl Engine {
                                     && live_modes.question == modes.question
                                     && !live_modes.touch
                             };
-                            assumed_remake_changed = self
-                                .settled_assumed_new_makefile_clock(name, allow_stopping_repeats);
+                            assumed_remake_changed = self.settled_assumed_new_makefile_clock(
+                                name,
+                                allow_stopping_repeats,
+                                None,
+                            );
                         }
                     }
                 }
@@ -11477,6 +11480,7 @@ impl Engine {
         &self,
         source: &[u8],
         allow_stopping_repeats: bool,
+        expected_physical_time: Option<SystemTime>,
     ) -> bool {
         let target = self.aliases.resolve(source);
         if self.assumed_new_double_colon_entries(target).is_none() {
@@ -11491,7 +11495,10 @@ impl Engine {
                 !matches!(
                     branch.completion,
                     CompletionTime::AssumeNew | CompletionTime::AssumeNewPhony
-                ) && branch.time.is_some_and(|time| time != assumed_time)
+                ) && branch.time.is_some_and(|time| {
+                    time != assumed_time
+                        && expected_physical_time.is_none_or(|before| time == before)
+                })
             },
         )
     }
@@ -11550,8 +11557,8 @@ impl Engine {
         named_sources: Option<&HashSet<&[u8]>>,
     ) -> bool {
         // A source can settle on the second visit after its order-only
-        // prerequisites finish. Its own completion preserves the clock
-        // even when a prerequisite ran a recipe.
+        // prerequisites finish. Its completion and synthetic entry retain that
+        // clock while other workers drain.
         read_files.iter().any(|(source, skip)| {
             let name = source.name.as_slice();
             let target = self.aliases.resolve(name);
@@ -11576,8 +11583,7 @@ impl Engine {
                         )
                         && outcome.time == Some(before)
                 })
-                && self.modified(target) == Some(before)
-                && self.settled_assumed_new_makefile_clock(target, false)
+                && self.settled_assumed_new_makefile_clock(target, false, Some(before))
         })
     }
 
