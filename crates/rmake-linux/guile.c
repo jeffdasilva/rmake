@@ -253,8 +253,7 @@ static SCM convert_scalar(SCM value) {
     return scm_call_1(converter, value);
 }
 static SCM queue_conversion_child(SCM work, SCM child, int native_link, SCM *active_pairs) {
-    /* A live accessor can return a link that the pair itself does not contain.
-     * Only identities reached through native links prove a structural cycle. */
+    /* Only follow structural ancestry across a link the accessor left intact. */
     if (!native_link) {
         work = scm_cons(scm_cons(SCM_UNDEFINED, *active_pairs), work);
         *active_pairs = SCM_BOOL_F;
@@ -287,8 +286,10 @@ static SCM object_text(SCM value) {
             // The Scheme converter can mutate this pair while visiting its car.
             // Read the live cdr now and reuse this frame for leaving the pair.
             scm_set_car_x(item, leave_pair);
+            SCM original = scm_is_pair(current) ? scm_cdr(current) : SCM_UNDEFINED;
             SCM child = scm_call_1(conversion_cdr, current);
-            int native_link = scm_is_pair(current) && scm_is_eq(child, scm_cdr(current));
+            int native_link = scm_is_pair(current) && scm_is_eq(child, original)
+                              && scm_is_eq(child, scm_cdr(current));
             work = queue_conversion_child(frame, child, native_link, &active_pairs);
             continue;
         }
@@ -310,8 +311,10 @@ static SCM object_text(SCM value) {
                 scm_misc_error("guile", "circular value conversion", SCM_EOL);
             scm_hashq_set_x(active_pairs, current, SCM_BOOL_T);
             work = scm_cons(scm_cons(follow_tail, current), work);
+            SCM original = scm_is_pair(current) ? scm_car(current) : SCM_UNDEFINED;
             SCM child = scm_call_1(conversion_car, current);
-            int native_link = scm_is_pair(current) && scm_is_eq(child, scm_car(current));
+            int native_link = scm_is_pair(current) && scm_is_eq(child, original)
+                              && scm_is_eq(child, scm_car(current));
             work = queue_conversion_child(work, child, native_link, &active_pairs);
         }else {
             SCM text=convert_scalar(current);
