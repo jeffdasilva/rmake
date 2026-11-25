@@ -349,10 +349,10 @@ enum GroupPeerTime {
 }
 
 #[derive(Clone, Copy, Default)]
-enum GroupRemakeFailure {
+enum RemakeFailure {
     #[default]
     None,
-    ImplicitPrerequisiteOwner,
+    SettledPrerequisiteOwner,
     Optional,
     RequiredClockUnchanged,
     RequiredClockChanged,
@@ -360,7 +360,7 @@ enum GroupRemakeFailure {
     OptionalClockChanged,
 }
 
-impl GroupRemakeFailure {
+impl RemakeFailure {
     fn is_optional(self) -> bool {
         matches!(
             self,
@@ -370,7 +370,7 @@ impl GroupRemakeFailure {
 
     fn with_optional(self) -> Self {
         match self {
-            Self::None | Self::ImplicitPrerequisiteOwner => Self::Optional,
+            Self::None | Self::SettledPrerequisiteOwner => Self::Optional,
             Self::RequiredClockUnchanged => Self::OptionalClockUnchanged,
             Self::RequiredClockChanged => Self::OptionalClockChanged,
             optional => optional,
@@ -381,7 +381,7 @@ impl GroupRemakeFailure {
         match self {
             Self::RequiredClockUnchanged | Self::OptionalClockUnchanged => Some(false),
             Self::RequiredClockChanged | Self::OptionalClockChanged => Some(true),
-            Self::None | Self::ImplicitPrerequisiteOwner | Self::Optional => None,
+            Self::None | Self::SettledPrerequisiteOwner | Self::Optional => None,
         }
     }
 }
@@ -398,7 +398,7 @@ struct Outcome {
     blocked: bool,
     // A failed dispatch in an optional parallel remake can precede more visits.
     deferred_spawn_failure: bool,
-    group_remake_failure: GroupRemakeFailure,
+    remake_failure: RemakeFailure,
     // A successful grouped remake invalidates each other read peer,
     // including one whose physical timestamp did not change.
     remake_group_peer_updated: bool,
@@ -2474,7 +2474,7 @@ impl Engine {
         let cached = self
             .file_traversals
             .outcome(identity)
-            .is_some_and(|outcome| outcome.group_remake_failure.is_optional());
+            .is_some_and(|outcome| outcome.remake_failure.is_optional());
         // A single double-colon peer has a branch record before its own visit.
         let declared_peer = !cached
             && self.remaking
@@ -2492,7 +2492,7 @@ impl Engine {
             && self
                 .database_branch_outcomes
                 .get(&(identity.to_vec(), 0))
-                .is_some_and(|outcome| outcome.group_remake_failure.is_optional());
+                .is_some_and(|outcome| outcome.remake_failure.is_optional());
         (cached || declared_peer) && !self.optional_remake_failures.contains_key(identity)
     }
 
@@ -3930,7 +3930,7 @@ impl Engine {
             let first_effect_generation = track_remake_effects.then_some(pass_progress);
             let mut skipped_errors = Vec::new();
             let mut failed_remakes = HashMap::new();
-            let mut observed_failed_group_changes = HashSet::new();
+            let mut settled_failed_source_changes = HashSet::new();
             let mut optional_failures: HashMap<&[u8], OptionalMakefileFailure> = HashMap::new();
             let mut visited = MakefileVisits::new();
             let mut optional_remake_failed = false;
@@ -4128,8 +4128,8 @@ impl Engine {
                 let cached_failed_owner_change = cached_prerequisite
                     .filter(|(_, cached)| {
                         matches!(
-                            cached.group_remake_failure,
-                            GroupRemakeFailure::ImplicitPrerequisiteOwner
+                            cached.remake_failure,
+                            RemakeFailure::SettledPrerequisiteOwner
                         )
                     })
                     .map(|(loaded, cached)| cached.time.is_some_and(|time| time != loaded));
@@ -4492,7 +4492,7 @@ impl Engine {
                 }
                 let deferred_peer_failure = deferred_peer_failure
                     || (pending_peer
-                        && result.group_remake_failure.is_optional()
+                        && result.remake_failure.is_optional()
                         && self.cached_optional_group_peer_failure(name));
                 if result.question_outdated {
                     if !failed && !optional_remake_failed {
@@ -4512,14 +4512,14 @@ impl Engine {
                         refreshed_implicit_time.filter(|_| chain_failed && self.options.keep_going);
                     // A serial declaration may change the file after a
                     // blocked head. Other roots use their own recipe result.
-                    let settled_group_change = result
-                        .group_remake_failure
+                    let settled_failure_change = result
+                        .remake_failure
                         .peer_clock_changed()
                         .or(cached_failed_owner_change)
                         .filter(|_| !modes.active());
-                    let refresh_timestamp = settled_group_change.is_none()
+                    let refresh_timestamp = settled_failure_change.is_none()
                         && (serial_declarations.is_some() || (result.ran && !result.blocked));
-                    if settled_group_change == Some(true)
+                    if settled_failure_change == Some(true)
                         || (!result.ran
                             && observed_peer_change.is_some()
                             && self
@@ -4532,7 +4532,7 @@ impl Engine {
                                 if rule.grouped_double_id().is_some())
                                 }))
                     {
-                        observed_failed_group_changes.insert(name);
+                        settled_failed_source_changes.insert(name);
                     }
                     if may_replay {
                         optional_failures.insert(
@@ -4896,7 +4896,7 @@ impl Engine {
                         && let Some(&(before, _)) = visited.get(name)
                         && let Some(outcome) =
                             self.file_traversals.outcome(self.aliases.resolve(name))
-                        && outcome.group_remake_failure.is_optional()
+                        && outcome.remake_failure.is_optional()
                     {
                         failed = true;
                         failed_remakes.insert(name, (before, outcome.ran && !outcome.blocked));
@@ -4914,8 +4914,8 @@ impl Engine {
                             )),
                         },
                     );
-                    if observed_failed_group_changes.contains(name) {
-                        // The group already sampled this existing source.
+                    if settled_failed_source_changes.contains(name) {
+                        // This existing source already has a settled timestamp.
                         // Later recipes do not replace that serialized observation.
                         changed = true;
                         *refresh_timestamp = false;
@@ -4926,9 +4926,9 @@ impl Engine {
                             .get(name)
                             .copied()
                             .filter(|_| {
-                                self.file_traversals.outcome(name).is_some_and(|outcome| {
-                                    outcome.group_remake_failure.is_optional()
-                                })
+                                self.file_traversals
+                                    .outcome(name)
+                                    .is_some_and(|outcome| outcome.remake_failure.is_optional())
                             })
                             .or(*before);
                         let after = self.modified(&makefile.name);
@@ -7889,7 +7889,7 @@ impl Engine {
         let cached = self.cached_recipe_outcome(outcome);
         self.file_traversals.set_outcome(&target, cached);
         if !pending {
-            self.finish_group(&target, outcome);
+            self.finish_recipe(&target, outcome);
         }
         if !outcome.fatal {
             let failed_dispatch_paid = failed_dispatch
@@ -10854,7 +10854,7 @@ impl Engine {
                 .entry(target.to_vec())
                 .or_default();
         }
-        if !deferred_peer_failure || !outcome.group_remake_failure.is_optional() || outcome.fatal {
+        if !deferred_peer_failure || !outcome.remake_failure.is_optional() || outcome.fatal {
             self.record_graph_failure(outcome);
         }
         outcome
@@ -13548,7 +13548,7 @@ impl Engine {
         self.visiting.remove(target);
         self.file_traversals.set_outcome(target, outcome);
         if !self.parallel_jobs.contains_key(target) {
-            self.finish_group(target, outcome)
+            self.finish_recipe(target, outcome)
         } else {
             outcome
         }
@@ -13563,8 +13563,41 @@ impl Engine {
         }
     }
 
-    fn finish_group(&mut self, target: &[u8], mut outcome: Outcome) -> Outcome {
-        let Some(group) = self.running_groups.remove(target) else {
+    fn finish_recipe(&mut self, target: &[u8], mut outcome: Outcome) -> Outcome {
+        let group = self.running_groups.remove(target);
+        let failed_prerequisite = outcome.failed
+            && !outcome.fatal
+            && !outcome.blocked
+            && outcome.ran
+            && outcome.completion == CompletionTime::Refresh
+            && self.remaking
+            && !self.parallel_makefile_remakes
+            && self.options.keep_going
+            && self.assumptions.is_none()
+            && !MakefileModes::from_options(&self.options).active()
+            && self
+                .file_traversals
+                .visit(target)
+                .is_some_and(|visit| visit.parent.is_some());
+        if failed_prerequisite
+            && self.makefile_names.contains(target)
+            && match &group {
+                Some(group) => group.implicit && group.double_colon.is_none(),
+                None => self.database.rules.get(target).is_some_and(|rule| {
+                    rule.double_colon.is_none()
+                        && rule.grouped_targets().is_none()
+                        && rule.recipes.is_some()
+                        && !rule.default_recipe
+                }),
+            }
+        {
+            // The consuming prerequisite check settles the owner's timestamp.
+            outcome.remake_failure = RemakeFailure::SettledPrerequisiteOwner;
+            if let Some(owner) = self.file_traversals.outcome_mut(target) {
+                owner.remake_failure = outcome.remake_failure;
+            }
+        }
+        let Some(group) = group else {
             return outcome;
         };
         let cached = self.cached_recipe_outcome(outcome);
@@ -13627,8 +13660,7 @@ impl Engine {
                     }
                     let mut completed = outcome;
                     if optional_serial_failure && !owner && branches.len() == 1 {
-                        completed.group_remake_failure =
-                            completed.group_remake_failure.with_optional();
+                        completed.remake_failure = completed.remake_failure.with_optional();
                     }
                     completed.database_result = DatabaseResult::ObservedGroup;
                     completed.time = if phony {
@@ -13728,28 +13760,7 @@ impl Engine {
             && self.assumptions.is_none()
             && !self.options.check_symlink_times
             && self.makefile_names.contains(target);
-        let failed_implicit_prerequisite = self.remaking
-            && !self.parallel_makefile_remakes
-            && group.implicit
-            && self.options.keep_going
-            && self.assumptions.is_none()
-            && !MakefileModes::from_options(&self.options).active()
-            && outcome.failed
-            && !outcome.fatal
-            && !outcome.blocked
-            && outcome.ran
-            && outcome.completion == CompletionTime::Refresh
-            && self
-                .file_traversals
-                .visit(target)
-                .is_some_and(|visit| visit.parent.is_some());
-        if failed_implicit_prerequisite && self.makefile_names.contains(target) {
-            // The consuming prerequisite check settles the owner's timestamp.
-            outcome.group_remake_failure = GroupRemakeFailure::ImplicitPrerequisiteOwner;
-            if let Some(owner) = self.file_traversals.outcome_mut(target) {
-                owner.group_remake_failure = outcome.group_remake_failure;
-            }
-        }
+        let failed_implicit_prerequisite = group.implicit && failed_prerequisite;
         let trace_failed_read_peers = serial_explicit_remake
             && (self.optional_remake() || self.options.keep_going)
             && outcome.failed
@@ -13822,22 +13833,22 @@ impl Engine {
             }
             // A failed pattern group settles this peer's physical time here.
             // The required read reports it without refreshing over this sample.
-            completed.group_remake_failure = if failed_implicit_prerequisite
+            completed.remake_failure = if failed_implicit_prerequisite
                 && !phony
                 && self.makefile_names.contains(&peer)
                 && !self.file_traversals.has_outcome(&peer)
                 && let Some(Some((None, Some(loaded)))) = self.path_observations.get(&peer)
             {
                 if completed.time.is_some_and(|time| time != *loaded) {
-                    GroupRemakeFailure::RequiredClockChanged
+                    RemakeFailure::RequiredClockChanged
                 } else {
-                    GroupRemakeFailure::RequiredClockUnchanged
+                    RemakeFailure::RequiredClockUnchanged
                 }
             } else {
-                GroupRemakeFailure::None
+                RemakeFailure::None
             };
             if self.optional_remake() && outcome.failed && !outcome.fatal {
-                completed.group_remake_failure = completed.group_remake_failure.with_optional();
+                completed.remake_failure = completed.remake_failure.with_optional();
             }
             if track_read_peers && !phony && self.makefile_names.contains(&peer) {
                 // A missing group member can stop peer freshness checks.

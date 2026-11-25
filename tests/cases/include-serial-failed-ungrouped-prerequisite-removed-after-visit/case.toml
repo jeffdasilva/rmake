@@ -1,0 +1,12 @@
+id = "include-serial-failed-ungrouped-prerequisite-removed-after-visit"
+requirement = "includes.remake"
+candidate = "required"
+description = "A failed explicit prerequisite still invalidates its source after a later removal."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:0:old:Makefile worker.inc payload.mk tail.inc\nREMAKE:payload.mk:trigger\nTAIL\nREAD:1::Makefile worker.inc tail.inc\n"
+stderr = "make: *** [Makefile:15: payload.mk] Error 1\nMakefile:8: Failed to remake makefile 'worker.inc'.\nMakefile:9: Failed to remake makefile 'payload.mk'.\nMakefile:9: payload.mk: No such file or directory\nmake: *** No rule to make target 'payload.mk'.\nMakefile:9: Failed to remake makefile 'payload.mk'.\n"
