@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-named-query-current-clock"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "Three current entries with equal prerequisite times permit a named query reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-W", "b.mk", "-W", "./b.mk", "-W", "././b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

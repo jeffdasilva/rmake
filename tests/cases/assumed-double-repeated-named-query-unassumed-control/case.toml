@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-named-query-unassumed-control"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "A current named query source keeps the original read without a what-if entry."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

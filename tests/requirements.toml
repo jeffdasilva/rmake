@@ -1826,8 +1826,8 @@ title = "Restart serial existing sources after a synthetic what-if timestamp cha
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 9
-fixture_count = 9
+candidate_required = 12
+fixture_count = 12
 cases = [
   "assumed-double-source-clock-command",
   "assumed-double-source-clock-earlier-failure",
@@ -1838,6 +1838,9 @@ cases = [
   "assumed-double-source-clock-order-only",
   "assumed-double-source-clock-physical",
   "assumed-double-source-clock-unassumed",
+  "assumed-double-repeated-source-clock-current",
+  "assumed-double-repeated-source-clock-empty-recipe",
+  "assumed-double-repeated-source-clock-failed-sibling-control",
 ]
 
 [[requirements]]
@@ -1846,8 +1849,8 @@ title = "Restart after a current synthetic entry settles for a named serial quer
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 8
-fixture_count = 8
+candidate_required = 14
+fixture_count = 14
 cases = [
   "assumed-double-named-current-clock-dry-current",
   "assumed-double-named-current-clock-dry-declared",
@@ -1857,6 +1860,12 @@ cases = [
   "assumed-double-named-current-clock-query-current",
   "assumed-double-named-current-clock-query-later-failure",
   "assumed-double-named-current-clock-query-synthetic",
+  "assumed-double-repeated-named-dry-current-clock",
+  "assumed-double-repeated-named-query-current-clock",
+  "assumed-double-repeated-named-query-unassumed-control",
+  "assumed-double-repeated-named-dry-reverse-control",
+  "assumed-double-repeated-named-query-stale-control",
+  "assumed-double-repeated-named-dry-declared-control",
 ]
 
 [[requirements]]

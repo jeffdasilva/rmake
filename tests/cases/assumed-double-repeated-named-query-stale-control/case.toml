@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-named-query-stale-control"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "Successful empty query simulations keep their logical time and the original read."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

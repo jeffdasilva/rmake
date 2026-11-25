@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-named-dry-declared-control"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "A simulated declared recipe keeps its logical time across current synthetic entries."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "printf head > proof\nmake: 'b.mk' is up to date.\n"
+stderr = ""

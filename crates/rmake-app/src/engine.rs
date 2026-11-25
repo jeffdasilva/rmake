@@ -11282,32 +11282,25 @@ impl Engine {
         Some((succeeded, refreshed))
     }
 
-    fn settled_assumed_new_makefile_branch(&self, source: &[u8]) -> Option<(SystemTime, Outcome)> {
-        let name = self.aliases.resolve(source);
-        let assumed_time = self.single_assumed_new_double_colon_time(name)?;
-        let declarations = self.database.rules.get(name)?.double_colon.as_ref()?;
-        let branch = *self
-            .database_branch_outcomes
-            .get(&(name.to_vec(), declarations.len()))?;
-        (!branch.failed && !branch.fatal && !branch.question_outdated)
-            .then_some((assumed_time, branch))
-    }
-
     fn settled_assumed_new_makefile_clock(&self, source: &[u8]) -> bool {
-        // An existing source's synthetic entry can settle on a physical
-        // timestamp even if its recipe did not need to run. Compare it
-        // with that entry's own initial assumed timestamp.
-        self.settled_assumed_new_makefile_branch(source)
-            .is_some_and(|(assumed_time, branch)| {
+        // Synthetic entries can settle on physical timestamps even when
+        // their recipes did not need to run.
+        self.settled_assumed_new_makefile_branches_match(
+            self.aliases.resolve(source),
+            |assumed_time, branch| {
                 !matches!(
                     branch.completion,
                     CompletionTime::AssumeNew | CompletionTime::AssumeNewPhony
                 ) && branch.time.is_some_and(|time| time != assumed_time)
-            })
+            },
+        )
     }
 
-    fn assumed_new_makefile_branches(&self, target: &[u8]) -> Option<std::ops::Range<usize>> {
-        let (_, count) = self.assumed_new_double_colon_entries(target)?;
+    fn assumed_new_makefile_branches(
+        &self,
+        target: &[u8],
+    ) -> Option<(SystemTime, std::ops::Range<usize>)> {
+        let (assumed_time, count) = self.assumed_new_double_colon_entries(target)?;
         // Restrict repeated operands to keep-going. The restart check
         // requires a settled outcome for each synthetic entry.
         if count > 1 && !self.options.keep_going {
@@ -11320,7 +11313,28 @@ impl Engine {
             .double_colon
             .as_ref()?
             .len();
-        Some(declared..declared + count)
+        Some((assumed_time, declared..declared + count))
+    }
+
+    fn settled_assumed_new_makefile_branches_match(
+        &self,
+        target: &[u8],
+        qualifies: impl Fn(SystemTime, &Outcome) -> bool,
+    ) -> bool {
+        self.assumed_new_makefile_branches(target)
+            .is_some_and(|(assumed_time, mut ordinals)| {
+                let mut key = (target.to_vec(), 0);
+                ordinals.all(|ordinal| {
+                    key.1 = ordinal;
+                    self.database_branch_outcomes
+                        .get(&key)
+                        .is_some_and(|branch| {
+                            branch.terminal_verdict().is_none()
+                                && !branch.fatal
+                                && qualifies(assumed_time, branch)
+                        })
+                })
+            })
     }
 
     fn failed_remake_has_updated_assumed_source(
@@ -11361,21 +11375,10 @@ impl Engine {
                     rmake_core::filenames::without_dot_prefix(name),
                     named_sources,
                 )
-                && self
-                    .assumed_new_makefile_branches(target)
-                    .is_some_and(|mut ordinals| {
-                        let mut key = (target.to_vec(), 0);
-                        ordinals.all(|ordinal| {
-                            key.1 = ordinal;
-                            self.database_branch_outcomes
-                                .get(&key)
-                                .is_some_and(|branch| {
-                                    succeeded(branch)
-                                        && branch.database_result == completion
-                                        && branch.completion == CompletionTime::AssumeNew
-                                })
-                        })
-                    })
+                && self.settled_assumed_new_makefile_branches_match(target, |_, branch| {
+                    branch.database_result == completion
+                        && branch.completion == CompletionTime::AssumeNew
+                })
                 && self.file_traversals.outcome(target).is_some_and(succeeded)
                 && self
                     .database_branch_outcomes
@@ -13255,7 +13258,7 @@ impl Engine {
                     && let Some(ordinal) = branch
                     && self
                         .assumed_new_makefile_branches(target)
-                        .is_some_and(|ordinals| ordinals.contains(&ordinal))
+                        .is_some_and(|(_, ordinals)| ordinals.contains(&ordinal))
                 {
                     outcome.database_result = match execution.touch {
                         TouchCompletion::None => DatabaseResult::Outcome,
