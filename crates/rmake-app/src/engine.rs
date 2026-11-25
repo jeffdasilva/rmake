@@ -363,6 +363,7 @@ struct Outcome {
     debug_time_changed: bool,
     // A serial peer completed with its owner before its own diagnostic visit.
     debug_serial_group_peer: bool,
+    replayed_double_colon_goal_failure: bool,
 }
 
 impl Outcome {
@@ -1232,10 +1233,17 @@ struct GroupState {
     recipe_rule: Rule,
     peer_segments: Vec<GroupSegment>,
     peer_targets: std::collections::VecDeque<(Vec<u8>, usize)>,
+    query_skipped_dependencies: HashSet<usize>,
     // Dependency-order ranges skipped at blocked peer barriers.
     wait_frontiers: Vec<std::ops::Range<usize>>,
     frontiers_enabled: bool,
     run: GroupRun,
+}
+
+impl GroupState {
+    fn ordinary_explicit_single_colon(&self) -> bool {
+        self.run.ordinary && !self.run.implicit && self.run.double_colon.is_none()
+    }
 }
 
 struct GroupSegment {
@@ -4099,7 +4107,21 @@ impl Engine {
                     }
                 }
                 let serial_declarations = if result.failed && !result.fatal && !prior_peer_failure {
-                    self.serial_double_colon_declarations(name)
+                    self.serial_double_colon_branch_count(name)
+                        .filter(|&count| {
+                            count > 1
+                                // A stopped optional head still has another
+                                // goal entry when an assumption is active.
+                                || (optional
+                                    && !self.options.keep_going
+                                    && self.has_assumed_double_colon_entry(name)
+                                    && self.optional_remake_failures
+                                        .get(name)
+                                        .is_some_and(Option::is_some)
+                                    && self.database_branch_outcomes
+                                        .get(&(name.to_vec(), 0))
+                                        .is_some_and(|head| head.failed))
+                        })
                 } else {
                     None
                 };
@@ -5646,11 +5668,21 @@ impl Engine {
     }
 
     fn debug_cached_prerequisite_visit(&mut self, target: &[u8], depth: usize, outcome: Outcome) {
+        self.debug_cached_prerequisite_visit_with_question(target, depth, outcome, false);
+    }
+
+    fn debug_cached_prerequisite_visit_with_question(
+        &mut self,
+        target: &[u8],
+        depth: usize,
+        outcome: Outcome,
+        include_question: bool,
+    ) {
         use crate::debug::{Event, Mask, emit};
 
         if !self.output.debug_mask().has(Mask::VERBOSE)
             || outcome.fatal
-            || outcome.question_outdated
+            || (outcome.question_outdated && !include_question)
         {
             return;
         }
@@ -5667,7 +5699,7 @@ impl Engine {
             &self.output,
             if self.pending(name) {
                 Event::StillUpdating(name, depth)
-            } else if outcome.failed {
+            } else if outcome.failed || outcome.question_outdated {
                 Event::RecentlyFailed(name, depth)
             } else {
                 Event::Already(name, depth)
@@ -5683,6 +5715,7 @@ impl Engine {
             || self.shutdown.get() != Shutdown::Running
             || outcome.fatal
             || (!self.options.keep_going && (outcome.failed || outcome.question_outdated))
+            || outcome.replayed_double_colon_goal_failure
         {
             return;
         }
@@ -10034,6 +10067,65 @@ impl Engine {
         }
     }
 
+    fn replay_settled_double_colon_goal_failure(
+        &mut self,
+        target: &[u8],
+        depth: usize,
+    ) -> Option<Outcome> {
+        if self.remaking
+            || !self.options.keep_going
+            || self.graph_abort.is_some()
+            || self.shutdown.get() != Shutdown::Running
+        {
+            return None;
+        }
+        let cause = self.optional_remake_failures.get(target)?.as_ref()?.clone();
+        let outcome = *self.file_traversals.outcome(target)?;
+        if !outcome.failed
+            || outcome.fatal
+            || outcome.question_outdated
+            || outcome.completion == CompletionTime::ArchiveUnknown
+            || cause.target == target
+            || !self.makefile_names.contains(target)
+            || self.pending(target)
+            || self
+                .active_peers
+                .get(target)
+                .is_some_and(|owner| owner != target)
+            || self.ordinary_queries.deferred_tails.contains_key(target)
+            || self.cached_double_colon_input_due(target)
+            || self.visited_cached_double_colon_input(target)
+        {
+            return None;
+        }
+        let declarations = self.serial_double_colon_declarations(target)?;
+        let mut key = (target.to_vec(), 0);
+        if !self
+            .database_branch_outcomes
+            .get(&key)
+            .is_some_and(|head| head.failed)
+            || !(1..declarations).all(|ordinal| {
+                key.1 = ordinal;
+                self.database_branch_outcomes.contains_key(&key)
+            })
+        {
+            return None;
+        }
+
+        // Each ordinary goal entry revisits the settled declaration chain.
+        // The head repeats its retained cause; the tails only report their
+        // cached status. No prerequisites or recipes run again.
+        for _ in 0..declarations {
+            self.debug_completed_double_colon_declarations(target, 0..1, depth);
+            self.show_retained_optional_failure(target, None, Some(Rc::clone(&cause)));
+            self.debug_completed_double_colon_declarations(target, 1..declarations, depth);
+        }
+        Some(Outcome {
+            replayed_double_colon_goal_failure: true,
+            ..outcome
+        })
+    }
+
     fn show_retained_optional_failure(
         &mut self,
         target: &[u8],
@@ -10286,6 +10378,12 @@ impl Engine {
         reused_failed_outcome: &mut bool,
     ) -> Outcome {
         self.prepare_missing_rule_visit(target, parent.map(|parent| parent.target));
+        if parent.is_none()
+            && let Some(outcome) = self.replay_settled_double_colon_goal_failure(target, depth)
+        {
+            *reused_failed_outcome = true;
+            return outcome;
+        }
         let mut traced_optional_failure = false;
         if !self.optional_remake()
             && let Some(cause) = self.optional_remake_failures.get(target).cloned()
@@ -10791,6 +10889,13 @@ impl Engine {
     }
 
     fn serial_double_colon_declarations(&self, target: &[u8]) -> Option<usize> {
+        // The declared head alone inherits optional-source error suppression,
+        // including when this visit will execute a grouped recipe itself.
+        self.serial_double_colon_branch_count(target)
+            .filter(|&count| count > 1)
+    }
+
+    fn serial_double_colon_branch_count(&self, target: &[u8]) -> Option<usize> {
         if self.parallel_makefile_remakes
             || self.options.dry_run
             || self.options.question
@@ -10799,9 +10904,7 @@ impl Engine {
             return None;
         }
         let branches = self.database.rules.get(target)?.double_colon.as_ref()?;
-        // The declared head alone inherits optional-source error suppression,
-        // including when this visit will execute a grouped recipe itself.
-        (branches.len() > 1).then_some(branches.len())
+        Some(branches.len())
     }
 
     fn resume_double_colon_state(&mut self, target: &[u8], mut state: DoubleColonState) -> Outcome {
@@ -11438,6 +11541,7 @@ impl Engine {
                     ordinal: rule.grouped_double_ordinal(),
                 }],
                 peer_targets,
+                query_skipped_dependencies: HashSet::new(),
                 wait_frontiers: Vec::new(),
                 frontiers_enabled: rule.grouped_double_id().is_some()
                     || rule
@@ -11615,10 +11719,19 @@ impl Engine {
                     .is_some_and(|group| group.frontiers_enabled));
         let mut group_waiting = false;
         let mut segment_index = 0;
-        if group_frontier {
+        let mut question_in_scan = !group_frontier && state.outcome.question_outdated;
+        let previous_query_skips = if group_frontier {
             state.next = 0;
             state.replay_cached_after_recipe |= replay_debug && !self.remaking;
-        }
+            // A restarted scan reaches its query verdict in traversal order.
+            // An earlier barrier can now admit prerequisites it skipped before.
+            state
+                .group
+                .as_mut()
+                .map(|group| std::mem::take(&mut group.query_skipped_dependencies))
+        } else {
+            None
+        };
         let mut resume_visit = if replay_debug {
             PrerequisiteVisit::DebugReplay
         } else {
@@ -11769,6 +11882,9 @@ impl Engine {
             }
             let visited = !previous_frontiers.is_empty()
                 && state.next < previous_next
+                && !previous_query_skips
+                    .as_ref()
+                    .is_some_and(|skipped| skipped.contains(&index))
                 && !previous_frontiers
                     .iter()
                     .any(|range| range.contains(&state.next));
@@ -11809,8 +11925,30 @@ impl Engine {
             let (child, pending) = self.visit_prerequisite(target, &mut state, index, visit);
             group_waiting |= pending;
             merge_child(&mut state.outcome, child);
+            question_in_scan |= child.question_outdated;
             let deferred = child.deferred_spawn_failure && self.optional_remake();
-            if child.fatal
+            if question_in_scan
+                && !child.fatal
+                && !self.forced_query_stop
+                && !self.options.keep_going
+                && let Some(group) = state.group.as_mut()
+                && group.ordinary_explicit_single_colon()
+            {
+                // A query verdict ends this member's scan. A resumed frontier
+                // can already have later members' prerequisites in the rule.
+                let next_segment = group
+                    .peer_segments
+                    .partition_point(|segment| segment.start < state.next);
+                let end = group
+                    .peer_segments
+                    .get(next_segment)
+                    .map_or(state.rule.dependencies.len(), |segment| segment.start);
+                group.query_skipped_dependencies.extend(
+                    (state.next..end)
+                        .map(|position| state.order.get(position).copied().unwrap_or(position)),
+                );
+                state.next = end;
+            } else if child.fatal
                 || (((child.failed && !deferred) || child.question_outdated)
                     && !self.options.keep_going)
             {
@@ -11892,6 +12030,13 @@ impl Engine {
         index: usize,
         visit: PrerequisiteVisit,
     ) -> (Outcome, bool) {
+        if state
+            .group
+            .as_ref()
+            .is_some_and(|group| group.query_skipped_dependencies.contains(&index))
+        {
+            return (Outcome::default(), false);
+        }
         let first = visit == PrerequisiteVisit::First;
         if let Some((epoch, outcome)) = state.inspections.get(&index)
             && *epoch == self.graph_epoch
@@ -12037,10 +12182,17 @@ impl Engine {
                             .then(Outcome::default)
                     })
                 {
-                    self.debug_cached_prerequisite_visit(
+                    let include_question = outcome.question_outdated
+                        && !self.forced_query_stop
+                        && state
+                            .group
+                            .as_ref()
+                            .is_some_and(|group| group.ordinary_explicit_single_colon());
+                    self.debug_cached_prerequisite_visit_with_question(
                         dependency,
                         state.depth + usize::from(self.remaking) + 1,
                         outcome,
+                        include_question,
                     );
                 }
                 outcome.unwrap_or_default()
@@ -12245,7 +12397,12 @@ impl Engine {
         let mut newer = Vec::new();
         for (index, occurrence) in rule.dependencies.iter().enumerate() {
             let dependency = &occurrence.name;
-            if dependency == b".WAIT" || dropped.contains(dependency) {
+            if dependency == b".WAIT"
+                || dropped.contains(dependency)
+                || group
+                    .as_ref()
+                    .is_some_and(|group| group.query_skipped_dependencies.contains(&index))
+            {
                 continue;
             }
             if !self.remake_stopped() {

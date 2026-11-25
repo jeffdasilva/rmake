@@ -176,6 +176,16 @@ impl Engine {
             count
         }
     }
+    pub(super) fn has_assumed_double_colon_entry(&self, name: &[u8]) -> bool {
+        let Some(files) = &self.assumptions else {
+            return false;
+        };
+        files.entries.get(name).is_some_and(|entry| {
+            entry.bits & DOUBLE_COLON != 0
+                && (entry.bits & OLD != 0 || (files.new_active && entry.new_count != 0))
+        })
+    }
+
     pub(super) fn assumed_new_double_colon_time(&self, name: &[u8]) -> Option<SystemTime> {
         self.assumptions
             .as_ref()

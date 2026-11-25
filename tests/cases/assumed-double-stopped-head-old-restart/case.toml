@@ -1,0 +1,13 @@
+id = "assumed-double-stopped-head-old-restart"
+requirement = "options.assumed-double-colon-stopped-head"
+candidate = "required"
+description = "Assumed-old records are active during makefile remaking after a restart."
+args = ["-rR", "--no-print-directory", "-j1", "-o", "b.mk", "all"]
+
+[environment]
+MAKE_RESTARTS = "1"
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'missing', needed by 'b.mk'.  Stop.\n"

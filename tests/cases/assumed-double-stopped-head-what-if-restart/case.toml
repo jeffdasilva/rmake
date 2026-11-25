@@ -1,0 +1,43 @@
+id = "assumed-double-stopped-head-what-if-restart"
+requirement = "options.assumed-double-colon-stopped-head"
+candidate = "required"
+description = "After a restart, what-if publication occurs after the optional remake."
+args = ["-rR", "--no-print-directory", "-j1", "--debug=m,v", "-W", "b.mk", "all"]
+output = "merged"
+
+[environment]
+MAKE_RESTARTS = "1"
+
+[expected]
+exit_code = 0
+stdout = '''
+GNU Make 4.4.1
+Built for x86_64-pc-linux-gnu
+Copyright (C) 1988-2023 Free Software Foundation, Inc.
+License GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+Reading makefiles...
+Reading makefile 'Makefile'...
+Reading makefile 'b.mk' (search path) (don't care) (no ~ expansion)...
+Updating makefiles....
+ Considering target file 'Makefile'.
+ Finished prerequisites of target file 'Makefile'.
+ No need to remake target 'Makefile'.
+ Considering target file 'b.mk'.
+  Considering target file 'missing'.
+   File 'missing' does not exist.
+  Finished prerequisites of target file 'missing'.
+  Must remake target 'missing'.
+  Failed to remake target file 'missing'.
+ Finished prerequisites of target file 'b.mk'.
+ Giving up on target file 'b.mk'.
+Updating goal targets....
+Considering target file 'all'.
+ File 'all' does not exist.
+Finished prerequisites of target file 'all'.
+Must remake target 'all'.
+ordinary
+Successfully remade target file 'all'.
+'''
+stderr = ""

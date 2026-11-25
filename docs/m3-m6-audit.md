@@ -190,8 +190,11 @@ their reporting state through an optional visit, as checked by the
 [shared-failure regression](../tests/cases/optional-cached-failure-required-two/Makefile).
 Retained missing-rule messages now follow the latest actual prerequisite edge,
 including a [later ordinary-goal visit](../tests/cases/retained-failure-parent-later-new-parent/Makefile),
-while variable inheritance keeps its first owner. Later explicit-goal replay
-counts and verbose event order remain open.
+while variable inheritance keeps its first owner. An explicit visit to a
+settled optional double-colon makefile now repeats its retained diagnostic for
+each declared branch. The [verbose replay fixture](../tests/cases/optional-double-colon-goal-replay-repeated-verbose/Makefile)
+checks the order of those diagnostics and the cached branch reports. Parallel
+startup diagnostics and combinations with `-W` still need work.
 
 Local jobserver acceptance also needs broader combinations of transports,
 recursive builds, restarts, loaded modules and resource pressure. Preserve the
@@ -210,6 +213,15 @@ combined question/touch. Named includes and primary sources exercise multiple
 read positions, ordinary and order-only prerequisites, implicit rules, recursive
 recipes and workers already started by earlier includes. Held shuffle controls
 separate ordinary goal order from remake order.
+
+For ordinary explicit single-colon grouped targets under `-q` without `-k`, a query
+verdict ends the current member's dependency scan. Later members still begin
+their own scans. A forced recipe can stop the whole query. The
+[grouped query fixtures](../tests/cases/grouped-query-expands-and-runs-first-peer-edge/Makefile)
+check expansion effects, forced recipes and missing prerequisites. The
+[parallel models](../tests/debug-output/grouped-single-wait-frontiers.toml)
+also cover live workers, `.WAIT` boundaries and cached debug events. Grouped
+double-colon queries still need separate validation.
 
 [Serial remake diagnostics](debug-output.md) cover double-colon failure recovery,
 returned failures and cached visits to required and optional declarations.

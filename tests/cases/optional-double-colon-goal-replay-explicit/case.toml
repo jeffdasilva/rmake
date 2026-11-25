@@ -1,0 +1,15 @@
+id = "optional-double-colon-goal-replay-explicit"
+requirement = "debug.optional-double-colon-goal-replay"
+candidate = "required"
+description = "An ordinary goal revisits both declarations and repeats the cached head cause."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all", "b.mk"]
+
+[expected]
+exit_code = 2
+stdout = "ordinary\n"
+stderr = '''
+make: *** No rule to make target 'missing', needed by 'b.mk'.
+make: *** No rule to make target 'missing', needed by 'b.mk'.
+make: *** No rule to make target 'missing', needed by 'b.mk'.
+make: *** No rule to make target 'missing', needed by 'b.mk'.
+'''

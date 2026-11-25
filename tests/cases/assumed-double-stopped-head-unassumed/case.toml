@@ -1,0 +1,10 @@
+id = "assumed-double-stopped-head-unassumed"
+requirement = "options.assumed-double-colon-stopped-head"
+candidate = "required"
+description = "With only the optional declaration, the ordinary goal still runs."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+
+[expected]
+exit_code = 0
+stdout = "ordinary\n"
+stderr = ""

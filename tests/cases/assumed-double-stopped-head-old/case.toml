@@ -1,0 +1,10 @@
+id = "assumed-double-stopped-head-old"
+requirement = "options.assumed-double-colon-stopped-head"
+candidate = "required"
+description = "An assumed-old entry also exposes the retained missing prerequisite."
+args = ["-rR", "--no-print-directory", "-j1", "-o", "b.mk", "all"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'missing', needed by 'b.mk'.  Stop.\n"
