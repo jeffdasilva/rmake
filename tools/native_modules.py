@@ -166,6 +166,7 @@ def models() -> list[Model]:
     result.extend(fatal_scope_models())
     result.extend(reader_syntax_finalizer_models())
     result.extend(flag_finalizer_models())
+    result.extend(fast_sync_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -1019,6 +1020,82 @@ def flag_finalizer_models() -> list[Model]:
               scope=b'scope=[||file|fatal_scope.so||]\n'),
         model('valid', head + assign(b'--debug=none') + goal, message=b'',
               marks=b'read\ngoal\n', status=0),
+    ]
+
+
+def fast_sync_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    recipe = b'.PHONY: all dep\nall: .LOADED := local\nall: dep\n\t@'
+    tail = b':\ndep:;@:\n'
+    global_scope = b'scope=[||file|global||]\n'
+    target_scope = b'scope=[all|dep|file|local||]\n'
+    lexical_scope = b'scope=[all|dep|automatic|lexical||]\n'
+    prefix = b'MAKEFLAGS := '
+    sync = b'--output-sync=z'
+    sync_error = b"make: *** unknown output-sync type 'z'.  Stop.\n"
+    jobs_notice = b"make: the '-j' option requires a positive integer argument\n"
+    first = rb'FIRST:=$$(file\ >>seen,first)'
+    last = rb'LAST:=$$(file\ >>seen,last)'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def assign(flags):
+        return prefix + flags + b'\n'
+
+    def evaluate(flags):
+        return b'$(eval ' + (prefix + flags).replace(b'$', b'$$') + b')'
+
+    def foreach(flags):
+        return b'$(foreach .LOADED,lexical,' + evaluate(flags) + b')'
+
+    def model(name, text, location=b'make', *, message=sync_error, scope=global_scope,
+              marks=b'read\n', args=(), env=None, status=2, warnings=b''):
+        stderr = message + location + b': finalizer-location\n' + warnings
+        return Model(
+            'native-fast-sync-finalizer-' + name,
+            {'Makefile': text, 'seen': b'anchor\n'},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\n' + marks + scope,
+            (module,),
+            args=('-rR', '--no-print-directory', *args),
+            environment=env or {},
+        )
+
+    payload = b' '.join((first, sync, last))
+    payload_marks = b'read\nfirst\nlast\n'
+    payload_error = rb'LAST:=$$(error\ payload-stop)'
+    return [
+        model('reader', head + assign(sync) + goal, b'Makefile:4'),
+        model('reader-short-payload', head + assign(b' '.join((first, b'-Oz', last))) + goal,
+              b'Makefile:4', marks=payload_marks),
+        model('recipe', head + recipe + evaluate(sync) + tail, b'Makefile:7',
+              scope=target_scope),
+        model('recipe-foreach', head + recipe + foreach(payload) + tail,
+              b'Makefile:7', scope=lexical_scope, marks=payload_marks),
+        model('recipe-call-notice', head + b'SET = ' + evaluate(b'--jobs=0 ' + sync) + b'\n'
+              + recipe + b'$(call SET,arg)' + tail, b'Makefile:8',
+              message=jobs_notice + sync_error, scope=b'scope=[all|dep|file|local|SET|arg]\n'),
+        model('recipe-foreach-warning', head + recipe + foreach(b' '.join(
+            (first, b'--warn-undefined-variables', sync, last))) + tail,
+            b'Makefile:7', scope=lexical_scope, marks=payload_marks,
+            warnings=b"Makefile:7: warning: undefined variable '0'\n"
+                     b"Makefile:7: warning: undefined variable '1'\n"),
+        model('payload-error', head + assign(b' '.join((first, sync, payload_error))) + goal,
+              b'Makefile:4', message=b'Makefile:4: *** payload-stop.  Stop.\n',
+              marks=b'read\nfirst\n'),
+        model('post-read', head + b'GNUMAKEFLAGS := ' + payload + b'\n' + goal,
+              marks=payload_marks),
+        model('anonymous-eval', goal, args=('--eval', (head + assign(sync)).decode('ascii'))),
+        model('inherited', goal,
+              env={'GNUMAKEFLAGS': '$(eval load fatal_scope.so) --output-sync=z'}, marks=b'',
+              scope=b'scope=[||file|fatal_scope.so||]\n'),
+        model('replacement', head + assign(payload + b' --output-sync=none') + goal,
+              message=b'', marks=payload_marks + b'goal\n', status=0),
+        model('empty-mode', head + assign(b'--output-sync=') + goal,
+              message=b"make: the '-O' option requires a non-empty string argument\n",
+              marks=b'read\ngoal\n', status=0),
+        model('recoverable-jobs', head + assign(b'--jobs=0') + goal,
+              message=jobs_notice, marks=b'read\ngoal\n', status=0),
     ]
 
 

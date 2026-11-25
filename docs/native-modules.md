@@ -141,6 +141,8 @@ preload.
 Validation errors at the end of owned live flag decoding also retain the
 active file and scope for finalizers. This includes invalid debug levels and
 invalid output synchronization options in the owned decoder.
+For invalid output synchronization on the fast path, finalizers also retain
+the active source and scope after option validation or payload replay.
 [Startup exit owners](native-startup-exits.md) retain the actual decoder,
 constructor or restart state for the covered exit phases.
 

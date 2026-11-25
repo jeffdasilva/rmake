@@ -374,6 +374,20 @@ pub enum FlagAction {
     Filename(Vec<u8>),
 }
 
+#[derive(Debug)]
+pub enum MakeflagsDecodeError {
+    InvalidOutputSync(Vec<u8>),
+    Other(Vec<u8>),
+}
+
+impl MakeflagsDecodeError {
+    pub fn into_bytes(self) -> Vec<u8> {
+        match self {
+            Self::InvalidOutputSync(message) | Self::Other(message) => message,
+        }
+    }
+}
+
 pub trait MakeflagsReceiver {
     fn begin(
         &mut self,
@@ -389,6 +403,12 @@ pub trait MakeflagsReceiver {
         Ok(())
     }
     fn decode(&mut self, request: MakeflagsRequest<'_>) -> Result<MakeflagsResult, Vec<u8>>;
+    fn decode_with_error_kind(
+        &mut self,
+        request: MakeflagsRequest<'_>,
+    ) -> Result<MakeflagsResult, MakeflagsDecodeError> {
+        self.decode(request).map_err(MakeflagsDecodeError::Other)
+    }
     /// Apply an ordered policy step without decoding or repeating I/O. Quiet
     /// frontends can retain the default; warning-aware hosts share their cell.
     fn set_warning_policy(&mut self, _enabled: bool) {}
@@ -567,6 +587,39 @@ impl<'a> ExpansionContext<'a> {
         self.update_makeflags_in(database, origin, value, encoded_overrides, None)
     }
 
+    fn decode_makeflags(
+        &mut self,
+        database: &mut crate::parser::Database,
+        request: MakeflagsRequest<'_>,
+    ) -> Result<MakeflagsResult, crate::variables::ExpandError> {
+        self.makeflags
+            .as_mut()
+            .expect("configured receiver")
+            .decode_with_error_kind(request)
+            .map_err(|error| {
+                if matches!(&error, MakeflagsDecodeError::InvalidOutputSync(_)) {
+                    self.retain_native_flag_error_scope(database);
+                }
+                crate::variables::ExpandError::UnlocatedError(error.into_bytes())
+            })
+    }
+
+    fn retain_native_flag_error_scope(&self, database: &mut crate::parser::Database) {
+        // Option diagnostics use the program name, while a finalizer still
+        // runs in the active source and scope.
+        if let Some(location) = self.location.filter(|location| !location.file.is_null())
+            && database.native_fatal_context.is_none()
+            && self.needs_fatal_expansion_context()
+        {
+            database.native_fatal_context = Some(Box::new(crate::parser::NativeFatalContext {
+                location: Some(location.clone()),
+                scope: database.evaluation_scope.clone(),
+                bindings: database.evaluation_bindings.clone(),
+                active: database.evaluation_active.clone(),
+            }));
+        }
+    }
+
     pub(crate) fn update_makeflags_in(
         &mut self,
         database: &mut crate::parser::Database,
@@ -608,15 +661,13 @@ impl<'a> ExpansionContext<'a> {
         let mut result = if let Some(decoder) = decoder {
             self.drive_flag_decoder(database, decoder, origin)?.result
         } else {
-            let mut result = self
-                .makeflags
-                .as_mut()
-                .expect("configured receiver")
-                .decode(MakeflagsRequest {
+            let mut result = self.decode_makeflags(
+                database,
+                MakeflagsRequest {
                     value: &value,
                     origin,
-                })
-                .map_err(ExpandError::UnlocatedError)?;
+                },
+            )?;
             database
                 .variables
                 .set_environment_override(result.environment_override);
@@ -638,12 +689,8 @@ impl<'a> ExpansionContext<'a> {
                 // Nested definitions can change switches, but refreshing does not
                 // repeat the outer assignment stream or reset its owned cursor.
                 if !result.assignments.is_empty() || !result.notices.is_empty() {
-                    result = self
-                        .makeflags
-                        .as_mut()
-                        .expect("configured receiver")
-                        .decode(MakeflagsRequest { value: b"", origin })
-                        .map_err(ExpandError::UnlocatedError)?;
+                    result =
+                        self.decode_makeflags(database, MakeflagsRequest { value: b"", origin })?;
                 }
             } else if has_input && let Some(cursor) = &self.makeflags_cursor {
                 // A nested single short-option word rewinds GNU's process-global
@@ -791,21 +838,7 @@ impl<'a> ExpansionContext<'a> {
                 else {
                     let jobs = decoder.requested_jobs();
                     let result = decoder.finish().map_err(|error| {
-                        // Option diagnostics use the program name, while a
-                        // finalizer still runs in the active source and scope.
-                        if let Some(location) =
-                            self.location.filter(|location| !location.file.is_null())
-                            && database.native_fatal_context.is_none()
-                            && self.needs_fatal_expansion_context()
-                        {
-                            database.native_fatal_context =
-                                Some(Box::new(crate::parser::NativeFatalContext {
-                                    location: Some(location.clone()),
-                                    scope: database.evaluation_scope.clone(),
-                                    bindings: database.evaluation_bindings.clone(),
-                                    active: database.evaluation_active.clone(),
-                                }));
-                        }
+                        self.retain_native_flag_error_scope(database);
                         ExpandError::UnlocatedError(error)
                     })?;
                     cursor.set(cursor.get().max(result.next_argument));

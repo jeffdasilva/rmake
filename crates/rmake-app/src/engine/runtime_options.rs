@@ -4,6 +4,7 @@
 //! Runtime switch interpretation and jobserver configuration after reading.
 //! Switch values remain distinct from the pool's execution capacity.
 use super::*;
+use rmake_core::diagnostic::MakeflagsDecodeError;
 
 pub(super) struct State {
     options: std::rc::Rc<RefCell<Options>>,
@@ -21,6 +22,15 @@ impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
         &mut self,
         request: rmake_core::diagnostic::MakeflagsRequest<'_>,
     ) -> Result<rmake_core::diagnostic::MakeflagsResult, Vec<u8>> {
+        self.0
+            .assigned(request)
+            .map_err(MakeflagsDecodeError::into_bytes)
+    }
+
+    fn decode_with_error_kind(
+        &mut self,
+        request: rmake_core::diagnostic::MakeflagsRequest<'_>,
+    ) -> Result<rmake_core::diagnostic::MakeflagsResult, MakeflagsDecodeError> {
         self.0.assigned(request)
     }
 
@@ -166,11 +176,12 @@ impl State {
     pub(super) fn assigned(
         &self,
         request: rmake_core::diagnostic::MakeflagsRequest<'_>,
-    ) -> Result<rmake_core::diagnostic::MakeflagsResult, Vec<u8>> {
+    ) -> Result<rmake_core::diagnostic::MakeflagsResult, MakeflagsDecodeError> {
         let mut current = self.options.borrow_mut();
         current.debug_mask = self.output.debug_mask();
-        let (mut updated, _, warning_positions) =
-            current.assigned_flags_with_positions(&[request.value.to_vec()], request.origin)?;
+        let (mut updated, _, warning_positions) = current
+            .assigned_flags_with_positions(&[request.value.to_vec()], request.origin)
+            .map_err(MakeflagsDecodeError::Other)?;
         let notices = std::mem::take(&mut updated.flag_notices);
         let assignments: Vec<_> = std::mem::take(&mut updated.assignments)
             .into_iter()
@@ -189,8 +200,8 @@ impl State {
             .as_deref()
             .map_or(Some(crate::output::Mode::None), crate::output::Mode::parse);
         if mode.is_none() && assignments.is_empty() && notices.is_empty() {
-            return Err(crate::usage::output_sync_mode(
-                updated.output_sync.as_deref().unwrap_or_default(),
+            return Err(MakeflagsDecodeError::InvalidOutputSync(
+                crate::usage::output_sync_mode(updated.output_sync.as_deref().unwrap_or_default()),
             ));
         }
         // GNU validates output synchronization after payload definitions. The
