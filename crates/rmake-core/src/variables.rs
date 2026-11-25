@@ -1483,34 +1483,26 @@ impl VariableStore {
         let Some(history) = &self.variables.database_history else {
             return self.database_definitions().collect();
         };
+        let shares_history = |bindings: &Bindings| {
+            bindings
+                .database_history
+                .as_ref()
+                .is_some_and(|other| history.same_table(other))
+        };
+        let scope = scope.filter(|scope| shares_history(&scope.variables));
         history.ordered_items(|name| {
             std::iter::once(&self.variables)
-                .chain(
-                    self.layers
-                        .iter()
-                        .filter(|layer| {
-                            !layer.inherited
-                                && !layer.global
-                                && !layer.pattern
-                                && layer
-                                    .variables
-                                    .database_history
-                                    .as_ref()
-                                    .is_some_and(|other| history.same_table(other))
-                        })
-                        .map(|layer| {
-                            scope
-                                .filter(|scope| {
-                                    layer.target == scope.target
-                                        && scope
-                                            .variables
-                                            .database_history
-                                            .as_ref()
-                                            .is_some_and(|other| history.same_table(other))
-                                })
-                                .map_or(&layer.variables, |scope| &scope.variables)
-                        }),
-                )
+                .chain(self.layers.iter().filter_map(|layer| {
+                    if layer.inherited || layer.global || layer.pattern {
+                        return None;
+                    }
+                    // A live declaration can adopt this table after the
+                    // retained declaration layer was captured.
+                    if let Some(scope) = scope.filter(|scope| layer.target == scope.target) {
+                        return Some(&scope.variables);
+                    }
+                    shares_history(&layer.variables).then_some(&layer.variables)
+                }))
                 .find_map(|values| {
                     values
                         .values
