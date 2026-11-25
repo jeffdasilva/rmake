@@ -1,0 +1,10 @@
+id = "include-serial-required-named-dry-removed-source-forced-original"
+requirement = "includes.serial-required-named-dry-removed-source"
+candidate = "required"
+description = "A forced physical recreation at the original time retains the original loaded data."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nprintf \"branch-0:%s:%s\\n\" \"0\" \"absent\" >> proof; printf \"payload := new\\n\" > b.mk; touch -d @1680300000 b.mk\nprintf \"branch-1:%s:%s\\n\" \"0\" \"1680300000\" >> proof; :\nmake: 'b.mk' is up to date.\n"
+stderr = ""

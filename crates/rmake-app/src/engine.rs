@@ -4258,6 +4258,17 @@ impl Engine {
                         .contains_key(name)
                         .then(|| self.modified(name))
                 };
+                let removed_named_dry_declarations = if self.job_slots() == 1
+                    && visit_modes.only_dry_run()
+                    && before == Some(None)
+                    && !failed
+                    && !optional_remake_failed
+                    && !remake_question
+                {
+                    self.removed_required_dry_declaration_count(&read_files, makefile)
+                } else {
+                    None
+                };
                 // A fresh serial visit still sees the local timestamp
                 // retained before earlier remakes wrote or removed the file.
                 let loaded_local_time = if !parallel_remakes
@@ -4792,6 +4803,21 @@ impl Engine {
                     changed |= record_change
                         && (physically_changed
                             || (result.remake_group_peer_updated && !tracked_group_change));
+                    // Compare the removed required source with its original read after
+                    // all named declarations have settled without a physical update.
+                    if !changed
+                        && result.completion == CompletionTime::AssumeNew
+                        && result.database_result == DatabaseResult::Simulated
+                        && !result.fatal
+                        && result.terminal_verdict().is_none()
+                        && MakefileModes::from_options(&self.options).only_dry_run()
+                        && let Some(declarations) = removed_named_dry_declarations
+                        && self
+                            .settled_serial_source_declarations(name, declarations)
+                            .is_some_and(|(succeeded, refreshed)| succeeded && !refreshed)
+                    {
+                        changed = self.modified(name).is_none();
+                    }
                     let simulated_change =
                         visit_modes.dry_run && result.completion == CompletionTime::AssumeNew;
                     if self.parallel_makefile_remakes
@@ -12368,6 +12394,62 @@ impl Engine {
             return None;
         }
         sampled.time
+    }
+
+    fn removed_required_dry_declaration_count(
+        &self,
+        read_files: &[(Makefile, bool)],
+        source: &Makefile,
+    ) -> Option<usize> {
+        let [(primary, false), (earlier, false), (named, false)] = read_files else {
+            return None;
+        };
+        let name = source.name.as_slice();
+        if !std::ptr::eq(named, source)
+            || source.optional
+            || source.missing
+            || source.location.is_none()
+            || primary.optional
+            || primary.missing
+            || primary.location.is_some()
+            || earlier.optional
+            || earlier.missing
+            || earlier.location.is_none()
+            || self.options.goals.len() != 1
+            || self.options.check_symlink_times
+            || self.assumptions.is_some()
+            || !self.no_remake_recipe_fallback()
+            || self.database.rules.contains_key(&primary.name)
+            || self.aliases.resolve(name) != name
+            || self.file_traversals.has_outcome(name)
+            || !matches!(
+                self.path_observations.get(name),
+                Some(Some((None, Some(_))))
+            )
+            || !self
+                .file_traversals
+                .outcome(self.aliases.resolve(&earlier.name))
+                .is_some_and(|outcome| {
+                    outcome.ran
+                        && outcome.completion == CompletionTime::Refresh
+                        && outcome.database_result == DatabaseResult::Outcome
+                        && !outcome.fatal
+                        && outcome.terminal_verdict().is_none()
+                })
+        {
+            return None;
+        }
+        let branches = self.database.rules.get(name)?.double_colon.as_deref()?;
+        (branches.len() > 1
+            && branches.iter().all(|rule| {
+                rule.grouped_targets().is_none()
+                    && rule.implicit_pattern.is_none()
+                    && !rule.default_recipe
+                    && rule.recipes.as_ref().is_some_and(|recipes| {
+                        recipes.iter().all(|recipe| !recipe_is_recursive(recipe))
+                    })
+            }))
+        .then_some(branches.len())
     }
 
     fn settled_named_dry_remake_has_new_clock(

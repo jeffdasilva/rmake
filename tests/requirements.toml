@@ -3180,6 +3180,32 @@ cases = [
 ]
 
 [[requirements]]
+id = "includes.serial-required-named-dry-removed-source"
+title = "Reread a removed required source after its named dry-run declarations settle"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 15
+fixture_count = 15
+cases = [
+  "include-serial-required-named-dry-removed-source-required-reread",
+  "include-serial-required-named-dry-removed-source-required-stopping",
+  "include-serial-required-named-dry-removed-source-current-head",
+  "include-serial-required-named-dry-removed-source-current-tail",
+  "include-serial-required-named-dry-removed-source-three-declarations",
+  "include-serial-required-named-dry-removed-source-empty-declarations",
+  "include-serial-required-named-dry-removed-source-optional",
+  "include-serial-required-named-dry-removed-source-initially-absent",
+  "include-serial-required-named-dry-removed-source-all-current",
+  "include-serial-required-named-dry-removed-source-single-declaration",
+  "include-serial-required-named-dry-removed-source-forced-original",
+  "include-serial-required-named-dry-removed-source-forced-failure",
+  "include-serial-required-named-dry-removed-source-touch-current",
+  "include-serial-required-named-dry-removed-source-named-primary",
+  "include-serial-required-named-dry-removed-source-later-cleaner-current",
+]
+
+[[requirements]]
 id = "includes.serial-failed-source-restart-baseline"
 title = "Use the read timestamp after a settled failed serial refresh"
 status = "fixture-ready"

@@ -1,0 +1,10 @@
+id = "include-serial-required-named-dry-removed-source-initially-absent"
+requirement = "includes.serial-required-named-dry-removed-source"
+candidate = "required"
+description = "An initially absent named source completes without claiming a prior loaded clock."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=absent\ndata=0:\nprintf \"branch-0:%s:%s\\n\" \"0\" \"absent\" >> proof; :\nprintf \"branch-1:%s:%s\\n\" \"0\" \"absent\" >> proof; :\nmake: 'b.mk' is up to date.\n"
+stderr = ""

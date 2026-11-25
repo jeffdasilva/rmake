@@ -1,0 +1,10 @@
+id = "include-serial-required-named-dry-removed-source-current-head"
+requirement = "includes.serial-required-named-dry-removed-source"
+candidate = "required"
+description = "A current head retains the simulated tail as the completion witness."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "b.mk"]
+
+[expected]
+exit_code = 2
+stdout = "read=0 time=1680300000\ndata=0:original\nprintf \"branch-1:%s:%s\\n\" \"0\" \"absent\" >> proof; :\nread=1 time=absent\ndata=1:\n"
+stderr = "Makefile:8: b.mk: No such file or directory\nmake: *** No rule to make target 'b.mk'.\nMakefile:8: Failed to remake makefile 'b.mk'.\n"
