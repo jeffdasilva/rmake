@@ -927,11 +927,20 @@ impl Database {
         if destination_base.is_some_and(|base| !base.is_file_read_context(to)) {
             return None;
         }
-        let scope = self.target_scopes.get(to)?.merge_completed_file_bindings(
-            destination,
-            self.target_scopes.get(from)?,
-            source,
-        )?;
+        let source_declarations = self.target_scopes.get(from);
+        let scope = match self.target_scopes.get(to) {
+            Some(scope) => {
+                scope.merge_completed_file_bindings(destination, source_declarations?, source)?
+            }
+            None => TargetScope::merge_completed_undeclared_file_bindings(
+                to,
+                destination?,
+                destination_base?,
+                from,
+                source_declarations,
+                source,
+            )?,
+        };
         let mut saved = destination
             .cloned()
             .unwrap_or_else(|| self.variables.with_target_scopes(&[&scope]));
@@ -951,13 +960,21 @@ impl Database {
         variables: &mut VariableStore,
         status: &[u8],
     ) -> Result<(), ExpandError> {
-        let Some(target) = variables.merged_file_scope_name().map(<[u8]>::to_vec) else {
+        let target = variables.merged_file_scope_name().or_else(|| {
+            variables.declared_file_status_name().filter(|target| {
+                self.rules
+                    .get(*target)
+                    .is_some_and(|rule| rule.double_colon.is_none() && rule.group.is_none())
+                    && crate::filenames::archive_parts(target).is_none()
+            })
+        });
+        let Some(target) = target.map(<[u8]>::to_vec) else {
             return variables.define_shell_status(status);
         };
         let Some(scope) = self.target_scopes.get_mut(&target) else {
             return variables.define_shell_status(status);
         };
-        if !scope.owns_merged_file_bindings(variables) {
+        if !scope.owns_file_status_binding(variables) {
             return variables.define_shell_status(status);
         }
         scope.refresh_read_bindings(variables);
@@ -3253,6 +3270,11 @@ impl Database {
                     assignment.export,
                     Some(location),
                 )
+                .inspect_err(|error| {
+                    if matches!(error, ExpandError::EmptyVariableName) {
+                        self.retain_native_reader_error(location, context);
+                    }
+                })
                 .map_err(|error| ParseError {
                     unlocated: error.is_unlocated(),
                     location: error
@@ -3295,14 +3317,28 @@ impl Database {
                     }
                     scope
                 });
-            let (scope, name) = if raw_name.contains(&b'$') {
+            let (scope, name) = if raw_name.is_empty() || raw_name.contains(&b'$') {
                 let mut parse_variables = scope.context(&self.variables);
-                let name = self.expand_target_read(
+                let name = self.with_target_read(
                     target,
                     &mut parse_variables,
-                    raw_name,
-                    false,
                     context.at(Some(location)),
+                    |database, read, mut context| {
+                        let name = crate::variables::expand_scoped_database::<false>(
+                            database,
+                            read,
+                            raw_name,
+                            context.reborrow(),
+                        )?;
+                        if name.is_empty() {
+                            database.retain_native_reader_error_with_scope(
+                                location,
+                                Some(read),
+                                &context,
+                            );
+                        }
+                        Ok(name)
+                    },
                 );
                 // The name may have changed this target's own table. Finish
                 // those effects before selecting the RHS definition owner.
@@ -4612,6 +4648,15 @@ impl Database {
     }
 
     fn retain_native_reader_error(&mut self, location: &Location, context: &ExpansionContext<'_>) {
+        self.retain_native_reader_error_with_scope(location, None, context);
+    }
+
+    fn retain_native_reader_error_with_scope(
+        &mut self,
+        location: &Location,
+        scope: Option<&VariableStore>,
+        context: &ExpansionContext<'_>,
+    ) {
         let evaluating = self.evaluation_depth != 0;
         if self.native_fatal_context.is_some() || !context.needs_fatal_expansion_context() {
             return;
@@ -4620,8 +4665,8 @@ impl Database {
         // native eval locations supplied from an anonymous caller.
         let location = if !evaluating || !location.file.is_null() {
             Some(location.clone())
-        } else if !self.evaluation_bindings.is_empty() {
-            // Anonymous eval can retain lexical bindings without a source.
+        } else if scope.is_some() || !self.evaluation_bindings.is_empty() {
+            // Anonymous eval can retain its variable scope without a source.
             None
         } else {
             return;
@@ -4630,8 +4675,8 @@ impl Database {
             location,
             ..NativeFatalContext::default()
         };
-        if evaluating {
-            retained.scope = self.evaluation_scope.clone();
+        if evaluating || scope.is_some() {
+            retained.scope = scope.or(self.evaluation_scope.as_ref()).cloned();
             retained.bindings = self.evaluation_bindings.clone();
             retained.active = self.evaluation_active.clone();
         }

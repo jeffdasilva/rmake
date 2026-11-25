@@ -178,6 +178,7 @@ def models() -> list[Model]:
     result.extend(invalid_conditional_finalizer_models())
     result.extend(empty_name_finalizer_models())
     result.extend(declaration_close_finalizer_models())
+    result.extend(target_empty_name_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -1821,6 +1822,98 @@ def declaration_close_finalizer_models() -> list[Model]:
         model('first-fatal-deferred', group + b'NEXT := $(error must-not-run)\n'),
         model('successful-close-then-fatal', b'left right &:;@:\nNEXT := $(error after-good-close)\n',
               b'Makefile:5', b'Makefile:5', message=b'after-good-close', marks=b''),
+    ]
+
+
+def target_empty_name_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    witness = b'$(file >>seen,name-[$@|$<|$(origin .LOADED)|$(.LOADED)|$(0)|$(1)])'
+    empty = witness + b' := $(file >>seen,rhs-forbidden)value\n'
+    target = b'thing: .LOADED := target\n'
+    pattern = b'%.o: .LOADED := pattern\n'
+    evaluate = b'$(eval $(file <payload.txt))'
+    lexical = b'RUN = $(foreach .LOADED,lexical,' + evaluate + b')\n$(call RUN,arg)\n'
+    own_recipe = (b'all: .LOADED := target\nall: dep\n\t@' + evaluate + b':\ndep:;@:\n')
+    retained_recipe = (b'.PHONY: all left\nleft: .LOADED := left\n'
+                       b'left: dep;@$(file >>seen,left):\n'
+                       b'all: .LOADED := target\nall: left\n\t@' + evaluate + b':\ndep:;@:\n')
+    global_scope = b'||file|global||'
+    target_scope = b'||file|target||'
+    recipe_scope = b'all|dep|file|target||'
+    prior_recipe = b'left|dep|file|left||'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def model(name, body, location=b'Makefile:5', *, read=global_scope, scope=None,
+              before=b'', after=b'', message=b'empty variable name', status=2,
+              anonymous=False, tail=goal, files=None, args=(), env=None):
+        source = goal if anonymous else head + body + tail
+        startup = ('--eval', (head + body).decode('ascii')) if anonymous else ()
+        fatal = location + b': *** ' + message + b'.  Stop.\n' if status else b''
+        mark = b'name-[' + read + b']\n' if read is not None else b''
+        scope = scope if scope is not None else (read or global_scope)
+        return Model(
+            'native-target-empty-name-finalizer-' + name,
+            {'Makefile': source, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': status, 'stdout_hex': '',
+             'stderr_hex': (fatal + location + b': finalizer-location\n').hex()},
+            b'anchor\nread\n' + before + mark + after + b'scope=[' + scope + b']\n',
+            (module,), args=('-rR', '--no-print-directory', '-f', 'Makefile', *args, *startup, 'all'),
+            environment=env or {},
+        )
+
+    return [
+        model('target-local', target + b'thing: ' + empty, read=target_scope),
+        model('automatic-names', b'thing: @ := file-at\nthing: < := file-first\n'
+              + target + b'thing: ' + empty,
+              b'Makefile:7', read=b'file-at|file-first|file|target||'),
+        model('command-origin', target + b'thing: ' + empty,
+              args=('.LOADED=cli',), read=b'||command line|cli||'),
+        model('override-origin', b'thing: override .LOADED := target\nthing: ' + empty,
+              args=('.LOADED=cli',), read=b'||override|target||'),
+        model('environment-origin', target + b'thing: ' + empty,
+              args=('-e',), env={'.LOADED': 'env'}, read=b'||environment override|env||'),
+        model('target-order', b'first: .LOADED := first\nsecond: .LOADED := second\n'
+              b'second first: ' + empty, b'Makefile:6', read=b'||file|second||'),
+        model('literal-empty', target + b'thing: = value\n', read=None, scope=target_scope),
+        model('named-lexical', target
+              + b'RUN = $(foreach @,lexical-at,' + evaluate + b')\n$(call RUN,arg)\n',
+              b'Makefile:6', files={'payload.txt': b'thing: ' + empty},
+              read=b'lexical-at||file|target|RUN|arg'),
+        model('anonymous-lexical', target + lexical, b'make', anonymous=True,
+              files={'payload.txt': b'thing: ' + empty}, read=b'||file|target|RUN|arg'),
+        model('anonymous-unscoped', target + b'thing: ' + empty, b'make',
+              anonymous=True, read=target_scope),
+        model('recipe-active', own_recipe, b'Makefile:6', tail=b'',
+              files={'payload.txt': b'all: ' + empty}, read=recipe_scope),
+        model('recipe-other', b'other: .LOADED := other\n' + own_recipe, b'Makefile:7', tail=b'',
+              files={'payload.txt': b'other: ' + empty}, read=b'||file|other||'),
+        model('recipe-retained', retained_recipe, b'Makefile:9', tail=b'',
+              files={'payload.txt': b'left: ' + empty}, before=b'left\n', read=prior_recipe),
+        model('nested-target-mutation',
+              target + b'thing: $(eval thing: .LOADED := changed)' + empty,
+              read=b'||file|changed||'),
+        model('pattern-raw', pattern + b'%.o: ' + empty),
+        model('pattern-literal-empty', pattern + b'%.o: = value\n', read=None),
+        model('pattern-lexical', pattern + lexical, b'make', anonymous=True,
+              files={'payload.txt': b'%.o: ' + empty}, read=b'||automatic|lexical|RUN|arg'),
+        model('pattern-recipe', own_recipe, b'Makefile:6', tail=b'',
+              files={'payload.txt': b'%.o: ' + empty}, read=recipe_scope),
+        model('name-expansion-fatal', retained_recipe, b'Makefile:9', tail=b'',
+              files={'payload.txt': b'left: ' + witness + b'$(error earlier-name) := value\n'},
+              before=b'left\n', read=prior_recipe, message=b'earlier-name'),
+        model('after-target-success', target + b'thing: ' + witness
+              + b'KEPT := $(file >>seen,rhs)value\n$(error after-name)\n',
+              b'Makefile:6', read=target_scope, scope=global_scope, after=b'rhs\n',
+              message=b'after-name'),
+        model('literal-name-success', b'all: KEPT := $(file >>seen,rhs)kept\n'
+              b'all:;@$(file >>seen,result-$(KEPT)):\n', b'make', tail=b'',
+              read=None, after=b'rhs\nresult-kept\n', status=0),
+        model('pattern-success', b'%.o: ' + witness + b'KEPT := $(file >>seen,rhs)value\n'
+              b'$(file >>seen,after)\n', b'make', after=b'rhs\nafter\ngoal\n', status=0),
+        model('inactive', target + b'ifeq (a,b)\nthing: ' + empty
+              + b'endif\n$(file >>seen,after)\n', b'make', read=None,
+              after=b'after\ngoal\n', status=0),
     ]
 
 

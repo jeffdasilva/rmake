@@ -1,0 +1,12 @@
+id = "retained-predeclared-status-recursive"
+requirement = "scope.secondary-retained"
+candidate = "required"
+description = "Store a named recursive definition in the slot originally used by shell status."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "status=[parent|accepted-local|override|recursive|accepted-$(V)]\nenv=[.SHELLSTATUS|accepted-local ANCHOR_3190|before ANCHOR_4413|after]\n"
+stderr = ""

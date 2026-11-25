@@ -1315,6 +1315,23 @@ impl VariableStore {
             .as_deref()
     }
 
+    /// Preserve the occupied named slot when this file already declared status.
+    pub(crate) fn declared_file_status_name(&self) -> Option<&[u8]> {
+        if !self.file_locals
+            || self.double_colon_ordinal != 0
+            || self.local_shell_status().is_some()
+        {
+            return None;
+        }
+        self.layers
+            .first()
+            .filter(|layer| {
+                !layer.inherited && layer.variables.contains_key(b".SHELLSTATUS".as_slice())
+            })?
+            .target
+            .as_deref()
+    }
+
     pub(crate) fn adopt_merged_file_bindings(&mut self, scope: &TargetScope) {
         let mut local = Bindings::new(32);
         local.database_history = scope.variables.database_history.clone();
@@ -1977,6 +1994,17 @@ impl VariableStore {
         self.layers.first().filter(|layer| {
             self.file_locals && !layer.inherited && layer.target.as_deref() == Some(target)
         })
+    }
+
+    fn undeclared_own_file_history(&self, target: &[u8]) -> Option<&crate::database::TableHistory> {
+        let declarations = self.current_file_declarations(Some(target))?;
+        if self.double_colon_ordinal != 0
+            || !declarations.variables.is_empty()
+            || declarations.variables.database_history.is_some()
+        {
+            return None;
+        }
+        self.variables.database_history.as_ref()
     }
 
     /// Read an eager declaration in the already active file context while
@@ -2916,13 +2944,21 @@ impl TargetScope {
         self.target = Some(Arc::from(name));
     }
 
-    pub(crate) fn owns_merged_file_bindings(&self, variables: &VariableStore) -> bool {
-        self.variables.merged_file_bindings
-            && variables
-                .current_file_declarations(self.target.as_deref())
-                .and_then(|layer| layer.variables.database_history.as_ref())
-                .zip(self.variables.database_history.as_ref())
-                .is_some_and(|(read, owner)| read.same_table(owner))
+    pub(crate) fn owns_file_status_binding(&self, variables: &VariableStore) -> bool {
+        let Some(owner) = &self.variables.database_history else {
+            return false;
+        };
+        variables
+            .current_file_declarations(self.target.as_deref())
+            .and_then(|layer| layer.variables.database_history.as_ref())
+            .is_some_and(|declaration| declaration.same_table(owner))
+            && (self.variables.merged_file_bindings
+                || (self.variables.contains_key(b".SHELLSTATUS".as_slice())
+                    && variables
+                        .variables
+                        .database_history
+                        .as_ref()
+                        .is_some_and(|runtime| runtime.same_table(owner))))
     }
 
     fn complete_file_bindings(&self, runtime: Option<&VariableStore>) -> Option<Bindings> {
@@ -2957,7 +2993,11 @@ impl TargetScope {
                     .map(|(name, value)| (Arc::clone(name), value.clone())),
             );
         }
-        complete.order = owner.variable_name_order()?;
+        Self::file_bindings_in_table_order(complete)
+    }
+
+    fn file_bindings_in_table_order(mut complete: Bindings) -> Option<Bindings> {
+        complete.order = complete.database_history.as_ref()?.variable_name_order()?;
         if complete.order.names().count() != complete.values.len()
             || complete
                 .order
@@ -2978,7 +3018,39 @@ impl TargetScope {
         source_runtime: &VariableStore,
     ) -> Option<Self> {
         let source = source.complete_file_bindings(Some(source_runtime))?;
-        let mut complete = self.complete_file_bindings(destination)?;
+        let complete = self.complete_file_bindings(destination)?;
+        self.merge_file_bindings(complete, source)
+    }
+
+    pub(crate) fn merge_completed_undeclared_file_bindings(
+        target: &[u8],
+        destination: &VariableStore,
+        destination_base: &VariableStore,
+        from: &[u8],
+        source: Option<&TargetScope>,
+        source_runtime: &VariableStore,
+    ) -> Option<Self> {
+        // A file with no named declarations still owns a runtime table.
+        // Both retained destination contexts must point to that same table.
+        let owner = destination.undeclared_own_file_history(target)?;
+        if !destination_base
+            .undeclared_own_file_history(target)?
+            .same_table(owner)
+        {
+            return None;
+        }
+        let complete = Self::file_bindings_in_table_order(destination.variables.as_ref().clone())?;
+        let source = match source {
+            Some(scope) => scope.complete_file_bindings(Some(source_runtime))?,
+            None => {
+                source_runtime.undeclared_own_file_history(from)?;
+                Self::file_bindings_in_table_order(source_runtime.variables.as_ref().clone())?
+            }
+        };
+        Self::for_target(target).merge_file_bindings(complete, source)
+    }
+
+    fn merge_file_bindings(&self, mut complete: Bindings, source: Bindings) -> Option<Self> {
         let owner = complete.database_history.clone()?;
         if source
             .database_history

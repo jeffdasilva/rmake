@@ -8704,6 +8704,7 @@ impl Engine {
             return Ok(());
         }
         let retained_ordinary = self.database_contexts.contains_key(from);
+        let destination_has_scope = self.database.target_scopes.contains_key(to);
         let retained_head = !retained_ordinary
             && self.file_traversals.has_outcome(from)
             && self
@@ -8723,13 +8724,12 @@ impl Engine {
                     .rules
                     .get(from)
                     .is_none_or(|rule| rule.double_colon.is_none())))
-            && !self.database.target_scopes.contains_key(to)
+            && !destination_has_scope
             && !self.target_contexts.contains_key(to)
             && !self.database_contexts.contains_key(to)
             && self.file_traversals.visit(to).is_none();
         let completed_scope_merge = !self.remaking
-            && self.database.target_scopes.contains_key(to)
-            && self.database_contexts.contains_key(from)
+            && retained_ordinary
             && self
                 .file_traversals
                 .outcome(from)
@@ -8750,8 +8750,13 @@ impl Engine {
                     .is_some_and(|outcome| !outcome.failed && !outcome.search_after_update)
                     && self.database_contexts.contains_key(to)
                     && self.target_contexts.contains_key(to)
+                    && (destination_has_scope
+                        || (rmake_core::filenames::archive_parts(from).is_none()
+                            && rmake_core::filenames::archive_parts(to).is_none()))
             } else {
-                !self.database_contexts.contains_key(to) && !self.target_contexts.contains_key(to)
+                destination_has_scope
+                    && !self.database_contexts.contains_key(to)
+                    && !self.target_contexts.contains_key(to)
             };
         let completion = self.archive_completion_times.remove(from);
         self.archive_completion_times.remove(to);
@@ -8761,7 +8766,7 @@ impl Engine {
         }
         self.database.file_records.rename(from, to);
         let merged = self.database.explicit_names.contains(to)
-            || self.database.target_scopes.contains_key(to)
+            || destination_has_scope
             || self.has_requested_goal_name(to);
         self.invalidate_phony_names(from);
         self.invalidate_phony_names(to);
