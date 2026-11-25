@@ -174,6 +174,7 @@ def models() -> list[Model]:
     result.extend(named_eval_syntax_finalizer_models())
     result.extend(anonymous_include_finalizer_models())
     result.extend(anonymous_eval_scope_finalizer_models())
+    result.extend(explicit_eval_source_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -1537,6 +1538,75 @@ def anonymous_eval_scope_finalizer_models() -> list[Model]:
               status=0, marks=b'goal\n'),
         model('after-success', foreach(evaluate) + b'\nelse\n', payload=valid,
               marks=b'body-lexical--\n'),
+    ]
+
+
+def explicit_eval_source_finalizer_models() -> list[Model]:
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    witness = b'$(file >>seen,body-$(.LOADED)-$(0)-$(1))\n'
+    broken = witness + b'else\n$(file >>seen,forbidden)\n'
+    valid = witness + b'PASS := done\n'
+    explicit = b'$(probe_eval_location $(file <payload.txt))'
+    inherited = b'$(probe_eval_guard $(file <payload.txt))'
+    builtin = b'$(eval $(file <payload.txt))'
+    supplied = b'module-eval.mk:23'
+    global_scope = b'scope=[||file|global||]\n'
+    local_scope = b'scope=[||automatic|lexical||]\n'
+    combined_scope = b'scope=[||automatic|lexical|GO|arg]\n'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def foreach(expression):
+        return b'$(foreach .LOADED,lexical,' + expression + b')'
+
+    def scoped_call(expression):
+        return b'GO = ' + foreach(expression) + b'\n$(call GO,arg)'
+
+    def model(name, expression, location=b'make', *, payload=broken, files=None,
+              native=True, named=False, message=b"extraneous 'else'", scope=global_scope,
+              marks=b'body-global--\n', status=2):
+        head = b'load fatal_scope.so\n' + (b'load probe_api.so\n' if native else b'')
+        startup = head + b'.LOADED := global\n$(file >>seen,read)\n' + expression + b'\n'
+        source = startup + goal if named else goal
+        args = () if named else ('--eval', startup.decode('ascii'))
+        fatal = location + b': *** ' + message + b'.  Stop.\n' if status else b''
+        return Model(
+            'native-explicit-eval-source-finalizer-' + name,
+            {'Makefile': source, 'seen': b'anchor\n', 'payload.txt': payload, **(files or {})},
+            {'exit_code': status, 'stdout_hex': '',
+             'stderr_hex': (fatal + location + b': finalizer-location\n').hex()},
+            b'anchor\nread\n' + marks + scope,
+            (module, Module()) if native else (module,),
+            args=('-rR', '--no-print-directory', '-f', 'Makefile', *args, 'all'),
+        )
+
+    return [
+        model('anonymous-unscoped', explicit, supplied),
+        model('anonymous-scoped', scoped_call(explicit), supplied, scope=combined_scope,
+              marks=b'body-lexical-GO-arg\n'),
+        model('anonymous-eof', foreach(explicit), supplied, scope=local_scope,
+              message=b"missing 'endif'",
+              payload=b'ifeq (ok,ok)\n$(file >>seen,body-$(.LOADED))\n',
+              marks=b'body-lexical\n'),
+        model('nested-builtin-eval', scoped_call(explicit), supplied, scope=combined_scope,
+              marks=b'body-lexical-GO-arg\n',
+              payload=b'$(eval $(file <nested.txt))\n', files={'nested.txt': broken}),
+        model('named-caller', foreach(explicit), supplied, named=True, scope=local_scope,
+              marks=b'body-lexical--\n'),
+        model('physical-child', scoped_call(explicit), b'child.mk:3', scope=combined_scope,
+              marks=b'body-lexical-GO-arg\n', payload=b'include child.mk\n',
+              files={'child.mk': b'# first\n' + broken}),
+        model('fileless-unscoped', inherited),
+        model('fileless-scoped', scoped_call(inherited), scope=combined_scope,
+              marks=b'body-lexical-GO-arg\n'),
+        model('fileless-named-caller', inherited, b'Makefile:5', named=True),
+        model('builtin-anonymous', builtin, native=False),
+        model('builtin-named', foreach(builtin), b'Makefile:4', native=False, named=True,
+              scope=local_scope, marks=b'body-lexical--\n'),
+        model('success', scoped_call(explicit), payload=valid, status=0,
+              marks=b'body-lexical-GO-arg\neval-returned\ngoal\n'),
+        model('after-success', scoped_call(explicit) + b'\nelse', payload=valid,
+              marks=b'body-lexical-GO-arg\neval-returned\n'),
+        model('dormant', scoped_call(b'$(if ,' + explicit + b')'), status=0, marks=b'goal\n'),
     ]
 
 
