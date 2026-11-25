@@ -1,0 +1,10 @@
+id = "include-serial-dry-named-primary-source-clock-required-absent"
+requirement = "includes.serial-dry-named-primary-source-clock"
+candidate = "required"
+description = "An already read required source reports its absence on the reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "Makefile"]
+
+[expected]
+exit_code = 2
+stdout = "read=0 time=1680300000\ndata=0:original\nread=1 time=absent\ndata=1:\n"
+stderr = "Makefile:8: b.mk: No such file or directory\nmake: *** No rule to make target 'b.mk'.\nMakefile:8: Failed to remake makefile 'b.mk'.\n"

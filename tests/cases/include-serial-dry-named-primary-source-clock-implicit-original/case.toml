@@ -1,0 +1,10 @@
+id = "include-serial-dry-named-primary-source-clock-implicit-original"
+requirement = "includes.serial-dry-named-primary-source-clock"
+candidate = "required"
+description = "An implicit recreation at the old timestamp retains its existing read behavior."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "Makefile"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nmake: Nothing to be done for 'Makefile'.\n"
+stderr = ""

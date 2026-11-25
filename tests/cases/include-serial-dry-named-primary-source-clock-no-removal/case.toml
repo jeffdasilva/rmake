@@ -1,0 +1,10 @@
+id = "include-serial-dry-named-primary-source-clock-no-removal"
+requirement = "includes.serial-dry-named-primary-source-clock"
+candidate = "required"
+description = "A nominal unnamed remake at the original timestamp retains the initial read."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "Makefile"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nmake: Nothing to be done for 'Makefile'.\n"
+stderr = ""

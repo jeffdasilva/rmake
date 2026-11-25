@@ -3937,11 +3937,23 @@ impl Engine {
                         )));
             let parallel_remakes =
                 self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
-            let unnamed_serial_source_clocks = self.job_slots() == 1
+            // An existing unruled primary has no recipe to run in dry-run mode.
+            let serial_ordinary_source_clocks = self.job_slots() == 1
                 && modes.active()
-                && read_files
-                    .iter()
-                    .all(|(file, skip)| *skip || !named_include(file));
+                && read_files.iter().enumerate().all(|(index, (file, skip))| {
+                    *skip
+                        || !named_include(file)
+                        || (index == 0
+                            && modes.only_dry_run()
+                            && self.options.goals.len() == 1
+                            && !file.optional
+                            && !file.missing
+                            && file.location.is_none()
+                            && self.no_remake_recipe_fallback()
+                            && !self.database.rules.contains_key(
+                                rmake_core::filenames::without_dot_prefix(&file.name),
+                            ))
+                });
             self.parallel_makefile_remakes = parallel_remakes && !check_primary_before_overlap;
             let mut loaded_prerequisite_times = HashMap::new();
             if !parallel_remakes {
@@ -4221,7 +4233,7 @@ impl Engine {
                 // A fresh serial visit still sees the local timestamp
                 // retained before earlier remakes wrote or removed the file.
                 let loaded_local_time = if !parallel_remakes
-                    && (!modes.active() || unnamed_serial_source_clocks)
+                    && (!modes.active() || serial_ordinary_source_clocks)
                     && self.assumptions.is_none()
                     && !makefile.missing
                     && before.is_some()

@@ -3156,6 +3156,30 @@ cases = [
 ]
 
 [[requirements]]
+id = "includes.serial-dry-named-primary-source-clock"
+title = "Retain serial source clocks when the unruled primary is the only dry-run goal"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 13
+fixture_count = 13
+cases = [
+  "include-serial-dry-named-primary-source-clock-optional-absent",
+  "include-serial-dry-named-primary-source-clock-required-absent",
+  "include-serial-dry-named-primary-source-clock-required-stopping",
+  "include-serial-dry-named-primary-source-clock-original-recreation",
+  "include-serial-dry-named-primary-source-clock-earlier-retime",
+  "include-serial-dry-named-primary-source-clock-single-declaration",
+  "include-serial-dry-named-primary-source-clock-no-removal",
+  "include-serial-dry-named-primary-source-clock-current-chain",
+  "include-serial-dry-named-primary-source-clock-new-recreation",
+  "include-serial-dry-named-primary-source-clock-implicit-original",
+  "include-serial-dry-named-primary-source-clock-failed-stopping",
+  "include-serial-dry-named-primary-source-clock-named-cleaner",
+  "include-serial-dry-named-primary-source-clock-named-source",
+]
+
+[[requirements]]
 id = "includes.serial-failed-source-restart-baseline"
 title = "Use the read timestamp after a settled failed serial refresh"
 status = "fixture-ready"

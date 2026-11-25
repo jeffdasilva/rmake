@@ -1,0 +1,10 @@
+id = "include-serial-dry-named-primary-source-clock-named-cleaner"
+requirement = "includes.serial-dry-named-primary-source-clock"
+candidate = "required"
+description = "An explicitly named remover uses dry-run and leaves the source in place."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "clean.inc"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nprintf \"earlier:%s:%s\\n\" \"0\" \"1680300000\" >> proof; rm -f -- b.mk\nmake: 'clean.inc' is up to date.\n"
+stderr = ""
