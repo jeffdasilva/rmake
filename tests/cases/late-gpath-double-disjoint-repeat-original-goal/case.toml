@@ -1,0 +1,12 @@
+id = "late-gpath-double-disjoint-repeat-original-goal"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "A repeated original goal reports its completed head under the GPATH spelling."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after", "parent"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "initial-goals=[parent after parent]\nhead=[parent|input|7]\nlater=[parent|other|13]\nlate-goals=[parent after parent]\nread=[parent|input|7|source|]\nmake: 'src/parent' is up to date.\n"
+stderr = ""

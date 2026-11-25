@@ -13,7 +13,7 @@ mod startup_exit;
 pub use startup_exit::{Failure, NativeExit};
 
 use crate::cli::Options;
-use crate::file_aliases::Aliases;
+use crate::file_aliases::{AliasKind, Aliases};
 use crate::makefiles::{IncludeSearch, source_open_exhausted};
 use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status, TouchCompletion};
 use rmake_core::diagnostic::{
@@ -7127,6 +7127,12 @@ impl Engine {
             && !self.globally_silent()
         {
             let identity = self.aliases.resolve(goal);
+            let detached_head = self.database.has_detached_file_head(identity);
+            if detached_head && goal == identity {
+                // The destination kept an unattempted status. The queued
+                // source head alone has a successful update to report.
+                return;
+            }
             let rule = self.database.rules.get(identity);
             // A live query can leave a verdict after makefile remaking restores
             // the invocation mode. A double-colon head can still be current
@@ -7160,6 +7166,7 @@ impl Engine {
             // goal merges GNU's goal record; the old record has no summary.
             if reported_goal != goal
                 && moved_archive.is_none()
+                && !(detached_head && self.aliases.retains_goal_status(goal))
                 && (if self.aliases.contains(goal) {
                     self.aliases.merged(goal)
                 } else {
@@ -9009,6 +9016,31 @@ impl Engine {
             && self
                 .database_branch_contexts
                 .contains_key(&(from.to_vec(), 0));
+        let disjoint_file_head = retained_head
+            && tentative_archive.is_none()
+            && self.direct_named_head_reads()
+            && self.gpath_match(from, to)
+            && destination_has_scope
+            && self.database.has_plain_double_colon_rules(from)
+            && self
+                .file_traversals
+                .outcome(from)
+                .is_some_and(|outcome| !outcome.failed)
+            && self.file_traversals.visit(to).is_none()
+            && !self.target_contexts.contains_key(to)
+            && !self.database_contexts.contains_key(to)
+            && self.database.rules.get(to).is_none_or(|rule| {
+                rule.record_only && rule.group.is_none() && rule.double_colon.is_none()
+            })
+            && rmake_core::filenames::archive_parts(from).is_none()
+            && rmake_core::filenames::archive_parts(to).is_none()
+            && !self.aliases.contains_source_or_destination(from)
+            && !self.aliases.contains_source_or_destination(to)
+            && self.database.import_disjoint_file_head(
+                from,
+                to,
+                &self.database_branch_contexts[&(from.to_vec(), 0)],
+            );
         // An unseen destination without a declaration table can adopt the
         // completed file's ordinary table or declared double-colon head.
         let adopt_retained_scope = (retained_head
@@ -9191,6 +9223,9 @@ impl Engine {
                 // source file's recipe stem through GNU's record merge.
                 if merged {
                     source.stem = None;
+                }
+                if disjoint_file_head && let Some(branches) = &mut source.double_colon {
+                    branches.truncate(1);
                 }
                 self.database.rules.insert(to.to_vec(), source);
             }
@@ -9378,7 +9413,14 @@ impl Engine {
         } else {
             false
         };
-        self.aliases.insert(from, to, merged);
+        let kind = if disjoint_file_head {
+            AliasKind::DetachedHead
+        } else if merged {
+            AliasKind::Merge
+        } else {
+            AliasKind::Rename
+        };
+        self.aliases.insert(from, to, kind);
         if rebuild_goal_aliases {
             // A redirected alias can leave other requested names at its old
             // destination. Recompute those resolutions for the new map.
@@ -10120,6 +10162,13 @@ impl Engine {
                         outcome.fatal = true;
                     }
                     self.file_traversals.set_outcome(&name, outcome);
+                    if self.database.has_detached_file_head(&name) {
+                        // A new record can reuse the old lookup key. Keep the
+                        // completed update on its physical destination.
+                        self.file_traversals.remove_outcome(target);
+                        self.record_graph_failure(outcome);
+                        return outcome;
+                    }
                 }
             }
             Err(error) => {
@@ -17200,7 +17249,9 @@ mod tests {
         engine
             .missing_rule_parents
             .insert(leaf.to_vec(), Some(b"first".to_vec()));
-        engine.aliases.insert(b"leaf-alias", leaf, false);
+        engine
+            .aliases
+            .insert(b"leaf-alias", leaf, AliasKind::Rename);
         assert!(
             engine
                 .build(
@@ -17336,7 +17387,9 @@ mod tests {
                             .insert(target.to_vec(), None);
                     }
                     let name = if alias {
-                        engine.aliases.insert(b"cached-alias", target, false);
+                        engine
+                            .aliases
+                            .insert(b"cached-alias", target, AliasKind::Rename);
                         b"cached-alias".as_slice()
                     } else {
                         target.as_slice()
@@ -17832,7 +17885,9 @@ mod tests {
         assert!(!engine.special(b".PHONY", b"hidden", false));
         assert!(!engine.special(b".PHONY", b"ordinary", false));
 
-        engine.aliases.insert(b"goal-0000", b"renamed", false);
+        engine
+            .aliases
+            .insert(b"goal-0000", b"renamed", AliasKind::Rename);
         assert!(!engine.special(b".PHONY", b"goal-0000", false));
         assert!(engine.special(b".PHONY", b"renamed", false));
     }
@@ -17905,7 +17960,9 @@ mod tests {
         engine.intermediates.insert(b"inferred".to_vec());
         engine.intermediates.insert(b"excluded".to_vec());
         assert!(engine.intermediate(b"resolved"));
-        engine.aliases.insert(b"goal", b"resolved", false);
+        engine
+            .aliases
+            .insert(b"goal", b"resolved", AliasKind::Rename);
 
         assert!(engine.intermediate(b"listed"));
         assert!(engine.intermediate(b"second"));

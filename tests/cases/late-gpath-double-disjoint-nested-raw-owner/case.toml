@@ -1,0 +1,12 @@
+id = "late-gpath-double-disjoint-nested-raw-owner"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Keep a newly recreated raw declaration independent during a nested canonical head read."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "recipe=[parent||input|input|7|source||||]\nrecipe=[parent||other|other|13|source||||]\ncanonical=[parent||input|input|7|source||||]\ncanonical=[parent||input|input|7|source||||]\ndetached=[|||||||||]\n"
+stderr = ""

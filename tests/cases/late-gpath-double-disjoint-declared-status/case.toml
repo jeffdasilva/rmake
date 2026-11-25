@@ -1,0 +1,12 @@
+id = "late-gpath-double-disjoint-declared-status"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Update an already imported status declaration from a shell in the detached head."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "recipe=[parent||input|input|declared|source||||]\nrecipe=[parent||other|other|13|source||||]\ncanonical=[parent||input|input|declared|source||||]\ncanonical=[parent||input|input|19|source||||]\n"
+stderr = ""

@@ -1,0 +1,12 @@
+id = "late-gpath-double-disjoint-imported-bindings"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Keep imported head bindings live while a destination-owned name stays separate."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "recipe=[parent||input|input|7|source||||]\nrecipe=[parent||other|other|13|source||||]\ncanonical=[parent||input|input|7|source||||]\ncanonical=[parent||input|input|direct-source updated|source updated|head-only|||]\ncanonical=[parent||input|input|19|source updated|head-only|||]\ndetached=[|||||||||]\n"
+stderr = ""
