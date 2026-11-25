@@ -26,6 +26,7 @@ macro_rules! keys {
 keys! {
     UNKNOWN_LEVEL: c"unknown debug level specification '%s'", [B];
     READING: c"Reading makefiles...\n", [];
+    SHUFFLE_ENABLED: c"Enabled shuffle mode: %s\n", [B];
     RECURSIVE_SHELL_EXPORT: c"%s:%lu: not recursively expanding %s to export to shell function\n", [B, P, B];
     UPDATING_MAKEFILES: c"Updating makefiles....\n", [];
     SKIP_MAKEFILE_LOOP: c"Makefile '%s' might loop; not remaking it.\n", [B];

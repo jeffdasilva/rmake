@@ -104,7 +104,7 @@ def cases(selection):
     if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 18, 15, 20, 14, 13, 18, 16, 12, 12, 8, 12, 12, 8, 7):
         raise h.HarnessError("unexpected NLS model inventory")
     shuffle_option = json.loads((DATA / "shuffle-option.json").read_bytes())
-    if len(shuffle_option["rows"]) != 6 or shuffle_option["fixture_sha256"]:
+    if len(shuffle_option["rows"]) != 9 or shuffle_option["fixture_sha256"]:
         raise h.HarnessError("unexpected shuffle option models")
     intcmp = json.loads((DATA / "intcmp.json").read_bytes())
     if len(intcmp["rows"]) != 25 or intcmp["fixture_sha256"]:

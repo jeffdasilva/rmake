@@ -1,0 +1,11 @@
+id = "debug-shuffle-mode-trace"
+requirement = "debug.shuffle-mode-announcement"
+candidate = "required"
+description = "Trace mode alone omits the basic shuffle announcement."
+provenance = "Original rmake input qualified with two pinned GNU Make observations."
+args = ["-rR", "--no-print-directory", "--trace", "--shuffle=reverse", "all"]
+
+[expected]
+exit_code = 0
+stdout = "reader:0\nmake: 'all' is up to date.\n"
+stderr = ""

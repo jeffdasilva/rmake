@@ -1,0 +1,11 @@
+id = "debug-shuffle-mode-reader-gnumakeflags"
+requirement = "debug.shuffle-mode-announcement"
+candidate = "required"
+description = "A reader GNUMAKEFLAGS seed preserves its raw spelling in the announcement."
+provenance = "Original rmake input qualified with two pinned GNU Make observations."
+args = ["-rR", "--no-print-directory", "--debug=b", "all"]
+
+[expected]
+exit_code = 0
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nreader:0\nEnabled shuffle mode: +00007\nUpdating makefiles....\nUpdating goal targets....\n File 'all' does not exist.\n  File 'left' does not exist.\n Must remake target 'left'.\nleft\n Successfully remade target file 'left'.\n  File 'right' does not exist.\n Must remake target 'right'.\nright\n Successfully remade target file 'right'.\nMust remake target 'all'.\nSuccessfully remade target file 'all'.\n"
+stderr = ""

@@ -72,6 +72,11 @@ def models():
     yield Model('assignment-then-invalid', (CLI, b'-z'), SHORT, seen=b'cli-effect\n')
     yield Model('two-invalid-with-assignment', (b'-z', CLI, b'--absent'), SHORT + LONG, seen=b'cli-effect\n')
     yield Model('empty-directory-then-assignment', (b'-C', b'', CLI), empty(b'-C'), seen=b'cli-effect\n')
+    yield Model('empty-shuffle-then-assignment', (b'--shuffle=', CLI), empty(b'--shuffle'),
+                seen=b'cli-effect\n')
+    yield Model('empty-shuffle-prefix', (b'--shuf=',), empty(b'--shuffle'))
+    yield Model('empty-shuffle-in-gnu-source', (CLI,), empty(b'--shuffle'), gnumakeflags=b'--shuffle=')
+    yield Model('empty-shuffle-in-make-source', (CLI,), empty(b'--shuffle'), makeflags=b'--shuffle=')
     yield Model('invalid-then-help', (b'-z', b'--help'), SHORT)
     yield Model('help-then-invalid', (b'--help', b'-z'), SHORT)
     yield Model('invalid-with-version', (b'--version', b'-C', b''), empty(b'-C'), version=True)

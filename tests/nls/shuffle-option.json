@@ -1,5 +1,5 @@
 {
-  "classification": "Invalid startup shuffle operands across argument sources and locale controls.",
+  "classification": "Shuffle option diagnostics and post-read announcements across argument sources and locales.",
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
   "fixture_sha256": {},
   "rows": [
@@ -145,6 +145,84 @@
         "stdout": "",
         "seen": "anchor\n",
         "stderr_hex": "6d616b653a202a2a2a20756e67c3bc6c74696765722044757263686d697363682d4d6f6475733a20496e76616c69642076616c75653a20e2809e696e76616c69642dffe2809c2e20205363686c7573732e0a"
+      }
+    },
+    {
+      "id": "nls-shuffle-announcement-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--debug=b",
+        "--shuffle=REVERSE",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "2428696e666f207265616465723a24286f722024284d414b455f5245535441525453292c3029290a2e50484f4e593a20616c6c206c6566742072696768740a616c6c3a206c6566742072696768740a6c6566743a203b20407072696e746620276c6566745c6e270a72696768743a203b20407072696e7466202772696768745c6e270a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "GNU Make 4.4.1\nGebaut f\u00fcr x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLizenz GPLv3+: GNU GPL Version 3 oder sp\u00e4ter <https://gnu.org/licenses/gpl.html>\nDies ist freie Software: Sie k\u00f6nnen sie nach Belieben \u00e4ndern und weiter verteilen.\nSoweit es die Gesetze erlauben, gibt es KEINE GARANTIE.\nMakedateien werden gelesen \u2026\nreader:0\nDurchmisch-Modus aktiviert: reverse\nMakedateien werden aktualisiert \u2026\nZiele werden aktualisiert \u2026\n Die Datei \u201eall\u201c existiert nicht.\n  Die Datei \u201eright\u201c existiert nicht.\n Das Ziel \u201eright\u201c muss neu erzeugt werden.\nright\n Die Zieldatei \u201eright\u201c wurde erfolgreich aktualisiert.\n  Die Datei \u201eleft\u201c existiert nicht.\n Das Ziel \u201eleft\u201c muss neu erzeugt werden.\nleft\n Die Zieldatei \u201eleft\u201c wurde erfolgreich aktualisiert.\nDas Ziel \u201eall\u201c muss neu erzeugt werden.\nDie Zieldatei \u201eall\u201c wurde erfolgreich aktualisiert.\n",
+        "seen": "anchor\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "nls-shuffle-announcement-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--debug=b",
+        "--shuffle=+00017",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "2428696e666f207265616465723a24286f722024284d414b455f5245535441525453292c3029290a616c6c3a203b0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "GNU Make 4.4.1\n\u3053\u306e\u30d7\u30ed\u30b0\u30e9\u30e0\u306f x86_64-pc-linux-gnu \u7528\u306b\u30d3\u30eb\u30c9\u3055\u308c\u307e\u3057\u305f\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\n\u30e9\u30a4\u30bb\u30f3\u30b9 GPLv3+: GNU GPL \u30d0\u30fc\u30b8\u30e7\u30f3 3 \u4ee5\u964d <https://gnu.org/licenses/gpl.html>\n\u3053\u308c\u306f\u30d5\u30ea\u30fc\u30bd\u30d5\u30c8\u30a6\u30a7\u30a2\u3067\u3059: \u81ea\u7531\u306b\u5909\u66f4\u304a\u3088\u3073\u914d\u5e03\u3067\u304d\u307e\u3059.\n\u6cd5\u5f8b\u306e\u8a31\u3059\u9650\u308a\u3001\u3000\u7121\u4fdd\u8a3c\u3000\u3067\u3059.\nmakefile \u3092\u8aad\u307f\u8fbc\u307f\u307e\u3059...\nreader:0\n\u30b7\u30e3\u30c3\u30d5\u30eb\u30e2\u30fc\u30c9: 17 \u3092\u6709\u52b9\u306b\u3057\u307e\u3057\u305f\nmakefile \u306e\u66f4\u65b0\u4e2d....\n\u6700\u7d42\u30bf\u30fc\u30b2\u30c3\u30c8\u3092\u66f4\u65b0\u4e2d....\n \u30d5\u30a1\u30a4\u30eb 'all' \u304c\u5b58\u5728\u3057\u307e\u305b\u3093.\n\u30bf\u30fc\u30b2\u30c3\u30c8 'all' \u3092\u518dmake \u3059\u308b\u5fc5\u8981\u304c\u3042\u308a\u307e\u3059.\n\u30bf\u30fc\u30b2\u30c3\u30c8\u30d5\u30a1\u30a4\u30eb 'all' \u306e\u518d make \u306b\u6210\u529f\u3057\u307e\u3057\u305f.\nmake: 'all' \u306f\u66f4\u65b0\u6e08\u307f\u3067\u3059.\n",
+        "seen": "anchor\n",
+        "stderr": ""
+      }
+    },
+    {
+      "id": "nls-shuffle-announcement-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--debug=b",
+        "--shuffle=identity",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "2428696e666f207265616465723a24286f722024284d414b455f5245535441525453292c3029290a616c6c3a203b0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "GNU Make 4.4.1\nConstruit pour x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nLecture des makefiles...\nreader:0\nEnabled shuffle mode: identity\nMise \u00e0 jour des makefiles....\nMise \u00e0 jour des objectifs cibles....\n Le fichier \u00ab\u00a0all\u00a0\u00bb n'existe pas.\nIl faut refabriquer la cible \u00ab\u00a0all\u00a0\u00bb.\nRefabrication r\u00e9ussie du fichier cible \u00ab\u00a0all\u00a0\u00bb.\nmake: \u00ab\u00a0all\u00a0\u00bb est \u00e0 jour.\n",
+        "seen": "anchor\n",
+        "stderr": ""
       }
     }
   ]

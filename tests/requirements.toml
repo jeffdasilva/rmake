@@ -96,6 +96,45 @@ fixture_count = 9
 cases = ["debug-live-verbose-recipe", "debug-live-verbose-secondary-touch", "debug-live-verbose-earlier-leaf", "debug-live-verbose-earlier-phony", "debug-live-verbose-unvisited-leaf", "debug-live-verbose-re-enabled", "debug-live-verbose-double-colon", "debug-live-verbose-query-goals", "debug-live-verbose-already-enabled"]
 
 [[requirements]]
+id = "debug.shuffle-mode-announcement"
+title = "Announce the requested shuffle mode after reading makefiles"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/shuffle.md"
+candidate_required = 28
+fixture_count = 28
+cases = [
+  "debug-shuffle-mode-identity",
+  "debug-shuffle-mode-reverse",
+  "debug-shuffle-mode-seed",
+  "debug-shuffle-mode-none",
+  "debug-shuffle-mode-no-shuffle",
+  "debug-shuffle-mode-startup-makeflags",
+  "debug-shuffle-mode-startup-gnumakeflags",
+  "debug-shuffle-mode-reader-makeflags",
+  "debug-shuffle-mode-reader-gnumakeflags",
+  "debug-shuffle-mode-command-eval",
+  "debug-shuffle-mode-later-override",
+  "debug-shuffle-mode-later-none",
+  "debug-shuffle-mode-later-invalid",
+  "debug-shuffle-mode-recipe-request",
+  "debug-shuffle-mode-reader-enable-debug",
+  "debug-shuffle-mode-reader-disable-debug",
+  "debug-shuffle-mode-sync-reader",
+  "debug-shuffle-mode-restart-seeded",
+  "debug-shuffle-mode-restart-live-request",
+  "debug-shuffle-mode-restart-cli-vs-live",
+  "debug-shuffle-mode-reused-request",
+  "debug-shuffle-mode-debug-verbose",
+  "debug-shuffle-mode-debug-makefiles",
+  "debug-shuffle-mode-debug-jobs",
+  "debug-shuffle-mode-debug-none",
+  "debug-shuffle-mode-trace",
+  "debug-shuffle-mode-reader-failure",
+  "debug-shuffle-mode-no-makefile",
+]
+
+[[requirements]]
 id = "functions.eval"
 title = "Dynamic evaluation and double expansion"
 status = "fixture-ready"

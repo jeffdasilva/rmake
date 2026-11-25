@@ -231,6 +231,7 @@ pub enum Prerequisite {
 #[derive(Clone, Copy)]
 pub enum Event<'a> {
     Reading,
+    ShuffleEnabled(&'a [u8]),
     UpdatingMakefiles,
     SkippingMakefileLoop(&'a [u8]),
     UpdatingGoals,
@@ -339,6 +340,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
     let print = |key, arguments: &[Argument<'_>]| raw(&[prefix, &localized(key, arguments)]);
     match event {
         Event::Reading => print(msg::READING, &[]),
+        Event::ShuffleEnabled(mode) => print(msg::SHUFFLE_ENABLED, &[bytes(mode)]),
         Event::UpdatingMakefiles => print(msg::UPDATING_MAKEFILES, &[]),
         Event::SkippingMakefileLoop(name) => print(msg::SKIP_MAKEFILE_LOOP, &[bytes(name)]),
         Event::UpdatingGoals => print(msg::UPDATING_GOALS, &[]),
