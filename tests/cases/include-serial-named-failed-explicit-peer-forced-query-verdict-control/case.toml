@@ -1,0 +1,12 @@
+id = "include-serial-named-failed-explicit-peer-forced-query-verdict-control"
+requirement = "includes.remake"
+candidate = "required"
+description = "A forced query recipe returns a question verdict after modifying its peer."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "payload.owner", "payload.mk", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "READ:0:old:Makefile payload.owner payload.mk tail.inc\nEXEC:payload.owner\nTAIL\n"
+stderr = ""

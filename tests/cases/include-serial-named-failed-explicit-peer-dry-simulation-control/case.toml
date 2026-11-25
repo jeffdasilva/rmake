@@ -1,0 +1,12 @@
+id = "include-serial-named-failed-explicit-peer-dry-simulation-control"
+requirement = "includes.remake"
+candidate = "required"
+description = "A simulated dry-run group does not record a physical peer sample after another source fails."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "payload.owner", "payload.mk", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile payload.owner payload.mk other.inc\necho EXEC:\"payload.owner\"; printf \"%s\\n\" \"payload.owner\" >> executed; printf \"VALUE := written\\n\" > payload.mk; touch -d @1600000007 payload.mk\nOTHER\nmake: 'payload.owner' is up to date.\nmake: 'payload.mk' is up to date.\necho ALL:old:0\n"
+stderr = ""

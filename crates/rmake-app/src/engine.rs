@@ -359,13 +359,21 @@ enum RemakeFailure {
     RequiredClockChanged,
     OptionalClockUnchanged,
     OptionalClockChanged,
+    ExplicitRequiredClockUnchanged,
+    ExplicitRequiredClockChanged,
+    ExplicitOptionalClockUnchanged,
+    ExplicitOptionalClockChanged,
 }
 
 impl RemakeFailure {
     fn is_optional(self) -> bool {
         matches!(
             self,
-            Self::Optional | Self::OptionalClockUnchanged | Self::OptionalClockChanged
+            Self::Optional
+                | Self::OptionalClockUnchanged
+                | Self::OptionalClockChanged
+                | Self::ExplicitOptionalClockUnchanged
+                | Self::ExplicitOptionalClockChanged
         )
     }
 
@@ -376,18 +384,31 @@ impl RemakeFailure {
             }
             Self::RequiredClockUnchanged => Self::OptionalClockUnchanged,
             Self::RequiredClockChanged => Self::OptionalClockChanged,
+            Self::ExplicitRequiredClockUnchanged => Self::ExplicitOptionalClockUnchanged,
+            Self::ExplicitRequiredClockChanged => Self::ExplicitOptionalClockChanged,
             optional => optional,
         }
     }
 
-    fn peer_clock_changed(self) -> Option<bool> {
+    fn peer_clock_changed(self, modes: MakefileModes) -> Option<bool> {
         match self {
-            Self::RequiredClockUnchanged | Self::OptionalClockUnchanged => Some(false),
-            Self::RequiredClockChanged | Self::OptionalClockChanged => Some(true),
-            Self::None
-            | Self::SettledPrerequisiteOwner
-            | Self::DirectExplicitGroupOwner
-            | Self::Optional => None,
+            Self::ExplicitRequiredClockUnchanged | Self::ExplicitOptionalClockUnchanged
+                if !modes.touch =>
+            {
+                Some(false)
+            }
+            Self::ExplicitRequiredClockChanged | Self::ExplicitOptionalClockChanged
+                if !modes.touch =>
+            {
+                Some(true)
+            }
+            Self::RequiredClockUnchanged | Self::OptionalClockUnchanged if !modes.active() => {
+                Some(false)
+            }
+            Self::RequiredClockChanged | Self::OptionalClockChanged if !modes.active() => {
+                Some(true)
+            }
+            _ => None,
         }
     }
 }
@@ -4535,12 +4556,14 @@ impl Engine {
                             ) && !failed_opens.contains(name)
                         })
                         .map(|loaded| result.time.is_some_and(|time| time != loaded));
-                    let settled_failure_change = result
-                        .remake_failure
-                        .peer_clock_changed()
-                        .or(cached_failed_owner_change)
-                        .or(direct_group_change)
-                        .filter(|_| !modes.active());
+                    let settled_failure_change =
+                        result.remake_failure.peer_clock_changed(modes).or_else(|| {
+                            if modes.active() {
+                                None
+                            } else {
+                                cached_failed_owner_change.or(direct_group_change)
+                            }
+                        });
                     let refresh_timestamp = settled_failure_change.is_none()
                         && (serial_declarations.is_some() || (result.ran && !result.blocked));
                     if settled_failure_change == Some(true)
@@ -13693,6 +13716,7 @@ impl Engine {
 
     fn finish_recipe(&mut self, target: &[u8], mut outcome: Outcome) -> Outcome {
         let group = self.running_groups.remove(target);
+        let recipe_modes = MakefileModes::from_options(&self.options);
         let failed_serial_recipe = outcome.failed
             && !outcome.fatal
             && !outcome.blocked
@@ -13701,12 +13725,12 @@ impl Engine {
             && self.remaking
             && !self.parallel_makefile_remakes
             && self.options.keep_going
-            && self.assumptions.is_none()
-            && !MakefileModes::from_options(&self.options).active();
+            && self.assumptions.is_none();
         let failed_visit = failed_serial_recipe
             .then(|| self.file_traversals.visit(target))
             .flatten();
-        let failed_prerequisite = failed_visit.is_some_and(|visit| visit.parent.is_some());
+        let failed_prerequisite =
+            !recipe_modes.active() && failed_visit.is_some_and(|visit| visit.parent.is_some());
         if failed_serial_recipe && self.makefile_names.contains(target) {
             let owner_failure = match &group {
                 Some(group) if group.double_colon.is_none() => {
@@ -13714,9 +13738,12 @@ impl Engine {
                         // A consuming prerequisite check settles the owner.
                         Some(RemakeFailure::SettledPrerequisiteOwner)
                     } else if !group.implicit
+                        && !recipe_modes.touch
+                        && !outcome.question_outdated
                         && failed_visit.is_some_and(|visit| visit.parent.is_none())
                     {
-                        // Explicit groups sample the owner along with peers.
+                        // Explicit groups sample their peers after a real
+                        // recipe, including a forced dry-run or query recipe.
                         Some(RemakeFailure::DirectExplicitGroupOwner)
                     } else {
                         None
@@ -13904,11 +13931,12 @@ impl Engine {
             && self.assumptions.is_none()
             && !self.options.check_symlink_times
             && self.makefile_names.contains(target);
-        let track_failed_peer_clock = (group.implicit && failed_prerequisite)
-            || matches!(
-                outcome.remake_failure,
-                RemakeFailure::DirectExplicitGroupOwner
-            );
+        let failed_explicit_owner = matches!(
+            outcome.remake_failure,
+            RemakeFailure::DirectExplicitGroupOwner
+        );
+        let track_failed_peer_clock =
+            (group.implicit && failed_prerequisite) || failed_explicit_owner;
         let trace_failed_read_peers = serial_explicit_remake
             && (self.optional_remake() || self.options.keep_going)
             && outcome.failed
@@ -13987,10 +14015,12 @@ impl Engine {
                 && !self.file_traversals.has_outcome(&peer)
                 && let Some(Some((None, Some(loaded)))) = self.path_observations.get(&peer)
             {
-                if completed.time.is_some_and(|time| time != *loaded) {
-                    RemakeFailure::RequiredClockChanged
-                } else {
-                    RemakeFailure::RequiredClockUnchanged
+                let changed = completed.time.is_some_and(|time| time != *loaded);
+                match (failed_explicit_owner, changed) {
+                    (true, true) => RemakeFailure::ExplicitRequiredClockChanged,
+                    (true, false) => RemakeFailure::ExplicitRequiredClockUnchanged,
+                    (false, true) => RemakeFailure::RequiredClockChanged,
+                    (false, false) => RemakeFailure::RequiredClockUnchanged,
                 }
             } else {
                 RemakeFailure::None
