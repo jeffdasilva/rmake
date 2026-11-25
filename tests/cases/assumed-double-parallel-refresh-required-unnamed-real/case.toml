@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-refresh-required-unnamed-real"
+requirement = "options.assumed-double-colon-parallel-refresh"
+candidate = "required"
+description = "A real synthetic recipe can reread an unnamed required source without rewriting it."
+args = ["-rR", "--no-print-directory", "-j2", "-k", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nread=1 clock=1680300000\ngoal-1\n"
+stderr = ""

@@ -4,6 +4,7 @@
 //! Runtime switch interpretation and jobserver configuration after reading.
 //! Switch values remain distinct from the pool's execution capacity.
 use super::*;
+use rmake_core::diagnostic::MakeflagsDecodeError;
 
 pub(super) struct State {
     options: std::rc::Rc<RefCell<Options>>,
@@ -21,6 +22,15 @@ impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
         &mut self,
         request: rmake_core::diagnostic::MakeflagsRequest<'_>,
     ) -> Result<rmake_core::diagnostic::MakeflagsResult, Vec<u8>> {
+        self.0
+            .assigned(request)
+            .map_err(MakeflagsDecodeError::into_bytes)
+    }
+
+    fn decode_with_error_kind(
+        &mut self,
+        request: rmake_core::diagnostic::MakeflagsRequest<'_>,
+    ) -> Result<rmake_core::diagnostic::MakeflagsResult, MakeflagsDecodeError> {
         self.0.assigned(request)
     }
 
@@ -62,9 +72,7 @@ impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
     }
 
     fn set_warning_policy(&mut self, enabled: bool) {
-        self.0.options.borrow_mut().warn_undefined = enabled;
-        self.0.warn_undefined.set(enabled);
-        self.0.dirty.set(true);
+        self.0.publish_warning_policy(enabled);
     }
 }
 
@@ -108,6 +116,12 @@ impl State {
         // Live decoding starts from the mode of this visit. In particular,
         // an unrelated assignment must not restore masked startup modes.
         modes.apply(&mut self.options.borrow_mut());
+    }
+
+    fn publish_warning_policy(&self, enabled: bool) {
+        self.options.borrow_mut().warn_undefined = enabled;
+        self.warn_undefined.set(enabled);
+        self.dirty.set(true);
     }
 
     /// A temporary warning change participates in live decoding. Publish
@@ -166,11 +180,12 @@ impl State {
     pub(super) fn assigned(
         &self,
         request: rmake_core::diagnostic::MakeflagsRequest<'_>,
-    ) -> Result<rmake_core::diagnostic::MakeflagsResult, Vec<u8>> {
+    ) -> Result<rmake_core::diagnostic::MakeflagsResult, MakeflagsDecodeError> {
         let mut current = self.options.borrow_mut();
         current.debug_mask = self.output.debug_mask();
-        let (mut updated, _, warning_positions) =
-            current.assigned_flags_with_positions(&[request.value.to_vec()], request.origin)?;
+        let (mut updated, _, warning_positions) = current
+            .assigned_flags_with_positions(&[request.value.to_vec()], request.origin)
+            .map_err(MakeflagsDecodeError::Other)?;
         let notices = std::mem::take(&mut updated.flag_notices);
         let assignments: Vec<_> = std::mem::take(&mut updated.assignments)
             .into_iter()
@@ -189,8 +204,14 @@ impl State {
             .as_deref()
             .map_or(Some(crate::output::Mode::None), crate::output::Mode::parse);
         if mode.is_none() && assignments.is_empty() && notices.is_empty() {
-            return Err(crate::usage::output_sync_mode(
-                updated.output_sync.as_deref().unwrap_or_default(),
+            // This source completed flag decoding before mode validation.
+            // With no replay, publish its warning switch before returning.
+            if !warning_positions.is_empty() && current.warn_undefined != updated.warn_undefined {
+                drop(current);
+                self.publish_warning_policy(updated.warn_undefined);
+            }
+            return Err(MakeflagsDecodeError::InvalidOutputSync(
+                crate::usage::output_sync_mode(updated.output_sync.as_deref().unwrap_or_default()),
             ));
         }
         // GNU validates output synchronization after payload definitions. The
@@ -1149,6 +1170,12 @@ impl Engine {
         if let Some(value) = updated.output_sync.as_deref()
             && crate::output::Mode::parse(value).is_none()
         {
+            if !warning_positions.is_empty()
+                && self.flag_state.warn_undefined.get() != updated.warn_undefined
+            {
+                self.flag_state
+                    .publish_warning_policy(updated.warn_undefined);
+            }
             self.fatal(None, &crate::usage::output_sync_mode(value));
             return Err(());
         }

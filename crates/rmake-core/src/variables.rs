@@ -613,7 +613,7 @@ impl Clone for NamesCache {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct ShellStatusOrder {
     owner: Arc<[u8]>,
     declaration_position: usize,
@@ -1746,6 +1746,42 @@ impl VariableStore {
         }
     }
 
+    /// Keep a retained file table under a new name. The automatic values
+    /// were captured with the original spelling and stay with the table.
+    pub fn rename_retained_file_scope(
+        &mut self,
+        from: &[u8],
+        to: &[u8],
+        scope: Option<&TargetScope>,
+    ) {
+        let Some(previous) = self
+            .current_file_declarations(Some(from))
+            .and_then(|layer| layer.target.as_ref())
+        else {
+            return;
+        };
+        let owner = scope
+            .and_then(|scope| scope.target.clone())
+            .unwrap_or_else(|| Arc::from(to));
+        if self
+            .variables
+            .shell_status_order
+            .as_ref()
+            .is_some_and(|status| Arc::ptr_eq(&status.owner, previous))
+        {
+            let status = Arc::make_mut(&mut self.variables)
+                .shell_status_order
+                .as_mut()
+                .expect("recorded status order");
+            Arc::make_mut(status).owner = Arc::clone(&owner);
+        }
+        let declarations = &mut self.layers.make_mut()[0];
+        declarations.target = Some(owner);
+        if let Some(scope) = scope {
+            declarations.variables = Arc::clone(&scope.variables);
+        }
+    }
+
     /// A target declared inside a global call or loop sees those lexical
     /// bindings behind its own table, before the permanent global table.
     pub(crate) fn add_declaration_lexical(&mut self, lexical: &DeclarationLexical) {
@@ -2846,6 +2882,10 @@ impl TargetScope {
             target: Some(Arc::from(name)),
             ..Self::default()
         }
+    }
+
+    pub(crate) fn rename(&mut self, name: &[u8]) {
+        self.target = Some(Arc::from(name));
     }
 
     pub(crate) fn set_file_history(&mut self, history: crate::database::TableHistory) {
@@ -4462,8 +4502,8 @@ impl Expansion<'_, '_> {
             } => (database, Some((**variables).clone())),
             _ => return,
         };
-        if database.native_user_error.is_none() {
-            database.native_user_error = Some(Box::new(crate::parser::NativeUserErrorContext {
+        if database.native_fatal_context.is_none() {
+            database.native_fatal_context = Some(Box::new(crate::parser::NativeFatalContext {
                 location: self.context.location.cloned(),
                 scope,
                 bindings: self.bindings.clone(),

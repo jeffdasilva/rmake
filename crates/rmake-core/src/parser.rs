@@ -553,15 +553,15 @@ pub struct Makefile {
     pub read_error: Option<IncludeError>,
 }
 
-#[derive(Clone)]
-pub(crate) struct NativeUserErrorContext {
+#[derive(Clone, Default)]
+pub(crate) struct NativeFatalContext {
     pub location: Option<Location>,
     pub scope: Option<VariableStore>,
     pub bindings: Vec<crate::variables::LocalFrame>,
     pub active: Option<std::sync::Arc<crate::variables::ActiveContext>>,
 }
 
-impl NativeUserErrorContext {
+impl NativeFatalContext {
     fn swap_evaluation(&mut self, database: &mut Database) {
         std::mem::swap(&mut self.scope, &mut database.evaluation_scope);
         std::mem::swap(&mut self.bindings, &mut database.evaluation_bindings);
@@ -612,7 +612,7 @@ pub struct Database {
     wait_warnings: u8,
     pub(crate) evaluation_bindings: Vec<crate::variables::LocalFrame>,
     pub(crate) evaluation_active: Option<std::sync::Arc<crate::variables::ActiveContext>>,
-    pub(crate) native_user_error: Option<Box<NativeUserErrorContext>>,
+    pub(crate) native_fatal_context: Option<Box<NativeFatalContext>>,
     // Active only while parsing a potentially recursive HOME filename. Owned
     // bytes preserve shared-name overwrites without aliased or dangling pointers.
     filename_scratch: Option<Vec<u8>>,
@@ -892,11 +892,23 @@ impl Database {
     }
 
     pub fn merge_target_scope(&mut self, from: &[u8], to: &[u8]) {
-        if let Some(scope) = self.target_scopes.remove(from) {
-            self.target_scopes
-                .entry(to.to_vec())
-                .or_insert_with(|| TargetScope::for_target(to))
-                .merge_missing(&scope);
+        self.rename_target_scope(from, to, false);
+    }
+
+    /// Rebind the declarations of a renamed file. A destination adopting the
+    /// source file's retained context also adopts the declaration table intact.
+    pub fn rename_target_scope(&mut self, from: &[u8], to: &[u8], adopt_source: bool) {
+        if let Some(mut scope) = self.target_scopes.remove(from) {
+            use std::collections::hash_map::Entry;
+            match self.target_scopes.entry(to.to_vec()) {
+                Entry::Vacant(entry) if adopt_source => {
+                    scope.rename(to);
+                    entry.insert(scope);
+                }
+                entry => entry
+                    .or_insert_with(|| TargetScope::for_target(to))
+                    .merge_missing(&scope),
+            }
             self.target_scope_revision = self.target_scope_revision.wrapping_add(1);
         }
     }
@@ -4212,7 +4224,7 @@ impl Database {
         let runtime = context
             .native_runtime()
             .ok_or_else(|| ExpandError::Unsupported(b"native process termination".to_vec()))?;
-        let mut retained = self.native_user_error.take();
+        let mut retained = self.native_fatal_context.take();
         if let Some(retained) = &mut retained {
             retained.swap_evaluation(self);
         }
@@ -4230,7 +4242,7 @@ impl Database {
             // A failed finalizer may return before the engine retries exit.
             retained.swap_evaluation(self);
         }
-        self.native_user_error = retained;
+        self.native_fatal_context = retained;
         result
     }
 
@@ -5328,6 +5340,18 @@ impl Database {
                 } else {
                     Message::MissingSeparator { tabs: false }
                 };
+                // A physical reader frame still owns this source when GNU
+                // stops. Preserve it for finalizer diagnostics after the
+                // parser returns, including when the frame is an include.
+                if self.evaluation_depth == 0
+                    && self.native_fatal_context.is_none()
+                    && context.needs_fatal_expansion_context()
+                {
+                    self.native_fatal_context = Some(Box::new(NativeFatalContext {
+                        location: Some(location.clone()),
+                        ..NativeFatalContext::default()
+                    }));
+                }
                 return Err(ParseError::system(location, message, context));
             };
             declaration.location = Some(location.clone());

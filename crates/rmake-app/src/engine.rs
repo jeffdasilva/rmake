@@ -5066,6 +5066,7 @@ impl Engine {
                     &read_files,
                     &visited,
                     named_sources.as_ref(),
+                    !modes.active(),
                 );
             }
             changed |= grouped_changes
@@ -8446,6 +8447,18 @@ impl Engine {
             self.database.file_records.rename(from, to);
             return Ok(());
         }
+        // An unseen destination without a declaration table can adopt the
+        // completed ordinary file's whole variable table.
+        let adopt_retained_scope = self.database_contexts.contains_key(from)
+            && self
+                .database
+                .rules
+                .get(from)
+                .is_none_or(|rule| rule.double_colon.is_none())
+            && !self.database.target_scopes.contains_key(to)
+            && !self.target_contexts.contains_key(to)
+            && !self.database_contexts.contains_key(to)
+            && self.file_traversals.visit(to).is_none();
         let completion = self.archive_completion_times.remove(from);
         self.archive_completion_times.remove(to);
         if let Some(completion) = completion {
@@ -8584,7 +8597,8 @@ impl Engine {
                 self.database.rules.insert(to.to_vec(), source);
             }
         }
-        self.database.merge_target_scope(from, to);
+        self.database
+            .rename_target_scope(from, to, adopt_retained_scope);
         self.file_traversals.rename_visit(from, to);
         // The source identity is retired. An existing destination can keep
         // its own failed verdict and diagnostic edge.
@@ -8669,7 +8683,17 @@ impl Engine {
                 flags.insert(to.to_vec());
             }
         }
-        if let Some(scope) = self.database.target_scopes.get(to)
+        let scope = self.database.target_scopes.get(to);
+        if adopt_retained_scope {
+            for context in self
+                .target_contexts
+                .get_mut(to)
+                .into_iter()
+                .chain(self.database_contexts.get_mut(to))
+            {
+                context.rename_retained_file_scope(from, to, scope);
+            }
+        } else if let Some(scope) = scope
             && let Some(context) = self.target_contexts.get_mut(to)
         {
             context.refresh_target_scope(scope);
@@ -11905,11 +11929,15 @@ impl Engine {
         read_files: &[(Makefile, bool)],
         visited: &MakefileVisits<'_>,
         named_sources: Option<&HashSet<&[u8]>>,
+        ordinary_mode: bool,
     ) -> bool {
         // A source can settle on the second visit after its order-only
         // prerequisites finish. The synthetic entry retains the visit clock
         // even when settling the root refreshes its physical time.
         read_files.iter().any(|(source, skip)| {
+            if *skip || source.missing {
+                return false;
+            }
             let name = source.name.as_slice();
             let target = self.aliases.resolve(name);
             let Some(before) = visited.get(name).and_then(|(before, _)| *before) else {
@@ -11918,22 +11946,35 @@ impl Engine {
             let Some((assumed_time, 1)) = self.assumed_new_double_colon_entries(target) else {
                 return false;
             };
-            !*skip
-                && !source.missing
-                && self.is_makefile_goal(
-                    rmake_core::filenames::without_dot_prefix(name),
-                    named_sources,
-                )
-                && self.file_traversals.outcome(target).is_some_and(|outcome| {
-                    outcome.terminal_verdict().is_none()
-                        && !outcome.fatal
-                        && matches!(
-                            outcome.completion,
-                            CompletionTime::Unchanged | CompletionTime::Preserve
-                        )
-                        && outcome.time.is_some_and(|time| time != assumed_time)
-                })
-                && self.settled_assumed_new_makefile_clock(target, false, Some(before))
+            let Some(outcome) = self.file_traversals.outcome(target).filter(|outcome| {
+                outcome.terminal_verdict().is_none()
+                    && !outcome.fatal
+                    && outcome.time.is_some_and(|time| time != assumed_time)
+            }) else {
+                return false;
+            };
+            match outcome.completion {
+                CompletionTime::Unchanged | CompletionTime::Preserve => {
+                    self.is_makefile_goal(
+                        rmake_core::filenames::without_dot_prefix(name),
+                        named_sources,
+                    ) && self.settled_assumed_new_makefile_clock(target, false, Some(before))
+                }
+                CompletionTime::Refresh if ordinary_mode => {
+                    // The synthetic recipe can restore the real read time
+                    // without writing the source. Its own result owns that clock.
+                    self.settled_assumed_new_makefile_branches_match(
+                        target,
+                        false,
+                        |assumed_time, branch| {
+                            branch.completion == CompletionTime::Refresh
+                                && branch.time == Some(before)
+                                && before != assumed_time
+                        },
+                    )
+                }
+                _ => false,
+            }
         })
     }
 

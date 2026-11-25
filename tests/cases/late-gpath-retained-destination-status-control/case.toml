@@ -1,0 +1,12 @@
+id = "late-gpath-retained-destination-status-control"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Observe the saved file scope after a recipe creates a GPATH destination."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "retained=[destination|file]\nenv=[.SHELLSTATUS|destination ANCHOR_3190|named]\n"
+stderr = ""

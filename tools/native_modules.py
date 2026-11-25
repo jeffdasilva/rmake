@@ -164,6 +164,10 @@ def models() -> list[Model]:
     result.extend(retained_double_branch_models())
     result.extend(finalizer_shell_models())
     result.extend(fatal_scope_models())
+    result.extend(reader_syntax_finalizer_models())
+    result.extend(flag_finalizer_models())
+    result.extend(fast_sync_finalizer_models())
+    result.extend(sync_warning_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -900,6 +904,260 @@ def fatal_scope_models() -> list[Model]:
               b'make: *** [Makefile:6: all] Error 13\nmake' + finalizer, global_scope),
         model('success', header + recipe + b'$(foreach .LOADED,local,$(file >>seen,body)):' + tail,
               b'make' + finalizer, b'body\n' + global_scope, status=0),
+    ]
+
+
+def reader_syntax_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,before)\n'
+    goal = b'.PHONY: all\nall:;@:\n'
+    invalid = b'not a rule\n'
+    separator = b'missing separator'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def model(name, text, location, *, args=(), env=None, files=None, message=separator):
+        stderr = (location + b': *** ' + message + b'.  Stop.\n'
+                  + location + b': finalizer-location\n')
+        return Model(
+            'native-reader-syntax-finalizer-' + name,
+            {'Makefile': text, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': 2, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\nbefore\nscope=[||file|global||]\n',
+            (module,),
+            args=('-rR', '--no-print-directory', *args),
+            environment=env or {},
+        )
+
+    return [
+        model('default', head + invalid + goal, b'Makefile:4'),
+        model('explicit-file', goal, b'explicit.mk:4',
+              args=('-f', 'explicit.mk'), files={'explicit.mk': head + invalid + goal}),
+        model('include', head + b'include child.mk\n' + goal, b'child.mk:2',
+              files={'child.mk': b'# first\n' + invalid}),
+        model('nested-include', head + b'include child.mk\n' + goal, b'grandchild.mk:3',
+              files={'child.mk': b'include grandchild.mk\n',
+                     'grandchild.mk': b'# first\n# second\n' + invalid}),
+        model('optional-include', head + b'-include child.mk\n' + goal, b'child.mk:2',
+              files={'child.mk': b'# first\n' + invalid}),
+        model('preload', goal, b'preload.mk:4', env={'MAKEFILES': 'preload.mk'},
+              files={'preload.mk': head + invalid}),
+        model('tabs-hint', head + b'        echo misplaced\n' + goal, b'Makefile:4',
+              message=separator + b' (did you mean TAB instead of 8 spaces?)'),
+        model('conditional-hint', head + b'ifeq(no space)\n' + goal, b'Makefile:4',
+              message=separator + b' (ifeq/ifneq must be followed by whitespace)'),
+        model('logical-line', head + b'not\\\n  a rule\n' + goal, b'Makefile:4'),
+        model('anonymous-eval', goal, b'make', args=('--eval', (head + invalid).decode('ascii'))),
+    ]
+
+
+def flag_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    recipe = b'.PHONY: all dep\nall: .LOADED := local\nall: dep\n\t@'
+    tail = b':\ndep:;@:\n'
+    global_scope = b'scope=[||file|global||]\n'
+    target_scope = b'scope=[all|dep|file|local||]\n'
+    lexical_scope = b'scope=[all|dep|automatic|lexical||]\n'
+    prefix = b'MAKEFLAGS := '
+    debug = b'--debug=z'
+    owned_sync = b'-I~/absent --output-sync=z'
+    debug_error = b"make: *** unknown debug level specification 'z'.  Stop.\n"
+    sync_error = b"make: *** unknown output-sync type 'z'.  Stop.\n"
+    first = rb'FIRST:=$$(file\ >>seen,first)'
+    last = rb'LAST:=$$(file\ >>seen,last)'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def assign(flags):
+        return prefix + flags + b'\n'
+
+    def evaluate(flags):
+        return b'$(eval ' + (prefix + flags).replace(b'$', b'$$') + b')'
+
+    def model(name, text, location=b'make', *, message=debug_error, scope=global_scope,
+              marks=b'read\n', args=(), env=None, files=None, status=2):
+        stderr = message + location + b': finalizer-location\n'
+        return Model(
+            'native-live-flag-finalizer-' + name,
+            {'Makefile': text, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\n' + marks + scope,
+            (module,),
+            args=('-rR', '--no-print-directory', *args),
+            environment=env or {},
+        )
+
+    debug_payload = b' '.join((first, debug, last))
+    payload_error = rb'LAST:=$$(error\ payload-stop)'
+    return [
+        model('reader-payload', head + assign(debug_payload) + goal, b'Makefile:4',
+              marks=b'read\nfirst\nlast\n'),
+        model('include', head + b'include child.mk\n' + goal, b'child.mk:2',
+              files={'child.mk': b'# first\n' + assign(debug)}),
+        model('reader-eval', head + evaluate(debug) + b'\n' + goal, b'Makefile:4'),
+        model('preload', goal, b'preload.mk:4', env={'MAKEFILES': 'preload.mk'},
+              files={'preload.mk': head + assign(debug)}),
+        model('recipe', head + recipe + evaluate(debug) + tail, b'Makefile:7',
+              scope=target_scope),
+        model('recipe-foreach', head + recipe
+              + b'$(foreach .LOADED,lexical,' + evaluate(debug_payload) + b')' + tail,
+              b'Makefile:7', scope=lexical_scope, marks=b'read\nfirst\nlast\n'),
+        model('recipe-call', head + b'SET = ' + evaluate(debug) + b'\n'
+              + recipe + b'$(call SET,actual)' + tail, b'Makefile:8',
+              scope=b'scope=[all|dep|file|local|SET|actual]\n'),
+        model('owned-output-sync', head + assign(owned_sync) + goal, b'Makefile:4',
+              message=sync_error),
+        model('recipe-owned-output-sync', head + recipe + evaluate(owned_sync) + tail,
+              b'Makefile:7', message=sync_error, scope=target_scope),
+        model('payload-error', head + assign(b' '.join((first, debug, payload_error))) + goal,
+              b'Makefile:4', message=b'Makefile:4: *** payload-stop.  Stop.\n',
+              marks=b'read\nfirst\n'),
+        model('post-read', head + b'GNUMAKEFLAGS := ' + debug_payload + b'\n' + goal,
+              marks=b'read\nfirst\nlast\n'),
+        model('anonymous-eval', goal, args=('--eval', (head + assign(debug)).decode('ascii'))),
+        model('inherited-makeflags', goal,
+              env={'MAKEFLAGS': '$(eval load fatal_scope.so) --debug=z'}, marks=b'',
+              scope=b'scope=[||file|fatal_scope.so||]\n'),
+        model('inherited-gnumakeflags', goal,
+              env={'GNUMAKEFLAGS': '$(eval load fatal_scope.so) --debug=z'}, marks=b'',
+              scope=b'scope=[||file|fatal_scope.so||]\n'),
+        model('valid', head + assign(b'--debug=none') + goal, message=b'',
+              marks=b'read\ngoal\n', status=0),
+    ]
+
+
+def fast_sync_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    recipe = b'.PHONY: all dep\nall: .LOADED := local\nall: dep\n\t@'
+    tail = b':\ndep:;@:\n'
+    global_scope = b'scope=[||file|global||]\n'
+    target_scope = b'scope=[all|dep|file|local||]\n'
+    lexical_scope = b'scope=[all|dep|automatic|lexical||]\n'
+    prefix = b'MAKEFLAGS := '
+    sync = b'--output-sync=z'
+    sync_error = b"make: *** unknown output-sync type 'z'.  Stop.\n"
+    jobs_notice = b"make: the '-j' option requires a positive integer argument\n"
+    first = rb'FIRST:=$$(file\ >>seen,first)'
+    last = rb'LAST:=$$(file\ >>seen,last)'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def assign(flags):
+        return prefix + flags + b'\n'
+
+    def evaluate(flags):
+        return b'$(eval ' + (prefix + flags).replace(b'$', b'$$') + b')'
+
+    def foreach(flags):
+        return b'$(foreach .LOADED,lexical,' + evaluate(flags) + b')'
+
+    def model(name, text, location=b'make', *, message=sync_error, scope=global_scope,
+              marks=b'read\n', args=(), env=None, status=2, warnings=b''):
+        stderr = message + location + b': finalizer-location\n' + warnings
+        return Model(
+            'native-fast-sync-finalizer-' + name,
+            {'Makefile': text, 'seen': b'anchor\n'},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\n' + marks + scope,
+            (module,),
+            args=('-rR', '--no-print-directory', *args),
+            environment=env or {},
+        )
+
+    payload = b' '.join((first, sync, last))
+    payload_marks = b'read\nfirst\nlast\n'
+    payload_error = rb'LAST:=$$(error\ payload-stop)'
+    return [
+        model('reader', head + assign(sync) + goal, b'Makefile:4'),
+        model('reader-short-payload', head + assign(b' '.join((first, b'-Oz', last))) + goal,
+              b'Makefile:4', marks=payload_marks),
+        model('recipe', head + recipe + evaluate(sync) + tail, b'Makefile:7',
+              scope=target_scope),
+        model('recipe-foreach', head + recipe + foreach(payload) + tail,
+              b'Makefile:7', scope=lexical_scope, marks=payload_marks),
+        model('recipe-call-notice', head + b'SET = ' + evaluate(b'--jobs=0 ' + sync) + b'\n'
+              + recipe + b'$(call SET,arg)' + tail, b'Makefile:8',
+              message=jobs_notice + sync_error, scope=b'scope=[all|dep|file|local|SET|arg]\n'),
+        model('recipe-foreach-warning', head + recipe + foreach(b' '.join(
+            (first, b'--warn-undefined-variables', sync, last))) + tail,
+            b'Makefile:7', scope=lexical_scope, marks=payload_marks,
+            warnings=b"Makefile:7: warning: undefined variable '0'\n"
+                     b"Makefile:7: warning: undefined variable '1'\n"),
+        model('payload-error', head + assign(b' '.join((first, sync, payload_error))) + goal,
+              b'Makefile:4', message=b'Makefile:4: *** payload-stop.  Stop.\n',
+              marks=b'read\nfirst\n'),
+        model('post-read', head + b'GNUMAKEFLAGS := ' + payload + b'\n' + goal,
+              marks=payload_marks),
+        model('anonymous-eval', goal, args=('--eval', (head + assign(sync)).decode('ascii'))),
+        model('inherited', goal,
+              env={'GNUMAKEFLAGS': '$(eval load fatal_scope.so) --output-sync=z'}, marks=b'',
+              scope=b'scope=[||file|fatal_scope.so||]\n'),
+        model('replacement', head + assign(payload + b' --output-sync=none') + goal,
+              message=b'', marks=payload_marks + b'goal\n', status=0),
+        model('empty-mode', head + assign(b'--output-sync=') + goal,
+              message=b"make: the '-O' option requires a non-empty string argument\n",
+              marks=b'read\ngoal\n', status=0),
+        model('recoverable-jobs', head + assign(b'--jobs=0') + goal,
+              message=jobs_notice, marks=b'read\ngoal\n', status=0),
+    ]
+
+
+def sync_warning_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    recipe = b'.PHONY: all dep\nall: .LOADED := local\nall: dep\n\t@'
+    tail = b':\ndep:;@:\n'
+    warning = b'--warn-undefined-variables'
+    sync = b'--output-sync=z'
+    flags = warning + b' ' + sync
+    sync_error = b"make: *** unknown output-sync type 'z'.  Stop.\n"
+    global_references = (b'@', b'<', b'0', b'1')
+    global_scope = b'scope=[||file|global||]\n'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def model(name, text, location=b'make', *, variables=global_references, scope=global_scope,
+              marks=b'read\n', args=(), env=None, status=2, message=sync_error):
+        stderr = message + location + b': finalizer-location\n'
+        for variable in variables:
+            stderr += location + b": warning: undefined variable '" + variable + b"'\n"
+        return Model(
+            'native-sync-warning-finalizer-' + name,
+            {'Makefile': text, 'seen': b'anchor\n'},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\n' + marks + scope,
+            (module,),
+            args=('-rR', '--no-print-directory', *args),
+            environment={'MAKEFLAGS': '', 'GNUMAKEFLAGS': '', **(env or {})},
+        )
+
+    def assign(value):
+        return b'MAKEFLAGS := ' + value + b'\n'
+
+    ordinary = (b'.LOADED := global\n$(file >>seen,read)\n$(warning before-fatal)\n'
+                + assign(flags) + b'$(warning unreachable)\n' + goal)
+    return [
+        model('reader-before', head + assign(flags) + goal, b'Makefile:4'),
+        model('reader-after', head + assign(sync + b' ' + warning) + goal, b'Makefile:4'),
+        model('lexical-recipe', head + recipe
+              + b'$(foreach .LOADED,lexical,$(eval MAKEFLAGS := ' + warning + b' -Oz))'
+              + tail, b'Makefile:7', variables=(b'0', b'1'),
+              scope=b'scope=[all|dep|automatic|lexical||]\n'),
+        model('anonymous-eval', goal, args=('--eval', (head + assign(flags)).decode('ascii'))),
+        model('post-read', head + b'GNUMAKEFLAGS := ' + flags + b'\n' + goal),
+        model('prior-live', head + assign(warning) + assign(sync) + goal, b'Makefile:5'),
+        model('prior-startup-post-read', head + b'GNUMAKEFLAGS := ' + sync + b'\n' + goal,
+              args=(warning.decode('ascii'),)),
+        model('inherited-makeflags', goal, marks=b'', scope=b'scope=[||file|fatal_scope.so||]\n',
+              env={'MAKEFLAGS': '$(eval load fatal_scope.so) ' + flags.decode('ascii')}),
+        model('inherited-gnumakeflags', goal, marks=b'', scope=b'scope=[||file|fatal_scope.so||]\n',
+              env={'GNUMAKEFLAGS': '$(eval load fatal_scope.so) ' + flags.decode('ascii')}),
+        model('ignored-operand', head + assign(warning + b'=invalid ' + sync) + goal,
+              b'Makefile:4', variables=()),
+        model('valid-replacement', head + assign(flags + b' --output-sync=none') + goal,
+              status=0, message=b'', marks=b'read\ngoal\n'),
+        Model('native-sync-warning-finalizer-ordinary-fatal',
+              {'Makefile': ordinary, 'seen': b'anchor\n'},
+              {'exit_code': 2, 'stdout_hex': '',
+               'stderr_hex': (b'Makefile:3: before-fatal\n' + sync_error).hex()},
+              b'anchor\nread\n', ()),
     ]
 
 

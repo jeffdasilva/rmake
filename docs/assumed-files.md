@@ -108,6 +108,9 @@ A required named double-colon source under `-k -n -W` can overlap ordinary
 remake workers when its single synthetic entry selects an empty implicit
 recipe. The held checks cover current and simulated entries, physical
 sibling changes, and a required worker failure.
+In ordinary parallel mode, a synthetic recipe can also restore the source's
+recorded read time with its physical refresh. The successful synthetic entry
+can trigger a reread even when the recipe leaves the source unchanged.
 
 ## Qualification and limits
 
