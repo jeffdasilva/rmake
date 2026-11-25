@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "wildcard-simple-brackets-posix-empty"
+requirement = "functions.filesystem"
+candidate = "required"
+description = "Simple wildcard classes with a leading caret under the process POSIX environment"
+provenance = "Independently authored wildcard inputs and two GNU Make 4.4.1 reference observations."
+args = ["-rR", "--no-print-directory"]
+timeout_seconds = 5
+
+[environment]
+POSIXLY_CORRECT = ""
+
+[expected]
+exit_code = 0
+stdout_hex = "63617265743d5b63686172732f5e2063686172732f5e2063686172732f615d0a617363656e64696e673d5b63686172732f612063686172732f785d0a"
+stderr_hex = ""
