@@ -71,6 +71,13 @@ missing-rule error occurs in queue order, after preceding updates; a non-keep
 query can stop before reaching it. This behavior is an ordinary finite GNU
 compatibility requirement, with no safe-error exception credit.
 
+Without keep-going, an old-file or active what-if entry can revisit the
+blocked head of a serial optional makefile's double-colon chain. This
+visit reports the retained missing-prerequisite error and stops before
+ordinary goals. After a restart, what-if entries publish in the ordinary
+goal phase. Successful synthetic recipes and their restart decisions
+still need broader qualification.
+
 ## Qualification and limits
 
 631 independently modeled required cases cover 405 ordinary graph/mode cells,

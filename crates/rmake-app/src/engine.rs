@@ -1240,6 +1240,12 @@ struct GroupState {
     run: GroupRun,
 }
 
+impl GroupState {
+    fn ordinary_explicit_single_colon(&self) -> bool {
+        self.run.ordinary && !self.run.implicit && self.run.double_colon.is_none()
+    }
+}
+
 struct GroupSegment {
     start: usize,
     target: Vec<u8>,
@@ -4101,7 +4107,21 @@ impl Engine {
                     }
                 }
                 let serial_declarations = if result.failed && !result.fatal && !prior_peer_failure {
-                    self.serial_double_colon_declarations(name)
+                    self.serial_double_colon_branch_count(name)
+                        .filter(|&count| {
+                            count > 1
+                                // A stopped optional head still has another
+                                // goal entry when an assumption is active.
+                                || (optional
+                                    && !self.options.keep_going
+                                    && self.has_assumed_double_colon_entry(name)
+                                    && self.optional_remake_failures
+                                        .get(name)
+                                        .is_some_and(Option::is_some)
+                                    && self.database_branch_outcomes
+                                        .get(&(name.to_vec(), 0))
+                                        .is_some_and(|head| head.failed))
+                        })
                 } else {
                     None
                 };
@@ -5648,11 +5668,21 @@ impl Engine {
     }
 
     fn debug_cached_prerequisite_visit(&mut self, target: &[u8], depth: usize, outcome: Outcome) {
+        self.debug_cached_prerequisite_visit_with_question(target, depth, outcome, false);
+    }
+
+    fn debug_cached_prerequisite_visit_with_question(
+        &mut self,
+        target: &[u8],
+        depth: usize,
+        outcome: Outcome,
+        include_question: bool,
+    ) {
         use crate::debug::{Event, Mask, emit};
 
         if !self.output.debug_mask().has(Mask::VERBOSE)
             || outcome.fatal
-            || outcome.question_outdated
+            || (outcome.question_outdated && !include_question)
         {
             return;
         }
@@ -5669,7 +5699,7 @@ impl Engine {
             &self.output,
             if self.pending(name) {
                 Event::StillUpdating(name, depth)
-            } else if outcome.failed {
+            } else if outcome.failed || outcome.question_outdated {
                 Event::RecentlyFailed(name, depth)
             } else {
                 Event::Already(name, depth)
@@ -10859,6 +10889,13 @@ impl Engine {
     }
 
     fn serial_double_colon_declarations(&self, target: &[u8]) -> Option<usize> {
+        // The declared head alone inherits optional-source error suppression,
+        // including when this visit will execute a grouped recipe itself.
+        self.serial_double_colon_branch_count(target)
+            .filter(|&count| count > 1)
+    }
+
+    fn serial_double_colon_branch_count(&self, target: &[u8]) -> Option<usize> {
         if self.parallel_makefile_remakes
             || self.options.dry_run
             || self.options.question
@@ -10867,9 +10904,7 @@ impl Engine {
             return None;
         }
         let branches = self.database.rules.get(target)?.double_colon.as_ref()?;
-        // The declared head alone inherits optional-source error suppression,
-        // including when this visit will execute a grouped recipe itself.
-        (branches.len() > 1).then_some(branches.len())
+        Some(branches.len())
     }
 
     fn resume_double_colon_state(&mut self, target: &[u8], mut state: DoubleColonState) -> Outcome {
@@ -11684,10 +11719,19 @@ impl Engine {
                     .is_some_and(|group| group.frontiers_enabled));
         let mut group_waiting = false;
         let mut segment_index = 0;
-        if group_frontier {
+        let mut question_in_scan = !group_frontier && state.outcome.question_outdated;
+        let previous_query_skips = if group_frontier {
             state.next = 0;
             state.replay_cached_after_recipe |= replay_debug && !self.remaking;
-        }
+            // A restarted scan reaches its query verdict in traversal order.
+            // An earlier barrier can now admit prerequisites it skipped before.
+            state
+                .group
+                .as_mut()
+                .map(|group| std::mem::take(&mut group.query_skipped_dependencies))
+        } else {
+            None
+        };
         let mut resume_visit = if replay_debug {
             PrerequisiteVisit::DebugReplay
         } else {
@@ -11838,6 +11882,9 @@ impl Engine {
             }
             let visited = !previous_frontiers.is_empty()
                 && state.next < previous_next
+                && !previous_query_skips
+                    .as_ref()
+                    .is_some_and(|skipped| skipped.contains(&index))
                 && !previous_frontiers
                     .iter()
                     .any(|range| range.contains(&state.next));
@@ -11878,20 +11925,24 @@ impl Engine {
             let (child, pending) = self.visit_prerequisite(target, &mut state, index, visit);
             group_waiting |= pending;
             merge_child(&mut state.outcome, child);
+            question_in_scan |= child.question_outdated;
             let deferred = child.deferred_spawn_failure && self.optional_remake();
-            if state.outcome.question_outdated
+            if question_in_scan
                 && !child.fatal
                 && !self.forced_query_stop
                 && !self.options.keep_going
-                && !self.parallel_graph()
                 && let Some(group) = state.group.as_mut()
-                && group.run.ordinary
-                && !group.run.implicit
-                && group.run.double_colon.is_none()
+                && group.ordinary_explicit_single_colon()
             {
-                // A serial query verdict ends this member's prerequisite scan.
-                // Each remaining grouped member still starts its own scan.
-                let end = state.rule.dependencies.len();
+                // A query verdict ends this member's scan. A resumed frontier
+                // can already have later members' prerequisites in the rule.
+                let next_segment = group
+                    .peer_segments
+                    .partition_point(|segment| segment.start < state.next);
+                let end = group
+                    .peer_segments
+                    .get(next_segment)
+                    .map_or(state.rule.dependencies.len(), |segment| segment.start);
                 group.query_skipped_dependencies.extend(
                     (state.next..end)
                         .map(|position| state.order.get(position).copied().unwrap_or(position)),
@@ -12131,10 +12182,17 @@ impl Engine {
                             .then(Outcome::default)
                     })
                 {
-                    self.debug_cached_prerequisite_visit(
+                    let include_question = outcome.question_outdated
+                        && !self.forced_query_stop
+                        && state
+                            .group
+                            .as_ref()
+                            .is_some_and(|group| group.ordinary_explicit_single_colon());
+                    self.debug_cached_prerequisite_visit_with_question(
                         dependency,
                         state.depth + usize::from(self.remaking) + 1,
                         outcome,
+                        include_question,
                     );
                 }
                 outcome.unwrap_or_default()
