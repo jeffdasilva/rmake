@@ -4379,7 +4379,21 @@ impl Engine {
                                 .outcome(self.aliases.resolve(name))
                                 .copied()
                                 .unwrap_or_default();
+                            // A settled duplicate already prunes its first
+                            // entry. Its remaining declarations revisit the
+                            // same considered chain head.
+                            let before = first.get().0;
+                            let extra_prunes = before.is_some()
+                                && before == cached.time
+                                && !cached.failed
+                                && !cached.ran
+                                && cached.completion == CompletionTime::Unchanged
+                                && self.debug_was_considered(name)
+                                && self.parallel_remake_debug_declarations(name);
                             self.debug_cached_prerequisite_visit(name, 1, cached);
+                            if extra_prunes {
+                                self.debug_double_colon_goal_prunes(name, cached);
+                            }
                         }
                         if makefile.optional
                             && visit_modes.touch
@@ -4392,6 +4406,13 @@ impl Engine {
                         continue;
                     }
                 };
+                let trace_parallel_declarations = self.parallel_remake_debug_declarations(name)
+                    && !makefile.missing
+                    && !self.pending(name)
+                    && self
+                        .file_traversals
+                        .outcome(name)
+                        .is_none_or(|outcome| !outcome.failed && self.debug_was_considered(name));
                 let optional = makefile.optional;
                 let may_replay = optional && required_names.contains(name);
                 let deferred_peer_failure = !optional
@@ -4835,12 +4856,20 @@ impl Engine {
                 // after a failed declaration and report the prune.
                 let settled_chain = !result.failed
                     || (!optional && self.options.keep_going && serial_declarations.is_some());
-                if !self.parallel_makefile_remakes
-                    && settled_chain
-                    && (!optional || before == result.time)
-                    && !(optional
-                        && serial_declarations.is_some()
-                        && result.remake_group_peer_updated)
+                let settled_parallel_declarations = trace_parallel_declarations
+                    && before.is_some()
+                    && before == result.time
+                    && !result.ran
+                    && result.completion == CompletionTime::Unchanged
+                    && (!result.failed || !optional)
+                    && !self.pending(name);
+                if settled_parallel_declarations
+                    || (!self.parallel_makefile_remakes
+                        && settled_chain
+                        && (!optional || before == result.time)
+                        && !(optional
+                            && serial_declarations.is_some()
+                            && result.remake_group_peer_updated))
                 {
                     self.debug_double_colon_goal_prunes(name, result);
                 }
@@ -7057,6 +7086,33 @@ impl Engine {
                 Event::Already(name, depth)
             },
         );
+    }
+
+    fn parallel_remake_debug_declarations(&self, name: &[u8]) -> bool {
+        use crate::debug::Mask;
+
+        let debug = self.output.debug_mask();
+        self.parallel_makefile_remakes
+            && debug.has(Mask::VERBOSE)
+            && debug.has(Mask::MAKEFILES)
+            && !MakefileModes::from_options(&self.options).active()
+            && self.assumptions.is_none()
+            && self.makefile_names.contains(name)
+            && self.aliases.resolve(name) == name
+            && !self.resolved_names.contains_key(name)
+            && self
+                .database
+                .rules
+                .get(name)
+                .and_then(|rule| rule.double_colon.as_ref())
+                .is_some_and(|branches| {
+                    branches.len() > 1
+                        && branches.iter().all(|branch| {
+                            branch.recipes.is_some()
+                                && branch.grouped_targets().is_none()
+                                && branch.implicit_pattern.is_none()
+                        })
+                })
     }
 
     fn debug_double_colon_goal_prunes(&self, goal: &[u8], outcome: Outcome) {
@@ -13693,6 +13749,12 @@ impl Engine {
     }
 
     fn resume_double_colon_state(&mut self, target: &[u8], mut state: DoubleColonState) -> Outcome {
+        let fresh_parallel_remake_source = state.last_epoch.is_none()
+            && state.before.is_some()
+            && !state.phony
+            && self.remaking
+            && self.active_makefile_remake.is_some()
+            && self.parallel_remake_debug_declarations(target);
         state.last_epoch = Some(self.graph_epoch);
         let mut replay_cached_after_recipe = false;
         let serial_remake_root = self.remaking
@@ -14033,7 +14095,7 @@ impl Engine {
             }
             if ordinal != 0
                 && declared
-                && (!self.remaking || serial_remake_root)
+                && (!self.remaking || serial_remake_root || fresh_parallel_remake_source)
                 && assumed_time.is_none()
             {
                 let depth = state.depth + usize::from(self.remaking);
