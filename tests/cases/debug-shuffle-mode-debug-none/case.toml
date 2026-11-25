@@ -1,0 +1,11 @@
+id = "debug-shuffle-mode-debug-none"
+requirement = "debug.shuffle-mode-announcement"
+candidate = "required"
+description = "Selecting debug none suppresses the shuffle announcement."
+provenance = "Original rmake input qualified with two pinned GNU Make observations."
+args = ["-rR", "--no-print-directory", "--debug=b,n", "--shuffle=reverse", "all"]
+
+[expected]
+exit_code = 0
+stdout = "reader:0\nmake: 'all' is up to date.\n"
+stderr = ""

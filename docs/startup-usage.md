@@ -13,9 +13,11 @@ that exhausts its `./` components uses the same canonical fallback as the
 filename helper, without indexing the original buffer past its bounds. An
 explicitly empty `-j` operand is distinct from bare `-j`.
 
-`make test-startup-usage` checks 41 original cases in C and French, including
+`make test-startup-usage` checks 45 original cases in C and French, including
 ordered effects, startup source boundaries, raw argument bytes, zero and empty
-job counts, directory normalization and full stderr. The version control only
+job counts, directory normalization and full stderr. An empty shuffle operand
+prints the full usage output. Later explicit assignments can still run in the
+same argument source. An inherited error stops startup before explicit arguments. The version control only
 permits the expected, separately validated cosmetic stdout banner. The test
 runs GNU Make 4.4.1 twice under the same invocation path as rmake and compares
 all owned filesystem changes. Use `STARTUP_USAGE_CASE=empty-directory-then-assignment`

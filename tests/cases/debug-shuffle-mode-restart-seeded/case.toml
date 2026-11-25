@@ -1,0 +1,11 @@
+id = "debug-shuffle-mode-restart-seeded"
+requirement = "debug.shuffle-mode-announcement"
+candidate = "required"
+description = "A fixed startup seed is announced once on each side of a real reread."
+provenance = "Original rmake input qualified with two pinned GNU Make observations."
+args = ["-rR", "--no-print-directory", "--debug=b", "--shuffle=+00001", "all"]
+
+[expected]
+exit_code = 0
+stdout_template = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nreader:0\nEnabled shuffle mode: 1\nUpdating makefiles....\nRe-executing[1]: @BIN@ -rR --no-print-directory --debug=b --shuffle=+00001 all\nGNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nreader:1\nEnabled shuffle mode: 1\nUpdating makefiles....\nUpdating goal targets....\n File 'all' does not exist.\nMust remake target 'all'.\ngoal:1\nSuccessfully remade target file 'all'.\n"
+stderr = ""

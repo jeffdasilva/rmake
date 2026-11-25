@@ -2004,7 +2004,7 @@ impl Engine {
         retain!(
             database
                 .variables
-                .define_literal(b"MAKE_HOST", b"x86_64-pc-linux-gnu", Origin::Default)
+                .define_literal(b"MAKE_HOST", crate::COMPATIBILITY_HOST, Origin::Default)
                 .map_err(StartupError::expansion)
         );
         retain!(
@@ -3651,6 +3651,10 @@ impl Engine {
                 return 2;
             }
             self.capture_phony_names();
+            // The announcement uses the current request after reader flags settle.
+            if let Some(mode) = self.options.shuffle.as_deref() {
+                crate::debug::emit(&self.output, crate::debug::Event::ShuffleEnabled(mode));
+            }
             crate::debug::emit(&self.output, crate::debug::Event::UpdatingMakefiles);
             // The published stdin input survives restarts without a remake goal.
             let stdin_name = self.options.temp_stdin_file.map(|index| {

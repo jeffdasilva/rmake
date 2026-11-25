@@ -138,7 +138,7 @@ pub(crate) fn text(program: &[u8]) -> Vec<u8> {
     }
     output.extend_from_slice(&format(
         c"\nThis program built for %s\n",
-        &[Argument::Bytes(b"x86_64-pc-linux-gnu")],
+        &[Argument::Bytes(crate::COMPATIBILITY_HOST)],
     ));
     output.extend_from_slice(&translate(c"Report bugs to <bug-make@gnu.org>\n"));
     output

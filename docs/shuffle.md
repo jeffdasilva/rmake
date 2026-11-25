@@ -107,9 +107,9 @@ The ordinary corpus becomes 24,886 required / zero pending across 150 families.
 The same 17 approved safe-error exceptions / 68 separately gated cells remain
 unchanged. Full M3/M6 remain open. Shuffle's broad malformed-usage/lifecycle,
 cycle freshness/trace, alias/VPATH and extension/profile cross-products retain
-their ordinary acceptance work. In particular, empty `--shuffle=` still needs
-GNU's complete usage/continuation behavior; it is not an approved safe-error
-exception. Directory/debug/database output, native loading, enabled Guile,
+their ordinary acceptance work. The [startup usage gate](startup-usage.md)
+checks empty `--shuffle=` in explicit arguments and both inherited flag
+sources. Directory/debug/database output, native loading, enabled Guile,
 locales, real exec/stdin and expanded integration remain in the broader audit.
 
 All implementation, probes, mathematical models and fixtures are original.

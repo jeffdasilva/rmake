@@ -112,7 +112,7 @@ pub fn print_compatibility_header(commented: bool) {
         b"GNU Make 4.4.1\n",
         &localized(
             msg::BUILT_FOR,
-            &[bytes(prefix), bytes(b"x86_64-pc-linux-gnu")],
+            &[bytes(prefix), bytes(crate::COMPATIBILITY_HOST)],
         ),
         prefix,
         b"Copyright (C) 1988-2023 Free Software Foundation, Inc.\n",
@@ -231,6 +231,7 @@ pub enum Prerequisite {
 #[derive(Clone, Copy)]
 pub enum Event<'a> {
     Reading,
+    ShuffleEnabled(&'a [u8]),
     UpdatingMakefiles,
     SkippingMakefileLoop(&'a [u8]),
     UpdatingGoals,
@@ -339,6 +340,7 @@ pub fn emit(output: &crate::output::Controller, event: Event<'_>) {
     let print = |key, arguments: &[Argument<'_>]| raw(&[prefix, &localized(key, arguments)]);
     match event {
         Event::Reading => print(msg::READING, &[]),
+        Event::ShuffleEnabled(mode) => print(msg::SHUFFLE_ENABLED, &[bytes(mode)]),
         Event::UpdatingMakefiles => print(msg::UPDATING_MAKEFILES, &[]),
         Event::SkippingMakefileLoop(name) => print(msg::SKIP_MAKEFILE_LOOP, &[bytes(name)]),
         Event::UpdatingGoals => print(msg::UPDATING_GOALS, &[]),
