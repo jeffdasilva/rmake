@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-refresh-dry-stale"
+requirement = "options.assumed-double-colon-parallel-refresh"
+candidate = "required"
+description = "A stale synthesized dry-run entry leaves the required source at the original read."
+args = ["-rR", "--no-print-directory", "-j2", "-k", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nmake: 'b.mk' is up to date.\n"
+stderr = ""

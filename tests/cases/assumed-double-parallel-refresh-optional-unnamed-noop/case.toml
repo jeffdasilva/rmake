@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-refresh-optional-unnamed-noop"
+requirement = "options.assumed-double-colon-parallel-refresh"
+candidate = "required"
+description = "An ordinary no-op synthetic recipe settles the clock of an optional unnamed source."
+args = ["-rR", "--no-print-directory", "-j2", "-k", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nread=1 clock=1680300000\ngoal-1\n"
+stderr = ""

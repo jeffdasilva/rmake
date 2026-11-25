@@ -1,0 +1,13 @@
+id = "assumed-double-parallel-refresh-optional-named-empty"
+requirement = "options.assumed-double-colon-parallel-refresh"
+candidate = "required"
+description = "Stopping mode preserves the settled refresh of an optional named source."
+args = ["-rR", "--no-print-directory", "-j2", "-S", "-W", "b.mk", "b.mk"]
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nread=1 clock=1680300000\nmake: 'b.mk' is up to date.\n"
+stderr = ""

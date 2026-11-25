@@ -1859,6 +1859,26 @@ cases = [
 ]
 
 [[requirements]]
+id = "options.assumed-double-colon-parallel-refresh"
+title = "Restart parallel makefile remakes after a settled synthetic source refresh"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/assumed-files.md"
+candidate_required = 9
+fixture_count = 9
+cases = [
+  "assumed-double-parallel-refresh-required-named-empty",
+  "assumed-double-parallel-refresh-optional-named-empty",
+  "assumed-double-parallel-refresh-required-unnamed-real",
+  "assumed-double-parallel-refresh-optional-unnamed-noop",
+  "assumed-double-parallel-refresh-physical-rewrite",
+  "assumed-double-parallel-refresh-current",
+  "assumed-double-parallel-refresh-dry-stale",
+  "assumed-double-parallel-refresh-dry-current",
+  "assumed-double-parallel-refresh-unassumed",
+]
+
+[[requirements]]
 id = "options.assumed-double-colon-named-current-clock"
 title = "Restart after current synthetic entries settle for a named serial dry-run, query or touch"
 status = "fixture-ready"

@@ -5066,6 +5066,7 @@ impl Engine {
                     &read_files,
                     &visited,
                     named_sources.as_ref(),
+                    !modes.active(),
                 );
             }
             changed |= grouped_changes
@@ -11905,11 +11906,15 @@ impl Engine {
         read_files: &[(Makefile, bool)],
         visited: &MakefileVisits<'_>,
         named_sources: Option<&HashSet<&[u8]>>,
+        ordinary_mode: bool,
     ) -> bool {
         // A source can settle on the second visit after its order-only
         // prerequisites finish. The synthetic entry retains the visit clock
         // even when settling the root refreshes its physical time.
         read_files.iter().any(|(source, skip)| {
+            if *skip || source.missing {
+                return false;
+            }
             let name = source.name.as_slice();
             let target = self.aliases.resolve(name);
             let Some(before) = visited.get(name).and_then(|(before, _)| *before) else {
@@ -11918,22 +11923,35 @@ impl Engine {
             let Some((assumed_time, 1)) = self.assumed_new_double_colon_entries(target) else {
                 return false;
             };
-            !*skip
-                && !source.missing
-                && self.is_makefile_goal(
-                    rmake_core::filenames::without_dot_prefix(name),
-                    named_sources,
-                )
-                && self.file_traversals.outcome(target).is_some_and(|outcome| {
-                    outcome.terminal_verdict().is_none()
-                        && !outcome.fatal
-                        && matches!(
-                            outcome.completion,
-                            CompletionTime::Unchanged | CompletionTime::Preserve
-                        )
-                        && outcome.time.is_some_and(|time| time != assumed_time)
-                })
-                && self.settled_assumed_new_makefile_clock(target, false, Some(before))
+            let Some(outcome) = self.file_traversals.outcome(target).filter(|outcome| {
+                outcome.terminal_verdict().is_none()
+                    && !outcome.fatal
+                    && outcome.time.is_some_and(|time| time != assumed_time)
+            }) else {
+                return false;
+            };
+            match outcome.completion {
+                CompletionTime::Unchanged | CompletionTime::Preserve => {
+                    self.is_makefile_goal(
+                        rmake_core::filenames::without_dot_prefix(name),
+                        named_sources,
+                    ) && self.settled_assumed_new_makefile_clock(target, false, Some(before))
+                }
+                CompletionTime::Refresh if ordinary_mode => {
+                    // The synthetic recipe can restore the real read time
+                    // without writing the source. Its own result owns that clock.
+                    self.settled_assumed_new_makefile_branches_match(
+                        target,
+                        false,
+                        |assumed_time, branch| {
+                            branch.completion == CompletionTime::Refresh
+                                && branch.time == Some(before)
+                                && before != assumed_time
+                        },
+                    )
+                }
+                _ => false,
+            }
         })
     }
 

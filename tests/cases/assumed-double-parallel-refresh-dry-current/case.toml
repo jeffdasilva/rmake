@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-refresh-dry-current"
+requirement = "options.assumed-double-colon-parallel-refresh"
+candidate = "required"
+description = "A current dry-run entry still settles its physical read clock."
+args = ["-rR", "--no-print-directory", "-j2", "-k", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nread=1 clock=1680300000\nmake: 'b.mk' is up to date.\n"
+stderr = ""

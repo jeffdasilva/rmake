@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-refresh-required-named-empty"
+requirement = "options.assumed-double-colon-parallel-refresh"
+candidate = "required"
+description = "An empty synthetic recipe restores the read clock of a required named source."
+args = ["-rR", "--no-print-directory", "-j2", "-k", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nread=1 clock=1680300000\nmake: 'b.mk' is up to date.\n"
+stderr = ""

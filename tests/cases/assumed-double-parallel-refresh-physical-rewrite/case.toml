@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-refresh-physical-rewrite"
+requirement = "options.assumed-double-colon-parallel-refresh"
+candidate = "required"
+description = "A real timestamp write retains its existing restart and supplies the new read clock."
+args = ["-rR", "--no-print-directory", "-j2", "-k", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nread=1 clock=1700000000\nmake: 'b.mk' is up to date.\n"
+stderr = ""
