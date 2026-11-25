@@ -1,0 +1,16 @@
+VPATH = src
+GPATH = src
+export .SHELLSTATUS
+colon := :
+SET = $(shell exit 7)
+NAME = $(eval parent$(colon) export ANCHOR_3190 := source)
+VIEW = $(info scope=[$@|$*|$<|$^|$(.SHELLSTATUS)|$(origin .SHELLSTATUS)|$(V)|$(origin V)|$(P)|$(A)])
+REOPEN = $(eval src/parent$(colon) SEEN := $$(VIEW)$$(shell /usr/bin/python3 exports.py))
+DISPLAY = $(eval src/parent$(colon) VIEWED := $$(info env=[$$(SEEN)]))
+p%: P :::= $(info activate-source-pattern)pattern-source
+src/%: P :::= $(info activate-dest-pattern)pattern-destination
+src/parent: V := destination
+parent: input
+	@$(SET)$(NAME)touch src/parent
+after:
+	@$(REOPEN)$(DISPLAY):

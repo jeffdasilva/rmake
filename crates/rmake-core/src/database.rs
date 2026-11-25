@@ -935,6 +935,24 @@ impl TableHistory {
     pub fn remove_after_lookup(&self, name: &[u8]) -> bool {
         self.with(|table| table.remove_after_lookup(name))
     }
+    pub(crate) fn variable_name_order(&self) -> Option<crate::variable_order::NameOrder> {
+        self.with(|table| {
+            matches!(table.kind, HashKind::Variable).then(|| {
+                let slots = table
+                    .slots
+                    .slots
+                    .iter()
+                    .map(|slot| match *slot {
+                        0 => None,
+                        1 => Some(std::sync::Arc::<[u8]>::default()),
+                        key => Some(std::sync::Arc::from(table.slots.name(key))),
+                    })
+                    .collect();
+                crate::variable_order::NameOrder::from_slots(slots, table.empty, table.stats.filled)
+            })
+        })
+    }
+
     pub fn names(&self) -> Vec<Vec<u8>> {
         self.with(|table| table.names().map(<[u8]>::to_vec).collect())
     }

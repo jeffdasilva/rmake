@@ -29,6 +29,21 @@ impl Clone for NameOrder {
 }
 
 impl NameOrder {
+    pub(crate) fn from_slots(slots: Vec<Option<Arc<[u8]>>>, empty: usize, live: usize) -> Self {
+        let initial = slots.len();
+        Self {
+            initial,
+            record: false,
+            changes: Vec::new(),
+            ready: OnceLock::from(Layout {
+                initial,
+                slots,
+                empty,
+                live,
+            }),
+        }
+    }
+
     pub(crate) fn new(size: usize, record: bool) -> Self {
         let result = Self::deferred(size, record);
         result

@@ -1,0 +1,12 @@
+id = "late-gpath-merged-destination-winner"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Keep the completed destination bindings and captured automatic values after an ordinary searched rename."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "scope=[destination-at||input|input|destination-status|file||undefined||]\nenv=[.SHELLSTATUS|destination-status ANCHOR_3190|source]\n"
+stderr = ""

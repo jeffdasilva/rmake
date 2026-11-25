@@ -626,6 +626,7 @@ struct Bindings {
     order: crate::variable_order::NameOrder,
     reserved_exports: Vec<Vec<u8>>,
     shell_status_order: Option<Arc<ShellStatusOrder>>,
+    merged_file_bindings: bool,
     generation: u64,
     names_cache: OnceLock<Arc<NamesCache>>,
 }
@@ -642,6 +643,7 @@ impl Bindings {
             order: crate::variable_order::NameOrder::deferred(size, size < 1024),
             reserved_exports: Vec::new(),
             shell_status_order: None,
+            merged_file_bindings: false,
             generation: 0,
             names_cache: OnceLock::new(),
         }
@@ -1150,7 +1152,16 @@ impl VariableStore {
     }
 
     pub(crate) fn qualify_global_target_flags(&mut self, private: bool, export: Option<bool>) {
-        if let Some(binding) = Arc::make_mut(&mut self.variables).get_mut(b"MAKEFLAGS".as_slice()) {
+        self.qualify_local_target_binding(b"MAKEFLAGS", private, export);
+    }
+
+    pub(crate) fn qualify_local_target_binding(
+        &mut self,
+        name: &[u8],
+        private: bool,
+        export: Option<bool>,
+    ) {
+        if let Some(binding) = Arc::make_mut(&mut self.variables).get_mut(name) {
             binding.scope.set_target_qualifiers(private, export);
         }
     }
@@ -1272,7 +1283,7 @@ impl VariableStore {
         }
     }
 
-    fn define_shell_status(&mut self, status: &[u8]) -> Result<(), ExpandError> {
+    pub(crate) fn define_shell_status(&mut self, status: &[u8]) -> Result<(), ExpandError> {
         let first = self.local_shell_status().is_none();
         self.define_literal(b".SHELLSTATUS", status, Origin::Override)?;
         if first
@@ -1292,6 +1303,23 @@ impl VariableStore {
                 }));
         }
         Ok(())
+    }
+
+    pub(crate) fn merged_file_scope_name(&self) -> Option<&[u8]> {
+        self.layers
+            .first()
+            .filter(|layer| {
+                self.file_locals && !layer.inherited && layer.variables.merged_file_bindings
+            })?
+            .target
+            .as_deref()
+    }
+
+    pub(crate) fn adopt_merged_file_bindings(&mut self, scope: &TargetScope) {
+        let mut local = Bindings::new(32);
+        local.database_history = scope.variables.database_history.clone();
+        self.variables = Arc::new(local);
+        self.layers.make_mut()[0].variables = Arc::clone(&scope.variables);
     }
 
     /// GNU's legacy switch variable excludes command overrides and retains
@@ -2888,6 +2916,93 @@ impl TargetScope {
         self.target = Some(Arc::from(name));
     }
 
+    pub(crate) fn owns_merged_file_bindings(&self, variables: &VariableStore) -> bool {
+        self.variables.merged_file_bindings
+            && variables
+                .current_file_declarations(self.target.as_deref())
+                .and_then(|layer| layer.variables.database_history.as_ref())
+                .zip(self.variables.database_history.as_ref())
+                .is_some_and(|(read, owner)| read.same_table(owner))
+    }
+
+    fn complete_file_bindings(&self, runtime: Option<&VariableStore>) -> Option<Bindings> {
+        let owner = self.variables.database_history.as_ref()?;
+        let mut complete = self.variables.as_ref().clone();
+        if let Some(runtime) = runtime {
+            let declared = runtime.current_file_declarations(self.target.as_deref())?;
+            if runtime.double_colon_ordinal != 0
+                || !declared
+                    .variables
+                    .database_history
+                    .as_ref()
+                    .is_some_and(|table| table.same_table(owner))
+                || !runtime
+                    .variables
+                    .database_history
+                    .as_ref()
+                    .is_some_and(|table| table.same_table(owner))
+                || runtime
+                    .variables
+                    .values
+                    .keys()
+                    .any(|name| complete.values.contains_key(name))
+            {
+                return None;
+            }
+            complete.values.extend(
+                runtime
+                    .variables
+                    .values
+                    .iter()
+                    .map(|(name, value)| (Arc::clone(name), value.clone())),
+            );
+        }
+        complete.order = owner.variable_name_order()?;
+        if complete.order.names().count() != complete.values.len()
+            || complete
+                .order
+                .names()
+                .any(|name| !complete.values.contains_key(name))
+        {
+            return None;
+        }
+        complete.names_cache = OnceLock::new();
+        complete.shell_status_order = None;
+        Some(complete)
+    }
+
+    pub(crate) fn merge_completed_file_bindings(
+        &self,
+        destination: Option<&VariableStore>,
+        source: &TargetScope,
+        source_runtime: &VariableStore,
+    ) -> Option<Self> {
+        let source = source.complete_file_bindings(Some(source_runtime))?;
+        let mut complete = self.complete_file_bindings(destination)?;
+        let owner = complete.database_history.clone()?;
+        if source
+            .database_history
+            .as_ref()
+            .is_some_and(|table| table.same_table(&owner))
+        {
+            return None;
+        }
+        for name in source.order.names() {
+            owner.lookup(name);
+            if !complete.values.contains_key(name) {
+                complete.insert(
+                    name,
+                    source.values.get(name).expect("recorded binding").clone(),
+                );
+            }
+        }
+        complete.merged_file_bindings = true;
+        Some(Self {
+            variables: Arc::new(complete),
+            ..self.clone()
+        })
+    }
+
     pub(crate) fn set_file_history(&mut self, history: crate::database::TableHistory) {
         Arc::make_mut(&mut self.variables).database_history = Some(history);
     }
@@ -4428,6 +4543,12 @@ impl Expansion<'_, '_> {
                     variable.origin = Origin::Override;
                     frame.insert(name.to_vec(), variable);
                 }
+            } else if let StoreAccess::Scoped {
+                database,
+                variables,
+            } = &mut self.store
+            {
+                database.define_file_shell_status(variables, status.as_bytes())?;
             } else {
                 self.store
                     .writable()

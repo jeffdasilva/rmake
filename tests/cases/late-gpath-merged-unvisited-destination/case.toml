@@ -1,0 +1,12 @@
+id = "late-gpath-merged-unvisited-destination"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Retain a source status binding when a searched rename reaches destination declarations before their first visit."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "scope=[inherited-destination|override|recursive|inherited-$(V)|destination]\nenv=[.SHELLSTATUS|inherited-destination]\n"
+stderr = "Makefile:15: Recipe was specified for file 'parent' at Makefile:15,\nMakefile:15: but 'parent' is now considered the same file as 'src/parent'.\nMakefile:15: Recipe for 'parent' will be ignored in favor of the one for 'src/parent'.\n"

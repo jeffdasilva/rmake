@@ -1,0 +1,12 @@
+id = "late-gpath-merged-source-export-order"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Visit imported declarations and recipe bindings in their original source slot order."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "scope=[parent||input|input|7|override||undefined||]\nenv=[ANCHOR_6295|destination ANCHOR_4413|source-early .SHELLSTATUS|7 ANCHOR_3190|source]\n"
+stderr = ""

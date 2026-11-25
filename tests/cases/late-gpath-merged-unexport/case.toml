@@ -1,0 +1,12 @@
+id = "late-gpath-merged-unexport"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Import the source status binding with its unexport qualifier."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "src/parent", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "completed|src/parent|dst.in|\nscope=[src/parent||dst.in|dst.in|7|override|simple|7|destination]\nenv=[]\n"
+stderr = "Makefile:15: Recipe was specified for file 'parent' at Makefile:15,\nMakefile:15: but 'parent' is now considered the same file as 'src/parent'.\nMakefile:15: Recipe for 'parent' will be ignored in favor of the one for 'src/parent'.\n"

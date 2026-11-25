@@ -913,6 +913,62 @@ impl Database {
         }
     }
 
+    /// Reconcile the local tables of completed ordinary file records before
+    /// the rename consumes the source declaration. The destination owns the
+    /// resulting table and the source's captured automatic spellings remain.
+    pub fn merge_completed_file_scope(
+        &mut self,
+        from: &[u8],
+        to: &[u8],
+        source: &VariableStore,
+        destination: Option<&VariableStore>,
+        destination_base: Option<&VariableStore>,
+    ) -> Option<(VariableStore, VariableStore)> {
+        if destination_base.is_some_and(|base| !base.is_file_read_context(to)) {
+            return None;
+        }
+        let scope = self.target_scopes.get(to)?.merge_completed_file_bindings(
+            destination,
+            self.target_scopes.get(from)?,
+            source,
+        )?;
+        let mut saved = destination
+            .cloned()
+            .unwrap_or_else(|| self.variables.with_target_scopes(&[&scope]));
+        let mut base = destination_base
+            .cloned()
+            .unwrap_or_else(|| self.variables.with_target_scopes(&[&scope]));
+        saved.adopt_merged_file_bindings(&scope);
+        base.adopt_merged_file_bindings(&scope);
+        self.target_scopes.remove(from);
+        self.target_scopes.insert(to.to_vec(), scope);
+        self.target_scope_revision = self.target_scope_revision.wrapping_add(1);
+        Some((saved, base))
+    }
+
+    pub(crate) fn define_file_shell_status(
+        &mut self,
+        variables: &mut VariableStore,
+        status: &[u8],
+    ) -> Result<(), ExpandError> {
+        let Some(target) = variables.merged_file_scope_name().map(<[u8]>::to_vec) else {
+            return variables.define_shell_status(status);
+        };
+        let Some(scope) = self.target_scopes.get_mut(&target) else {
+            return variables.define_shell_status(status);
+        };
+        if !scope.owns_merged_file_bindings(variables) {
+            return variables.define_shell_status(status);
+        }
+        scope.refresh_read_bindings(variables);
+        variables.with_flag_destination(Some(&target), |file| {
+            file.define_literal(b".SHELLSTATUS", status, Origin::Override)
+        })?;
+        scope.retain_read_bindings(variables);
+        self.target_scope_revision = self.target_scope_revision.wrapping_add(1);
+        Ok(())
+    }
+
     pub fn has_vpaths(&self) -> bool {
         !self.vpaths.is_empty()
     }
@@ -3285,6 +3341,36 @@ impl Database {
             };
             let rhs = assignment.spec.value;
             let kind = assignment.spec.kind;
+            let scope = if name == b".SHELLSTATUS"
+                && scope.get(&name).is_none()
+                && self
+                    .rules
+                    .get(target)
+                    .is_some_and(|rule| rule.double_colon.is_none() && rule.group.is_none())
+            {
+                let mut declarations = scope.context(&self.variables);
+                let assigned = self
+                    .assign_existing_file_status(
+                        target,
+                        &mut declarations,
+                        &assignment,
+                        location,
+                        context.at(Some(location)),
+                    )
+                    .map_err(parse_error)?;
+                let scope = self
+                    .target_scopes
+                    .get_mut(target)
+                    .expect("target declaration");
+                if assigned {
+                    scope.retain_read_bindings(&declarations);
+                    self.publish_target_scope(target);
+                    continue;
+                }
+                scope
+            } else {
+                scope
+            };
             let scope = if kind == Assignment::Conditional
                 && name == b"MAKEFLAGS"
                 && context.has_makeflags()
@@ -3600,6 +3686,49 @@ impl Database {
             self.refresh_scoped_variables(read);
             read.replace_target_read_declarations(declarations);
         }
+    }
+
+    fn assign_existing_file_status(
+        &mut self,
+        target: &[u8],
+        declarations: &mut VariableStore,
+        assignment: &TargetAssignment<'_>,
+        location: &Location,
+        context: ExpansionContext<'_>,
+    ) -> Result<bool, ExpandError> {
+        let name = b".SHELLSTATUS";
+        self.with_target_read(target, declarations, context, |database, read, context| {
+            if !read.is_file_read_context(target)
+                || read
+                    .local_shell_status()
+                    .is_none_or(|status| status.origin() < Origin::Override)
+            {
+                return Ok(false);
+            }
+            // This status already occupies a slot in the file's logical
+            // local table. Resolve the new assignment against that binding.
+            read.define_with_using(
+                name,
+                assignment.spec.value,
+                assignment.spec.kind,
+                assignment.origin,
+                Some(location),
+                context,
+                None,
+                None,
+                |read, bytes, shell, context| {
+                    if shell {
+                        crate::variables::shell_scoped_database(database, read, bytes, context)
+                    } else {
+                        crate::variables::expand_scoped_database::<false>(
+                            database, read, bytes, context,
+                        )
+                    }
+                },
+            )?;
+            read.qualify_local_target_binding(name, assignment.private, assignment.export);
+            Ok(true)
+        })
     }
 
     fn expand_target_read(
