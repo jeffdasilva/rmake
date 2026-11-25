@@ -353,6 +353,7 @@ enum RemakeFailure {
     #[default]
     None,
     SettledPrerequisiteOwner,
+    DirectExplicitGroupOwner,
     Optional,
     RequiredClockUnchanged,
     RequiredClockChanged,
@@ -370,7 +371,9 @@ impl RemakeFailure {
 
     fn with_optional(self) -> Self {
         match self {
-            Self::None | Self::SettledPrerequisiteOwner => Self::Optional,
+            Self::None | Self::SettledPrerequisiteOwner | Self::DirectExplicitGroupOwner => {
+                Self::Optional
+            }
             Self::RequiredClockUnchanged => Self::OptionalClockUnchanged,
             Self::RequiredClockChanged => Self::OptionalClockChanged,
             optional => optional,
@@ -381,7 +384,10 @@ impl RemakeFailure {
         match self {
             Self::RequiredClockUnchanged | Self::OptionalClockUnchanged => Some(false),
             Self::RequiredClockChanged | Self::OptionalClockChanged => Some(true),
-            Self::None | Self::SettledPrerequisiteOwner | Self::Optional => None,
+            Self::None
+            | Self::SettledPrerequisiteOwner
+            | Self::DirectExplicitGroupOwner
+            | Self::Optional => None,
         }
     }
 }
@@ -4145,16 +4151,22 @@ impl Engine {
                 };
                 // A fresh serial visit still sees the local timestamp
                 // retained before earlier remakes wrote or removed the file.
-                let (loaded_source, loaded_implicit_time) = if !parallel_remakes
+                let loaded_local_time = if !parallel_remakes
                     && !modes.active()
                     && self.assumptions.is_none()
                     && !makefile.missing
-                    && let Some(current) = before
+                    && before.is_some()
                     && let Some(Some((None, Some(time)))) = self.path_observations.get(name)
-                    && current != Some(*time)
                     && self.aliases.resolve(name) == name
                     && !self.file_traversals.has_outcome(name)
                     && !self.pending(name)
+                {
+                    Some(*time)
+                } else {
+                    None
+                };
+                let (loaded_source, loaded_implicit_time) = if let Some(time) = loaded_local_time
+                    && before.is_some_and(|current| current != Some(time))
                     && let Some(rule) = self.database.rules.get(name)
                 {
                     let declared = rule
@@ -4166,13 +4178,13 @@ impl Engine {
                         && rule.recipes.is_none()
                     {
                         // Its visit can still select an implicit recipe.
-                        (None, Some(*time))
+                        (None, Some(time))
                     } else {
                         let declared_time = (!declared.is_empty()
                             && declared.iter().all(|branch| {
                                 branch.grouped_targets().is_none() && branch.recipes.is_some()
                             }))
-                        .then_some((*time, declared.len()));
+                        .then_some((time, declared.len()));
                         (declared_time, None)
                     }
                 } else {
@@ -4512,10 +4524,19 @@ impl Engine {
                         refreshed_implicit_time.filter(|_| chain_failed && self.options.keep_going);
                     // A serial declaration may change the file after a
                     // blocked head. Other roots use their own recipe result.
+                    let direct_group_change = loaded_local_time
+                        .filter(|_| {
+                            matches!(
+                                result.remake_failure,
+                                RemakeFailure::DirectExplicitGroupOwner
+                            ) && !failed_opens.contains(name)
+                        })
+                        .map(|loaded| result.time.is_some_and(|time| time != loaded));
                     let settled_failure_change = result
                         .remake_failure
                         .peer_clock_changed()
                         .or(cached_failed_owner_change)
+                        .or(direct_group_change)
                         .filter(|_| !modes.active());
                     let refresh_timestamp = settled_failure_change.is_none()
                         && (serial_declarations.is_some() || (result.ran && !result.blocked));
@@ -13575,7 +13596,7 @@ impl Engine {
 
     fn finish_recipe(&mut self, target: &[u8], mut outcome: Outcome) -> Outcome {
         let group = self.running_groups.remove(target);
-        let failed_prerequisite = outcome.failed
+        let failed_serial_recipe = outcome.failed
             && !outcome.fatal
             && !outcome.blocked
             && outcome.ran
@@ -13584,27 +13605,43 @@ impl Engine {
             && !self.parallel_makefile_remakes
             && self.options.keep_going
             && self.assumptions.is_none()
-            && !MakefileModes::from_options(&self.options).active()
-            && self
-                .file_traversals
-                .visit(target)
-                .is_some_and(|visit| visit.parent.is_some());
-        if failed_prerequisite
-            && self.makefile_names.contains(target)
-            && match &group {
-                Some(group) => group.double_colon.is_none(),
-                None => self.database.rules.get(target).is_some_and(|rule| {
-                    rule.double_colon.is_none()
-                        && rule.grouped_targets().is_none()
-                        && rule.recipes.is_some()
-                        && !rule.default_recipe
-                }),
-            }
-        {
-            // The consuming prerequisite check settles the owner's timestamp.
-            outcome.remake_failure = RemakeFailure::SettledPrerequisiteOwner;
-            if let Some(owner) = self.file_traversals.outcome_mut(target) {
-                owner.remake_failure = outcome.remake_failure;
+            && !MakefileModes::from_options(&self.options).active();
+        let failed_visit = failed_serial_recipe
+            .then(|| self.file_traversals.visit(target))
+            .flatten();
+        let failed_prerequisite = failed_visit.is_some_and(|visit| visit.parent.is_some());
+        if failed_serial_recipe && self.makefile_names.contains(target) {
+            let owner_failure = match &group {
+                Some(group) if group.double_colon.is_none() => {
+                    if failed_prerequisite {
+                        // A consuming prerequisite check settles the owner.
+                        Some(RemakeFailure::SettledPrerequisiteOwner)
+                    } else if !group.implicit
+                        && failed_visit.is_some_and(|visit| visit.parent.is_none())
+                    {
+                        // Explicit groups sample the owner along with peers.
+                        Some(RemakeFailure::DirectExplicitGroupOwner)
+                    } else {
+                        None
+                    }
+                }
+                None if failed_prerequisite
+                    && self.database.rules.get(target).is_some_and(|rule| {
+                        rule.double_colon.is_none()
+                            && rule.grouped_targets().is_none()
+                            && rule.recipes.is_some()
+                            && !rule.default_recipe
+                    }) =>
+                {
+                    Some(RemakeFailure::SettledPrerequisiteOwner)
+                }
+                _ => None,
+            };
+            if let Some(owner_failure) = owner_failure {
+                outcome.remake_failure = owner_failure;
+                if let Some(owner) = self.file_traversals.outcome_mut(target) {
+                    owner.remake_failure = owner_failure;
+                }
             }
         }
         let Some(group) = group else {

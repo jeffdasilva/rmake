@@ -1,0 +1,12 @@
+id = "include-serial-failed-direct-explicit-group-owner-blocked-control"
+requirement = "includes.remake"
+candidate = "required"
+description = "A failed prerequisite prevents the directly visited explicit owner from running its recipe."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:0:old:Makefile worker.inc payload.mk\nWORKER\nBLOCKED\n"
+stderr = "make: *** [Makefile:17: trigger] Error 1\nMakefile:9: Failed to remake makefile 'payload.mk'.\n"

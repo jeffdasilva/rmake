@@ -1,0 +1,12 @@
+id = "include-serial-failed-direct-explicit-group-owner-optional-then-required"
+requirement = "includes.remake"
+candidate = "required"
+description = "A required duplicate read uses the directly visited explicit owner clock from its optional occurrence."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile worker.inc payload.mk payload.mk tail.inc\nWORKER\nREMAKE:payload.mk:trigger\nTAIL\nREAD:1:new:Makefile worker.inc payload.mk payload.mk tail.inc\nALL:new:1\nVALUE := new\n"
+stderr = "make: *** No rule to make target 'payload.mk'.\nMakefile:10: Failed to remake makefile 'payload.mk'.\n"

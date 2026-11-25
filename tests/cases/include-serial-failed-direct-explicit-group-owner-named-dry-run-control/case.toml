@@ -1,0 +1,12 @@
+id = "include-serial-failed-direct-explicit-group-owner-named-dry-run-control"
+requirement = "includes.remake"
+candidate = "required"
+description = "A named dry-run keeps its existing policy for a directly visited explicit group owner."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "payload.mk", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile worker.inc payload.mk tail.inc\nWORKER\necho REMAKE:\"payload.mk\":\"trigger\"; printf \"VALUE := new\\n\" > payload.mk; touch -d @1600000007 payload.mk; false\nTAIL\nmake: 'payload.mk' is up to date.\necho ALL:old:0\nif test -f payload.mk; then cat payload.mk; fi\n"
+stderr = ""
