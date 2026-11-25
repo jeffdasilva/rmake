@@ -282,10 +282,10 @@ impl Decoder {
     }
     pub(crate) fn following_definition(&self) -> bool {
         self.cursor == 1
-            && self
-                .args
-                .get(self.cursor)
-                .is_some_and(|arg| rmake_core::parser::assignment(arg).is_some())
+            && self.args.get(self.cursor).is_some_and(|arg| {
+                (self.end_options || !arg.starts_with(b"-"))
+                    && rmake_core::parser::assignment(arg).is_some()
+            })
     }
 
     pub(crate) fn new(
@@ -1069,20 +1069,50 @@ impl Options {
         self.append_internal_jobserver_style(arguments);
     }
 
-    /// Select only effectful include operands. The ordinary decoder remains
-    /// the allocation baseline for streams with no tilde operand.
-    pub(crate) fn include_decoder(&self, value: &[u8]) -> Result<Option<Decoder>, String> {
+    pub(crate) fn may_need_owned_flag_decoder(value: &[u8]) -> bool {
+        value.contains(&b'~') || Self::may_contain_debug_option(value)
+    }
+
+    fn may_contain_debug_option(value: &[u8]) -> bool {
+        // A unique long-option prefix can select --debug. The flag tokenizer
+        // accepts a backslash before each byte of the spelling. Only an
+        // attached operand can select an invalid debug level.
+        if !value.contains(&b'=') {
+            return false;
+        }
+        value.iter().enumerate().any(|(index, &byte)| {
+            if byte != b'-' {
+                return false;
+            }
+            let rest = &value[index + 1..];
+            let rest = rest.strip_prefix(b"\\").unwrap_or(rest);
+            let Some(rest) = rest.strip_prefix(b"-") else {
+                return false;
+            };
+            rest.strip_prefix(b"\\").unwrap_or(rest).starts_with(b"d")
+        })
+    }
+
+    /// Select a stream that expands an include operand or has to report an
+    /// invalid debug request after processing its variable definitions.
+    pub(crate) fn owned_flag_decoder(&self, value: &[u8]) -> Result<Option<Decoder>, String> {
         let stored_tilde = self
             .include_directories
             .iter()
             .any(|path| path.as_os_str().as_bytes().starts_with(b"~"));
-        if !value.contains(&b'~') && !stored_tilde {
+        let may_expand_include = stored_tilde || value.contains(&b'~');
+        if !may_expand_include && !Self::may_contain_debug_option(value) {
             return Ok(None);
         }
         let mut incoming = Vec::new();
         Self::append_expanded_flags(&mut incoming, value);
-        let inspected = Self::parse_mode::<false>(incoming.clone())?;
+        let inspected = match Self::parse_mode::<false>(incoming.clone()) {
+            Ok(inspected) => inspected,
+            Err(error) if may_expand_include => return Err(error),
+            Err(_) => return Ok(None),
+        };
         if !stored_tilde
+            && !inspected.debug.has_invalid_request()
             && !inspected
                 .include_directories
                 .iter()
@@ -2390,9 +2420,27 @@ mod decoder_missing_operand_tests {
 mod runtime_marker_tests {
     use super::*;
     #[test]
+    fn owned_runtime_cursor_distinguishes_options_from_adjacent_definitions() {
+        for (flags, following_definition) in [
+            (b"FIRST=one --debug=z LAST=two".as_slice(), false),
+            (b"FIRST=one LAST=two --debug=z".as_slice(), true),
+        ] {
+            let mut decoder = Options::default()
+                .owned_flag_decoder(flags)
+                .unwrap()
+                .unwrap();
+            assert!(matches!(
+                decoder.advance::<false>().unwrap().unwrap().argument,
+                Some(Argument::Definition(0))
+            ));
+            assert_eq!(decoder.following_definition(), following_definition);
+        }
+    }
+
+    #[test]
     fn runtime_suspension_keeps_end_markers_and_their_argument_positions() {
         let mut decoder = Options::default()
-            .include_decoder(b"-I~/inc -- -fshadow Z=one")
+            .owned_flag_decoder(b"-I~/inc -- -fshadow Z=one")
             .unwrap()
             .unwrap();
         assert_eq!(decoder.terminal(), 5);
@@ -2415,12 +2463,12 @@ mod runtime_marker_tests {
             include_directories: vec!["ordinary".into()],
             ..Options::default()
         };
-        assert!(plain.include_decoder(b"-s").unwrap().is_none());
+        assert!(plain.owned_flag_decoder(b"-s").unwrap().is_none());
         let persistent = Options {
             include_directories: vec!["~/inc".into()],
             ..plain
         };
-        let mut decoder = persistent.include_decoder(b"-- -x").unwrap().unwrap();
+        let mut decoder = persistent.owned_flag_decoder(b"-- -x").unwrap().unwrap();
         assert_eq!(decoder.terminal(), 3);
         assert!(matches!(
             decoder.advance::<false>().unwrap().unwrap().argument,
@@ -2431,7 +2479,7 @@ mod runtime_marker_tests {
             decoder.options.include_directories,
             vec![std::path::PathBuf::from("~/inc")]
         );
-        assert!(persistent.include_decoder(b"").unwrap().is_some());
+        assert!(persistent.owned_flag_decoder(b"").unwrap().is_some());
     }
     #[test]
     fn runtime_inspection_distinguishes_prefix_and_ignored_operands_from_switches() {

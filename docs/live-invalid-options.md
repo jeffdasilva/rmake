@@ -17,6 +17,12 @@ namespace membership distinguishes invalid syntax from registered features.
 The scan stays iterative, owns its words and preserves argument positions.
 No unsafe code, external package or global getopt state is introduced.
 
+A recognized live `--debug` request with an invalid level reports its fatal
+diagnostic after the flag payload assignments run. The decoder preserves their
+order around option notices, nested flag resets, and earlier payload errors.
+The [live debug fixtures](../tests/cases/live-debug-validation-reader-between/)
+exercise reader, `eval`, and passive `GNUMAKEFLAGS` paths.
+
 ## Original models and qualification
 
 641 new required cases comprise 320 payload forms, 320 pure-option forms and the

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "live-debug-validation-nested-before"
+requirement = "options.live-debug-validation"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "START\nFIRST\nLAST\n"
+stderr = "make: *** unknown debug level specification 'z'.  Stop.\n"

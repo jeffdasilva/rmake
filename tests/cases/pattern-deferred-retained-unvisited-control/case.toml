@@ -1,0 +1,12 @@
+id = "pattern-deferred-retained-unvisited-control"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "Reopening an unvisited target reads its declarations before its secondary expansion."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "reopened=[|parent|]\nactivating=[item.mid]\nchild=[item.mid|inherited||activated]\nparent=[parent|parent|7]\n"
+stderr = ""

@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "live-debug-validation-warning-order"
+requirement = "options.live-debug-validation"
+candidate = "required"
+args = ["-rR", "--no-print-directory", "all"]
+timeout_seconds = 5
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "START\nFIRST\nMakefile:3: warning: undefined variable 'REPORTED_WARNING'\nLAST\nmake: *** unknown debug level specification 'z'.  Stop.\n"
+stderr = ""

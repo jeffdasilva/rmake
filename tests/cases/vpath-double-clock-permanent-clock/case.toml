@@ -1,0 +1,12 @@
+id = "vpath-double-clock-permanent-clock"
+requirement = "resolution.vpath-records"
+candidate = "required"
+description = "An up-to-date double-colon VPATH input retains its selected clock for the parent."
+provenance = "Original rmake differential fixture; no upstream code or tests copied."
+args = ["-rR", "--no-print-directory", "sink"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "make: 'sink' is up to date.\n"
+stderr = ""
