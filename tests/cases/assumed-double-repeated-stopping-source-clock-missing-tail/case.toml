@@ -1,0 +1,11 @@
+id = "assumed-double-repeated-stopping-source-clock-missing-tail"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "A failed search prevents the synthetic entries from settling and the source stays in its first pass."
+provenance = "Original rmake fixture checked against the pinned GNU Make source restart profile."
+args = ["-rR", "--no-print-directory", "-j1", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'b.mk'.  Stop.\n"

@@ -1826,8 +1826,8 @@ title = "Restart serial existing sources after a synthetic what-if timestamp cha
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 12
-fixture_count = 12
+candidate_required = 16
+fixture_count = 16
 cases = [
   "assumed-double-source-clock-command",
   "assumed-double-source-clock-earlier-failure",
@@ -1841,6 +1841,10 @@ cases = [
   "assumed-double-repeated-source-clock-current",
   "assumed-double-repeated-source-clock-empty-recipe",
   "assumed-double-repeated-source-clock-failed-sibling-control",
+  "assumed-double-repeated-stopping-source-clock-current",
+  "assumed-double-repeated-stopping-source-clock-empty-recipe",
+  "assumed-double-repeated-stopping-source-clock-earlier-failure",
+  "assumed-double-repeated-stopping-source-clock-missing-tail",
 ]
 
 [[requirements]]
@@ -1849,8 +1853,8 @@ title = "Restart after a current synthetic entry settles for a named serial quer
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 14
-fixture_count = 14
+candidate_required = 16
+fixture_count = 16
 cases = [
   "assumed-double-named-current-clock-dry-current",
   "assumed-double-named-current-clock-dry-declared",
@@ -1866,6 +1870,8 @@ cases = [
   "assumed-double-repeated-named-dry-reverse-control",
   "assumed-double-repeated-named-query-stale-control",
   "assumed-double-repeated-named-dry-declared-control",
+  "assumed-double-repeated-stopping-named-dry-current-clock",
+  "assumed-double-repeated-stopping-named-dry-simulated-tail",
 ]
 
 [[requirements]]

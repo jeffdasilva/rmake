@@ -4236,9 +4236,9 @@ impl Engine {
                         && !makefile.missing
                         && let Some(before) = before.flatten()
                     {
-                        let regular_visit = !modes.active()
-                            && !visit_modes.active()
-                            && !MakefileModes::from_options(&self.options).active();
+                        let live_modes = MakefileModes::from_options(&self.options);
+                        let regular_visit =
+                            !modes.active() && !visit_modes.active() && !live_modes.active();
                         // A named dry-run or query can leave every branch
                         // current. A simulated declaration can propagate its
                         // assumed-new time to the entire chain.
@@ -4251,7 +4251,18 @@ impl Engine {
                             )
                             && self.modified(name) == Some(before);
                         if regular_visit || current_named_source {
-                            assumed_remake_changed = self.settled_assumed_new_makefile_clock(name);
+                            // A stopping pass can also settle every synthetic
+                            // entry when the source stays physically current.
+                            let allow_stopping_repeats = if regular_visit {
+                                !result.ran && result.time == Some(before)
+                            } else {
+                                modes.dry_run
+                                    && live_modes.dry_run
+                                    && !live_modes.question
+                                    && !live_modes.touch
+                            };
+                            assumed_remake_changed = self
+                                .settled_assumed_new_makefile_clock(name, allow_stopping_repeats);
                         }
                     }
                 }
@@ -11297,11 +11308,16 @@ impl Engine {
         Some((succeeded, refreshed))
     }
 
-    fn settled_assumed_new_makefile_clock(&self, source: &[u8]) -> bool {
+    fn settled_assumed_new_makefile_clock(
+        &self,
+        source: &[u8],
+        allow_stopping_repeats: bool,
+    ) -> bool {
         // Synthetic entries can settle on physical timestamps even when
         // their recipes did not need to run.
         self.settled_assumed_new_makefile_branches_match(
             self.aliases.resolve(source),
+            allow_stopping_repeats,
             |assumed_time, branch| {
                 !matches!(
                     branch.completion,
@@ -11314,11 +11330,10 @@ impl Engine {
     fn assumed_new_makefile_branches(
         &self,
         target: &[u8],
+        allow_stopping_repeats: bool,
     ) -> Option<(SystemTime, std::ops::Range<usize>)> {
         let (assumed_time, count) = self.assumed_new_double_colon_entries(target)?;
-        // Restrict repeated operands to keep-going. The restart check
-        // requires a settled outcome for each synthetic entry.
-        if count > 1 && !self.options.keep_going {
+        if count > 1 && !self.options.keep_going && !allow_stopping_repeats {
             return None;
         }
         let declared = self
@@ -11334,9 +11349,10 @@ impl Engine {
     fn settled_assumed_new_makefile_branches_match(
         &self,
         target: &[u8],
+        allow_stopping_repeats: bool,
         qualifies: impl Fn(SystemTime, &Outcome) -> bool,
     ) -> bool {
-        self.assumed_new_makefile_branches(target)
+        self.assumed_new_makefile_branches(target, allow_stopping_repeats)
             .is_some_and(|(assumed_time, mut ordinals)| {
                 let mut key = (target.to_vec(), 0);
                 ordinals.all(|ordinal| {
@@ -11390,7 +11406,7 @@ impl Engine {
                     rmake_core::filenames::without_dot_prefix(name),
                     named_sources,
                 )
-                && self.settled_assumed_new_makefile_branches_match(target, |_, branch| {
+                && self.settled_assumed_new_makefile_branches_match(target, false, |_, branch| {
                     branch.database_result == completion
                         && branch.completion == CompletionTime::AssumeNew
                 })
@@ -13272,7 +13288,7 @@ impl Engine {
                     && outcome.completion == CompletionTime::AssumeNew
                     && let Some(ordinal) = branch
                     && self
-                        .assumed_new_makefile_branches(target)
+                        .assumed_new_makefile_branches(target, false)
                         .is_some_and(|(_, ordinals)| ordinals.contains(&ordinal))
                 {
                     outcome.database_result = match execution.touch {
