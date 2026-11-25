@@ -5689,7 +5689,10 @@ impl Engine {
             self.debug_double_colon_goal_prunes(&goal, outcome);
             let deferred_query = self.queued_query_tail(&goal);
             let pending = self.pending(&goal) || deferred_query;
-            let outcome = if pending {
+            // A previous failure settles the invocation verdict. Later serial
+            // goals can still complete, and a prerequisite can observe their
+            // new timestamp when it actually consumes the file.
+            let outcome = if pending || self.defer_goal_timestamp_after_failure() {
                 outcome
             } else {
                 self.observe_updated(&goal, outcome)
@@ -8992,7 +8995,13 @@ impl Engine {
                     }
                     return Ok(Some(name));
                 }
-                if !self.has_file_record(&name) {
+                let moved_container = self.database.file_records.id(path).is_some_and(|id| {
+                    self.moved_archives
+                        .get(&id)
+                        .is_some_and(|owner| owner.original == archive)
+                });
+                // The tentative member rehash itself searches its new slot.
+                if moved_container || !self.has_file_record(&name) {
                     self.database.file_records.rehash(target, &name);
                 }
             }
@@ -9909,6 +9918,19 @@ impl Engine {
             .as_deref()
             .or(location.path.as_deref())
             .unwrap_or(archive);
+        if location.path.is_none()
+            && previous.is_some()
+            && self.database.file_records.id(path).is_some_and(|id| {
+                self.moved_archives
+                    .get(&id)
+                    .is_some_and(|owner| owner.original == archive)
+            })
+            && let Some(history) = self.database.database_history()
+        {
+            // After a local rebuild, ar_member_date looks up the retained
+            // searched container before reading the original member date.
+            history.record_file_lookup(path);
+        }
         let date = rmake_linux::archive::date(path, member)
             .map_err(|error| ExpandError::UnlocatedError(error.into_message()))?;
         let time = date
@@ -10243,6 +10265,13 @@ impl Engine {
         // The existing destination inherits the updated flag and keeps its
         // own unattempted status. Queued operands still refer to either ID.
         Some((source, destination))
+    }
+
+    fn defer_goal_timestamp_after_failure(&self) -> bool {
+        self.ordinary_queries.first_verdict == Some(Status::Failure)
+            && !self.remaking
+            && !self.parallel_graph()
+            && !MakefileModes::from_options(&self.options).active()
     }
 
     fn observe_updated(&mut self, target: &[u8], mut outcome: Outcome) -> Outcome {
@@ -15234,6 +15263,17 @@ impl Engine {
                 }
                 outcome.search_after_update =
                     self.update_search_pending(target, phony, execution.all_recursive);
+                if !phony
+                    && !execution.pending
+                    && execution.status == Status::Success
+                    && self.defer_goal_timestamp_after_failure()
+                {
+                    // Recipe completion invalidates the logical file time
+                    // even if expansion or an optimized ':' leaves no child.
+                    self.database_unchecked_times
+                        .borrow_mut()
+                        .insert(target.to_vec());
+                }
                 outcome.deferred_spawn_failure = execution.launch_failed
                     && self.parallel_makefile_remakes
                     && self.optional_remake();
