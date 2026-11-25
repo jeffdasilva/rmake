@@ -1,0 +1,11 @@
+id = "assumed-double-repeated-stopping-named-dry-simulated-tail"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "A newer prerequisite gives an empty dry-run recipe a synthetic result and does not reread the source."
+provenance = "Original rmake fixture checked against the pinned GNU Make source restart profile."
+args = ["-rR", "--no-print-directory", "-j1", "-n", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

@@ -1,0 +1,10 @@
+id = "assumed-double-stopping-query-touch-repeated-physical"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+description = "Both synthetic branches physically touch the source during one read."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q", "-t", "-W", "b.mk", "-W", "./b.mk", "b.mk", "check-clock"]
+
+[expected]
+exit_code = 0
+stdout = "touch b.mk\ntouch b.mk\n"
+stderr = ""

@@ -1,0 +1,12 @@
+id = "parallel-dispatch-missing-secondary-jobs"
+requirement = "parallel.dispatch-failure"
+candidate = "required"
+description = "A bounded pipe jobserver preserves the same secondary-expansion and error order."
+provenance = "Original rmake fixture with independently observed GNU Make 4.4.1 streams and status."
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe"]
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "make: ./missing-program: No such file or directory\nsibling-secondary\nmake: *** [Makefile:3: one] Error 127\n"
+stderr = ""

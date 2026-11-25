@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-query-touch-stale-control"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "A physical touch under query keeps the original pass when all sources succeed."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-t", "-W", "b.mk", "b.mk", "check-clock"]
+
+[expected]
+exit_code = 0
+stdout = "touch b.mk\n"
+stderr = ""

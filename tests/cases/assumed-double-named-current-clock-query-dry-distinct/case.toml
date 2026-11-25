@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-query-dry-distinct"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "Two named sources with independent singleton entries allow one reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-W", "b.mk", "-W", "c.mk", "c.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

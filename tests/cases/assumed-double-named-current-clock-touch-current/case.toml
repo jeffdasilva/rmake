@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-touch-current"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "Named touch rereads a current synthetic branch without setting the filesystem timestamp."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-t", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-query-dry-touch-current"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "A singleton current branch rereads in stopping query, dry-run and touch mode."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q", "-n", "-t", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

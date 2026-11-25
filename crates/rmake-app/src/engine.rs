@@ -349,6 +349,43 @@ enum GroupPeerTime {
 }
 
 #[derive(Clone, Copy, Default)]
+enum GroupPeerFailure {
+    #[default]
+    None,
+    Optional,
+    RequiredClockUnchanged,
+    RequiredClockChanged,
+    OptionalClockUnchanged,
+    OptionalClockChanged,
+}
+
+impl GroupPeerFailure {
+    fn is_optional(self) -> bool {
+        matches!(
+            self,
+            Self::Optional | Self::OptionalClockUnchanged | Self::OptionalClockChanged
+        )
+    }
+
+    fn with_optional(self) -> Self {
+        match self {
+            Self::None => Self::Optional,
+            Self::RequiredClockUnchanged => Self::OptionalClockUnchanged,
+            Self::RequiredClockChanged => Self::OptionalClockChanged,
+            optional => optional,
+        }
+    }
+
+    fn clock_changed(self) -> Option<bool> {
+        match self {
+            Self::RequiredClockUnchanged | Self::OptionalClockUnchanged => Some(false),
+            Self::RequiredClockChanged | Self::OptionalClockChanged => Some(true),
+            Self::None | Self::Optional => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
 struct Outcome {
     time: Option<SystemTime>,
     ran: bool,
@@ -360,8 +397,7 @@ struct Outcome {
     blocked: bool,
     // A failed dispatch in an optional parallel remake can precede more visits.
     deferred_spawn_failure: bool,
-    // An optional grouped recipe already supplied this peer's failure.
-    optional_group_peer_failure: bool,
+    group_peer_failure: GroupPeerFailure,
     // A successful grouped remake invalidates each other read peer,
     // including one whose physical timestamp did not change.
     remake_group_peer_updated: bool,
@@ -1273,7 +1309,13 @@ struct GroupRun {
     members: Vec<(Vec<u8>, Option<SystemTime>, bool)>,
 }
 
-type JobResult = (Vec<u8>, u64, Option<io::Result<std::process::ExitStatus>>);
+enum JobCompletion {
+    Child(io::Result<std::process::ExitStatus>),
+    FailedDispatch,
+    LoadReady,
+}
+
+type JobResult = (Vec<u8>, u64, JobCompletion);
 
 #[derive(Default)]
 struct ArchiveVpathReads {
@@ -1430,6 +1472,9 @@ pub struct Engine {
     forced_query_stop: bool,
     ordinary_queries: OrdinaryQueries,
     parallel_jobs: ParallelJobs,
+    // An executable lookup can fail without admitting a worker. Keep its
+    // completion for the scheduler boundary, rather than a graph-only poll.
+    failed_dispatch: Option<(Vec<u8>, u64)>,
     aborted_recipe_permit: Option<Permit>,
     job_debug: crate::debug::Jobs,
     load_waiting: Vec<(Vec<u8>, u64)>,
@@ -2018,6 +2063,7 @@ impl Engine {
             forced_query_stop: false,
             ordinary_queries: OrdinaryQueries::default(),
             parallel_jobs: ParallelJobs::default(),
+            failed_dispatch: None,
             aborted_recipe_permit: None,
             job_debug: crate::debug::Jobs::default(),
             load_waiting: Vec::new(),
@@ -2425,7 +2471,7 @@ impl Engine {
         let cached = self
             .file_traversals
             .outcome(identity)
-            .is_some_and(|outcome| outcome.optional_group_peer_failure);
+            .is_some_and(|outcome| outcome.group_peer_failure.is_optional());
         // A single double-colon peer has a branch record before its own visit.
         let declared_peer = !cached
             && self.remaking
@@ -2443,7 +2489,7 @@ impl Engine {
             && self
                 .database_branch_outcomes
                 .get(&(identity.to_vec(), 0))
-                .is_some_and(|outcome| outcome.optional_group_peer_failure);
+                .is_some_and(|outcome| outcome.group_peer_failure.is_optional());
         (cached || declared_peer) && !self.optional_remake_failures.contains_key(identity)
     }
 
@@ -3859,11 +3905,9 @@ impl Engine {
             self.remaking = true;
             self.defer_stopped_remake_load = ordinary_mode;
             let mut changed = false;
-            let named_assumed_mode = !modes.touch && modes.dry_run != modes.question;
-            let track_assumed_remake = !parallel_remakes
-                && (!modes.active() || named_assumed_mode)
-                && restarts == 0
-                && self.assumptions.is_some();
+            let repeated_named_clock_mode = !modes.touch && modes.dry_run != modes.question;
+            let track_assumed_remake =
+                !parallel_remakes && restarts == 0 && self.assumptions.is_some();
             let mut assumed_remake_changed = false;
             let mut assumed_remake_blocked = false;
             let mut grouped_changes =
@@ -4175,7 +4219,13 @@ impl Engine {
                     && !self.parallel_makefile_remakes
                     && !modes.active()
                     && self.observed_failed_duplicate_peer(name);
-                let track_named_source = track_assumed_remake && named_assumed_mode && named_source;
+                let track_named_source = track_assumed_remake
+                    && named_source
+                    && modes.active()
+                    && (repeated_named_clock_mode
+                        || self
+                            .assumed_new_double_colon_entries(self.aliases.resolve(name))
+                            .is_some_and(|(_, count)| count == 1));
                 let mut source_started_command = false;
                 let mut result = self.build_recording_initial_time(
                     name,
@@ -4226,12 +4276,13 @@ impl Engine {
                         && !makefile.missing
                         && let Some(before) = before.flatten()
                     {
-                        let regular_visit = !modes.active()
-                            && !visit_modes.active()
-                            && !MakefileModes::from_options(&self.options).active();
-                        // A named dry-run or query can leave every branch
-                        // current. A simulated declaration can propagate its
-                        // assumed-new time to the entire chain.
+                        let live_modes = MakefileModes::from_options(&self.options);
+                        let regular_visit =
+                            !modes.active() && !visit_modes.active() && !live_modes.active();
+                        // A named source can leave every branch current
+                        // under dry-run, query or touch. A simulated
+                        // declaration can propagate its assumed-new time to
+                        // the entire chain.
                         let current_named_source = track_named_source
                             && !source_started_command
                             && !result.ran
@@ -4241,7 +4292,18 @@ impl Engine {
                             )
                             && self.modified(name) == Some(before);
                         if regular_visit || current_named_source {
-                            assumed_remake_changed = self.settled_assumed_new_makefile_clock(name);
+                            // A stopping pass can also settle every synthetic
+                            // entry when the source stays physically current.
+                            let allow_stopping_repeats = if regular_visit {
+                                !result.ran && result.time == Some(before)
+                            } else {
+                                modes.dry_run
+                                    && live_modes.dry_run
+                                    && !live_modes.question
+                                    && !live_modes.touch
+                            };
+                            assumed_remake_changed = self
+                                .settled_assumed_new_makefile_clock(name, allow_stopping_repeats);
                         }
                     }
                 }
@@ -4407,7 +4469,7 @@ impl Engine {
                 }
                 let deferred_peer_failure = deferred_peer_failure
                     || (pending_peer
-                        && result.optional_group_peer_failure
+                        && result.group_peer_failure.is_optional()
                         && self.cached_optional_group_peer_failure(name));
                 if result.question_outdated {
                     if !failed && !optional_remake_failed {
@@ -4427,19 +4489,24 @@ impl Engine {
                         refreshed_implicit_time.filter(|_| chain_failed && self.options.keep_going);
                     // A serial declaration may change the file after a
                     // blocked head. Other roots use their own recipe result.
-                    let refresh_timestamp =
-                        serial_declarations.is_some() || (result.ran && !result.blocked);
-                    if !result.ran
-                        && observed_peer_change.is_some()
-                        && self
-                            .database
-                            .rules
-                            .get(name)
-                            .and_then(|rule| rule.double_colon.as_ref())
-                            .is_some_and(|branches| {
-                                matches!(branches.as_slice(), [rule]
+                    let implicit_peer_changed = result
+                        .group_peer_failure
+                        .clock_changed()
+                        .filter(|_| !modes.active());
+                    let refresh_timestamp = implicit_peer_changed.is_none()
+                        && (serial_declarations.is_some() || (result.ran && !result.blocked));
+                    if implicit_peer_changed == Some(true)
+                        || (!result.ran
+                            && observed_peer_change.is_some()
+                            && self
+                                .database
+                                .rules
+                                .get(name)
+                                .and_then(|rule| rule.double_colon.as_ref())
+                                .is_some_and(|branches| {
+                                    matches!(branches.as_slice(), [rule]
                                 if rule.grouped_double_id().is_some())
-                            })
+                                }))
                     {
                         observed_failed_peer_changes.insert(name);
                     }
@@ -4805,7 +4872,7 @@ impl Engine {
                         && let Some(&(before, _)) = visited.get(name)
                         && let Some(outcome) =
                             self.file_traversals.outcome(self.aliases.resolve(name))
-                        && outcome.optional_group_peer_failure
+                        && outcome.group_peer_failure.is_optional()
                     {
                         failed = true;
                         failed_remakes.insert(name, (before, outcome.ran && !outcome.blocked));
@@ -4837,7 +4904,7 @@ impl Engine {
                             .filter(|_| {
                                 self.file_traversals
                                     .outcome(name)
-                                    .is_some_and(|outcome| outcome.optional_group_peer_failure)
+                                    .is_some_and(|outcome| outcome.group_peer_failure.is_optional())
                             })
                             .or(*before);
                         let after = self.modified(&makefile.name);
@@ -5147,6 +5214,9 @@ impl Engine {
                         && self.queued_query_tail(&goal.name))
             })
         {
+            if self.complete_failed_dispatch() && self.graph_abort.is_some() {
+                break;
+            }
             self.ordinary_queries.pass = self.ordinary_queries.pass.wrapping_add(1);
             self.advance_debug_pass();
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
@@ -5886,7 +5956,7 @@ impl Engine {
             .wrapping_add(self.filesystem.borrow().file_writes())
     }
 
-    /// A child reap or a make-function file write advances the goal diagnostics.
+    /// A job completion or a make-function file write advances the goal diagnostics.
     /// Speculative scheduler rescans leave this progress unchanged.
     fn advance_debug_pass(&mut self) {
         let progress = self.debug_progress();
@@ -7073,6 +7143,9 @@ impl Engine {
         block: bool,
         additional: Option<std::os::fd::RawFd>,
     ) -> io::Result<bool> {
+        if block && self.complete_failed_dispatch() {
+            return Ok(true);
+        }
         let children = self.parallel_child_handles();
         if children.is_empty() && additional.is_none() {
             return Ok(false);
@@ -7178,7 +7251,7 @@ impl Engine {
                 Ok(None) => continue,
                 Err(error) => Err(error),
             };
-            return Some((target.to_vec(), identity, Some(result)));
+            return Some((target.to_vec(), identity, JobCompletion::Child(result)));
         }
         None
     }
@@ -7370,7 +7443,7 @@ impl Engine {
                 break;
             };
             let (target, identity) = self.load_waiting.remove(index);
-            self.complete_job((target, identity, None), false);
+            self.complete_job((target, identity, JobCompletion::LoadReady), false);
         }
     }
 
@@ -7500,13 +7573,34 @@ impl Engine {
         });
     }
 
+    fn complete_failed_dispatch(&mut self) -> bool {
+        let Some((target, identity)) = self.failed_dispatch.take() else {
+            return false;
+        };
+        if self.shutdown.get() == Shutdown::Running {
+            self.complete_job((target, identity, JobCompletion::FailedDispatch), false);
+        } else {
+            // A later graph error drains real workers only. The launch errno
+            // has already been reported to this dispatch's output context.
+            self.parallel_jobs
+                .remove(&target, identity)
+                .expect("reserved failed dispatch");
+        }
+        true
+    }
+
     fn finish_parallel_job(
         &mut self,
         target: Vec<u8>,
         mut job: ParallelJob,
-        result: Option<io::Result<std::process::ExitStatus>>,
+        completion: JobCompletion,
         blocking_reap: bool,
     ) {
+        let (result, failed_dispatch) = match completion {
+            JobCompletion::Child(result) => (Some(result), false),
+            JobCompletion::FailedDispatch => (None, true),
+            JobCompletion::LoadReady => (None, false),
+        };
         let output = job.continuation.output.clone();
         let debug_job = job.continuation.debug_job.clone();
         if let Some(result) = &result {
@@ -7516,22 +7610,25 @@ impl Engine {
                 result.as_ref().is_ok_and(|status| status.success()),
             );
         }
-        if result.as_ref().is_some_and(|status| status.is_ok()) {
+        let launched = result.as_ref().is_some_and(Result::is_ok);
+        if launched || failed_dispatch {
             self.recipe_reaps = self.recipe_reaps.wrapping_add(1);
+        }
+        if launched {
             self.load.reaped();
             if let Some(buffer) = &output {
                 buffer.child_reaped(true);
             }
         }
-        let report_error = result
-            .as_ref()
-            .is_some_and(|r| !r.as_ref().is_ok_and(|status| status.success()));
+        let report_error = failed_dispatch
+            || result
+                .as_ref()
+                .is_some_and(|r| !r.as_ref().is_ok_and(|status| status.success()));
         if report_error {
             self.output
                 .select(output.as_ref().filter(|buffer| buffer.enabled()));
         }
-        let launched = result.as_ref().is_some_and(Result::is_ok);
-        if result.is_some() {
+        if failed_dispatch || result.is_some() {
             self.filesystem.borrow_mut().child_completed();
         }
         let signaled = result
@@ -7541,11 +7638,13 @@ impl Engine {
         let error_code = match result.as_ref() {
             Some(Ok(status)) => status.code().filter(|code| *code != 0),
             Some(Err(_)) => Some(127),
+            None if failed_dispatch => Some(127),
             None => None,
         };
         let command_question =
             self.options.question && job.recursive && !job.ignore && error_code == Some(1);
         let error = match result {
+            None if failed_dispatch => Some("Error 127".to_owned()),
             None => None,
             Some(Ok(status)) if status.success() || command_question => None,
             Some(Ok(status)) => Some(
@@ -10131,7 +10230,7 @@ impl Engine {
             let mut shutdown = self.shutdown.get();
             shutdown.drain();
             self.shutdown.set(shutdown);
-            if self.parallel_jobs.values().any(|job| !job.waiting_load) {
+            if self.parallel_jobs.values().any(|job| job.child.is_some()) {
                 self.notice_waiting_for_jobs();
             }
             self.graph_abort = Some(status);
@@ -10676,7 +10775,7 @@ impl Engine {
                 .entry(target.to_vec())
                 .or_default();
         }
-        if !deferred_peer_failure || !outcome.optional_group_peer_failure || outcome.fatal {
+        if !deferred_peer_failure || !outcome.group_peer_failure.is_optional() || outcome.fatal {
             self.record_graph_failure(outcome);
         }
         outcome
@@ -11094,7 +11193,23 @@ impl Engine {
         if let Some(branches) = rule.double_colon.take() {
             let mut branches: std::collections::VecDeque<_> =
                 branches.into_iter().map(Some).enumerate().collect();
-            for _ in 0..self.new_double_colon_entry_count(target) {
+            let mut synthetic_count = self.new_double_colon_entry_count(target);
+            if synthetic_count == 1
+                && depth == 0
+                && self.remaking
+                && !self.parallel_makefile_remakes
+                && self.active_makefile_remake.is_some()
+                && self.options.question
+                && self.options.touch
+                && !self.options.keep_going
+                && self.has_requested_goal_name(rmake_core::filenames::without_dot_prefix(target))
+                && let Some((_, count)) = self.assumed_new_double_colon_entries(target)
+            {
+                // A named query with touch can complete successive synthetic
+                // entries. An actual query verdict still stops the chain.
+                synthetic_count = count;
+            }
+            for _ in 0..synthetic_count {
                 branches.push_back((branches.len(), None));
             }
             self.pending_double_colon.insert(
@@ -11240,35 +11355,32 @@ impl Engine {
         Some((succeeded, refreshed))
     }
 
-    fn settled_assumed_new_makefile_branch(&self, source: &[u8]) -> Option<(SystemTime, Outcome)> {
-        let name = self.aliases.resolve(source);
-        let assumed_time = self.single_assumed_new_double_colon_time(name)?;
-        let declarations = self.database.rules.get(name)?.double_colon.as_ref()?;
-        let branch = *self
-            .database_branch_outcomes
-            .get(&(name.to_vec(), declarations.len()))?;
-        (!branch.failed && !branch.fatal && !branch.question_outdated)
-            .then_some((assumed_time, branch))
-    }
-
-    fn settled_assumed_new_makefile_clock(&self, source: &[u8]) -> bool {
-        // An existing source's synthetic entry can settle on a physical
-        // timestamp even if its recipe did not need to run. Compare it
-        // with that entry's own initial assumed timestamp.
-        self.settled_assumed_new_makefile_branch(source)
-            .is_some_and(|(assumed_time, branch)| {
+    fn settled_assumed_new_makefile_clock(
+        &self,
+        source: &[u8],
+        allow_stopping_repeats: bool,
+    ) -> bool {
+        // Synthetic entries can settle on physical timestamps even when
+        // their recipes did not need to run.
+        self.settled_assumed_new_makefile_branches_match(
+            self.aliases.resolve(source),
+            allow_stopping_repeats,
+            |assumed_time, branch| {
                 !matches!(
                     branch.completion,
                     CompletionTime::AssumeNew | CompletionTime::AssumeNewPhony
                 ) && branch.time.is_some_and(|time| time != assumed_time)
-            })
+            },
+        )
     }
 
-    fn assumed_new_makefile_branches(&self, target: &[u8]) -> Option<std::ops::Range<usize>> {
-        let (_, count) = self.assumed_new_double_colon_entries(target)?;
-        // Restrict repeated operands to keep-going. The restart check
-        // requires a settled outcome for each synthetic entry.
-        if count > 1 && !self.options.keep_going {
+    fn assumed_new_makefile_branches(
+        &self,
+        target: &[u8],
+        allow_stopping_repeats: bool,
+    ) -> Option<(SystemTime, std::ops::Range<usize>)> {
+        let (assumed_time, count) = self.assumed_new_double_colon_entries(target)?;
+        if count > 1 && !self.options.keep_going && !allow_stopping_repeats {
             return None;
         }
         let declared = self
@@ -11278,7 +11390,29 @@ impl Engine {
             .double_colon
             .as_ref()?
             .len();
-        Some(declared..declared + count)
+        Some((assumed_time, declared..declared + count))
+    }
+
+    fn settled_assumed_new_makefile_branches_match(
+        &self,
+        target: &[u8],
+        allow_stopping_repeats: bool,
+        qualifies: impl Fn(SystemTime, &Outcome) -> bool,
+    ) -> bool {
+        self.assumed_new_makefile_branches(target, allow_stopping_repeats)
+            .is_some_and(|(assumed_time, mut ordinals)| {
+                let mut key = (target.to_vec(), 0);
+                ordinals.all(|ordinal| {
+                    key.1 = ordinal;
+                    self.database_branch_outcomes
+                        .get(&key)
+                        .is_some_and(|branch| {
+                            branch.terminal_verdict().is_none()
+                                && !branch.fatal
+                                && qualifies(assumed_time, branch)
+                        })
+                })
+            })
     }
 
     fn failed_remake_has_updated_assumed_source(
@@ -11319,21 +11453,10 @@ impl Engine {
                     rmake_core::filenames::without_dot_prefix(name),
                     named_sources,
                 )
-                && self
-                    .assumed_new_makefile_branches(target)
-                    .is_some_and(|mut ordinals| {
-                        let mut key = (target.to_vec(), 0);
-                        ordinals.all(|ordinal| {
-                            key.1 = ordinal;
-                            self.database_branch_outcomes
-                                .get(&key)
-                                .is_some_and(|branch| {
-                                    succeeded(branch)
-                                        && branch.database_result == completion
-                                        && branch.completion == CompletionTime::AssumeNew
-                                })
-                        })
-                    })
+                && self.settled_assumed_new_makefile_branches_match(target, false, |_, branch| {
+                    branch.database_result == completion
+                        && branch.completion == CompletionTime::AssumeNew
+                })
                 && self.file_traversals.outcome(target).is_some_and(succeeded)
                 && self
                     .database_branch_outcomes
@@ -13212,8 +13335,8 @@ impl Engine {
                     && outcome.completion == CompletionTime::AssumeNew
                     && let Some(ordinal) = branch
                     && self
-                        .assumed_new_makefile_branches(target)
-                        .is_some_and(|ordinals| ordinals.contains(&ordinal))
+                        .assumed_new_makefile_branches(target, false)
+                        .is_some_and(|(_, ordinals)| ordinals.contains(&ordinal))
                 {
                     outcome.database_result = match execution.touch {
                         TouchCompletion::None => DatabaseResult::Outcome,
@@ -13423,8 +13546,9 @@ impl Engine {
                         continue;
                     }
                     let mut completed = outcome;
-                    completed.optional_group_peer_failure |=
-                        optional_serial_failure && !owner && branches.len() == 1;
+                    if optional_serial_failure && !owner && branches.len() == 1 {
+                        completed.group_peer_failure = completed.group_peer_failure.with_optional();
+                    }
                     completed.database_result = DatabaseResult::ObservedGroup;
                     completed.time = if phony {
                         None
@@ -13523,6 +13647,21 @@ impl Engine {
             && self.assumptions.is_none()
             && !self.options.check_symlink_times
             && self.makefile_names.contains(target);
+        let track_failed_implicit_peers = self.remaking
+            && !self.parallel_makefile_remakes
+            && group.implicit
+            && self.options.keep_going
+            && self.assumptions.is_none()
+            && !MakefileModes::from_options(&self.options).active()
+            && outcome.failed
+            && !outcome.fatal
+            && !outcome.blocked
+            && outcome.ran
+            && outcome.completion == CompletionTime::Refresh
+            && self
+                .file_traversals
+                .visit(target)
+                .is_some_and(|visit| visit.parent.is_some());
         let trace_failed_read_peers = serial_explicit_remake
             && (self.optional_remake() || self.options.keep_going)
             && outcome.failed
@@ -13579,8 +13718,6 @@ impl Engine {
             completed.debug_serial_group_peer = debug_serial_group_peer
                 || (((track_read_peers && !outcome.failed) || trace_failed_read_peers)
                     && self.makefile_names.contains(&peer));
-            completed.optional_group_peer_failure =
-                self.optional_remake() && outcome.failed && !outcome.fatal;
             self.mark_remade_group_peer(&peer, phony, &mut completed);
             completed.search_after_update = false;
             completed.time = if phony {
@@ -13594,6 +13731,25 @@ impl Engine {
                 completed.completion = CompletionTime::Preserve;
                 completed.debug_time_changed |= retain_debug_time && completed.time != time;
                 completed.time = time;
+            }
+            // A failed pattern group settles this peer's physical time here.
+            // The required read reports it without refreshing over this sample.
+            completed.group_peer_failure = if track_failed_implicit_peers
+                && !phony
+                && self.makefile_names.contains(&peer)
+                && !self.file_traversals.has_outcome(&peer)
+                && let Some(Some((None, Some(loaded)))) = self.path_observations.get(&peer)
+            {
+                if completed.time.is_some_and(|time| time != *loaded) {
+                    GroupPeerFailure::RequiredClockChanged
+                } else {
+                    GroupPeerFailure::RequiredClockUnchanged
+                }
+            } else {
+                GroupPeerFailure::None
+            };
+            if self.optional_remake() && outcome.failed && !outcome.fatal {
+                completed.group_peer_failure = completed.group_peer_failure.with_optional();
             }
             if track_read_peers && !phony && self.makefile_names.contains(&peer) {
                 // A missing group member can stop peer freshness checks.
@@ -13848,6 +14004,9 @@ impl Engine {
         // their raw recursion/touch decisions without allocating one per leaf.
         let flow = Flow::new(recipes.iter().map(recursive_line));
         let parallel = self.parallel_graph();
+        // Secondary expansion can run before the next recipe starts. Consume a
+        // failed launch here, before expanding any of the new recipe's lines.
+        self.complete_failed_dispatch();
         if self.graph_abort == Some(Status::Fatal) {
             return Execution::fatal(false);
         }
@@ -14693,6 +14852,28 @@ impl Engine {
                 },
             );
             self.retain_database_context(target, branch, variables);
+            // An ordinary parallel executable lookup failure still occupies its
+            // recipe's graph frame until the next dispatch or goal sweep. Keep
+            // this path to a first attempt with no previously admitted job.
+            let failed_dispatch = parallel
+                && !self.remaking
+                && remake.is_none()
+                && !ignore
+                && !flow.retained_owner()
+                && !flow.failed_launch()
+                && !(self.options.dry_run || self.options.question || self.options.touch)
+                && self.parallel_jobs.is_empty()
+                && process.as_ref().is_err_and(|error| {
+                    matches!(
+                        error.kind(),
+                        io::ErrorKind::NotFound
+                            | io::ErrorKind::PermissionDenied
+                            | io::ErrorKind::NotADirectory
+                    )
+                });
+            if failed_dispatch && let Err(error) = &process {
+                self.stderr(&[program.as_slice(), b": ", os_error(error).as_bytes()].concat());
+            }
             self.output.select(None);
             if let Ok(child) = &process {
                 if owner.debug_job.is_none() {
@@ -14709,65 +14890,56 @@ impl Engine {
             let mut signal_cleaned = false;
             #[cfg(feature = "guile")]
             let mut interpreter_failed = false;
-            let result = if parallel {
-                match process {
-                    Ok(child) => {
-                        let identity = self.next_job;
-                        self.next_job = self.next_job.wrapping_add(1);
-                        self.parallel_jobs.insert(
-                            target.to_vec(),
-                            ParallelJob {
-                                identity,
-                                program,
-                                location: recipe.location.clone(),
-                                ignore,
-                                recursive: force,
-                                before,
-                                phony,
-                                stdin_owner,
-                                waiting_load: false,
-                                child: Some(child),
-                                signal_cleaned: false,
-                                continuation: RecipeState {
-                                    branch,
-                                    remake,
-                                    output,
-                                    expanded,
-                                    variables: variables.clone(),
-                                    flow,
-                                    ran,
-                                    one_shell,
-                                    environment,
-                                    permit: owner.permit.take(),
-                                    debug_job: owner.debug_job.clone(),
-                                },
-                            },
-                        );
-                        self.observe_interrupt();
-                        return Execution::pending();
-                    }
-                    Err(error) => Err(error),
+            if parallel && (failed_dispatch || process.is_ok()) {
+                let identity = self.next_job;
+                self.next_job = self.next_job.wrapping_add(1);
+                if failed_dispatch {
+                    self.failed_dispatch = Some((target.to_vec(), identity));
                 }
-            } else {
-                match process {
-                    Ok(mut child) => self
-                        .wait_serial_child(
-                            &mut child,
-                            target,
-                            before,
-                            phony,
-                            owner.debug_job.as_ref(),
-                        )
-                        .map(|wait| {
-                            signal_cleaned = wait.cleaned;
-                            #[cfg(feature = "guile")]
-                            {
-                                interpreter_failed = wait.interpreter_failed;
-                            }
-                            wait.status
-                        }),
-                    Err(error) => Err(error),
-                }
+                self.parallel_jobs.insert(
+                    target.to_vec(),
+                    ParallelJob {
+                        identity,
+                        program,
+                        location: recipe.location.clone(),
+                        ignore,
+                        recursive: force,
+                        before,
+                        phony,
+                        stdin_owner,
+                        waiting_load: false,
+                        child: process.ok(),
+                        signal_cleaned: false,
+                        continuation: RecipeState {
+                            branch,
+                            remake,
+                            output,
+                            expanded,
+                            variables: variables.clone(),
+                            flow,
+                            ran,
+                            one_shell,
+                            environment,
+                            permit: owner.permit.take(),
+                            debug_job: owner.debug_job.clone(),
+                        },
+                    },
+                );
+                self.observe_interrupt();
+                return Execution::pending();
+            }
+            let result = match process {
+                Ok(mut child) => self
+                    .wait_serial_child(&mut child, target, before, phony, owner.debug_job.as_ref())
+                    .map(|wait| {
+                        signal_cleaned = wait.cleaned;
+                        #[cfg(feature = "guile")]
+                        {
+                            interpreter_failed = wait.interpreter_failed;
+                        }
+                        wait.status
+                    }),
+                Err(error) => Err(error),
             };
             self.output
                 .select(output.as_ref().filter(|buffer| buffer.enabled()));

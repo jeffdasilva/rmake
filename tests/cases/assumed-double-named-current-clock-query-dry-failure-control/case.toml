@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-query-dry-failure-control"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "An unsuccessful optional source blocks the current-clock reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

@@ -1,0 +1,12 @@
+id = "include-serial-failed-implicit-group-peer-symlink-time"
+requirement = "includes.remake"
+candidate = "required"
+description = "The failed pattern peer uses the read symlink clock under -L."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-L", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile worker.inc payload.mk\nEARLY\nREMAKE:payload.other:trigger\nREAD:1:old:Makefile worker.inc payload.mk\nALL:old:1\nVALUE := old\n"
+stderr = "make: *** [Makefile:16: payload.other] Error 1\nMakefile:8: Failed to remake makefile 'worker.inc'.\nMakefile:9: Failed to remake makefile 'payload.mk'.\n"

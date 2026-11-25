@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-source-clock-failed-sibling-control"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "A failed optional sibling suppresses the current-clock reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

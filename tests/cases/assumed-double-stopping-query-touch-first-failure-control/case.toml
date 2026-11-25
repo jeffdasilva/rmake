@@ -1,0 +1,10 @@
+id = "assumed-double-stopping-query-touch-first-failure-control"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+description = "A forced failure on the first synthetic branch leaves later aliases unvisited."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q", "-t", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""

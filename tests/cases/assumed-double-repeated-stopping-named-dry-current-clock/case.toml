@@ -1,0 +1,11 @@
+id = "assumed-double-repeated-stopping-named-dry-current-clock"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "Both entries with equal prerequisite time settle on the physical named source during a stopping dry run."
+provenance = "Original rmake fixture checked against the pinned GNU Make source restart profile."
+args = ["-rR", "--no-print-directory", "-j1", "-n", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

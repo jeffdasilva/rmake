@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-query-dry-simulated-control"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "An empty query and dry-run simulation retains its logical time and original read."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

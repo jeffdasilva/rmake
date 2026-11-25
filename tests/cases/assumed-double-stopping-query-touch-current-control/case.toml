@@ -1,0 +1,10 @@
+id = "assumed-double-stopping-query-touch-current-control"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+description = "Current synthetic branches produce no touches during the source pass."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q", "-t", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

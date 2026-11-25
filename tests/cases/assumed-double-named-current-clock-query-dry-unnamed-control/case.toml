@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-query-dry-unnamed-control"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "An unnamed source without a what-if entry keeps the original source pass."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "all"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

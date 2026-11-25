@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-source-clock-current"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "Both current synthetic entries settle on the same physical time before the reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

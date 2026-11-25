@@ -1,0 +1,11 @@
+id = "assumed-double-repeated-stopping-source-clock-earlier-failure"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "An earlier optional remake failure prevents the repeated current source from requesting a reread."
+provenance = "Original rmake fixture checked against the pinned GNU Make source restart profile."
+args = ["-rR", "--no-print-directory", "-j1", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

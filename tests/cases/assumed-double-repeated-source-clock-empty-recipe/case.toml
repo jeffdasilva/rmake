@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-source-clock-empty-recipe"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "Successful empty recipes in ordinary mode settle both synthetic entries on physical time."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

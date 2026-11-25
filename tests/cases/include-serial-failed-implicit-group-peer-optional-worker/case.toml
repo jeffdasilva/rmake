@@ -1,0 +1,12 @@
+id = "include-serial-failed-implicit-group-peer-optional-worker"
+requirement = "includes.remake"
+candidate = "required"
+description = "A required peer retains the observed failed clock when an optional worker owns the prerequisite visit."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile worker.inc payload.mk\nREMAKE:payload.other:trigger\nREAD:1:new:Makefile worker.inc payload.mk\nALL:new:1\nVALUE := new\n"
+stderr = "Makefile:9: Failed to remake makefile 'payload.mk'.\n"

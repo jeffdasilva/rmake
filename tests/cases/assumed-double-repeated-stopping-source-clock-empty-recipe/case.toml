@@ -1,0 +1,11 @@
+id = "assumed-double-repeated-stopping-source-clock-empty-recipe"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "Both empty synthetic recipes preserve the physical source time before rereading."
+provenance = "Original rmake fixture checked against the pinned GNU Make source restart profile."
+args = ["-rR", "--no-print-directory", "-j1", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

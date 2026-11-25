@@ -1,0 +1,10 @@
+id = "assumed-double-stopping-query-first-verdict-control"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+description = "A pure query with a single synthetic branch returns the actual query verdict."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""

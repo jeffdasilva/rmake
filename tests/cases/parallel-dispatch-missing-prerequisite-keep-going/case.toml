@@ -1,0 +1,12 @@
+id = "parallel-dispatch-missing-prerequisite-keep-going"
+requirement = "parallel.dispatch-failure"
+candidate = "required"
+description = "An unlaunched prerequisite leaves its parent waiting before the keep-going revisit."
+provenance = "Original rmake fixture with independently observed GNU Make 4.4.1 streams and status."
+args = ["-rR", "--no-print-directory", "--debug=v", "-j", "-k"]
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\n Considering target file 'child'.\n  File 'child' does not exist.\n Finished prerequisites of target file 'child'.\n Must remake target 'child'.\nmake: ./missing-program: No such file or directory\n Recipe of 'child' is being run.\nThe prerequisites of 'all' are being made.\nmake: *** [Makefile:2: child] Error 127\nConsidering target file 'all'.\n File 'all' does not exist.\n Considering target file 'child'.\n Recently tried and failed to update file 'child'.\nFinished prerequisites of target file 'all'.\nGiving up on target file 'all'.\nmake: Target 'all' not remade because of errors.\n"
+stderr = ""

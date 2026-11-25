@@ -252,13 +252,41 @@ static SCM convert_scalar(SCM value) {
         return scalar_text(value);
     return scm_call_1(converter, value);
 }
+static SCM queue_active_pairs_restore(SCM work, SCM active_pairs) {
+    return scm_cons(scm_cons(SCM_UNDEFINED, active_pairs), work);
+}
 static SCM queue_conversion_child(SCM work, SCM child, int native_link, SCM *active_pairs) {
     /* A link created by a callback starts a separate structural ancestry. */
     if (!native_link) {
-        work = scm_cons(scm_cons(SCM_UNDEFINED, *active_pairs), work);
+        work = queue_active_pairs_restore(work, *active_pairs);
         *active_pairs = SCM_BOOL_F;
     }
     return scm_cons(scm_cons(SCM_BOOL_F, child), work);
+}
+static int native_cycle_broken(SCM work, SCM repeated, SCM follow_tail, SCM leave_pair) {
+    SCM child = repeated;
+    int broken = 0;
+    /* Each pending continuation names the parent and the slot just visited.
+     * A restore frame ends the current structural ancestry. */
+    for (; scm_is_pair(work); work = scm_cdr(work)) {
+        SCM item = scm_car(work);
+        SCM phase = scm_car(item);
+        SCM parent = scm_cdr(item);
+        if (!scm_is_pair(parent))
+            return 0;
+        SCM link;
+        if (scm_is_eq(phase, follow_tail))
+            link = scm_car(parent);
+        else if (scm_is_eq(phase, leave_pair))
+            link = scm_cdr(parent);
+        else
+            return 0;
+        broken |= !scm_is_eq(link, child);
+        if (scm_is_eq(parent, repeated))
+            return broken;
+        child = parent;
+    }
+    return 0;
 }
 static SCM object_text(SCM value) {
     const int native_root = scm_is_pair(value);
@@ -320,8 +348,12 @@ static SCM object_text(SCM value) {
         if (first || scm_is_true(scm_call_1(conversion_is_pair, current))) {
             if (scm_is_false(active_pairs))
                 active_pairs = scm_make_hash_table(scm_from_int(31));
-            else if (scm_is_true(scm_hashq_get_handle(active_pairs, current)))
-                scm_misc_error("guile", "circular value conversion", SCM_EOL);
+            else if (scm_is_true(scm_hashq_get_handle(active_pairs, current))) {
+                if (!native_cycle_broken(work, current, follow_tail, leave_pair))
+                    scm_misc_error("guile", "circular value conversion", SCM_EOL);
+                work = queue_active_pairs_restore(work, active_pairs);
+                active_pairs = scm_make_hash_table(scm_from_int(31));
+            }
             // Keep the tail from before the predicate and head conversion.
             scm_hashq_set_x(active_pairs, current, original_cdr);
             work = scm_cons(scm_cons(follow_tail, current), work);

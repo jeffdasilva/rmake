@@ -1,0 +1,12 @@
+id = "include-serial-failed-implicit-group-peer-removed-after-visit"
+requirement = "includes.remake"
+candidate = "required"
+description = "A peer settled with a new time still triggers the reread after a later source removes it."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:0:old:Makefile worker.inc payload.mk tail.inc\nREMAKE:payload.other:trigger\nTAIL\nREAD:1::Makefile worker.inc tail.inc\n"
+stderr = "make: *** [Makefile:15: payload.other] Error 1\nMakefile:8: Failed to remake makefile 'worker.inc'.\nMakefile:9: Failed to remake makefile 'payload.mk'.\nMakefile:9: payload.mk: No such file or directory\nmake: *** No rule to make target 'payload.mk'.\nMakefile:9: Failed to remake makefile 'payload.mk'.\n"

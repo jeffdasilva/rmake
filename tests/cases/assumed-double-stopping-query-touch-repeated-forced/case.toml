@@ -1,0 +1,10 @@
+id = "assumed-double-stopping-query-touch-repeated-forced"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+description = "Two forced recipes run and leave the chosen physical timestamp."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q", "-t", "-W", "b.mk", "-W", "./b.mk", "b.mk", "check-clock"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

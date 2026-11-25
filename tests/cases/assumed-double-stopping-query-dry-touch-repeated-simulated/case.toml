@@ -1,0 +1,10 @@
+id = "assumed-double-stopping-query-dry-touch-repeated-simulated"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+description = "Both simulated touch branches preserve the original physical clock."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q", "-n", "-t", "-W", "b.mk", "-W", "./b.mk", "b.mk", "check-clock"]
+
+[expected]
+exit_code = 0
+stdout = "if test b.mk -nt stable; then printf 'before=touched\\n'; else printf 'before=original\\n'; fi >> proof; touch -r stable b.mk\ntouch b.mk\nif test b.mk -nt stable; then printf 'before=touched\\n'; else printf 'before=original\\n'; fi >> proof; touch -r stable b.mk\ntouch b.mk\ntest \"$(stat -c %y b.mk)\" = \"$(stat -c %y stable)\" && printf 'physical=original\\n' >> proof\n"
+stderr = ""

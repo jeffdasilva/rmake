@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-named-dry-reverse-control"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "Naming the dot-prefixed operand first leaves one current synthetic entry."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "./b.mk", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

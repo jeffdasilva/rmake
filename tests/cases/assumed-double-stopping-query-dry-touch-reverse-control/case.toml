@@ -1,0 +1,10 @@
+id = "assumed-double-stopping-query-dry-touch-reverse-control"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+description = "A dot-prefixed first operand keeps one simulated touch during the source pass."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q", "-n", "-t", "-W", "./b.mk", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "touch b.mk\n"
+stderr = ""
