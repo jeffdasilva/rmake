@@ -556,10 +556,14 @@ mod tests {
                 .plan_implicit_update(b"marker.out", 0, true, None)
                 .unwrap()
                 .unwrap();
-            for name in children {
-                assert!(!engine.database_implicit.contains(name.as_bytes()));
+            for (index, name) in children.iter().enumerate() {
+                assert_eq!(
+                    engine.database_implicit.contains(name.as_bytes()),
+                    index + 1 < children.len(),
+                    "{rules}: {name}",
+                );
             }
-            engine.install_implicit_plan(b"marker.out", plan, false);
+            engine.install_implicit_plan(plan, ImplicitPlacement::Root);
             for name in std::iter::once("marker.out").chain(children.iter().copied()) {
                 let snapshot = engine
                     .database_file(
@@ -595,6 +599,31 @@ mod tests {
     }
 
     #[test]
+    fn rejected_ancestor_keeps_the_children_of_an_accepted_intermediate() {
+        let mut engine = engine();
+        engine
+            .database
+            .read(
+                b"marker.in: ;\n\
+                  %.out: %.tmp %.absent ;\n%.tmp: %.mid ;\n%.mid: marker.in ;\n",
+                b"Makefile",
+            )
+            .unwrap();
+        assert!(
+            engine
+                .plan_implicit_update(b"marker.out", 0, true, None)
+                .unwrap()
+                .is_none()
+        );
+        let descendant = b"marker.mid".as_slice();
+        assert!(engine.database_implicit.contains(descendant));
+        assert!(engine.record_is_target(descendant));
+        assert!(engine.file_traversals.outcome(descendant).is_none());
+        assert!(!engine.record_is_target(b"marker.tmp"));
+        assert!(!engine.record_is_target(b"marker.out"));
+    }
+
+    #[test]
     fn detached_implicit_root_keeps_its_branch_marker_separate_from_children() {
         let mut engine = engine();
         engine
@@ -611,7 +640,7 @@ mod tests {
             .unwrap();
         assert!(
             engine
-                .install_implicit_plan(b"marker.out", plan, true)
+                .install_implicit_plan(plan, ImplicitPlacement::DoubleColonRoot)
                 .is_some()
         );
         assert!(engine.database_implicit.contains(b"marker.mid".as_slice()));

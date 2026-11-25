@@ -1,0 +1,12 @@
+id = "implicit-accepted-descendant-outer-accept"
+requirement = "resolution.shared-implicit-owner"
+candidate = "required"
+description = "Outer acceptance replaces the inner inferred rule while retaining the latest scope metadata and hidden prerequisites"
+provenance = "Original rmake fixture independently authored against GNU 4.4.1; no upstream implementation or test material used."
+args = ["-rR","--no-print-directory","a.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child|a.mid|a.in|a.in|a.in||2|rRs --no-print-directory --warn-undefined-variables\nbridge|a.tmp|a.mid\nouter|a.out|a.mid a.tmp\n"
+stderr = ""

@@ -1,0 +1,12 @@
+id = "implicit-accepted-descendant-rejected-ancestor"
+requirement = "resolution.shared-implicit-owner"
+candidate = "required"
+description = "A later goal uses a published descendant even after the outer rule fails"
+provenance = "Original rmake fixture independently authored against GNU 4.4.1; no upstream implementation or test material used."
+args = ["-krR","--no-print-directory","a.out","a.mid"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "child|a.mid|a.in\n"
+stderr = "make: *** No rule to make target 'a.out'.\n"
