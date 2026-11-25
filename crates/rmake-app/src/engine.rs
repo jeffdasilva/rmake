@@ -39,6 +39,7 @@ use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
 use std::process::Command;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 type FilesystemRuntime = rmake_linux::filesystem::Runtime<crate::output::Controller>;
@@ -1329,6 +1330,8 @@ struct ImplicitSearchSession {
 struct PublishedImplicit {
     declaration: Option<Rule>,
     scope_revision: usize,
+    declaration_revision: u64,
+    pattern_bindings: HashSet<Arc<[u8]>>,
 }
 
 struct PendingImplicitRoot {
@@ -8679,7 +8682,7 @@ impl Engine {
     fn publish_implicit_children(
         &mut self,
         parent: &ImplicitSelection,
-        children: Vec<ImplicitSelection>,
+        mut children: Vec<ImplicitSelection>,
         published: &mut HashMap<Vec<u8>, PublishedImplicit>,
         placement: ImplicitPlacement,
     ) {
@@ -8725,10 +8728,7 @@ impl Engine {
             self.database
                 .explicit_names
                 .extend(child.explicit_names.iter().cloned());
-        }
-        let mut attached = HashSet::new();
-        for mut child in children {
-            let retained = published.entry(child.name.clone()).or_insert_with(|| {
+            published.entry(child.name.clone()).or_insert_with(|| {
                 let declaration = self.database.rules.get(&child.name).map(|rule| Rule {
                     dependencies: rule.dependencies.clone(),
                     secondary: rule.secondary.clone(),
@@ -8739,15 +8739,43 @@ impl Engine {
                     ..PublishedImplicit::default()
                 }
             });
-            // The latest preparation retains its effects even when an earlier
-            // selection supplies the rule.
-            if let Some(scope) = child.prepared_scope.take()
-                && scope.revision > retained.scope_revision
-            {
+        }
+        // Candidate inputs are entered in reverse order. The first selection
+        // supplies the pattern table after earlier entries have merged names.
+        // Keep runtime metadata separately because it follows expansion order.
+        for child in children.iter_mut().rev() {
+            let Some(mut scope) = child.prepared_scope.take() else {
+                continue;
+            };
+            let retained = published.get_mut(&child.name).expect("registered child");
+            let declaration_revision = self.database.target_declaration_revision(&child.name);
+            if retained.declaration_revision != declaration_revision {
+                // A named declaration reconnects the file's active pattern
+                // table, replacing the table used by previous merges.
+                retained.declaration_revision = declaration_revision;
+                retained.pattern_bindings.clear();
+                if let Some(pattern) = self
+                    .implicit_scopes
+                    .get(&child.name)
+                    .and_then(|active| active.pattern.as_ref())
+                {
+                    retained.pattern_bindings.extend(pattern.binding_names());
+                }
+            }
+            if let Some(pattern) = &mut scope.pattern {
+                pattern.retain_unmerged_bindings(&mut retained.pattern_bindings);
+            }
+            if scope.revision > retained.scope_revision {
                 retained.scope_revision = scope.revision;
                 self.implicit_scopes.insert(child.name.clone(), *scope);
+            } else if let Some(active) = self.implicit_scopes.get_mut(&child.name) {
+                active.pattern = scope.pattern;
             }
+        }
+        let mut attached = HashSet::new();
+        for child in children {
             if attached.insert(child.name.clone()) {
+                let retained = &published[&child.name];
                 self.attach_implicit_selection(
                     child,
                     ImplicitPlacement::Descendant,

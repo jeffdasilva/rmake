@@ -1,0 +1,12 @@
+id = "implicit-pattern-owner-named-refresh"
+requirement = "resolution.shared-implicit-owner"
+candidate = "required"
+description = "A named assignment refreshes the selected intermediate's pattern table."
+provenance = "Original rmake fixture independently authored against GNU 4.4.1."
+args = ["-rR", "--no-print-directory", "a.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "fixed|x|fixed|x|3\n"
+stderr = ""
