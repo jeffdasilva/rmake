@@ -3822,6 +3822,7 @@ impl Engine {
             self.parallel_makefile_remakes = parallel_remakes && !check_primary_before_overlap;
             let mut loaded_prerequisite_times = HashMap::new();
             if !parallel_remakes {
+                let has_implicit_recipes = !self.database.database_implicit_rules().is_empty();
                 for (source_index, (makefile, skip)) in read_files.iter().enumerate() {
                     let name = makefile.name.as_slice();
                     if !skip
@@ -3839,14 +3840,20 @@ impl Engine {
                             && !modes.active()
                             && self.assumptions.is_none()
                             && !self.special(b".PHONY", name, false)
-                            && self.database.rules.get(name).is_some_and(|rule| {
-                                rule.double_colon.is_none()
-                                    && rule.grouped_targets().is_none()
-                                    && rule.implicit_pattern.is_none()
-                                    && rule.recipes.is_some()
-                            })
                         {
-                            loaded_prerequisite_times.insert(name, time);
+                            let needs_implicit_recipe =
+                                self.database.rules.get(name).map_or(Some(true), |rule| {
+                                    (rule.double_colon.is_none()
+                                        && rule.grouped_targets().is_none()
+                                        && rule.implicit_pattern.is_none())
+                                    .then_some(rule.recipes.is_none())
+                                });
+                            if let Some(needs_implicit_recipe) = needs_implicit_recipe
+                                && (!needs_implicit_recipe || has_implicit_recipes)
+                            {
+                                loaded_prerequisite_times
+                                    .insert(name, (time, needs_implicit_recipe));
+                            }
                         }
                     }
                 }
@@ -4047,8 +4054,8 @@ impl Engine {
                 // A previous source can have remade this prerequisite.
                 // Preserve the settled clock even if a later recipe retimed
                 // the file before its own source visit.
-                let cached_prerequisite_change =
-                    loaded_prerequisite_times.get(name).and_then(|&time| {
+                let cached_prerequisite_change = loaded_prerequisite_times.get(name).and_then(
+                    |&(time, needs_implicit_recipe)| {
                         let cached = self.file_traversals.outcome(name)?;
                         (self.aliases.resolve(name) == name
                             && !self.pending(name)
@@ -4060,9 +4067,15 @@ impl Engine {
                             && !cached.fatal
                             && !cached.question_outdated
                             && cached.ran
-                            && cached.completion == CompletionTime::Refresh)
-                            .then_some(cached.time != Some(time))
-                    });
+                            && cached.completion == CompletionTime::Refresh
+                            && (!needs_implicit_recipe
+                                || self.database.rules.get(name).is_some_and(|rule| {
+                                    rule.implicit_pattern.is_some()
+                                        && rule.grouped_targets().is_none()
+                                })))
+                        .then_some(cached.time != Some(time))
+                    },
+                );
                 // Keep the existing snapshot for recorded rules. A makefile
                 // without a rule uses the timestamp of its first graph visit.
                 let mut before = if failed_opens.contains(name) {

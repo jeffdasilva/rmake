@@ -1,0 +1,12 @@
+id = "include-serial-cached-implicit-source-include-search"
+requirement = "includes.remake"
+candidate = "required"
+description = "A cached inherited recipe retains the clock of its include-directory source and its GPATH input."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-I", "inc", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile worker.inc inc/payload.mk\nREMAKE:inc/payload.mk:inputs/trigger\nWORKER:inc/payload.mk\nREAD:1:new:Makefile worker.inc inc/payload.mk\nALL:new:1\nVALUE := new\n"
+stderr = ""
