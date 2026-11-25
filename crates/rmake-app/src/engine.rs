@@ -4864,6 +4864,7 @@ impl Engine {
             if stopped || changed || failed || self.shutdown.get() != Shutdown::Running {
                 self.wait_all_jobs();
             }
+            let settled_in_ordinary_mode = !MakefileModes::from_options(&self.options).active();
             self.set_makefile_modes(modes);
             self.options.always = always;
             self.output.set_debug_mask(debug_before_remake);
@@ -4962,7 +4963,7 @@ impl Engine {
             if !changed
                 && parallel_remakes
                 && !modes.active()
-                && !MakefileModes::from_options(&self.options).active()
+                && settled_in_ordinary_mode
                 && restarts == 0
                 && self.assumptions.is_some()
                 && self.parallel_jobs.is_empty()
