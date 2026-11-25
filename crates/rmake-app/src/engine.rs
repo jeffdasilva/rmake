@@ -4959,6 +4959,22 @@ impl Engine {
                 }
             }
             changed |= assumed_remake_changed && !assumed_remake_blocked && !unsuccessful_remake;
+            if !changed
+                && parallel_remakes
+                && !modes.active()
+                && restarts == 0
+                && self.assumptions.is_some()
+                && self.parallel_jobs.is_empty()
+                && !unsuccessful_remake
+                && !skipped_required_read
+                && !remake_question
+            {
+                changed = self.settled_parallel_assumed_source_has_new_clock(
+                    &read_files,
+                    &visited,
+                    named_sources.as_ref(),
+                );
+            }
             changed |= grouped_changes
                 .as_ref()
                 .is_some_and(SerialGroupedRemakeChanges::changed);
@@ -11523,6 +11539,44 @@ impl Engine {
                         })
                 })
             })
+    }
+
+    fn settled_parallel_assumed_source_has_new_clock(
+        &self,
+        read_files: &[(Makefile, bool)],
+        visited: &MakefileVisits<'_>,
+        named_sources: Option<&HashSet<&[u8]>>,
+    ) -> bool {
+        // A source can settle on the second visit after its order-only
+        // prerequisites finish. Its own completion preserves the clock
+        // even when a prerequisite ran a recipe.
+        read_files.iter().any(|(source, skip)| {
+            let name = source.name.as_slice();
+            let target = self.aliases.resolve(name);
+            let Some(before) = visited.get(name).and_then(|(before, _)| *before) else {
+                return false;
+            };
+            !*skip
+                && !source.missing
+                && self.is_makefile_goal(
+                    rmake_core::filenames::without_dot_prefix(name),
+                    named_sources,
+                )
+                && self
+                    .assumed_new_double_colon_entries(target)
+                    .is_some_and(|(_, count)| count == 1)
+                && self.file_traversals.outcome(target).is_some_and(|outcome| {
+                    outcome.terminal_verdict().is_none()
+                        && !outcome.fatal
+                        && matches!(
+                            outcome.completion,
+                            CompletionTime::Unchanged | CompletionTime::Preserve
+                        )
+                        && outcome.time == Some(before)
+                })
+                && self.modified(target) == Some(before)
+                && self.settled_assumed_new_makefile_clock(target, false)
+        })
     }
 
     fn failed_remake_has_updated_assumed_source(

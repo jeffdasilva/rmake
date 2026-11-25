@@ -82,6 +82,57 @@ class HeldModel:
     stock_second_worker: str | None = None
 
 
+def assumed_current_source_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    results = []
+    same_clock = b'clock-1000000000 1000000000\n'
+    changed_clock = b'clock-1000000001 1000000000\n'
+    for context, transport in (
+        ('current', 'pipe'), ('current', 'fifo'), ('unassumed', 'pipe'),
+        ('optional-failure', 'fifo'), ('physical', 'pipe'),
+    ):
+        assumed = context != 'unassumed'
+        worker_mode = {'optional-failure': 'fail', 'physical': 'include'}.get(context, 'quiet')
+        source = (
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            '$(file >>seen,clock-$(shell stat -c %Y left.gen b.mk))\n'
+            '-include left.gen b.mk\n'
+            'ifeq ($(MAKE_RESTARTS),)\n'
+            f'left.gen: left.seed ; @python3 worker.py left {worker_mode}\n'
+            'right: ; @python3 worker.py right quiet\n'
+            'else\n'
+            'left.gen: ;\n'
+            'right: ;\n'
+            'endif\n'
+            'b.mk:: | right stable ; @false\n'
+            '.SECONDEXPANSION:\n'
+            '%.mk: b.seed $$(file >>seen,search-$$(or $$(MAKE_RESTARTS),0)) ;\n'
+        )
+        files = {'Makefile': source.encode(), 'seen': ANCHOR, 'worker.py': worker,
+                 'left.gen': b'# loaded\n', 'b.mk': b'# loaded\n', 'left.seed': b'new\n',
+                 'b.seed': b'old\n', 'stable': b'current\n'}
+        mtimes = dict.fromkeys(files, INPUT_TIME)
+        mtimes.update({'left.seed': INPUT_TIME + 2_000_000_000,
+                       'b.seed': INPUT_TIME - 1_000_000_000})
+        before_first = BEFORE_FIRST + same_clock
+        before_second = before_first + b'right\n' + (b'search-0\n' if assumed else b'')
+        seen = before_second + b'left\n'
+        updates = markers.copy()
+        if context in ('current', 'physical'):
+            seen += b'read-1\n' + (changed_clock if context == 'physical' else same_clock) + b'search-1\n'
+        if context == 'physical':
+            updates['left.gen'] = b'LEFT := loaded\n'
+        args = ('-rR', '--no-print-directory', '-j2', '-k', f'--jobserver-style={transport}')
+        if assumed:
+            args += ('-W', 'b.mk')
+        stdout = (b'left\n' if context == 'optional-failure' else b'') + b"make: 'b.mk' is up to date.\n"
+        expected = {'exit_code': 0, 'stdout_template_hex': stdout.hex(), 'stderr_template_hex': ''}
+        model = debug.Model(f'assumed-source-clock-{context}-{transport}', files, (*args, 'b.mk'),
+                            {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=mtimes)
+        results.append(HeldModel(model, True, before_second, before_first=before_first,
+                                 before_second_stdout=b'', release_order=('right', 'left')))
+    return results
+
+
 def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list[HeldModel]:
     worker = (SOURCES / 'worker.py').read_bytes()
     markers = {f'{name}.{suffix}': content for name in WORKERS
@@ -159,6 +210,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
                                  ('-order-only-prerequisite', '| primer')):
         results += grouped_optional_mode_models(worker, markers, suffix, prerequisite)
     results += named_source_mode_models(worker, markers)
+    results += assumed_current_source_models(worker, markers)
     results += parallel_named_mode_models(worker, markers)
     results += primary_named_mode_models(worker, markers)
     results += primary_named_group_models(worker, markers)
