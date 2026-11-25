@@ -75,6 +75,11 @@ while time.monotonic() < deadline:
                 and available() == 1):
             events.append('one-byte-after-config-before-a-release')
             Path('a.release').touch(exist_ok=False)
+    elif mode == 'held-dispatch':
+        if (not events and Path('a.ready').exists() and available() == 1
+                and b'make: *** [Makefile:6: b] Error 127\n' in errors):
+            events.append('one-byte-after-dispatch-before-a-release')
+            Path('a.release').touch(exist_ok=False)
     elif mode in ('body-abort', 'config-abort', 'continuation-abort'):
         if mode == 'continuation-abort' and not events and Path('b.held').exists():
             events.append(f'bytes-before-b-release={available()}')

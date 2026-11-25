@@ -338,6 +338,24 @@
       },
       "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
       "seed": "2b"
+    },
+    {
+      "id": "failed-dispatch-during-held-worker",
+      "mode": "held-dispatch",
+      "args": [],
+      "makefile": ".SECONDEXPANSION:\n.PHONY: all a b\nall: a b tail\na:\n\t@./witness a\nb: ; @./missing-program\ntail: $$(file >b.phase,secondary)\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "make: ./missing-program: No such file or directory\nmake: *** [Makefile:6: b] Error 127\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "secondary\n"
+      },
+      "observer": "one-byte-after-dispatch-before-a-release\nfinal-count=1\nreturned=2b\n",
+      "seed": "58"
     }
   ]
 }

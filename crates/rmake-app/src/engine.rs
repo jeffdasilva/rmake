@@ -7165,8 +7165,10 @@ impl Engine {
         block: bool,
         additional: Option<std::os::fd::RawFd>,
     ) -> io::Result<bool> {
-        if block && self.complete_failed_dispatch() {
-            return Ok(true);
+        if self.failed_dispatch.is_some() {
+            // Graph-only polls must leave the failed dispatch ahead of the
+            // real worker, including when that worker has already exited.
+            return Ok(block && self.complete_failed_dispatch());
         }
         let children = self.parallel_child_handles();
         if children.is_empty() && additional.is_none() {
@@ -7599,7 +7601,10 @@ impl Engine {
         let Some((target, identity)) = self.failed_dispatch.take() else {
             return false;
         };
-        if self.shutdown.get() == Shutdown::Running {
+        let shutdown = self.shutdown.get();
+        let drain_has_worker = shutdown == Shutdown::Draining
+            && self.parallel_jobs.values().any(|job| job.child.is_some());
+        if shutdown == Shutdown::Running || drain_has_worker {
             self.complete_job((target, identity, JobCompletion::FailedDispatch), false);
         } else {
             // A later graph error drains real workers only. The launch errno
@@ -7623,6 +7628,7 @@ impl Engine {
             JobCompletion::FailedDispatch => (None, true),
             JobCompletion::LoadReady => (None, false),
         };
+        let already_draining = self.graph_abort.is_some();
         let output = job.continuation.output.clone();
         let debug_job = job.continuation.debug_job.clone();
         if let Some(result) = &result {
@@ -7857,7 +7863,9 @@ impl Engine {
                 .entry(target.clone())
                 .or_default();
         }
-        self.record_graph_failure(outcome);
+        if !failed_dispatch {
+            self.record_graph_failure(outcome);
+        }
         if !pending && !outcome.completion.preserves() {
             self.release_assumed_new(&target);
         }
@@ -7880,13 +7888,28 @@ impl Engine {
             self.finish_group(&target, outcome);
         }
         if !outcome.fatal {
+            let failed_dispatch_paid = failed_dispatch
+                && completed_permit
+                    .as_ref()
+                    .is_some_and(|permit| !permit.is_implicit())
+                && rmake_linux::signals::pending().is_none();
             self.release_completed_permit(completed_permit);
+            if failed_dispatch_paid && let Some(record) = debug_job.as_ref() {
+                crate::debug::Jobs::released(self.output.debug_mask(), record);
+            }
         }
         self.finish_debug_job(debug_job.as_ref());
         self.reuse_implicit_job_slot(!outcome.fatal);
+        if failed_dispatch {
+            // Return the pidless dispatch's paid slot before starting a
+            // stopping drain. That drain will scan the real worker.
+            self.record_graph_failure(outcome);
+        }
         // A blocking reap scans a continued command at its next wait. A
         // completed recipe or a token or poll wake still reports its scan here.
-        if !blocking_reap || !continued {
+        let starts_dispatch_drain =
+            failed_dispatch && !already_draining && self.graph_abort.is_some();
+        if !starts_dispatch_drain && (!blocking_reap || !continued) {
             self.job_debug.live(self.output.debug_mask());
         }
         if command_question {
@@ -12593,11 +12616,12 @@ impl Engine {
         if waiting {
             if !state.waited_for_prerequisites || replay_debug {
                 state.waited_for_prerequisites = true;
-                let aborted_required_remake = self.graph_abort.is_some()
-                    && self.remaking
-                    && self.parallel_makefile_remakes
-                    && !self.optional_remake();
-                if !aborted_required_remake {
+                let aborted_pending_recipe = self.graph_abort.is_some()
+                    && (self.failed_dispatch.is_some()
+                        || (self.remaking
+                            && self.parallel_makefile_remakes
+                            && !self.optional_remake()));
+                if !aborted_pending_recipe {
                     crate::debug::emit(
                         &self.output,
                         crate::debug::Event::PrerequisitesRunning(target, debug_depth),
@@ -14883,8 +14907,8 @@ impl Engine {
             );
             self.retain_database_context(target, branch, variables);
             // An ordinary parallel executable lookup failure still occupies its
-            // recipe's graph frame until the next dispatch or goal sweep. Keep
-            // this path to a first attempt with no previously admitted job.
+            // recipe's graph frame until the next dispatch or goal sweep.
+            // This first attempt can coexist with one ordinary real worker.
             let failed_dispatch = parallel
                 && !self.remaking
                 && remake.is_none()
@@ -14892,7 +14916,6 @@ impl Engine {
                 && !flow.retained_owner()
                 && !flow.failed_launch()
                 && !(self.options.dry_run || self.options.question || self.options.touch)
-                && self.parallel_jobs.is_empty()
                 && process.as_ref().is_err_and(|error| {
                     matches!(
                         error.kind(),
@@ -14900,7 +14923,13 @@ impl Engine {
                             | io::ErrorKind::PermissionDenied
                             | io::ErrorKind::NotADirectory
                     )
-                });
+                })
+                && (self.parallel_jobs.is_empty()
+                    || (self.parallel_jobs.len() == 1
+                        && self
+                            .parallel_jobs
+                            .values()
+                            .any(|job| job.child.is_some() && job.continuation.remake.is_none())));
             if failed_dispatch && let Err(error) = &process {
                 self.stderr(&[program.as_slice(), b": ", os_error(error).as_bytes()].concat());
             }
@@ -14924,6 +14953,7 @@ impl Engine {
                 let identity = self.next_job;
                 self.next_job = self.next_job.wrapping_add(1);
                 if failed_dispatch {
+                    debug_assert!(self.failed_dispatch.is_none());
                     self.failed_dispatch = Some((target.to_vec(), identity));
                 }
                 self.parallel_jobs.insert(
