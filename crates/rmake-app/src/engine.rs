@@ -1233,6 +1233,7 @@ struct GroupState {
     recipe_rule: Rule,
     peer_segments: Vec<GroupSegment>,
     peer_targets: std::collections::VecDeque<(Vec<u8>, usize)>,
+    query_skipped_dependencies: HashSet<usize>,
     // Dependency-order ranges skipped at blocked peer barriers.
     wait_frontiers: Vec<std::ops::Range<usize>>,
     frontiers_enabled: bool,
@@ -11505,6 +11506,7 @@ impl Engine {
                     ordinal: rule.grouped_double_ordinal(),
                 }],
                 peer_targets,
+                query_skipped_dependencies: HashSet::new(),
                 wait_frontiers: Vec::new(),
                 frontiers_enabled: rule.grouped_double_id().is_some()
                     || rule
@@ -11877,7 +11879,25 @@ impl Engine {
             group_waiting |= pending;
             merge_child(&mut state.outcome, child);
             let deferred = child.deferred_spawn_failure && self.optional_remake();
-            if child.fatal
+            if state.outcome.question_outdated
+                && !child.fatal
+                && !self.forced_query_stop
+                && !self.options.keep_going
+                && !self.parallel_graph()
+                && let Some(group) = state.group.as_mut()
+                && group.run.ordinary
+                && !group.run.implicit
+                && group.run.double_colon.is_none()
+            {
+                // A serial query verdict ends this member's prerequisite scan.
+                // Each remaining grouped member still starts its own scan.
+                let end = state.rule.dependencies.len();
+                group.query_skipped_dependencies.extend(
+                    (state.next..end)
+                        .map(|position| state.order.get(position).copied().unwrap_or(position)),
+                );
+                state.next = end;
+            } else if child.fatal
                 || (((child.failed && !deferred) || child.question_outdated)
                     && !self.options.keep_going)
             {
@@ -11959,6 +11979,13 @@ impl Engine {
         index: usize,
         visit: PrerequisiteVisit,
     ) -> (Outcome, bool) {
+        if state
+            .group
+            .as_ref()
+            .is_some_and(|group| group.query_skipped_dependencies.contains(&index))
+        {
+            return (Outcome::default(), false);
+        }
         let first = visit == PrerequisiteVisit::First;
         if let Some((epoch, outcome)) = state.inspections.get(&index)
             && *epoch == self.graph_epoch
@@ -12312,7 +12339,12 @@ impl Engine {
         let mut newer = Vec::new();
         for (index, occurrence) in rule.dependencies.iter().enumerate() {
             let dependency = &occurrence.name;
-            if dependency == b".WAIT" || dropped.contains(dependency) {
+            if dependency == b".WAIT"
+                || dropped.contains(dependency)
+                || group
+                    .as_ref()
+                    .is_some_and(|group| group.query_skipped_dependencies.contains(&index))
+            {
                 continue;
             }
             if !self.remake_stopped() {

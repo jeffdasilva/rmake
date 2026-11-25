@@ -1,0 +1,11 @@
+id = "grouped-query-expands-and-runs-first-peer-edge"
+requirement = "rules.grouped"
+candidate = "required"
+description = "A later grouped member expands prerequisites and can run its first forced edge."
+provenance = "Original rmake fixture independently checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "-q", "a"]
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""

@@ -1,0 +1,11 @@
+id = "grouped-query-reports-missing-first-peer-edge"
+requirement = "rules.grouped"
+candidate = "required"
+description = "A missing first prerequisite of a grouped peer changes the query exit status."
+provenance = "Original rmake fixture independently checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "-q", "a"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'd', needed by 'a'.  Stop.\n"
