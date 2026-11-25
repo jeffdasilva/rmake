@@ -97,6 +97,25 @@ filesystem and record their observed properties. Immutable runtime images and
 complete filesystem and network isolation are
 [open test infrastructure work](progress.md#open-foundation-gates).
 
+### Build on x86-64 musl
+
+Use Rust 1.90.0, a musl C compiler, and the development libraries for
+libucontext and its POSIX wrapper. Build with dynamic musl when using native
+Make modules.
+
+```sh
+RUSTFLAGS="-C target-feature=-crt-static" \
+  cargo build --locked --release --target x86_64-unknown-linux-musl
+```
+
+Set `RMAKE_UCONTEXT_LIBDIR` if the two libucontext libraries live outside the
+linker's library paths. Use the linker and library paths for the same musl
+profile. The profile experiments use [libucontext 1.5.2](https://github.com/kaniini/libucontext/releases/tag/libucontext-1.5.2).
+
+The x86-64 musl verification covers selected wildcard, file ownership, remake,
+and native setup behavior. Track broader lifecycle and locale coverage in the
+[M3/M6 audit](m3-m6-audit.md).
+
 ## How rmake checks a difference
 
 For exact comparisons, the runner resets the same temporary working directory

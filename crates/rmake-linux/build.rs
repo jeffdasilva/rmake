@@ -23,6 +23,17 @@ fn main() {
         .warnings(true)
         .warnings_into_errors(true)
         .compile("rmake_native_shim");
+    if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("musl") {
+        println!("cargo:rerun-if-env-changed=RMAKE_UCONTEXT_LIBDIR");
+        if let Some(libdir) = std::env::var_os("RMAKE_UCONTEXT_LIBDIR") {
+            println!(
+                "cargo:rustc-link-search=native={}",
+                std::path::Path::new(&libdir).display()
+            );
+        }
+        println!("cargo:rustc-link-lib=ucontext_posix");
+        println!("cargo:rustc-link-lib=ucontext");
+    }
     println!("cargo:rustc-link-lib=dl");
     println!("cargo:rustc-link-lib=m");
     println!("cargo:rustc-link-lib=pthread");

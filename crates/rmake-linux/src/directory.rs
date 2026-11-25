@@ -12,7 +12,7 @@ struct CDirectory {
     _opaque: [u8; 0],
 }
 
-// Linux/glibc dirent64 ABI, independent of the Rust File/ReadDir API.
+// The Linux 64-bit directory record layout is shared by glibc and musl.
 // Read only the fixed fields and the bounded variable record's name bytes.
 #[repr(C)]
 struct Dirent {
@@ -25,6 +25,7 @@ struct Dirent {
 
 unsafe extern "C" {
     fn opendir(path: *const c_char) -> *mut CDirectory;
+    #[cfg_attr(target_env = "musl", link_name = "readdir")]
     fn readdir64(directory: *mut CDirectory) -> *mut Dirent;
     fn closedir(directory: *mut CDirectory) -> c_int;
     fn __errno_location() -> *mut c_int;
