@@ -8572,14 +8572,26 @@ impl Engine {
             self.database.file_records.rename(from, to);
             return Ok(());
         }
-        // An unseen destination without a declaration table can adopt the
-        // completed ordinary file's whole variable table.
-        let adopt_retained_scope = self.database_contexts.contains_key(from)
+        let retained_ordinary = self.database_contexts.contains_key(from);
+        let retained_head = !retained_ordinary
+            && self.file_traversals.has_outcome(from)
             && self
                 .database
                 .rules
                 .get(from)
-                .is_none_or(|rule| rule.double_colon.is_none())
+                .is_some_and(|rule| rule.double_colon.is_some())
+            && self
+                .database_branch_contexts
+                .contains_key(&(from.to_vec(), 0));
+        // An unseen destination without a declaration table can adopt the
+        // completed file's ordinary table or declared double-colon head.
+        let adopt_retained_scope = (retained_head
+            || (retained_ordinary
+                && self
+                    .database
+                    .rules
+                    .get(from)
+                    .is_none_or(|rule| rule.double_colon.is_none())))
             && !self.database.target_scopes.contains_key(to)
             && !self.target_contexts.contains_key(to)
             && !self.database_contexts.contains_key(to)
@@ -8746,7 +8758,17 @@ impl Engine {
             .cloned()
             .collect();
         for key in branch_keys {
-            if let Some(context) = self.database_branch_contexts.remove(&key) {
+            if let Some(mut context) = self.database_branch_contexts.remove(&key) {
+                if adopt_retained_scope && retained_head && key.1 == 0 {
+                    // A named eager declaration opens the head. The saved
+                    // later branches still own their original runtime locals.
+                    context.rename_retained_file_scope(
+                        from,
+                        to,
+                        self.database.target_scopes.get(to),
+                    );
+                    self.database_contexts.insert(to.to_vec(), context.clone());
+                }
                 self.database_branch_contexts
                     .entry((to.to_vec(), key.1))
                     .or_insert(context);

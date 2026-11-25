@@ -1,0 +1,12 @@
+id = "late-gpath-double-retained-head-writeback"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Observe the saved double-colon head after the recipe creates a GPATH destination."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "head|parent|input|7\nlater|parent|other|13\nread=[parent||input|input|19|visible]\n"
+stderr = ""
