@@ -345,7 +345,7 @@ def runtime_identity(binary: Path) -> dict:
     }
 
 
-def observe(binary: Path, config: dict) -> dict:
+def observe(binary: Path, config: dict, *, runtime_observer=runtime_identity) -> dict:
     output = version_output(binary)
     require_version(output, config["version"])
     variables = probe_variables(binary)
@@ -356,17 +356,17 @@ def observe(binary: Path, config: dict) -> dict:
         raise OracleError(f"oracle feature profile mismatch: missing={sorted(missing)}, forbidden={sorted(forbidden)}")
     if variables["MAKE_VERSION"] != config["version"]:
         raise OracleError("MAKE_VERSION does not match the pinned oracle version")
-    return {"version_output": output, "variables": variables, "runtime": runtime_identity(binary)}
+    return {"version_output": output, "variables": variables, "runtime": runtime_observer(binary)}
 
 
-def create_profile(binary: Path, config: dict, build: dict) -> dict:
+def create_profile(binary: Path, config: dict, build: dict, *, runtime_observer=runtime_identity) -> dict:
     profile = {
         "schema_version": SCHEMA_VERSION,
         "oracle_version": config["version"],
         "configuration_sha256": json_digest(config),
         "source": config["archive"],
         "binary": {"relative_path": "bin/make", "sha256": sha256_file(binary)},
-        "observed": observe(binary, config),
+        "observed": observe(binary, config, runtime_observer=runtime_observer),
         "build": build,
         "scope": config["profile_scope"],
     }
@@ -375,7 +375,7 @@ def create_profile(binary: Path, config: dict, build: dict) -> dict:
 
 
 def verify(binary: Path = PREFIX / "bin" / "make", profile_path: Path = PROFILE,
-           config: dict | None = None) -> dict:
+           config: dict | None = None, *, runtime_observer=runtime_identity) -> dict:
     config = config if config is not None else load_config()
     binary = binary.absolute()
     if not binary.is_file() or not os.access(binary, os.X_OK):
@@ -399,7 +399,7 @@ def verify(binary: Path = PREFIX / "bin" / "make", profile_path: Path = PROFILE,
         if actual != profile["binary"]["sha256"]:
             raise OracleError(f"oracle binary SHA256 mismatch: expected {profile['binary']['sha256']}, got {actual}; executable was not run")
         require_version(version_output(binary), config["version"])
-        observed = observe(binary, config)
+        observed = observe(binary, config, runtime_observer=runtime_observer)
         if observed != profile["observed"]:
             changed = [key for key in observed if observed[key] != profile["observed"].get(key)]
             raise OracleError(f"oracle profile drift in {', '.join(changed)}; explicit rebuild required")

@@ -110,11 +110,14 @@ RUSTFLAGS="-C target-feature=-crt-static" \
 
 Set `RMAKE_UCONTEXT_LIBDIR` if the two libucontext libraries live outside the
 linker's library paths. Use the linker and library paths for the same musl
-profile. The profile experiments use [libucontext 1.5.2](https://github.com/kaniini/libucontext/releases/tag/libucontext-1.5.2).
+profile.
 
-The x86-64 musl verification covers selected wildcard, file ownership, remake,
-and native setup behavior. Track broader lifecycle and locale coverage in the
-[M3/M6 audit](m3-m6-audit.md).
+The [native x86-64 musl workflow](../.github/workflows/native-musl.yml) uses
+musl 1.2.4 and libucontext 1.5.2 with the Ubuntu host recipe shell. It compares
+optimized rmake with pinned GNU Make in the C locale across selected wildcard,
+shell-status, include remake, native module setup, process restart, and inherited
+jobserver pipe cases. See the [testing guide](testing.md) for the reproducible
+build and the [M3/M6 audit](m3-m6-audit.md) for broader platform coverage.
 
 ## How rmake checks a difference
 

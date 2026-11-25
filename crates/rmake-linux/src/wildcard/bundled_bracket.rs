@@ -21,9 +21,12 @@ impl Matcher {
             return host();
         };
         let class = &pattern[open + 1..];
-        // Preserve the native matcher for named classes, multiple classes and
-        // bracket contents or suffixes containing escapes.
+        // Preserve the native matcher for compound patterns and escapes
+        // other than a simple quoted hyphen.
         if class.iter().any(|&byte| matches!(byte, b'[' | b'\\')) {
+            if let Some(adjusted) = quoted_hyphen_pattern(pattern, open) {
+                return posix::Matcher::new(&adjusted).map(Self::Host);
+            }
             return host();
         }
         if let Some(caret) = class.strip_prefix(b"^")
@@ -107,6 +110,28 @@ fn first_unquoted_bracket(pattern: &[u8]) -> Option<usize> {
         index += if byte == b'\\' { 2 } else { 1 };
     }
     None
+}
+
+fn quoted_hyphen_pattern(pattern: &[u8], open: usize) -> Option<Vec<u8>> {
+    let start = open + 1;
+    let start = start + usize::from(pattern[start..].starts_with(b"!"));
+    let class = &pattern[start..];
+    let close = class.iter().position(|&byte| byte == b']')?;
+    let (members, suffix) = class.split_at(close);
+    let quote = members.iter().position(|&byte| byte == b'\\')?;
+    let [b'\\', b'-', right @ ..] = &members[quote..] else {
+        return None;
+    };
+    let left = &members[..quote];
+    if !left.iter().chain(right).all(u8::is_ascii_alphanumeric)
+        || suffix.iter().any(|&byte| matches!(byte, b'[' | b'\\'))
+    {
+        return None;
+    }
+
+    // The bundled matcher treats the quoted hyphen as a member. Put it
+    // last so the native matcher also reads it as a literal hyphen.
+    Some([&pattern[..start], left, right, b"-", suffix].concat())
 }
 
 #[cfg(test)]

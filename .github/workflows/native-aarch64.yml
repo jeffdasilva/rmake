@@ -68,6 +68,18 @@ jobs:
               --case live-eval-512-cycle-none \
               --repeat 2 --artifacts "artifacts/evaluation-aarch64/$kind"
           done
+      - name: Check C and C.UTF-8 locale behavior
+        timeout-minutes: 3
+        run: |
+          set -- --case all-c-one-flags --case all-utf8-one-flags --case recursive-all-utf8-one-read
+          python3 tools/locale_profiles.py "$@" --report artifacts/locales/aarch64-gnu2.json
+          python3 tools/locale_profiles.py "$@" --candidate target/release/rmake \
+            --report artifacts/locales/aarch64-optimized.json
+      - name: Check the pinned xxHash project
+        timeout-minutes: 5
+        run: |
+          python3 tools/integration.py --case xxhash-0.8.3 --candidate target/release/rmake \
+            --report artifacts/integration/aarch64-xxhash-optimized.json
       - name: Retain native profile and reports
         if: always()
         continue-on-error: true
@@ -79,6 +91,8 @@ jobs:
             .tools/oracle/profile.json
             artifacts/developer-flows/
             artifacts/evaluation-aarch64/
+            artifacts/locales/aarch64-*.json
+            artifacts/integration/
             artifacts/process-restarts/
             artifacts/restart-pipe/
             artifacts/native/

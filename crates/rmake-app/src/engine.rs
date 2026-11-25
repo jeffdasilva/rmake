@@ -501,7 +501,14 @@ type MakefileVisits<'a> = HashMap<&'a [u8], (Option<SystemTime>, Option<SharedIn
 struct TrailingOptionalRemake<'a> {
     required: &'a Makefile,
     neighbor: &'a [u8],
-    unruled: bool,
+    kind: TrailingOptionalKind,
+}
+
+#[derive(PartialEq, Eq)]
+enum TrailingOptionalKind {
+    Unruled,
+    Declared,
+    Missing,
 }
 
 /// State owned by one makefile update. Intermediate inspection can suppress
@@ -4115,7 +4122,7 @@ impl Engine {
                                 // before the optional source's visit.
                                 RemakeFailure::RequiredSyntheticInput => {
                                     initial_visit
-                                        && trailing.unruled
+                                        && trailing.kind == TrailingOptionalKind::Unruled
                                         && !engine.file_traversals.has_outcome(trailing.neighbor)
                                         && !engine.pending(trailing.neighbor)
                                         && engine.unruled_remake_source(trailing.neighbor)
@@ -4806,6 +4813,16 @@ impl Engine {
                     break;
                 }
                 if self.parallel_makefile_remakes && self.pending(name) {
+                    if let Some(trailing) = &trailing_optional_source
+                        && name == trailing.neighbor
+                        && self.options.keep_going
+                        && before.is_some()
+                        && !result.failed
+                        && !result.fatal
+                        && self.active_trailing_optional_remake(trailing)
+                    {
+                        self.qualify_synthetic_recipe_after_optional_read(&trailing.required.name);
+                    }
                     pending.push(PendingMakefileRemake {
                         modes: visit_modes,
                         file: makefile,
@@ -4819,16 +4836,7 @@ impl Engine {
                 if let Some(trailing) = &trailing_optional_source
                     && name == trailing.neighbor
                     && self.options.keep_going
-                    && before.is_some()
-                    && result.time == before
-                    && !result.ran
-                    && !result.fatal
-                    && result.terminal_verdict().is_none()
-                    && if trailing.unruled {
-                        self.unruled_remake_source(name)
-                    } else {
-                        !result.blocked && self.declared_optional_remake_source(name)
-                    }
+                    && self.settled_trailing_optional_remake(trailing, before, result)
                 {
                     self.qualify_synthetic_recipe_after_optional_read(&trailing.required.name);
                 }
@@ -5689,7 +5697,10 @@ impl Engine {
             self.debug_double_colon_goal_prunes(&goal, outcome);
             let deferred_query = self.queued_query_tail(&goal);
             let pending = self.pending(&goal) || deferred_query;
-            let outcome = if pending {
+            // A previous failure settles the invocation verdict. Later serial
+            // goals can still complete, and a prerequisite can observe their
+            // new timestamp when it actually consumes the file.
+            let outcome = if pending || self.defer_goal_timestamp_after_failure() {
                 outcome
             } else {
                 self.observe_updated(&goal, outcome)
@@ -8992,7 +9003,13 @@ impl Engine {
                     }
                     return Ok(Some(name));
                 }
-                if !self.has_file_record(&name) {
+                let moved_container = self.database.file_records.id(path).is_some_and(|id| {
+                    self.moved_archives
+                        .get(&id)
+                        .is_some_and(|owner| owner.original == archive)
+                });
+                // The tentative member rehash itself searches its new slot.
+                if moved_container || !self.has_file_record(&name) {
                     self.database.file_records.rehash(target, &name);
                 }
             }
@@ -9909,6 +9926,19 @@ impl Engine {
             .as_deref()
             .or(location.path.as_deref())
             .unwrap_or(archive);
+        if location.path.is_none()
+            && previous.is_some()
+            && self.database.file_records.id(path).is_some_and(|id| {
+                self.moved_archives
+                    .get(&id)
+                    .is_some_and(|owner| owner.original == archive)
+            })
+            && let Some(history) = self.database.database_history()
+        {
+            // After a local rebuild, ar_member_date looks up the retained
+            // searched container before reading the original member date.
+            history.record_file_lookup(path);
+        }
         let date = rmake_linux::archive::date(path, member)
             .map_err(|error| ExpandError::UnlocatedError(error.into_message()))?;
         let time = date
@@ -10243,6 +10273,13 @@ impl Engine {
         // The existing destination inherits the updated flag and keeps its
         // own unattempted status. Queued operands still refer to either ID.
         Some((source, destination))
+    }
+
+    fn defer_goal_timestamp_after_failure(&self) -> bool {
+        self.ordinary_queries.first_verdict == Some(Status::Failure)
+            && !self.remaking
+            && !self.parallel_graph()
+            && !MakefileModes::from_options(&self.options).active()
     }
 
     fn observe_updated(&mut self, target: &[u8], mut outcome: Outcome) -> Outcome {
@@ -12740,7 +12777,8 @@ impl Engine {
         let [(primary, false), (neighbor, false), required @ ..] = read_files else {
             return None;
         };
-        (self.optional_remake_layout(primary, neighbor, required)
+        (!neighbor.missing
+            && self.optional_remake_layout(primary, neighbor, required)
             && self.unruled_remake_source(&neighbor.name))
         .then_some(neighbor.name.as_slice())
     }
@@ -12758,14 +12796,30 @@ impl Engine {
         {
             return None;
         }
-        let unruled = self.unruled_remake_source(&neighbor.name);
-        (unruled || self.declared_optional_remake_source(&neighbor.name)).then_some(
-            TrailingOptionalRemake {
-                required: source,
-                neighbor: &neighbor.name,
-                unruled,
-            },
-        )
+        let kind = if neighbor.missing {
+            if required.len() != 1
+                || !matches!(
+                    neighbor.read_error.as_ref(),
+                    Some(IncludeError::Errno(error))
+                        if io::Error::from_raw_os_error(*error).kind() == io::ErrorKind::NotFound
+                )
+                || !self.unruled_remake_source(&neighbor.name)
+            {
+                return None;
+            }
+            TrailingOptionalKind::Missing
+        } else if self.unruled_remake_source(&neighbor.name) {
+            TrailingOptionalKind::Unruled
+        } else if self.declared_optional_remake_source(&neighbor.name) {
+            TrailingOptionalKind::Declared
+        } else {
+            return None;
+        };
+        Some(TrailingOptionalRemake {
+            required: source,
+            neighbor: &neighbor.name,
+            kind,
+        })
     }
 
     fn optional_remake_layout(
@@ -12782,7 +12836,6 @@ impl Engine {
             || primary.missing
             || primary.location.is_some()
             || !neighbor.optional
-            || neighbor.missing
             || neighbor.location.is_none()
             || !self.options.no_rules
             || self.options.load_limit.is_some()
@@ -12833,6 +12886,64 @@ impl Engine {
             })
     }
 
+    fn settled_trailing_optional_remake(
+        &self,
+        trailing: &TrailingOptionalRemake<'_>,
+        before: Option<SystemTime>,
+        result: Outcome,
+    ) -> bool {
+        if result.ran || result.fatal || result.question_outdated || result.time != before {
+            return false;
+        }
+        let name = trailing.neighbor;
+        match trailing.kind {
+            TrailingOptionalKind::Unruled => {
+                before.is_some() && !result.failed && self.unruled_remake_source(name)
+            }
+            TrailingOptionalKind::Declared => {
+                before.is_some()
+                    && !result.failed
+                    && !result.blocked
+                    && self.declared_optional_remake_source(name)
+            }
+            TrailingOptionalKind::Missing => {
+                // The optional file settled as a direct missing-rule visit.
+                // Keep that failure available to ordinary prerequisites.
+                before.is_none()
+                    && result.failed
+                    && !result.blocked
+                    && self
+                        .missing_rule_parents
+                        .get(name)
+                        .is_some_and(Option::is_none)
+                    && self.unruled_remake_source(name)
+                    && fs::symlink_metadata(os(name))
+                        .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
+            }
+        }
+    }
+
+    fn active_trailing_optional_remake(&self, trailing: &TrailingOptionalRemake<'_>) -> bool {
+        trailing.kind == TrailingOptionalKind::Declared
+            && self.parallel_jobs.len() == 2
+            && self.declared_optional_remake_source(trailing.neighbor)
+            && self
+                .parallel_jobs
+                .primary
+                .get(trailing.neighbor)
+                .is_some_and(|job| {
+                    job.child.is_some()
+                        && !job.recursive
+                        && job.continuation.branch.is_none()
+                        && job.continuation.expanded.is_empty()
+                        && job
+                            .continuation
+                            .remake
+                            .as_ref()
+                            .is_some_and(|remake| remake.optional)
+                })
+    }
+
     fn qualify_synthetic_recipe_after_optional_read(&mut self, target: &[u8]) {
         let Some(job) = self.parallel_jobs.primary.get(target) else {
             return;
@@ -12852,8 +12963,8 @@ impl Engine {
             && state.active == Some(ordinal)
             && let Some(remake) = state.remake.as_mut()
         {
-            // A final synthetic command was still pending when the trailing
-            // optional source settled without running a recipe.
+            // The final synthetic command stayed pending through the optional
+            // visit. Either child can now finish first.
             remake.use_declared_synthetic_head = true;
         }
     }
@@ -15234,6 +15345,17 @@ impl Engine {
                 }
                 outcome.search_after_update =
                     self.update_search_pending(target, phony, execution.all_recursive);
+                if !phony
+                    && !execution.pending
+                    && execution.status == Status::Success
+                    && self.defer_goal_timestamp_after_failure()
+                {
+                    // Recipe completion invalidates the logical file time
+                    // even if expansion or an optimized ':' leaves no child.
+                    self.database_unchecked_times
+                        .borrow_mut()
+                        .insert(target.to_vec());
+                }
                 outcome.deferred_spawn_failure = execution.launch_failed
                     && self.parallel_makefile_remakes
                     && self.optional_remake();

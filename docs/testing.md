@@ -34,9 +34,27 @@ the development and optimized checks, plus separate Guile checks. See the
 [CI workflow](../.github/workflows/ci.yml).
 
 The [native AArch64 job](../.github/workflows/native-aarch64.yml) uses an
-AArch64 Linux runner to check the host metadata, subprocess and restart
-behavior, native standard streams, and shared jobservers. It builds a
-separate pinned GNU Make reference on the runner.
+AArch64 Linux runner to check host metadata, subprocess and restart behavior,
+native standard streams, shared jobservers, developer workflows, and deep
+evaluation. It builds a separate pinned GNU Make reference on the runner.
+Selected C and C.UTF-8 locale cases and the pinned xxHash project compare the
+optimized build with that reference.
+
+The [native x86-64 musl job](../.github/workflows/native-musl.yml) builds
+GNU Make and optimized rmake with a private musl 1.2.4 dynamic loader.
+It compares selected C-locale wildcard, shell status, include, native
+module, process restart, and inherited jobserver pipe cases. Recipes use
+the runner's `/bin/sh`. To reproduce the smoke job on x86-64 Ubuntu 24.04
+with GCC, binutils, Make, and dpkg installed, run
+
+```sh
+python3 tools/rust.py bootstrap
+python3 tools/musl_smoke.py --report artifacts/native-musl/profile.json
+```
+
+The smoke script owns its temporary build and fixture directories. Its
+report records the toolchain inputs, observed runtime libraries, and case
+results. The private loader path is embedded in the smoke executables.
 
 To replay one ordinary case, build the candidate and pass the case ID to the
 runner. The runner uses `.tools/oracle/bin/make` by default.
