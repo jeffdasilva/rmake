@@ -98,6 +98,11 @@ restores the original timestamp. Under `-k`, a settled required failure
 can also cause a reread through these completion results. The required
 source then determines the failure status.
 
+In a successful ordinary parallel pass, an existing named source with one
+assumed entry can settle on its physical time after its order-only prerequisite
+finishes. The reread decision uses the settled result after the other remake
+workers drain. The held remake models cover pipe and FIFO jobservers.
+
 ## Qualification and limits
 
 631 independently modeled required cases cover 405 ordinary graph/mode cells,

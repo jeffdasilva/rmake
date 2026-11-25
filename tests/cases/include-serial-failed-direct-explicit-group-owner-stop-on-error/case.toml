@@ -1,0 +1,12 @@
+id = "include-serial-failed-direct-explicit-group-owner-stop-on-error"
+requirement = "includes.remake"
+candidate = "required"
+description = "A directly visited explicit group failure stops the run without keep-going."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:0:old:Makefile worker.inc payload.mk tail.inc\nWORKER\nREMAKE:payload.mk:trigger\n"
+stderr = "make: *** [Makefile:16: payload.mk] Error 1\n"

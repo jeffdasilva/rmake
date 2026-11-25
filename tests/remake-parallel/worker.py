@@ -29,6 +29,11 @@ if mode == 'include':
     output = Path(name + '.gen')
     output.write_bytes((name.upper() + ' := loaded\n').encode())
     os.utime(output, ns=(1_000_000_001_000_000_000, 1_000_000_001_000_000_000))
+if mode in ('write-assumed-source', 'restore-assumed-source'):
+    source = Path('b.mk')
+    source.write_bytes(b'AFTER := settled\n')
+    stamp = 1_000_000_002_000_000_000 if mode == 'write-assumed-source' else 1_000_000_000_000_000_000
+    os.utime(source, ns=(stamp, stamp))
 if mode in ('write-optional', 'write-optional-restart', 'write-fallback-restart'):
     optional = Path('Makefile' if mode == 'write-fallback-restart' else 'optional.gen')
     optional.write_bytes(b'OPTIONAL := new\n')

@@ -1,0 +1,12 @@
+id = "include-serial-failed-direct-explicit-group-owner-optional-only-control"
+requirement = "includes.remake"
+candidate = "required"
+description = "An optional-only directly visited explicit owner failure does not select a restart."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile worker.inc payload.mk tail.inc\nWORKER\nREMAKE:payload.mk:trigger\nTAIL\nALL:old:0\nVALUE := new\n"
+stderr = ""
