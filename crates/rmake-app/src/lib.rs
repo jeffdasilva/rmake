@@ -28,6 +28,15 @@ mod shuffle;
 mod stdin_source;
 mod usage;
 
+// GNU Make's configured host spelling is visible in variables and diagnostics.
+const COMPATIBILITY_HOST: &[u8] = if cfg!(all(target_arch = "aarch64", target_env = "gnu")) {
+    b"aarch64-unknown-linux-gnu"
+} else if cfg!(all(target_arch = "x86_64", target_env = "musl")) {
+    b"x86_64-pc-linux-musl"
+} else {
+    b"x86_64-pc-linux-gnu"
+};
+
 /// Concrete semantic entry used by the reviewed process bootstrap.
 pub fn run() -> ExitCode {
     if let Err(error) =

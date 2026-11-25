@@ -2004,7 +2004,7 @@ impl Engine {
         retain!(
             database
                 .variables
-                .define_literal(b"MAKE_HOST", b"x86_64-pc-linux-gnu", Origin::Default)
+                .define_literal(b"MAKE_HOST", crate::COMPATIBILITY_HOST, Origin::Default)
                 .map_err(StartupError::expansion)
         );
         retain!(

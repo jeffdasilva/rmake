@@ -112,7 +112,7 @@ pub fn print_compatibility_header(commented: bool) {
         b"GNU Make 4.4.1\n",
         &localized(
             msg::BUILT_FOR,
-            &[bytes(prefix), bytes(b"x86_64-pc-linux-gnu")],
+            &[bytes(prefix), bytes(crate::COMPATIBILITY_HOST)],
         ),
         prefix,
         b"Copyright (C) 1988-2023 Free Software Foundation, Inc.\n",
