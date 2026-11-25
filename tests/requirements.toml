@@ -3125,10 +3125,10 @@ id = "resolution.shared-implicit-owner"
 title = "First accepted shared implicit child rule and later search effects"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 25
+candidate_required = 33
 reference = "https://www.gnu.org/software/make/manual/html_node/Implicit-Rules.html"
-fixture_count = 25
-cases = ["shared-owner-repeat", "shared-owner-repeat-legitimate-inputs", "shared-owner-diamond", "shared-owner-diamond-reverse", "shared-owner-order-bridge", "shared-owner-order-root", "shared-owner-order-leaf", "shared-owner-mixed-repeated-leaf", "shared-owner-separate-goals", "shared-owner-explicit-child", "shared-owner-existing-child-forced", "shared-owner-first-input-2", "shared-owner-first-input-3", "shared-owner-rejected-parent", "shared-owner-global-command-effect", "shared-owner-fatal-rule-mutation", "shared-owner-fatal-recipe-mutation", "shared-owner-parallel-diamond", "shared-owner-last-search-shell-status", "shared-owner-last-search-runtime-flags", "implicit-accepted-descendant-reverse-effect", "implicit-accepted-descendant-rejected-ancestor", "implicit-accepted-descendant-outer-accept", "implicit-accepted-descendant-outer-reject", "implicit-accepted-descendant-inner-reject"]
+fixture_count = 33
+cases = ["shared-owner-repeat", "shared-owner-repeat-legitimate-inputs", "shared-owner-diamond", "shared-owner-diamond-reverse", "shared-owner-order-bridge", "shared-owner-order-root", "shared-owner-order-leaf", "shared-owner-mixed-repeated-leaf", "shared-owner-separate-goals", "shared-owner-explicit-child", "shared-owner-existing-child-forced", "shared-owner-first-input-2", "shared-owner-first-input-3", "shared-owner-rejected-parent", "shared-owner-global-command-effect", "shared-owner-fatal-rule-mutation", "shared-owner-fatal-recipe-mutation", "shared-owner-parallel-diamond", "shared-owner-last-search-shell-status", "shared-owner-last-search-runtime-flags", "implicit-accepted-descendant-reverse-effect", "implicit-accepted-descendant-rejected-ancestor", "implicit-accepted-descendant-outer-accept", "implicit-accepted-descendant-outer-reject", "implicit-accepted-descendant-inner-reject", "implicit-pattern-owner-direct", "implicit-pattern-owner-forward", "implicit-pattern-owner-reverse", "implicit-pattern-owner-triple", "implicit-pattern-owner-rejected", "implicit-pattern-owner-inherited", "implicit-pattern-owner-named-refresh", "implicit-pattern-owner-unrelated-named-refresh"]
 
 [[requirements]]
 id = "runtime.makeflags-logical-append"

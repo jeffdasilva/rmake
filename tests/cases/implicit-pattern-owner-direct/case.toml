@@ -1,0 +1,12 @@
+id = "implicit-pattern-owner-direct"
+requirement = "resolution.shared-implicit-owner"
+candidate = "required"
+description = "Direct repeated implicit searches merge overlapping pattern bindings"
+provenance = "Original rmake fixture independently authored against GNU 4.4.1."
+args = ["-rR", "--no-print-directory", "a.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "search|a.mid|fixed|file|local|file|1\nsearch|a.mid|fixed|file|global|file|2\nrecipe|a.mid||undefined|local|file|2\n"
+stderr = ""

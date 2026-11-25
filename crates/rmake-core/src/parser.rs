@@ -850,6 +850,13 @@ impl Database {
         }
     }
 
+    /// The latest named variable declaration for this target.
+    pub fn target_declaration_revision(&self, target: &[u8]) -> u64 {
+        self.target_scopes
+            .get(target)
+            .map_or(0, |scope| scope.declaration_revision)
+    }
+
     /// Refresh a cached file context without rerunning its pattern effects.
     pub fn refresh_scoped_variables(&self, variables: &mut VariableStore) {
         variables.refresh_globals(&self.variables);
@@ -3385,6 +3392,10 @@ impl Database {
 
     fn publish_target_scope(&mut self, target: &[u8]) {
         self.target_scope_revision = self.target_scope_revision.wrapping_add(1);
+        self.target_scopes
+            .get_mut(target)
+            .expect("published target declaration")
+            .declaration_revision = self.target_scope_revision;
         if let Some(active) = self.evaluation_scope.as_mut() {
             active.refresh_globals(&self.variables);
             active.refresh_declared_scopes(&self.target_scopes, self.target_scope_revision);

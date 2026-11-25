@@ -8,7 +8,7 @@
 //! UTF-8. Output and filesystem effects use explicit callbacks; core evaluation
 //! performs no operating-system calls. An unknown variable still expands to empty.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -669,6 +669,9 @@ impl Bindings {
         if let Some(history) = &self.database_history {
             history.remove_after_lookup(name);
         }
+        self.remove_stored(name)
+    }
+    fn remove_stored(&mut self, name: &[u8]) -> Option<Variable> {
         let value = self.values.remove(name);
         if value.is_some() {
             if let Some(cache) = self.names_cache.get_mut() {
@@ -787,6 +790,7 @@ pub struct TargetScope {
     variables: Arc<Bindings>,
     pattern: bool,
     target: Option<Arc<[u8]>>,
+    pub(crate) declaration_revision: u64,
 }
 
 impl Default for TargetScope {
@@ -795,6 +799,7 @@ impl Default for TargetScope {
             variables: empty_bindings(32),
             pattern: false,
             target: None,
+            declaration_revision: 0,
         }
     }
 }
@@ -2825,6 +2830,29 @@ impl TargetScope {
         for name in other.variables.order.names() {
             if !variables.contains_key(name) {
                 variables.insert(name, other.variables.get(name).unwrap().clone());
+            }
+        }
+    }
+
+    /// Names stored in this scope's own binding table.
+    pub fn binding_names(&self) -> impl Iterator<Item = Arc<[u8]>> + '_ {
+        self.variables.values.keys().cloned()
+    }
+
+    /// Keep the bindings this scope contributes when its variable set is merged
+    /// into a file that already owns some of the names.
+    pub fn retain_unmerged_bindings(&mut self, entered: &mut HashSet<Arc<[u8]>>) {
+        let overlapping: Vec<_> = self
+            .variables
+            .values
+            .keys()
+            .filter(|name| !entered.insert(Arc::clone(name)))
+            .cloned()
+            .collect();
+        if !overlapping.is_empty() {
+            let variables = Arc::make_mut(&mut self.variables);
+            for name in overlapping {
+                variables.remove_stored(&name);
             }
         }
     }

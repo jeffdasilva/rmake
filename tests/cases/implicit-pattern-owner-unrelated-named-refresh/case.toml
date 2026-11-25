@@ -1,0 +1,12 @@
+id = "implicit-pattern-owner-unrelated-named-refresh"
+requirement = "resolution.shared-implicit-owner"
+candidate = "required"
+description = "A named assignment to another file leaves the intermediate's pattern table in place."
+provenance = "Original rmake fixture independently authored against GNU 4.4.1."
+args = ["-rR", "--no-print-directory", "a.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "||||3\n"
+stderr = ""

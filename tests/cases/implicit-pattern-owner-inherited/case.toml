@@ -1,0 +1,12 @@
+id = "implicit-pattern-owner-inherited"
+requirement = "resolution.shared-implicit-owner"
+candidate = "required"
+description = "A parent binding is inherited when repeated searches omit its overlapping pattern binding"
+provenance = "Original rmake fixture independently authored against GNU 4.4.1."
+args = ["-rR", "--no-print-directory", "a.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "search-V=pattern\nsearch-V=pattern\nrecipe-V=parent\n"
+stderr = ""

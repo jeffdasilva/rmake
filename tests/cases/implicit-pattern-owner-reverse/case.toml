@@ -1,0 +1,12 @@
+id = "implicit-pattern-owner-reverse"
+requirement = "resolution.shared-implicit-owner"
+candidate = "required"
+description = "One published intermediate keeps all its pattern bindings and runtime metadata"
+provenance = "Original rmake fixture independently authored against GNU 4.4.1."
+args = ["-rR", "--no-print-directory", "a.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "search|a.mid|fixed|file|local|file|1\nrecipe|a.mid|fixed|file|local|file|1\n"
+stderr = ""

@@ -128,6 +128,12 @@ selection for a shared child. Direct repeats can still expand more than once.
 The ownership fixtures check selection, visible expansion effects and hidden
 prerequisites against GNU Make.
 
+When two searches select the same intermediate, the selected rule supplies the
+pattern scope. A pattern binding that another accepted selection already merged
+can fall back to a named, inherited or global value. A named assignment during
+search refreshes the pattern table used by later merges for that target. The
+latest search's runtime metadata is still available to the recipe.
+
 Named-target `MAKEFLAGS +=` assignments preserve their current outer global
 value through live option changes, recipe expansion and recursive export.
 
@@ -139,14 +145,10 @@ Broader shuffle coverage includes malformed usage and interactions with trace,
 search and live options. Keep declaration order and actual filesystem observations
 in the expected behavior.
 
-Repeated searches can still differ in which pattern-specific values reach a
-recipe. In a rule for `%.out` that lists `%.mid` before a `%.tmp` prerequisite
-that also requires `%.mid`, both implementations can expand `%.mid` twice.
-GNU Make can leave the `%.mid` pattern-specific value unset in the recipe while
-rmake retains it. Wider interactions with runtime metadata, including
-`.SHELLSTATUS` and `MAKEFLAGS`, still need qualification. Mixed required and
-optional failure policies remain part of the
-[makefile remake work](#parallel-modes-makefile-remakes-and-jobserver-paths).
+Wider combinations of pattern scope, runtime metadata and rule selection
+still need qualification. The
+[makefile remake work](#parallel-modes-makefile-remakes-and-jobserver-paths)
+covers mixed required and optional failure policies.
 
 **Evidence**
 
@@ -155,6 +157,10 @@ optional failure policies remain part of the
   fixtures exercise shared ownership during search. See GNU Make's
   [implicit rule search algorithm](https://www.gnu.org/software/make/manual/html_node/Implicit-Rule-Search.html)
   and [secondary expansion](https://www.gnu.org/software/make/manual/html_node/Secondary-Expansion.html).
+- [Repeated intermediate pattern scope](../tests/cases/implicit-pattern-owner-forward/Makefile)
+  checks which bindings and shell status reach the recipe. A
+  [named assignment during search](../tests/cases/implicit-pattern-owner-named-refresh/Makefile)
+  checks that a later candidate still sees the refreshed pattern table.
 - [Named-target flag appends](../tests/cases/makeflags-logical-append-implicit-add-0-0/Makefile)
   check live changes and recursive export. The [target-scope guide](target-scopes.md)
   describes variable inheritance.
