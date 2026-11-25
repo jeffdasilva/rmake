@@ -106,7 +106,10 @@ def cases(selection):
     shuffle_option = json.loads((DATA / "shuffle-option.json").read_bytes())
     if len(shuffle_option["rows"]) != 6 or shuffle_option["fixture_sha256"]:
         raise h.HarnessError("unexpected shuffle option models")
-    suites += (shuffle_option,)
+    intcmp = json.loads((DATA / "intcmp.json").read_bytes())
+    if len(intcmp["rows"]) != 25 or intcmp["fixture_sha256"]:
+        raise h.HarnessError("unexpected intcmp models")
+    suites += (shuffle_option, intcmp)
     rows = [row for suite in suites for row in suite["rows"]]
     if len({row["id"] for row in rows}) != len(rows):
         raise h.HarnessError("duplicate NLS model ID")
@@ -245,6 +248,7 @@ def main(argv=None):
               "reference_catalog": {"path": str(catalog), "sha256": h.sha256_file(catalog)},
               "owned_catalog_manifest_sha256": h.sha256_file(ROOT / "catalogs/provenance.json"),
               "shuffle_option_sha256": h.sha256_file(DATA / "shuffle-option.json"),
+              "intcmp_sha256": h.sha256_file(DATA / "intcmp.json"),
               "functional_cpu_affinity": sorted(os.sched_getaffinity(0)), "cases": [], "passed": False}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     def publish():
