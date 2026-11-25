@@ -71,6 +71,12 @@ pub struct LoadOutcome {
 
 pub trait NativeRuntime {
     fn lookup(&self, name: &[u8]) -> Option<Rc<NativeFunction>>;
+
+    /// Whether a fatal user expansion can be observed by process finalizers.
+    fn needs_fatal_expansion_context(&self) -> bool {
+        false
+    }
+
     fn service_waiting_workers(&self, _host: &mut dyn NativeHost) -> Result<(), ExpandError> {
         Err(ExpandError::Unsupported(
             b"native worker callbacks".to_vec(),

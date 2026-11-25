@@ -529,6 +529,12 @@ impl<'a> ExpansionContext<'a> {
         self.native_runtime.clone()
     }
 
+    pub(crate) fn needs_fatal_expansion_context(&self) -> bool {
+        self.native_runtime
+            .as_ref()
+            .is_some_and(|runtime| runtime.needs_fatal_expansion_context())
+    }
+
     /// Classification returns an owned registration without cloning its runtime.
     pub fn lookup_native_function(
         &self,

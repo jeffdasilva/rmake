@@ -35,7 +35,10 @@ with open('lock', 'a') as lock:
     Path('active').write_text(str(active))
     Path('maximum').write_text(str(max(active, int(Path('maximum').read_text()))))
     Path(name + '.started').write_text('started\\n')
-if mode == 'serial' or mode.startswith('fail'):
+if mode.startswith('launch-'):
+    if name == 'a':
+        wait(lambda: Path('expanded-d').exists())
+elif mode == 'serial' or mode.startswith('fail'):
     if name == 'a':
         wait(lambda: Path('expanded-c').exists())
 elif mode == 'dynamic' and name == 'a':
@@ -71,10 +74,16 @@ class Cell:
 
     @property
     def maximum(self):
-        return 1 if self.behavior == 'serial' or self.behavior.startswith('fail') else 3
+        return 1 if self.behavior == 'serial' or self.behavior.startswith(('fail', 'launch-')) else 3
 
     @property
     def makefile(self):
+        if self.behavior.startswith('launch-'):
+            return ('.PHONY: all a b c d\n.SECONDEXPANSION:\nall: a b c d\n'
+                    f'a: ; @python3 helper.py a {self.behavior}\n'
+                    f'b: ; @$(file >expanded-b)python3 helper.py b {self.behavior}\n'
+                    'c: ; @$(file >expanded-c)./missing-program\n'
+                    'd: $$(file >expanded-d)\n').encode()
         lines = ['.PHONY: all a b c', 'all: a b c',
                  "\t@printf 'active=%s maximum=%s\\n' \"$$(cat active)\" \"$$(cat maximum)\""]
         for name in 'abc':
@@ -122,6 +131,14 @@ def inventory():
     for mode, suffix in [('fail', b''), ('fail-keep', b"make: Target 'all' not remade because of errors.\n"), ('fail-ignore', b'')]:
         cells.append(Cell('queued-' + mode, b'0 0 0 99/100 1\n', '2', mode,
                           stderr=(b'make: [Makefile:5: a] Error 7 (ignored)\n' if mode == 'fail-ignore' else b'make: *** [Makefile:5: a] Error 7\n') + suffix))
+    launch_error = (b'make: ./missing-program: No such file or directory\n'
+                    b'make: *** [Makefile:6: c] Error 127\n')
+    for transport in ('pipe', 'fifo'):
+        for behavior in ('launch-stop', 'launch-keep'):
+            suffix = (b"make: Target 'all' not remade because of errors.\n"
+                      if behavior == 'launch-keep' else b'')
+            cells.append(Cell(f'queued-{behavior}-{transport}', b'0 0 0 99/100 1\n', '2',
+                              behavior, stderr=launch_error + suffix, transport=transport))
     cells.append(Cell('load-drops-during-token-wait', b'0 0 0 99/100 1\n', '2', 'dynamic', 'drop-on-token-wait', trace=b'proc\ntoken-wait\n', jobs=3))
     return tuple(cells)
 
@@ -141,7 +158,7 @@ def execute(cell, root, fixture, binary, helper, locale_environment=None):
     case = harness.Case(fixture, cell.id, 'runtime.load', 'required',
                         ('-rR', '--no-print-directory', '-j' + str(cell.jobs), '-l' + cell.limit,
                          *([f'--jobserver-style={cell.transport}'] if cell.transport else []),
-                         *(['-k'] if cell.behavior == 'fail-keep' else ['-i'] if cell.behavior == 'fail-ignore' else [])), 6, {}, {})
+                         *(['-k'] if cell.behavior in ('fail-keep', 'launch-keep') else ['-i'] if cell.behavior == 'fail-ignore' else [])), 6, {}, {})
     harness.reset_workspace(case, root, binary)
     variables = {
         'LD_PRELOAD': str(helper), 'RMAKE_TEST_LOAD': cell.mode,
@@ -167,12 +184,15 @@ def anchors(cell, observation, order, actual_trace):
     errors = []
     if observation.limit or observation.leftover_processes:
         errors.append("process containment")
-    if cell.behavior == 'serial' or cell.behavior.startswith('fail'):
+    if cell.behavior.startswith('launch-'):
+        expected_order = b'a\nb\n' if cell.behavior == 'launch-keep' else b'a\n'
+        if order != expected_order: errors.append('queued launch failure policy')
+    elif cell.behavior == 'serial' or cell.behavior.startswith('fail'):
         expected_order = b'a\n' if cell.behavior == 'fail' else b'a\nc\nb\n'
         if order != expected_order: errors.append('serial LIFO queue order')
     elif sorted(order.splitlines()) != [b'a', b'b', b'c']:
         errors.append('all parallel targets exactly once')
-    failed = cell.behavior in ('fail', 'fail-keep')
+    failed = cell.behavior in ('fail', 'fail-keep', 'launch-stop', 'launch-keep')
     expected_output = b'' if failed else f'active=0 maximum={cell.maximum}\n'.encode()
     if (observation.stdout, observation.stderr, observation.returncode) != (expected_output, cell.stderr, 2 if failed else 0):
         errors.append('independent status/output/concurrency anchors')

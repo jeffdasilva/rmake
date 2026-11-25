@@ -163,6 +163,7 @@ def models() -> list[Model]:
     result.extend(secondary_scope_models())
     result.extend(retained_double_branch_models())
     result.extend(finalizer_shell_models())
+    result.extend(fatal_scope_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -848,6 +849,57 @@ def finalizer_shell_models() -> list[Model]:
         model('missing-program', source, ordinary + closed,
               b'make: rmake-native-finalizer-missing-command: Bad file descriptor\n',
               environment={'PROBE_FINALIZER_SHELL_FORM': 'missing'}),
+    ]
+
+
+def fatal_scope_models() -> list[Model]:
+    header = b'load fatal_scope.so\n.LOADED := global\n'
+    recipe = b'.PHONY: all dep\nall: .LOADED := target\nall: dep\n\t@'
+    tail = b'\ndep:;@:\n'
+    global_scope = b'scope=[||file|global||]\n'
+    target_scope = b'scope=[all|dep|file|target||]\n'
+    finalizer = b': finalizer-location\n'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def fatal(source, message):
+        return source + b': *** ' + message + b'.  Stop.\n' + source + finalizer
+
+    def model(name, text, stderr, seen, *, status=2, files=None, modules=(module,), env=None):
+        return Model(
+            'native-fatal-scope-' + name,
+            {'Makefile': text, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\n' + seen,
+            modules,
+            environment=env or {},
+        )
+
+    direct_error = b'$(error user-stop)'
+    return [
+        model('reader', header + direct_error + b'\nall:;@:\n',
+              fatal(b'Makefile:3', b'user-stop'), global_scope),
+        model('include', header + b'include child.mk\nall:;@:\n',
+              fatal(b'child.mk:2', b'user-stop'), global_scope,
+              files={'child.mk': b'# child source\n' + direct_error + b'\n'}),
+        model('recipe', header + recipe + direct_error + tail,
+              fatal(b'Makefile:6', b'user-stop'), target_scope),
+        model('recipe-foreach', header + recipe
+              + b'$(foreach .LOADED,local,' + direct_error + b')' + tail,
+              fatal(b'Makefile:6', b'user-stop'), b'scope=[all|dep|automatic|local||]\n'),
+        model('reader-let', header + b'$(let .LOADED,local,' + direct_error + b')\nall:;@:\n',
+              fatal(b'Makefile:3', b'user-stop'), b'scope=[||automatic|local||]\n'),
+        model('recipe-call', header + b'DIE = ' + direct_error + b'\n' + recipe + b'$(call DIE,arg)' + tail,
+              fatal(b'Makefile:7', b'user-stop'), b'scope=[all|dep|file|target|DIE|arg]\n'),
+        model('recipe-native-callback', header + b'load probe_api.so\n' + recipe
+              + b'$(probe_eval_guard $$(error user-stop))' + tail,
+              fatal(b'Makefile:7', b'user-stop'), target_scope, modules=(module, Module())),
+        model('first-module-setup', b'.LOADED := global\n' + recipe
+              + b'$(eval load fatal_scope.so):' + tail, fatal(b'Makefile:5', b'setup-stop'),
+              b'setup-enter\n' + target_scope, env={'PROBE_FATAL_SCOPE_SETUP': '1'}),
+        model('child-failure', header + recipe + b'/bin/sh -c "exit 13"' + tail,
+              b'make: *** [Makefile:6: all] Error 13\nmake' + finalizer, global_scope),
+        model('success', header + recipe + b'$(foreach .LOADED,local,$(file >>seen,body)):' + tail,
+              b'make' + finalizer, b'body\n' + global_scope, status=0),
     ]
 
 

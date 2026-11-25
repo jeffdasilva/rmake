@@ -112,8 +112,8 @@ class NativeModuleTests(unittest.TestCase):
 
     def test_original_inventory_covers_native_lifetime_and_fatal_boundaries(self):
         models = n.models()
-        self.assertEqual(len(models), 278)
-        self.assertEqual(len({m.id for m in models}), 278)
+        self.assertEqual(len(models), 288)
+        self.assertEqual(len({m.id for m in models}), 288)
         self.assertEqual(sum(m.id.startswith('native-setup-result-') for m in models), 5)
         self.assertEqual(sum(m.id.startswith('native-loader-debug-') for m in models), 6)
         self.assertEqual(sum(m.id.startswith('native-directory-epoch-') for m in models), 5)
@@ -128,6 +128,7 @@ class NativeModuleTests(unittest.TestCase):
         self.assertEqual(sum(m.id.startswith('native-fatal-worker-') for m in models), 4)
         self.assertEqual(sum(m.id.startswith('native-destructor-api-') for m in models), 3)
         self.assertEqual(sum(m.id.startswith('native-finalizer-shell-') for m in models), 8)
+        self.assertEqual(sum(m.id.startswith('native-fatal-scope-') for m in models), 10)
         self.assertEqual({m.output for m in models}, {'separate', 'merged'})
         self.assertTrue(all(m.files['seen'] == b'anchor\n' for m in models))
         for source in n.SOURCES.glob('*.c'):

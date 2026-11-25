@@ -48,6 +48,10 @@ both engines, along with the localized fallback cases. The runner uses an
 original test-only shim to supply load observations, including failed,
 interrupted and malformed reads. The tests check actual recipe overlap,
 queue order, exit status, output, token behavior, and filesystem effects.
+When a queued executable fails to launch, a stopping pass returns the other
+queued permits before those recipes dispatch. A keep-going pass can still
+run the remaining queued recipes. The controlled pipe and FIFO cases check
+the completion journal and filesystem for both outcomes.
 When parallel completion order is inherently variable, a specific membership
 check compares that journal and the report retains its original order.
 

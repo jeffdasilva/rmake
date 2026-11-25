@@ -7759,29 +7759,31 @@ impl Engine {
     }
 
     fn start_load_waiting(&mut self) {
-        if self.graph_abort.is_some()
-            || self.forced_query_stop
-            || self.shutdown.get() != Shutdown::Running
-        {
-            while let Some((target, identity)) = self.load_waiting.pop() {
-                let job = self
-                    .parallel_jobs
-                    .remove(&target, identity)
-                    .expect("reserved load waiter");
-                let mut outcome = self
-                    .file_traversals
-                    .outcome(&target)
-                    .copied()
-                    .unwrap_or_default();
-                outcome.failed = true;
-                outcome.fatal |= self.graph_abort == Some(Status::Fatal);
-                outcome.ran = false;
-                self.file_traversals.set_outcome(&target, outcome);
-                drop(job); // Return the queued recipe's permit without launching it.
-            }
-            return;
-        }
         while !self.load_waiting.is_empty() {
+            // Dispatch can settle a launch failure synchronously. Recheck the
+            // graph before giving its next reserved recipe a chance to run.
+            if self.graph_abort.is_some()
+                || self.forced_query_stop
+                || self.shutdown.get() != Shutdown::Running
+            {
+                while let Some((target, identity)) = self.load_waiting.pop() {
+                    let job = self
+                        .parallel_jobs
+                        .remove(&target, identity)
+                        .expect("reserved load waiter");
+                    let mut outcome = self
+                        .file_traversals
+                        .outcome(&target)
+                        .copied()
+                        .unwrap_or_default();
+                    outcome.failed = true;
+                    outcome.fatal |= self.graph_abort == Some(Status::Fatal);
+                    outcome.ran = false;
+                    self.file_traversals.set_outcome(&target, outcome);
+                    drop(job); // Return the queued recipe's permit without launching it.
+                }
+                return;
+            }
             if self.parallel_jobs.values().any(|job| !job.waiting_load) && self.load_high() {
                 break;
             }
