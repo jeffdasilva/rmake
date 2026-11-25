@@ -610,7 +610,18 @@ pub struct Database {
 #[derive(Clone, Default)]
 struct ImplicitRuleSuffixes {
     unfiltered: Vec<usize>,
-    by_last_byte: HashMap<u8, Vec<usize>>,
+    by_suffix: HashMap<[u8; 2], Vec<usize>>,
+    two_byte_keys: bool,
+}
+
+impl ImplicitRuleSuffixes {
+    fn key(&self, name: &[u8]) -> Option<[u8; 2]> {
+        match name {
+            [.., previous, last] if self.two_byte_keys => Some([*previous, *last]),
+            [.., last] if !self.two_byte_keys => Some([0, *last]),
+            _ => None,
+        }
+    }
 }
 
 struct ImplicitRuleIndices<'a> {
@@ -975,11 +986,23 @@ impl Database {
     }
 
     fn compile_implicit_rule_suffixes(&self) -> Option<ImplicitRuleSuffixes> {
-        let mut suffixes = ImplicitRuleSuffixes::default();
-        suffixes.by_last_byte.try_reserve(256).ok()?;
+        // The shortest nonempty literal suffix determines whether two bytes
+        // can filter the entire table without another merge pass.
+        let two_byte_keys = !self
+            .implicit_rules
+            .iter()
+            .any(|(pattern, _)| pattern.trailing_literal().len() == 1);
+        let mut suffixes = ImplicitRuleSuffixes {
+            two_byte_keys,
+            ..ImplicitRuleSuffixes::default()
+        };
+        suffixes.by_suffix.try_reserve(256).ok()?;
         for (index, (pattern, _)) in self.implicit_rules.iter().enumerate() {
-            let indices = match pattern.trailing_literal_byte() {
-                Some(byte) => suffixes.by_last_byte.entry(byte).or_default(),
+            let indices = match suffixes.key(pattern.trailing_literal()) {
+                Some(key) => {
+                    suffixes.by_suffix.try_reserve(1).ok()?;
+                    suffixes.by_suffix.entry(key).or_default()
+                }
                 None => &mut suffixes.unfiltered,
             };
             indices.try_reserve(1).ok()?;
@@ -1013,11 +1036,11 @@ impl Database {
             .implicit_rule_suffixes
             .get_or_init(|| self.compile_implicit_rule_suffixes())
             .as_ref()?;
-        // Removing a directory prefix leaves any literal suffix byte unchanged.
+        // Removing a directory prefix leaves any literal suffix unchanged.
         // Patterns without a literal suffix always keep their declaration position.
-        let matching = target
-            .last()
-            .and_then(|byte| suffixes.by_last_byte.get(byte))
+        let matching = suffixes
+            .key(target)
+            .and_then(|key| suffixes.by_suffix.get(&key))
             .map_or(&[][..], Vec::as_slice);
         let unfiltered = suffixes.unfiltered.as_slice();
         // Dense selections are cheaper to visit directly.
@@ -7188,7 +7211,7 @@ mod tests {
         let mut indexed = small.clone();
         let mut padding = String::new();
         for index in 0..128 {
-            writeln!(padding, "ignored{index}%.unused: ;").unwrap();
+            writeln!(padding, "ignored{index}%.unusedt: ;").unwrap();
         }
         indexed.read(padding.as_bytes(), b"padding").unwrap();
 
@@ -7221,6 +7244,13 @@ mod tests {
             recipes(indexed.implicit_archive_candidates_excluding(member, &[])),
             recipes(small.implicit_archive_candidates_excluding(member, &[])),
         );
+        assert_eq!(
+            indexed
+                .implicit_rule_indices(b"obj/file.out")
+                .unwrap()
+                .count(),
+            4,
+        );
         assert!(indexed.implicit_rule_suffixes.get().is_some());
         indexed.read(b"%.new: ; @added\n", b"edit").unwrap();
         assert!(indexed.implicit_rule_suffixes.get().is_none());
@@ -7228,6 +7258,12 @@ mod tests {
             recipes(indexed.implicit_candidates(b"item.new")),
             [b" @added".to_vec(), b" @terminal".to_vec()],
         );
+        indexed.read(b"%t: ; @short\n", b"edit").unwrap();
+        assert_eq!(
+            recipes(indexed.implicit_candidates(b"item.t")),
+            [b" @short".to_vec(), b" @terminal".to_vec()],
+        );
+        assert!(indexed.implicit_rule_indices(b"item.t").is_none());
     }
 
     #[test]

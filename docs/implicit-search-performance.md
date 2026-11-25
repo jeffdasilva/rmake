@@ -80,6 +80,33 @@ remained faster in all four workloads. These measurements include startup.
 - Indexed binary SHA-256 `7902dddec53ffc45b46754481ef27a86f70cbd418e167c3fce0e1764401d5d7b`
 - GNU binary SHA-256 `dc60c90b3fc6fd64be2c2459483de37b96b23a8a18068a95cd50ea7ab5eccd44`
 
+## Colliding pattern suffixes
+
+When every nonempty literal suffix has at least two bytes, the implicit rule
+index uses both trailing bytes. Tables containing a one-byte suffix use just
+the final byte. Both forms merge matching and unfiltered rules in declaration
+order, and rule edits invalidate the index.
+
+The warm-cache campaign used 768 `itemN.out` targets with local `itemN.in`
+prerequisites and an empty `%.out: %.in` recipe. The collision workload added
+768 irrelevant patterns of the form `%.fmtNNNNat` with distinct prerequisites.
+The distinct-byte control ended those suffixes in `x`. The short-suffix control
+used `%t` alongside the `x` patterns, and the small-table control used 24
+collision patterns. All engines agreed on output, status and filesystem state.
+
+The table gives medians for 33 measured runs per engine after two warmups,
+alternating engine order on one CPU of a shared host. Results include startup.
+
+| Workload | Previous rmake | Two-byte index | GNU Make 4.4.1 |
+| --- | --- | --- | --- |
+| Colliding last byte | 13.743 ms | 8.772 ms | 9.200 ms |
+| Distinct last byte | 8.740 ms | 8.763 ms | 9.199 ms |
+| One-byte suffix | 8.855 ms | 8.833 ms | 9.032 ms |
+| Small table | 7.425 ms | 7.423 ms | 3.375 ms |
+
+- Previous binary SHA-256 `74ba1fce31e44d01a595730df5c2744db4c592695e02be302153c0044e88ae3d`
+- Two-byte index binary SHA-256 `ffe8f3fdd45e4f7ae6e865bcc6adc9e36e21e939bd7af6e6a54773826b16a0ce`
+
 ## Permanent aliases in large invocations
 
 Permanent VPATH and GPATH renames update indexed goal membership. Renaming the
