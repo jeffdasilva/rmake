@@ -1,0 +1,12 @@
+id = "late-gpath-double-disjoint-goal-without-command"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "A head completed by expansion effects reports success before the queued canonical operand."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after", "src/parent"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "initial-goals=[parent after src/parent]\nhead=[parent|input|7]\nlater=[parent|other|13]\nmake: 'src/parent' is up to date.\nlate-goals=[parent after src/parent]\nread=[parent|input|7|source|]\n"
+stderr = ""

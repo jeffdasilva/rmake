@@ -5,9 +5,16 @@
 
 use std::collections::HashMap;
 
+#[derive(Clone, Copy)]
+pub enum AliasKind {
+    Rename,
+    Merge,
+    DetachedHead,
+}
+
 #[derive(Default)]
 pub struct Aliases {
-    names: HashMap<Vec<u8>, (Vec<u8>, bool)>,
+    names: HashMap<Vec<u8>, (Vec<u8>, AliasKind)>,
 }
 
 impl Aliases {
@@ -35,14 +42,23 @@ impl Aliases {
     }
 
     pub fn merged(&self, name: &[u8]) -> bool {
-        self.names.get(name).is_some_and(|(_, merged)| *merged)
+        self.names
+            .get(name)
+            .is_some_and(|(_, kind)| matches!(kind, AliasKind::Merge | AliasKind::DetachedHead))
     }
 
-    pub fn insert(&mut self, from: &[u8], to: &[u8], merged: bool) {
+    /// The original head retains its completed goal status after a merge.
+    pub fn retains_goal_status(&self, name: &[u8]) -> bool {
+        self.names
+            .get(name)
+            .is_some_and(|(_, kind)| matches!(kind, AliasKind::DetachedHead))
+    }
+
+    pub fn insert(&mut self, from: &[u8], to: &[u8], kind: AliasKind) {
         let to = self.resolve(to);
         if from != to {
             let to = to.to_vec();
-            self.names.insert(from.to_vec(), (to, merged));
+            self.names.insert(from.to_vec(), (to, kind));
         }
     }
 }
