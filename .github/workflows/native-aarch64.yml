@@ -81,13 +81,19 @@ jobs:
             --case tentative-archive-retained-gpath-control \
             --repeat 2 --artifacts artifacts/file-owner-aarch64 2>&1 \
             | tee artifacts/file-owner-aarch64/optimized.log
-      - name: Check C and C.UTF-8 locale behavior
+      - name: Check C, C.UTF-8 and French locale behavior
         timeout-minutes: 3
         run: |
           set -- --case all-c-one-flags --case all-utf8-one-flags --case recursive-all-utf8-one-read
           python3 tools/locale_profiles.py "$@" --report artifacts/locales/aarch64-gnu2.json
           python3 tools/locale_profiles.py "$@" --candidate target/release/rmake \
             --report artifacts/locales/aarch64-optimized.json
+          python3 tools/nls_diagnostics.py \
+            --case nls-debug-option-startup-c --case nls-debug-option-startup-fr \
+            --locale-root .tools/locale-data-arm64 --report artifacts/locales/aarch64-fr-gnu2.json
+          python3 tools/nls_diagnostics.py --candidate target/release/rmake \
+            --case nls-debug-option-startup-c --case nls-debug-option-startup-fr \
+            --locale-root .tools/locale-data-arm64 --report artifacts/locales/aarch64-fr-optimized.json
       - name: Check the pinned xxHash project
         timeout-minutes: 5
         run: |
