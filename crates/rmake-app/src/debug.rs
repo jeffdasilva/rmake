@@ -749,7 +749,12 @@ impl Jobs {
         self.chain.retain(|entry| !std::rc::Rc::ptr_eq(entry, job));
         // This describes the logical slot made available by completion, not
         // the particular recipe which happened to own an explicit permit.
-        if pooled && !self.chain.is_empty() && mask.has(Mask::JOBS) {
+        if pooled && !self.chain.is_empty() {
+            Self::released(mask, job);
+        }
+    }
+    pub fn released(mask: Mask, job: &JobHandle) {
+        if mask.has(Mask::JOBS) {
             Self::emit(
                 msg::JOB_RELEASED,
                 &[Self::identity(job), bytes(&job.target)],

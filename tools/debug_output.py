@@ -131,6 +131,7 @@ def models() -> list[Model]:
               + _model_file('later-file-write.toml') + _model_file('goal-own-wait.toml')
               + _model_file('ordinary-grouped-peer.toml')
               + _model_file('recursive-question.toml')
+              + _model_file('held-dispatch-failure.toml')
               + _model_file('remake-cache-phase.toml') + stem_limit_models())
     if len({model.id for model in result}) != len(result):
         raise h.HarnessError('duplicate debug profile ID across model files')
