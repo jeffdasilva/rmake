@@ -407,9 +407,10 @@ continues to be required alongside application comparisons.
 The [native AArch64 glibc workflow](../.github/workflows/native-aarch64.yml)
 covers host metadata, jobserver behavior, native standard streams, developer
 workflows, and deep evaluation. The [dynamic musl workflow](../.github/workflows/native-musl.yml)
-covers selected optimized x86-64 cases in the C locale. Translated diagnostics
-and third-party integration still need qualification on these platform
-combinations. Guile qualification uses the separate x86-64 glibc profile.
+covers selected optimized x86-64 cases in the C locale and a C.UTF-8 wildcard
+case. Translated diagnostics and broader third-party integration still need
+qualification on these platform combinations. Guile qualification uses the
+separate x86-64 glibc profile.
 
 ## Integration and performance
 

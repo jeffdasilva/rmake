@@ -43,8 +43,9 @@ optimized build with that reference.
 The [native x86-64 musl job](../.github/workflows/native-musl.yml) builds
 GNU Make and optimized rmake with a private musl 1.2.4 dynamic loader.
 It compares selected C-locale wildcard, shell status, include, native
-module, process restart, and inherited jobserver pipe cases. Recipes use
-the runner's `/bin/sh`. To reproduce the smoke job on x86-64 Ubuntu 24.04
+module, process restart, and inherited jobserver pipe cases. A separate
+C.UTF-8 case checks byte-width wildcard matching. Recipes use the runner's
+`/bin/sh`. To reproduce the smoke job on x86-64 Ubuntu 24.04
 with GCC, binutils, Make, and dpkg installed, run
 
 ```sh
