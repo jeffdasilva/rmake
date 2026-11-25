@@ -4736,6 +4736,7 @@ impl Database {
             }
             if let Some(rest) = directive(text, b"else") {
                 let Some(top) = conditions.last_mut() else {
+                    self.retain_native_reader_error(&location, context);
                     return Err(ParseError::system(
                         location,
                         Message::ExtraneousConditional(b"else"),
@@ -4743,6 +4744,7 @@ impl Database {
                     ));
                 };
                 if top.otherwise {
+                    self.retain_native_reader_error(&location, context);
                     return Err(ParseError::system(
                         location,
                         Message::DuplicateElse,
@@ -4864,6 +4866,15 @@ impl Database {
                             // reader, whose EOF error is the open conditional.
                             break;
                         }
+                        // The diagnostic names the define header. The live
+                        // reader still points to the last body location.
+                        self.retain_native_reader_error(
+                            &Location {
+                                file: source_name.clone(),
+                                line: body_line,
+                            },
+                            context,
+                        );
                         return Err(ParseError::system(location, Message::MissingEndef, context));
                     };
                     if context.is_cancelled() {
@@ -5181,6 +5192,7 @@ impl Database {
             // Assignments and directives have already been handled. A raw
             // prefix here is an orphan, even if folding changed the first byte.
             if leading_prefix.matches(stripped_bom) {
+                self.retain_native_reader_error(&location, context);
                 return Err(ParseError::system(location, Message::OrphanRecipe, context));
             }
             self.finish_declaration(declaration, &location, context)?;
@@ -5399,6 +5411,7 @@ impl Database {
                     } else {
                         Message::TargetPatternWithoutPercent
                     };
+                    self.retain_native_reader_error(&location, context);
                     return Err(ParseError::system(location, message, context));
                 }
                 let pattern = Pattern::new(&patterns[0]);
