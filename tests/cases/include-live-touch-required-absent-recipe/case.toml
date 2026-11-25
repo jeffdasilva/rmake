@@ -1,0 +1,12 @@
+id = "include-live-touch-required-absent-recipe"
+requirement = "includes.remake"
+candidate = "required"
+description = "A required missing source touched by a live recipe option triggers a restart"
+provenance = "Original rmake fixture with independent output and physical timestamp checks against GNU 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read|\ntouch b.mk\ntouch b.mk\nread|1\ngoal|1\n"
+stderr = ""

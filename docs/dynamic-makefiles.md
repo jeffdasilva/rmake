@@ -12,7 +12,11 @@ regeneration has no missing-file warning. A changed mtime causes a new database
 to be read from the startup bindings, with `MAKE_RESTARTS` incremented. The
 restart clears graph traversal and target context observations. Stdin is saved
 for reuse rather than consumed twice. Phony makefiles are excluded from the
-remake loop. Dry-run, query and touch modes do not suppress makefile generation.
+remake loop. Ordinary makefile remakes mask invocation dry-run, query, and
+touch modes. An expansion during a remake can enable touch through
+`MAKEFLAGS`. A physical touch restarts an ordinary update when the source
+mtime changes. An up-to-date source or simulated touch leaves the mtime
+unchanged.
 
 Safety limits bound include nesting and restarts. There is no persistent cache.
 Search directories (`-I`) are covered by the [include search slice](include-search.md).

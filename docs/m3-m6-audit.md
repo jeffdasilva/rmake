@@ -220,14 +220,16 @@ read positions, ordinary and order-only prerequisites, implicit rules, recursive
 recipes and workers already started by earlier includes. Held shuffle controls
 separate ordinary goal order from remake order.
 
-For ordinary explicit single-colon grouped targets under `-q` without `-k`, a query
-verdict ends the current member's dependency scan. Later members still begin
-their own scans. A forced recipe can stop the whole query. The
+For ordinary explicit grouped targets under `-q` without `-k`, a query verdict
+ends the current member's dependency scan. Later members still begin their own
+scans. A forced recipe can stop the whole query. The
 [grouped query fixtures](../tests/cases/grouped-query-expands-and-runs-first-peer-edge/Makefile)
 check expansion effects, forced recipes and missing prerequisites. The
+[double-colon fixtures](../tests/cases/double-grouped-query-expands-and-runs-peer/Makefile)
+cover the same member scan and its later branch verdict. The
 [parallel models](../tests/debug-output/grouped-single-wait-frontiers.toml)
-also cover live workers, `.WAIT` boundaries and cached debug events. Grouped
-double-colon queries still need separate validation.
+also cover live workers, `.WAIT` boundaries and cached debug events. Combined
+query modes and later queued goals still need broader validation.
 
 [Serial remake diagnostics](debug-output.md) cover double-colon failure recovery,
 returned failures and cached visits to required and optional declarations.

@@ -1242,8 +1242,8 @@ struct GroupState {
 }
 
 impl GroupState {
-    fn ordinary_explicit_single_colon(&self) -> bool {
-        self.run.ordinary && !self.run.implicit && self.run.double_colon.is_none()
+    fn ordinary_explicit(&self) -> bool {
+        self.run.ordinary && !self.run.implicit
     }
 }
 
@@ -4292,7 +4292,13 @@ impl Engine {
                         .remove(&makefile.name);
                     // A completed recipe can invalidate the makefile's time.
                     // Expansion effects alone leave its cached observation intact.
-                    let record_change = visit_modes.check_update(result);
+                    // Expansion can enable touch after the visit's initial
+                    // modes were set. Check the resulting physical update.
+                    let record_change = visit_modes.check_update(result)
+                        || (!visit_modes.active()
+                            && self.options.touch
+                            && !result.question_outdated
+                            && MakefileModes::from_options(&self.options).check_update(result));
                     // Question mode suppresses the restart verdict, but a
                     // physical optional touch can still end this visit pass.
                     let check_optional_touch = optional
@@ -5717,7 +5723,7 @@ impl Engine {
             || self.graph_abort.is_some()
             || self.shutdown.get() != Shutdown::Running
             || outcome.fatal
-            || (!self.options.keep_going && (outcome.failed || outcome.question_outdated))
+            || (!self.options.keep_going && outcome.failed)
             || outcome.replayed_double_colon_goal_failure
         {
             return;
@@ -5732,7 +5738,30 @@ impl Engine {
             // Each extra goal entry returns to the same considered chain head.
             let count = branches.len() + usize::from(self.visited_cached_double_colon_input(name));
             let mut repeats = count.saturating_sub(1);
-            if self.remaking && self.optional_remake() && outcome.remake_group_peer_updated {
+            if outcome.question_outdated && !self.options.keep_going {
+                if !self.options.question
+                    || self.remaking
+                    || self.active_makefile_remake.is_some()
+                    || self.options.goals.len() > 1
+                    || self.ordinary_queries.first_verdict.is_some()
+                    || self.forced_query_stop
+                    || self.pending(name)
+                {
+                    return;
+                }
+                // Earlier declarations revisit the chain head before the
+                // declaration with the first query verdict stops the goal.
+                let mut key = (name.to_vec(), 0);
+                let Some(ordinal) = (0..branches.len()).find(|ordinal| {
+                    key.1 = *ordinal;
+                    self.database_branch_outcomes
+                        .get(&key)
+                        .is_some_and(|branch| branch.question_outdated)
+                }) else {
+                    return;
+                };
+                repeats = ordinal;
+            } else if self.remaking && self.optional_remake() && outcome.remake_group_peer_updated {
                 // An optional source advances after its first declaration
                 // already updated as another group's peer. Earlier entries
                 // can still revisit and prune the fresh chain head.
@@ -11960,7 +11989,7 @@ impl Engine {
                 && !self.forced_query_stop
                 && !self.options.keep_going
                 && let Some(group) = state.group.as_mut()
-                && group.ordinary_explicit_single_colon()
+                && group.ordinary_explicit()
             {
                 // A query verdict ends this member's scan. A resumed frontier
                 // can already have later members' prerequisites in the rule.
@@ -12215,7 +12244,7 @@ impl Engine {
                         && state
                             .group
                             .as_ref()
-                            .is_some_and(|group| group.ordinary_explicit_single_colon());
+                            .is_some_and(|group| group.ordinary_explicit());
                     self.debug_cached_prerequisite_visit_with_question(
                         dependency,
                         state.depth + usize::from(self.remaking) + 1,

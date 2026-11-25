@@ -1,0 +1,11 @@
+id = "double-grouped-query-expands-and-runs-peer"
+requirement = "rules.grouped"
+candidate = "required"
+description = "A grouped declaration visits the first prerequisite of its peer after an ordinary query verdict."
+provenance = "Original rmake fixture independently checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "-q", "a"]
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""
