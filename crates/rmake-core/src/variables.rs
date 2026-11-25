@@ -3176,6 +3176,22 @@ impl TargetScope {
         self.merge_file_bindings(complete, source)
     }
 
+    /// A visited destination that had no table inherits the source's slots
+    /// and history. Its surrounding scope is supplied separately by the visit.
+    pub(crate) fn adopt_completed_file_bindings(
+        target: &[u8],
+        from: &[u8],
+        source: Option<&Self>,
+        runtime: &VariableStore,
+    ) -> Option<Self> {
+        let mut bindings = Self::incoming_file_bindings(from, source, runtime)?;
+        bindings.merged_file_bindings = true;
+        let mut scope = source.cloned().unwrap_or_default();
+        scope.rename(target);
+        scope.variables = Arc::new(bindings);
+        Some(scope)
+    }
+
     pub(crate) fn merge_completed_undeclared_file_bindings(
         target: &[u8],
         destination: &VariableStore,

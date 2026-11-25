@@ -58,15 +58,15 @@ class DatabaseOutputTests(unittest.TestCase):
         self.assertEqual(len(d.models()), 14)
         phases = d.models('phases')
         self.assertEqual(len(phases), 27)
-        self.assertEqual(len(d.models('all')), 68)
+        self.assertEqual(len(d.models('all')), 70)
         self.assertEqual({m.dump_count for m in phases}, {1, 2})
         self.assertEqual(sum(bool(m.compile_shared) for m in phases), 2)
         self.assertTrue(all(source in model.files for model in phases for source, _ in model.compile_shared))
 
     def test_search_models_pin_full_names_cache_storage_and_goal_flags(self):
         search = d.models('search')
-        self.assertEqual(len(search), 24)
-        self.assertEqual(len({model.id for model in d.models('all')}), 68)
+        self.assertEqual(len(search), 26)
+        self.assertEqual(len({model.id for model in d.models('all')}), 70)
         self.assertTrue(all(not model.compile_shared for model in search))
         model = next(model for model in search if model.id == 'database-search-repeated-aliased')
         metadata = {name: {'device': 42, 'inode': 99 + index, 'mode': stat.S_IFDIR | 0o755}
