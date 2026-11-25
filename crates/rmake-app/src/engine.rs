@@ -605,6 +605,7 @@ struct PendingMakefileRemake<'a> {
     duplicate: bool,
     active: bool,
     initial: Outcome,
+    trace_synthetic_reap: bool,
     trailing_prerequisite_child: Option<Box<RemakePrerequisiteChild<'a>>>,
     trailing_prerequisite_changed: bool,
 }
@@ -4321,6 +4322,7 @@ impl Engine {
                                     duplicate: true,
                                     active: true,
                                     initial: Outcome::default(),
+                                    trace_synthetic_reap: false,
                                     trailing_prerequisite_child: None,
                                     trailing_prerequisite_changed: false,
                                 });
@@ -4918,16 +4920,21 @@ impl Engine {
                     break;
                 }
                 if self.parallel_makefile_remakes && self.pending(name) {
-                    if context.trace_initial_synthetic
-                        && self.debug_was_considered(name)
-                        && self.parallel_jobs.primary.get(name).is_some_and(|job| {
-                            job.child.is_some() && job.continuation.branch == Some(1)
-                        })
-                    {
+                    let held_synthetic =
+                        if context.trace_initial_synthetic && self.debug_was_considered(name) {
+                            self.parallel_jobs.primary.get(name).filter(|job| {
+                                job.child.is_some() && job.continuation.branch == Some(1)
+                            })
+                        } else {
+                            None
+                        };
+                    if held_synthetic.is_some() {
                         // A second source entry sees the considered head
                         // while the actual synthetic command is pending.
                         crate::debug::emit(&self.output, crate::debug::Event::Pruning(name, 1));
                     }
+                    let trace_synthetic_reap = held_synthetic
+                        .is_some_and(|job| !job.recursive && job.continuation.expanded.is_empty());
                     if let Some(trailing) = &trailing_optional_source
                         && name == trailing.neighbor
                         && self.options.keep_going
@@ -4945,6 +4952,7 @@ impl Engine {
                         duplicate: false,
                         active: true,
                         initial: result,
+                        trace_synthetic_reap,
                         trailing_prerequisite_child: None,
                         trailing_prerequisite_changed: false,
                     });
@@ -8195,6 +8203,19 @@ impl Engine {
                     .outcome(self.aliases.resolve(name))
                     .copied()
                     .unwrap_or(request.initial);
+                if request.trace_synthetic_reap
+                    && needs_visit
+                    && !request.active
+                    && self.graph_abort.is_none()
+                    && !outcome.fatal
+                    && !outcome.question_outdated
+                    && (!outcome.failed || self.options.keep_going)
+                {
+                    // The completed child reopens both source entries for
+                    // their cached checks, then the repeated head prunes.
+                    self.debug_completed_double_colon_declarations(name, 0..2, 1);
+                    crate::debug::emit(&self.output, crate::debug::Event::Pruning(name, 1));
+                }
                 if request.active
                     && let Some(child) = &request.trailing_prerequisite_child
                     && !self.pending(child.name)
