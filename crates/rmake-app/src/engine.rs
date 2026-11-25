@@ -2201,6 +2201,21 @@ impl Engine {
         operation: impl FnOnce(&mut Database, ExpansionContext<'_>) -> T,
     ) -> T {
         let warnings = mute_undefined.then(|| self.flag_state.replace_scoped_warning_policy(false));
+        let result = self.with_target_read_expansion(location, operation);
+        if let Some(warnings) = warnings {
+            self.flag_state.replace_scoped_warning_policy(warnings);
+        }
+        if let Some(options) = self.flag_state.take() {
+            self.options = options;
+        }
+        result
+    }
+
+    fn with_target_read_expansion<T>(
+        &mut self,
+        location: Option<&Location>,
+        operation: impl FnOnce(&mut Database, ExpansionContext<'_>) -> T,
+    ) -> T {
         let mut target_reads = TargetReads {
             visits: &self.file_traversals,
             retained_parents: &self.retained_scope_parents,
@@ -2232,14 +2247,7 @@ impl Engine {
             .with_filesystem(&mut filesystem)
             .with_shell(&shell)
             .with_includes(&mut include);
-        let result = operation(&mut self.database, context);
-        if let Some(warnings) = warnings {
-            self.flag_state.replace_scoped_warning_policy(warnings);
-        }
-        if let Some(options) = self.flag_state.take() {
-            self.options = options;
-        }
-        result
+        operation(&mut self.database, context)
     }
 
     fn expand_global(
@@ -10141,30 +10149,9 @@ impl Engine {
         branch: Option<usize>,
     ) -> Result<VariableStore, ExpandError> {
         if intermediate && intermediate_scope.is_none() {
-            let pattern = self.database.prepare_pattern_scope(
-                target,
-                runtime_context(
-                    None,
-                    &mut RuntimeOutput::new(
-                        &self.output,
-                        &self.program,
-                        &self.flag_state.warn_undefined,
-                    ),
-                )
-                .with_makeflags(&mut self.flag_state.receiver())
-                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&|request| {
-                    crate::shell::run(
-                        request,
-                        &self.program,
-                        self.makelevel,
-                        &self.output,
-                        self.jobserver.as_ref(),
-                        || self.filesystem.borrow_mut().child_completed(),
-                    )
-                })
-                .with_includes(&mut |name| self.include_search.borrow().read(name)),
-            )?;
+            let pattern = self.with_target_read_expansion(None, |database, context| {
+                database.prepare_pattern_scope(target, context)
+            })?;
             *intermediate_scope = Some(ImplicitScope {
                 pattern,
                 runtime_metadata: VariableStore::default(),
@@ -14244,31 +14231,9 @@ impl Engine {
             variables.retain_runtime_metadata(&scope.runtime_metadata, true);
             variables
         } else {
-            self.database.variables_for_target_with(
-                target,
-                &inherited,
-                runtime_context(
-                    None,
-                    &mut RuntimeOutput::new(
-                        &self.output,
-                        &self.program,
-                        &self.flag_state.warn_undefined,
-                    ),
-                )
-                .with_makeflags(&mut self.flag_state.receiver())
-                .with_filesystem(&mut |effect| self.filesystem.borrow_mut().execute(effect))
-                .with_shell(&|request| {
-                    crate::shell::run(
-                        request,
-                        &self.program,
-                        self.makelevel,
-                        &self.output,
-                        self.jobserver.as_ref(),
-                        || self.filesystem.borrow_mut().child_completed(),
-                    )
-                })
-                .with_includes(&mut |name| self.include_search.borrow().read(name)),
-            )?
+            self.with_target_read_expansion(None, |database, context| {
+                database.variables_for_target_with(target, &inherited, context)
+            })?
         };
         self.target_contexts
             .insert(target.to_vec(), variables.clone());

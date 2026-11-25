@@ -1,0 +1,12 @@
+id = "pattern-deferred-retained-completed-peer"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "A deferred pattern assignment can reopen a completed target outside its ancestor chain."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "parent=[parent|parent|7]\nreopened=[parent|parent|7]\nactivating=[item.mid]\nchild=[item.mid|inherited||activated]\n"
+stderr = ""

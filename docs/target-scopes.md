@@ -148,6 +148,11 @@ flag and any explicit export policy, so later reads of its owner see the
 same qualifiers. Reading a declaration on an unvisited file preserves the
 initial lookup and leaves its pattern variables unactivated.
 
+An `eval` inside a deferred pattern assignment reads the same retained target
+values as `eval` inside an ordinary secondary expansion word. This includes
+an already visited ancestor's automatic variables and shell status when the
+child is still a temporary implicit intermediate.
+
 ### Environment and shell status
 
 Recursive exports expanded for a recipe child use the same retained file

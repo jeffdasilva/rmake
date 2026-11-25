@@ -1,0 +1,12 @@
+id = "pattern-deferred-retained-inherited-shell"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "A deferred pattern shell assignment reads its parent before setting the child shell status."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "reopened=[parent|parent|7]\nactivating=[item.mid]\nchild=[item.mid|inherited|0|activated]\nparent=[parent|parent|7]\n"
+stderr = ""

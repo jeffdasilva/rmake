@@ -29,7 +29,7 @@ impl rmake_core::diagnostic::MakeflagsReceiver for Receiver<'_> {
         request: rmake_core::diagnostic::MakeflagsRequest<'_>,
         passive: bool,
     ) -> Result<Option<Box<dyn rmake_core::diagnostic::FlagDecoder>>, Vec<u8>> {
-        self.0.begin_include_decoder(request, passive)
+        self.0.begin_flag_decoder(request, passive)
     }
     fn sync_decoded_flags(&mut self) {
         let options = self.0.options.borrow();
@@ -127,7 +127,7 @@ impl State {
         self.dirty.set(false);
         Some(self.options.borrow().clone())
     }
-    fn begin_include_decoder(
+    fn begin_flag_decoder(
         &self,
         request: rmake_core::diagnostic::MakeflagsRequest<'_>,
         passive: bool,
@@ -136,7 +136,7 @@ impl State {
             let mut options = self.options.borrow_mut();
             options.debug_mask = self.output.debug_mask();
             options
-                .include_decoder(request.value)
+                .owned_flag_decoder(request.value)
                 .map_err(String::into_bytes)?
         };
         let Some(mut decoder) = prepared else {
@@ -148,7 +148,7 @@ impl State {
         *options = initial;
         drop(options);
         self.dirty.set(true);
-        Ok(Some(Box::new(IncludeDecoder {
+        Ok(Some(Box::new(OwnedFlagDecoder {
             decoder,
             options: self.options.clone(),
             includes: self.includes.clone(),
@@ -381,7 +381,7 @@ impl rmake_core::diagnostic::IncludePreparation for SearchPreparation {
     }
 }
 
-struct IncludeDecoder {
+struct OwnedFlagDecoder {
     decoder: crate::cli::Decoder,
     options: std::rc::Rc<RefCell<Options>>,
     includes: std::rc::Rc<RefCell<IncludeSearch>>,
@@ -395,7 +395,7 @@ struct IncludeDecoder {
     remaking: bool,
 }
 
-impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
+impl rmake_core::diagnostic::FlagDecoder for OwnedFlagDecoder {
     fn terminal(&self) -> usize {
         self.decoder.terminal()
     }
@@ -570,7 +570,7 @@ impl rmake_core::diagnostic::FlagDecoder for IncludeDecoder {
     }
 }
 
-impl Drop for IncludeDecoder {
+impl Drop for OwnedFlagDecoder {
     fn drop(&mut self) {
         // Restore invocation ownership on errors and cancellation as well as
         // success. Previously completed option/variable effects remain live.
@@ -982,9 +982,9 @@ impl Engine {
         // Source expansion can itself change policy; capture its completed state.
         self.options.debug_mask = self.output.debug_mask();
         let warning_entry = self.flag_state.warn_undefined.get();
-        if value.contains(&b'~') {
+        if Options::may_need_owned_flag_decoder(&value) {
             self.flag_state.refresh(&self.options);
-            let decoder = match self.flag_state.begin_include_decoder(
+            let decoder = match self.flag_state.begin_flag_decoder(
                 rmake_core::diagnostic::MakeflagsRequest {
                     value: &value,
                     origin: Origin::Environment,
@@ -1284,7 +1284,7 @@ mod remake_mode_tests {
         state.remaking.set(true);
         state.set_makefile_modes(MakefileModes::default());
         let mut decoder = state
-            .begin_include_decoder(
+            .begin_flag_decoder(
                 MakeflagsRequest {
                     value: b"-I~/inc -q",
                     origin: Origin::File,
@@ -1336,7 +1336,7 @@ mod decoder_ownership_tests {
                 std::rc::Rc::new(RefCell::new(IncludeSearch::default())),
             );
             let mut decoder = state
-                .begin_include_decoder(
+                .begin_flag_decoder(
                     MakeflagsRequest {
                         value: b"-I~/inc -f -jbad --output-sync=unknown",
                         origin: Origin::File,
@@ -1402,7 +1402,7 @@ mod raw_include_history_tests {
             std::rc::Rc::new(RefCell::new(IncludeSearch::default())),
         );
         let mut decoder = state
-            .begin_include_decoder(
+            .begin_flag_decoder(
                 MakeflagsRequest {
                     value: b"-Isame/inc/ -I~/inc",
                     origin: Origin::File,

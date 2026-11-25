@@ -48,6 +48,20 @@ impl Requests {
         self.decode_from(trace, Mask::NONE)
     }
     pub fn decode_from(&mut self, trace: bool, current: Mask) -> Result<Mask, Vec<u8>> {
+        let mask = self
+            .decode_mask(trace, current)
+            .map_err(|remaining| localized(msg::UNKNOWN_LEVEL, &[bytes(remaining)]))?;
+        if mask == Mask::NONE {
+            self.all = false;
+        }
+        Ok(mask)
+    }
+
+    pub(crate) fn has_invalid_request(&self) -> bool {
+        self.decode_mask(false, Mask::NONE).is_err()
+    }
+
+    fn decode_mask(&self, trace: bool, current: Mask) -> Result<Mask, &[u8]> {
         // A signal changes the effective mask, not recorded option history.
         // Completed decodes replay requests onto that live selection.
         let mut mask = if self.all { Mask::ALL } else { current };
@@ -78,16 +92,13 @@ impl Requests {
                     b'p' => mask.add(Mask::PRINT),
                     b'w' => mask.add(Mask::WHY),
                     b'n' => mask = Mask::NONE,
-                    _ => return Err(localized(msg::UNKNOWN_LEVEL, &[bytes(remaining)])),
+                    _ => return Err(remaining),
                 }
                 cursor += remaining
                     .iter()
                     .position(|byte| matches!(byte, b',' | b' '))
                     .map_or(remaining.len(), |separator| separator + 1);
             }
-        }
-        if mask == Mask::NONE {
-            self.all = false;
         }
         Ok(mask)
     }
