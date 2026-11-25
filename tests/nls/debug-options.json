@@ -1,0 +1,171 @@
+{
+  "classification": "Invalid debug requests at startup and during secondary expansion, with locale and byte controls.",
+  "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
+  "fixture_sha256": {},
+  "rows": [
+    {
+      "id": "nls-debug-option-startup-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--debug=unknown"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "seen": "anchor\n",
+        "stderr": "make: *** unknown debug level specification 'unknown'.  Stop.\n"
+      }
+    },
+    {
+      "id": "nls-debug-option-startup-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--debug=unknown"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "seen": "anchor\n",
+        "stderr": "make: *** niveau de débogage inconnu « unknown ». Arrêt.\n"
+      }
+    },
+    {
+      "id": "nls-debug-option-startup-language-list",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--debug=b,unknown,v"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx-rmake-missing:de:fr"
+      },
+      "files": {
+        "Makefile": "616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "seen": "anchor\n",
+        "stderr": "make: *** Unbekanntes Debug-Level „unknown,v“ angegeben.  Schluss.\n"
+      }
+    },
+    {
+      "id": "nls-debug-option-live-c",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "2428696e666f206265666f7265290a242866696c65203e3e7365656e2c6265666f7265290a2e5345434f4e44455850414e53494f4e3a0a616c6c3a202424286576616c204d414b45464c414753202b3d202d2d64656275673d756e6b6e6f776e29206d697373696e670a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "seen": "anchor\nbefore\n",
+        "stderr": "make: *** unknown debug level specification 'unknown'.  Stop.\n"
+      }
+    },
+    {
+      "id": "nls-debug-option-live-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "2428696e666f206265666f7265290a242866696c65203e3e7365656e2c6265666f7265290a2e5345434f4e44455850414e53494f4e3a0a616c6c3a202424286576616c204d414b45464c414753202b3d202d2d64656275673d756e6b6e6f776e29206d697373696e670a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "seen": "anchor\nbefore\n",
+        "stderr": "make: *** niveau de débogage inconnu « unknown ». Arrêt.\n"
+      }
+    },
+    {
+      "id": "nls-debug-option-live-language-list",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx-rmake-missing:de:fr"
+      },
+      "files": {
+        "Makefile": "2428696e666f206265666f7265290a242866696c65203e3e7365656e2c6265666f7265290a2e5345434f4e44455850414e53494f4e3a0a616c6c3a202424286576616c204d414b45464c414753202b3d202d2d64656275673d756e6b6e6f776e29206d697373696e670a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "seen": "anchor\nbefore\n",
+        "stderr": "make: *** Unbekanntes Debug-Level „unknown“ angegeben.  Schluss.\n"
+      }
+    },
+    {
+      "id": "nls-debug-option-live-c-raw",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "2428696e666f206265666f7265290a242866696c65203e3e7365656e2c6265666f7265290a2e5345434f4e44455850414e53494f4e3a0a616c6c3a202424286576616c204d414b45464c414753202b3d202d2d64656275673d7aff2c7029206d697373696e670a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "seen": "anchor\nbefore\n",
+        "stderr_hex": "6d616b653a202a2a2a20756e6b6e6f776e206465627567206c6576656c2073706563696669636174696f6e20277aff2c70272e202053746f702e0a"
+      }
+    }
+  ]
+}

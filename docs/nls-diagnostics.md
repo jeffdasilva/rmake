@@ -156,6 +156,9 @@ The `file` function has typed errors for a missing name, an extra read argument
 or an invalid operation. Tests preserve source lines, side effects and raw
 argument bytes. [Low-resolution timestamp models](../tests/nls/low-resolution.json)
 use fixed timestamps to check warning publication and effects in C and French.
+The [debug option models](../tests/nls/debug-options.json) check invalid debug
+requests at startup and during secondary expansion. They cover French,
+`LANGUAGE` fallback, and the original bytes of an invalid C-locale operand.
 
 ## Native loader diagnostics
 
