@@ -588,6 +588,11 @@ struct FailedPrerequisite {
     parent: Vec<u8>,
 }
 
+enum NamedRemakePeerTime {
+    File(Option<SystemTime>),
+    GroupedDoubleColon(SystemTime),
+}
+
 /// Grouped logical updates are provisional until the serial source pass settles.
 /// After a failed chain, only an optional failed tail can leave its successful
 /// cached head invalidated. Physical timestamp changes are tracked separately.
@@ -4665,17 +4670,31 @@ impl Engine {
                         && (visit_modes.dry_run || visit_modes.question)
                         && !visit_modes.touch
                         && self.assumptions.is_none()
-                        && observed_peer_change.is_some_and(|time| result.time != Some(time))
                         && result.remake_group_peer_updated
-                        && result.ran
                         && !result.question_outdated
-                        && self.database.rules.get(name).is_some_and(|rule| {
-                            rule.double_colon.is_none()
-                                && rule.grouped_targets().is_some()
-                                && rule.implicit_pattern.is_none()
-                        })
+                        && let Some(before) = observed_peer_change
                     {
-                        settled_named_peer_times.push((name, result.time));
+                        if result.ran
+                            && result.time != Some(before)
+                            && self.database.rules.get(name).is_some_and(|rule| {
+                                rule.double_colon.is_none()
+                                    && rule.grouped_targets().is_some()
+                                    && rule.implicit_pattern.is_none()
+                            })
+                        {
+                            settled_named_peer_times
+                                .push((name, NamedRemakePeerTime::File(result.time)));
+                        } else if visit_modes.only_dry_run()
+                            && !makefile.missing
+                            && makefile.location.is_some()
+                            && !self.options.check_symlink_times
+                            && let Some(time) = self.settled_grouped_double_peer_time(name)
+                            && time != before
+                        {
+                            // A cached branch may have restored the root's visit time.
+                            settled_named_peer_times
+                                .push((name, NamedRemakePeerTime::GroupedDoubleColon(time)));
+                        }
                     }
                     // Question mode suppresses the restart verdict, but a
                     // physical optional touch can still end this visit pass.
@@ -4696,26 +4715,24 @@ impl Engine {
                         changed
                     } else if record_change || check_optional_touch {
                         let after = self.modified(&makefile.name);
-                        let loaded_time =
-                            failed_source_time.filter(|_| after.is_some()).or_else(|| {
-                                loaded_source
-                                    .filter(|&(_, declarations)| {
-                                        !MakefileModes::from_options(&self.options).active()
-                                            && (declarations == 1
-                                                || (!chain_failed
-                                                    && after.is_some()
-                                                    && self
-                                                        .settled_serial_source_declarations(
-                                                            name,
-                                                            declarations,
-                                                        )
-                                                        .is_some_and(|(succeeded, _)| succeeded)))
-                                    })
-                                    .map(|(time, _)| time)
-                            });
+                        let loaded_time = failed_source_time.or_else(|| {
+                            loaded_source
+                                .filter(|&(_, declarations)| {
+                                    !MakefileModes::from_options(&self.options).active()
+                                        && (declarations == 1
+                                            || (!chain_failed
+                                                && self
+                                                    .settled_serial_source_declarations(
+                                                        name,
+                                                        declarations,
+                                                    )
+                                                    .is_some_and(|(succeeded, _)| succeeded)))
+                                })
+                                .map(|(time, _)| time)
+                        });
                         let implicit_time = refreshed_implicit_time.filter(|_| !chain_failed);
                         // Completed declarations share the final physical
-                        // timestamp, including when the last restores it.
+                        // observation, including a restored timestamp or an absent source.
                         let before_refresh = observed_peer_change
                             .or(loaded_time)
                             .or(implicit_time)
@@ -5142,14 +5159,19 @@ impl Engine {
             if !changed && use_failed_source_clocks {
                 // The failed pass also compares successful source records.
                 // Preserve the group's sample through later physical writes.
-                changed = settled_named_peer_times.iter().any(|&(name, time)| {
-                    self.aliases.resolve(name) == name
+                changed = settled_named_peer_times.iter().any(|(name, time)| {
+                    self.aliases.resolve(name) == *name
                         && self.file_traversals.outcome(name).is_some_and(|outcome| {
                             outcome.remake_group_peer_updated
                                 && !outcome.failed
                                 && !outcome.fatal
                                 && !outcome.question_outdated
-                                && outcome.time == time
+                                && match *time {
+                                    NamedRemakePeerTime::File(time) => outcome.time == time,
+                                    NamedRemakePeerTime::GroupedDoubleColon(time) => {
+                                        self.settled_grouped_double_peer_time(name) == Some(time)
+                                    }
+                                }
                         })
                 });
             }
@@ -12273,6 +12295,26 @@ impl Engine {
                 _ => false,
             }
         })
+    }
+
+    fn settled_grouped_double_peer_time(&self, name: &[u8]) -> Option<SystemTime> {
+        let [branch] = self.database.rules.get(name)?.double_colon.as_deref()? else {
+            return None;
+        };
+        if branch.grouped_double_id().is_none() || branch.implicit_pattern.is_some() {
+            return None;
+        }
+        let sampled = self.database_branch_outcomes.get(&(name.to_vec(), 0))?;
+        // The cached file visit may observe a different clock than the group did.
+        if sampled.database_result != DatabaseResult::ObservedGroup
+            || sampled.completion != CompletionTime::Refresh
+            || !sampled.ran
+            || sampled.fatal
+            || sampled.terminal_verdict().is_some()
+        {
+            return None;
+        }
+        sampled.time
     }
 
     fn settled_named_dry_remake_has_new_clock(

@@ -1,0 +1,10 @@
+id = "include-serial-multi-source-baseline-removed-single-declaration"
+requirement = "includes.serial-multi-source-restart-baseline"
+candidate = "required"
+description = "A single double-colon declaration still compares against the original loaded clock."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nremove:0:1680300000\nbranch-0:0:absent\nread=1 time=absent\ndata=1:\ngoal=1:absent:\n"
+stderr = ""

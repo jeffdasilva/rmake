@@ -1,0 +1,10 @@
+id = "include-serial-multi-source-baseline-removed-current-chain"
+requirement = "includes.serial-multi-source-restart-baseline"
+candidate = "required"
+description = "A chain whose declarations remain current keeps the original read in use."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 time=1680300000\ndata=0:original\nremove:0:1680300000\ngoal=0:absent:original\n"
+stderr = ""

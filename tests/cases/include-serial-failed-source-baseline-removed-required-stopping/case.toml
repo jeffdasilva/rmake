@@ -1,0 +1,10 @@
+id = "include-serial-failed-source-baseline-removed-required-stopping"
+requirement = "includes.serial-failed-source-restart-baseline"
+candidate = "required"
+description = "Stopping traversal reports the failed tail before any required reread."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "all"]
+
+[expected]
+exit_code = 2
+stdout = "read=0 time=1680300000\ndata=0:original\nremove:0:1680300000\nbranch-0:0:absent\nbranch-1:0:absent\n"
+stderr = "make: *** [Makefile:17: b.mk] Error 1\n"
