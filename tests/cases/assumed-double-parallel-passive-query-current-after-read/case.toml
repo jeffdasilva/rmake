@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-passive-query-current-after-read"
+requirement = "options.assumed-double-colon-parallel-unnamed-passive-modes"
+candidate = "required"
+description = "A reread makes the ordinary query goal current in a stopping invocation."
+args = ["-rR", "--no-print-directory", "-j2", "-S", "--jobserver-style=pipe", "-q", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nread=1 clock=1680300000\n"
+stderr = ""

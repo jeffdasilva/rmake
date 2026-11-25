@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-passive-touch-unassumed"
+requirement = "options.assumed-double-colon-parallel-unnamed-passive-modes"
+candidate = "required"
+description = "Without a what-if operand, touch sees the ordinary current goal from the initial read."
+args = ["-rR", "--no-print-directory", "-j2", "-k", "--jobserver-style=fifo", "-t"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nmake: 'result.0' is up to date.\n"
+stderr = ""
