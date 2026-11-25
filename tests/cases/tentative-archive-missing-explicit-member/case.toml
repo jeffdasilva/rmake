@@ -1,0 +1,12 @@
+id = "tentative-archive-missing-explicit-member"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Keep the raw goal spelling for a missing archive member declared without a recipe."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "bundle", "move", "bundle(absent)", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "make: Nothing to be done for 'bundle(absent)'.\nraw=[||undefined|undefined||]\nsearched=[bundle|inherited-source|override|recursive|inherited-$(V)|source]\n"
+stderr = ""

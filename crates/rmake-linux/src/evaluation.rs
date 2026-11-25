@@ -19,10 +19,14 @@ impl Drop for Reservation {
     }
 }
 
-/// Stack switching is enabled only for the qualified x86-64 Linux profile.
+/// Enable stack switching on the Linux profiles qualified for parser reentry.
 /// Other library profiles retain the core's native recursion guard.
 pub fn adapter() -> Option<&'static dyn EvaluationStack> {
-    cfg!(target_arch = "x86_64").then_some(&ADAPTER)
+    cfg!(any(
+        target_arch = "x86_64",
+        all(target_arch = "aarch64", target_env = "gnu")
+    ))
+    .then_some(&ADAPTER)
 }
 impl EvaluationStack for Adapter {
     fn run(

@@ -1,0 +1,12 @@
+id = "gpath-late-merge-mentioned-goal-status"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "Keep the source verdict when a double-colon head merges into a mentioned destination."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after", "parent", "last", "src/parent"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "goals=[parent after parent last src/parent]\nbranch=[parent|input]\nbranch=[parent|other]\nmarker=[after]\nmake: 'src/parent' is up to date.\nmarker=[last]\n"
+stderr = ""

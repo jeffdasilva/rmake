@@ -26,9 +26,36 @@ impl Matcher {
         if class.iter().any(|&byte| matches!(byte, b'[' | b'\\')) {
             return host();
         }
+        if let Some(caret) = class.strip_prefix(b"^")
+            && let Some(close) = caret.iter().position(|&byte| byte == b']')
+            && caret[..close].iter().all(u8::is_ascii_alphanumeric)
+            && std::env::var_os("POSIXLY_CORRECT").is_some()
+        {
+            // GNU treats caret as a literal member when this variable is
+            // present. Use a non-leading caret with the native matcher.
+            let prefix = &pattern[..open];
+            let suffix = &caret[close + 1..];
+            let adjusted = if close == 0 {
+                [prefix, b"^", suffix].concat()
+            } else {
+                [prefix, b"[", &caret[..close], b"^]", suffix].concat()
+            };
+            return posix::Matcher::new(&adjusted).map(Self::Host);
+        }
         let negated = class.starts_with(b"!")
             || (class.starts_with(b"^") && std::env::var_os("POSIXLY_CORRECT").is_none());
-        let class = &class[usize::from(negated)..];
+        let members_start = open + 1 + usize::from(negated);
+        let class = &pattern[members_start..];
+        if let [first, b'-', last, b']', suffix @ ..] = class
+            && first.is_ascii_alphanumeric()
+            && last.is_ascii_alphanumeric()
+            && first > last
+        {
+            // The bundled matcher tests the first endpoint as a literal
+            // member. A descending interval adds no other members.
+            let adjusted = [&pattern[..members_start], &[*first, b']'], suffix].concat();
+            return posix::Matcher::new(&adjusted).map(Self::Host);
+        }
         let never = || (!pattern.contains(&0)).then_some(Self::Never);
         let Some(tail) = class.strip_prefix(b"]") else {
             return if class.contains(&b']') {
@@ -80,4 +107,22 @@ fn first_unquoted_bracket(pattern: &[u8]) -> Option<usize> {
         index += if byte == b'\\' { 2 } else { 1 };
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Matcher;
+
+    #[test]
+    fn descending_range_retains_only_the_opening_endpoint() {
+        let letters = Matcher::new(b"[x-a]").unwrap();
+        assert!(letters.matches(c"x"));
+        assert!(!letters.matches(c"a"));
+        assert!(!letters.matches(c"b"));
+
+        let digits = Matcher::new(b"[!9-0]").unwrap();
+        assert!(!digits.matches(c"9"));
+        assert!(digits.matches(c"0"));
+        assert!(digits.matches(c"7"));
+    }
 }

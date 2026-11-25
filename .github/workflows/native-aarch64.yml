@@ -18,15 +18,13 @@ jobs:
     name: Native AArch64 glibc
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
-    env:
-      RUSTUP_TOOLCHAIN: "1.90.0"
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Bootstrap and build
         run: |
           test "$(uname -m)" = aarch64
-          rustup toolchain install "$RUSTUP_TOOLCHAIN" --profile minimal --component rustfmt --component clippy
+          make bootstrap-rust
           make bootstrap-oracle build release
       - name: Check host metadata
         env:
@@ -50,6 +48,26 @@ jobs:
           make --keep-going test-process-restarts test-restart-pipe test-jobserver
           test-native-spawn-stdio test-native-spawn-stdio-release
           test-native-restart-stdio test-native-restart-stdio-release
+      - name: Check developer flows
+        run: |
+          make test-developer-flows
+          python3 tools/developer_flows.py --candidate target/release/rmake \
+            --report artifacts/developer-flows/optimized.json
+      - name: Check evaluation stack switching
+        run: |
+          python3 tools/rust.py cargo test --locked -p rmake-linux --lib \
+            evaluation::tests:: -- --test-threads=1
+          python3 tools/rust.py cargo test --locked --release -p rmake-linux --lib \
+            evaluation::tests:: -- --test-threads=1
+      - name: Check deep live evaluation
+        run: |
+          for kind in debug release; do
+            python3 tools/conformance.py --candidate "target/$kind/rmake" \
+              --case live-eval-129-pure-none \
+              --case live-eval-512-effects-target \
+              --case live-eval-512-cycle-none \
+              --repeat 2 --artifacts "artifacts/evaluation-aarch64/$kind"
+          done
       - name: Retain native profile and reports
         if: always()
         continue-on-error: true
@@ -59,6 +77,8 @@ jobs:
           name: native-aarch64-${{ github.sha }}-${{ github.run_attempt }}
           path: |
             .tools/oracle/profile.json
+            artifacts/developer-flows/
+            artifacts/evaluation-aarch64/
             artifacts/process-restarts/
             artifacts/restart-pipe/
             artifacts/native/

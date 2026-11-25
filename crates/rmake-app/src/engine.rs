@@ -334,6 +334,8 @@ enum DatabaseResult {
     ObservedGroup,
     ObservedDoubleColon,
     RecipeUnstarted,
+    // A stopping missing-rule diagnostic precedes update completion.
+    UnfinishedMissingRule,
 }
 
 impl DatabaseResult {
@@ -495,6 +497,12 @@ struct RequestedGoal {
 
 type SharedIncludeError = Rc<Cell<Option<PendingIncludeError>>>;
 type MakefileVisits<'a> = HashMap<&'a [u8], (Option<SystemTime>, Option<SharedIncludeError>)>;
+
+struct TrailingOptionalRemake<'a> {
+    required: &'a Makefile,
+    neighbor: &'a [u8],
+    unruled: bool,
+}
 
 /// State owned by one makefile update. Intermediate inspection can suppress
 /// the optional policy temporarily without discarding its retained error.
@@ -1001,6 +1009,11 @@ struct MovedArchiveRecord {
     lookup: Vec<u8>,
     original: Vec<u8>,
     command_goal: bool,
+}
+
+enum MergedGoalReport {
+    CompletedSource(Vec<u8>),
+    UnattemptedDestination,
 }
 
 struct TargetReads<'a> {
@@ -1587,6 +1600,7 @@ pub struct Engine {
     // Its first traversal context still owns the recipe and diagnostics.
     retained_scope_parents: HashMap<Vec<u8>, OwnedScopeParent>,
     moved_archives: HashMap<FileRecordId, MovedArchiveRecord>,
+    merged_goal_reports: HashMap<FileRecordId, MergedGoalReport>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
     implicit_scopes: HashMap<Vec<u8>, ImplicitScope>,
     impossible_prerequisites: HashSet<Vec<u8>>,
@@ -2180,6 +2194,7 @@ impl Engine {
             file_traversals: FileTraversals::default(),
             retained_scope_parents: HashMap::new(),
             moved_archives: HashMap::new(),
+            merged_goal_reports: HashMap::new(),
             target_contexts: HashMap::new(),
             implicit_scopes: HashMap::new(),
             impossible_prerequisites: HashSet::new(),
@@ -4055,7 +4070,7 @@ impl Engine {
                 && !all_required_sources
                 && leading_optional_source.is_none()
             {
-                self.unruled_trailing_optional_source(&read_files)
+                self.trailing_optional_remake(&read_files)
             } else {
                 None
             };
@@ -4080,38 +4095,46 @@ impl Engine {
                         &source.name,
                     ))
             };
-            let source_outcome =
-                |engine: &Self,
-                 source: &Makefile,
-                 mut outcome: Outcome,
-                 trailing: Option<(&Makefile, &[u8])>| {
-                    // Keep the synthetic failure for ordinary prerequisite visits.
-                    // The remake pass uses the successful declared source.
-                    if matches!(
-                        outcome.remake_failure,
-                        RemakeFailure::RequiredSyntheticInput
-                            | RemakeFailure::RequiredSyntheticRecipe
-                    ) && (uses_declared_synthetic_head(engine, source)
-                        || (matches!(
-                            outcome.remake_failure,
-                            RemakeFailure::RequiredSyntheticInput
-                        ) && trailing.is_some_and(|(required, neighbor)| {
-                            // A synchronous no-rule result can settle before the
-                            // final unruled optional source has its own visit.
-                            std::ptr::eq(required, source)
-                                && !engine.file_traversals.has_outcome(neighbor)
-                                && !engine.pending(neighbor)
-                                && engine.unruled_remake_source(neighbor)
-                                && !engine.database.rules.contains_key(b".DEFAULT".as_slice())
-                                && fs::symlink_metadata(os(neighbor))
-                                    .is_ok_and(|file| file.is_file())
-                        })))
-                    {
-                        outcome.failed = false;
-                        outcome.first_branch_verdict = None;
-                    }
-                    outcome
-                };
+            let source_outcome = |engine: &Self,
+                                  source: &Makefile,
+                                  mut outcome: Outcome,
+                                  initial_visit: bool| {
+                // Keep the synthetic failure for ordinary prerequisite visits.
+                // The remake pass uses the successful declared source.
+                if matches!(
+                    outcome.remake_failure,
+                    RemakeFailure::RequiredSyntheticInput | RemakeFailure::RequiredSyntheticRecipe
+                ) && (uses_declared_synthetic_head(engine, source)
+                    || trailing_optional_source.as_ref().is_some_and(|trailing| {
+                        std::ptr::eq(trailing.required, source)
+                            && match outcome.remake_failure {
+                                // The child can set this verdict only after
+                                // the optional visit settles.
+                                RemakeFailure::RequiredSyntheticRecipe => true,
+                                // A synchronous no-rule result settles
+                                // before the optional source's visit.
+                                RemakeFailure::RequiredSyntheticInput => {
+                                    initial_visit
+                                        && trailing.unruled
+                                        && !engine.file_traversals.has_outcome(trailing.neighbor)
+                                        && !engine.pending(trailing.neighbor)
+                                        && engine.unruled_remake_source(trailing.neighbor)
+                                        && !engine
+                                            .database
+                                            .rules
+                                            .contains_key(b".DEFAULT".as_slice())
+                                        && fs::symlink_metadata(os(trailing.neighbor))
+                                            .is_ok_and(|file| file.is_file())
+                                }
+                                _ => false,
+                            }
+                    }))
+                {
+                    outcome.failed = false;
+                    outcome.first_branch_verdict = None;
+                }
+                outcome
+            };
             let mut loaded_prerequisite_times = HashMap::new();
             if !parallel_remakes {
                 let has_implicit_recipes = !self.database.database_implicit_rules().is_empty();
@@ -4546,7 +4569,7 @@ impl Engine {
                     build_visit,
                     track_named_source.then_some(&mut source_started_command),
                 );
-                result = source_outcome(self, makefile, result, trailing_optional_source);
+                result = source_outcome(self, makefile, result, true);
                 let chain_failed = result.failed;
                 let refreshed_implicit_time = loaded_implicit_time.filter(|_| {
                     !MakefileModes::from_options(&self.options).active()
@@ -4792,6 +4815,22 @@ impl Engine {
                         initial: result,
                     });
                     continue;
+                }
+                if let Some(trailing) = &trailing_optional_source
+                    && name == trailing.neighbor
+                    && self.options.keep_going
+                    && before.is_some()
+                    && result.time == before
+                    && !result.ran
+                    && !result.fatal
+                    && result.terminal_verdict().is_none()
+                    && if trailing.unruled {
+                        self.unruled_remake_source(name)
+                    } else {
+                        !result.blocked && self.declared_optional_remake_source(name)
+                    }
+                {
+                    self.qualify_synthetic_recipe_after_optional_read(&trailing.required.name);
                 }
                 let deferred_peer_failure = deferred_peer_failure
                     || (pending_peer
@@ -5182,7 +5221,7 @@ impl Engine {
                             .outcome(self.aliases.resolve(name))
                             .copied()
                             .unwrap_or(remake.initial);
-                        let result = source_outcome(self, remake.file, result, None);
+                        let result = source_outcome(self, remake.file, result, false);
                         if remake.duplicate && (remake.file.optional || !result.failed) {
                             continue;
                         }
@@ -7148,7 +7187,12 @@ impl Engine {
         {
             let identity = self.aliases.resolve(goal);
             let detached_head = self.database.has_detached_file_head(identity);
-            if detached_head && goal == identity {
+            let merged_report = self.merged_goal_report(goal);
+            if matches!(
+                merged_report,
+                Some(MergedGoalReport::UnattemptedDestination)
+            ) || (detached_head && goal == identity)
+            {
                 // The destination kept an unattempted status. The queued
                 // source head alone has a successful update to report.
                 return;
@@ -7175,7 +7219,13 @@ impl Engine {
                     .id(identity)
                     .and_then(|id| self.moved_archives.get(&id))
             };
-            let reported_goal = if let Some(owner) = moved_archive {
+            let completed_source = match merged_report {
+                Some(MergedGoalReport::CompletedSource(name)) => Some(name.as_slice()),
+                _ => None,
+            };
+            let reported_goal = if let Some(name) = completed_source {
+                name
+            } else if let Some(owner) = moved_archive {
                 owner.original.as_slice()
             } else {
                 self.resolved_names
@@ -7186,6 +7236,7 @@ impl Engine {
             // goal merges GNU's goal record; the old record has no summary.
             if reported_goal != goal
                 && moved_archive.is_none()
+                && completed_source.is_none()
                 && !(detached_head && self.aliases.retains_goal_status(goal))
                 && (if self.aliases.contains(goal) {
                     self.aliases.merged(goal)
@@ -10141,6 +10192,59 @@ impl Engine {
                 || all_recursive)
     }
 
+    fn merged_goal_report(&self, operand: &[u8]) -> Option<&MergedGoalReport> {
+        if self.merged_goal_reports.is_empty() {
+            return None;
+        }
+        let records = &self.database.file_records;
+        let owner = records
+            .moved_lookup_id_at_snapshot(operand)
+            .or_else(|| records.id(operand))?;
+        self.merged_goal_reports.get(&owner)
+    }
+
+    fn late_goal_merge_owners(
+        &self,
+        from: &[u8],
+        to: &[u8],
+    ) -> Option<(FileRecordId, FileRecordId)> {
+        // A prior terminal verdict can stop GNU's completion-time search
+        // without stopping subsequent goals under keep-going.
+        if self.remaking
+            || self.parallel_graph()
+            || self.ordinary_queries.first_verdict.is_some()
+            || !self.gpath_match(from, to)
+            || self.aliases.contains(to)
+            || rmake_core::filenames::archive_parts(from).is_some()
+            || rmake_core::filenames::archive_parts(to).is_some()
+            || self.file_traversals.visit(to).is_some()
+            || self.file_traversals.has_outcome(to)
+            || self.database.rules.get(to).is_some_and(|rule| {
+                !rule.record_only || rule.double_colon.is_some() || rule.group.is_some()
+            })
+        {
+            return None;
+        }
+        let rule = self.database.rules.get(from)?;
+        if rule.group.is_some()
+            || (rule.double_colon.is_some() && !self.database.has_plain_double_colon_rules(from))
+        {
+            return None;
+        }
+        let source = self.database.file_records.id(from)?;
+        let destination = self.database.file_records.id(to)?;
+        if source == destination
+            || self.merged_goal_reports.contains_key(&source)
+            || self.merged_goal_reports.contains_key(&destination)
+        {
+            return None;
+        }
+        // The completed source retains its status and adopts the new name.
+        // The existing destination inherits the updated flag and keeps its
+        // own unattempted status. Queued operands still refer to either ID.
+        Some((source, destination))
+    }
+
     fn observe_updated(&mut self, target: &[u8], mut outcome: Outcome) -> Outcome {
         // A completed GPATH rename has already selected the actual file.
         // Consume its timestamp without merging the original goal again.
@@ -10176,9 +10280,17 @@ impl Engine {
                 if let Some((Some(name), _)) = observation
                     && (self.gpath_match(target, &name) || self.other_file_record(&name, target))
                 {
+                    let owners = self.late_goal_merge_owners(target, &name);
                     if self.rename_search_record(target, &name).is_err() {
                         outcome.failed = true;
                         outcome.fatal = true;
+                    } else if let Some((source, destination)) = owners
+                        && !self.database.has_detached_file_head(&name)
+                    {
+                        self.merged_goal_reports
+                            .insert(source, MergedGoalReport::CompletedSource(name.clone()));
+                        self.merged_goal_reports
+                            .insert(destination, MergedGoalReport::UnattemptedDestination);
                     }
                     self.file_traversals.set_outcome(&name, outcome);
                     if self.database.has_detached_file_head(&name) {
@@ -11458,6 +11570,19 @@ impl Engine {
         self.resolved_name_ref(name).to_vec()
     }
 
+    fn discard_missing_archive_name(&mut self, target: &[u8]) -> bool {
+        if let Some(searched) = self.resolved_names.get(target)
+            && rmake_core::filenames::archive_parts(target).is_some()
+            && self.database.file_records.logical_name(searched) == Some(target)
+        {
+            // A tentative rehash keeps the member's searched key. Its
+            // filename is promoted only when the member is current.
+            self.resolved_names.remove(target);
+            return true;
+        }
+        false
+    }
+
     fn debug_no_remake(&self, target: &[u8], depth: usize) {
         if self.output.debug_mask().has(crate::debug::Mask::VERBOSE) {
             let path = self.resolved_name_ref(target);
@@ -12431,13 +12556,16 @@ impl Engine {
                 &self.output,
                 crate::debug::Event::MustRemake(target, debug_depth),
             );
+            let tentative_member = self.discard_missing_archive_name(target);
+            let optional = self.optional_remake();
+            let keep_going = self.options.keep_going;
             self.missing_rule_parents
                 .insert(target.to_vec(), parent.map(|parent| parent.target.to_vec()));
-            if !self.optional_remake() {
+            if !optional {
                 self.show_makefile_error();
                 self.report_missing_rule(target, parent.map(|parent| parent.target));
             }
-            if self.optional_remake() || self.options.keep_going {
+            if optional || keep_going {
                 crate::debug::emit(
                     &self.output,
                     crate::debug::Event::Failed(target, debug_depth),
@@ -12445,6 +12573,11 @@ impl Engine {
             }
             let result = Outcome {
                 failed: true,
+                database_result: if tentative_member && !optional && !keep_going {
+                    DatabaseResult::UnfinishedMissingRule
+                } else {
+                    DatabaseResult::Outcome
+                },
                 ..Outcome::default()
             };
             self.file_traversals.set_outcome(target, result);
@@ -12607,25 +12740,35 @@ impl Engine {
         let [(primary, false), (neighbor, false), required @ ..] = read_files else {
             return None;
         };
-        self.unruled_optional_remake_layout(primary, neighbor, required)
-            .then_some(neighbor.name.as_slice())
+        (self.optional_remake_layout(primary, neighbor, required)
+            && self.unruled_remake_source(&neighbor.name))
+        .then_some(neighbor.name.as_slice())
     }
 
-    fn unruled_trailing_optional_source<'a>(
+    fn trailing_optional_remake<'a>(
         &self,
         read_files: &'a [(Makefile, bool)],
-    ) -> Option<(&'a Makefile, &'a [u8])> {
+    ) -> Option<TrailingOptionalRemake<'a>> {
         let [(primary, false), required @ .., (neighbor, false)] = read_files else {
             return None;
         };
         let (source, _) = required.last()?;
-        (self.unruled_optional_remake_layout(primary, neighbor, required)
-            && !self
-                .has_requested_goal_name(rmake_core::filenames::without_dot_prefix(&source.name)))
-        .then_some((source, neighbor.name.as_slice()))
+        if !self.optional_remake_layout(primary, neighbor, required)
+            || self.has_requested_goal_name(rmake_core::filenames::without_dot_prefix(&source.name))
+        {
+            return None;
+        }
+        let unruled = self.unruled_remake_source(&neighbor.name);
+        (unruled || self.declared_optional_remake_source(&neighbor.name)).then_some(
+            TrailingOptionalRemake {
+                required: source,
+                neighbor: &neighbor.name,
+                unruled,
+            },
+        )
     }
 
-    fn unruled_optional_remake_layout(
+    fn optional_remake_layout(
         &self,
         primary: &Makefile,
         neighbor: &Makefile,
@@ -12654,10 +12797,10 @@ impl Engine {
         {
             return false;
         }
-        self.unruled_remake_source(&primary.name) && self.unruled_remake_source(&neighbor.name)
+        self.unruled_remake_source(&primary.name)
     }
 
-    fn unruled_remake_source(&self, name: &[u8]) -> bool {
+    fn local_remake_source(&self, name: &[u8]) -> bool {
         !name.contains(&b'/')
             && !name.starts_with(b"~")
             && !name.starts_with(b"-l")
@@ -12665,8 +12808,54 @@ impl Engine {
             && !self.has_requested_goal_name(name)
             && self.assumed_time(name).is_none()
             && !self.database.loaded_modules.contains_key(name)
+    }
+
+    fn unruled_remake_source(&self, name: &[u8]) -> bool {
+        self.local_remake_source(name)
             && !self.database.rules.contains_key(name)
             && self.database.implicit_candidates(name).is_empty()
+    }
+
+    fn declared_optional_remake_source(&self, name: &[u8]) -> bool {
+        self.local_remake_source(name)
+            && !self.special(b".PHONY", name, false)
+            && self.database.rules.get(name).is_some_and(|rule| {
+                !rule.record_only
+                    && !rule.default_recipe
+                    && rule.implicit_pattern.is_none()
+                    && rule.stem.is_none()
+                    && rule.secondary.is_none()
+                    && rule.double_colon.is_none()
+                    && rule.grouped_targets().is_none()
+                    && rule.dependencies.iter().all(|dep| {
+                        dep.name != b".WAIT" && !dep.hidden && self.unruled_remake_source(&dep.name)
+                    })
+            })
+    }
+
+    fn qualify_synthetic_recipe_after_optional_read(&mut self, target: &[u8]) {
+        let Some(job) = self.parallel_jobs.primary.get(target) else {
+            return;
+        };
+        let Some(ordinal) = job.continuation.branch else {
+            return;
+        };
+        if job.child.is_some()
+            && job.continuation.expanded.is_empty()
+            && self.database.rules.get(target).is_some_and(|rule| {
+                rule.double_colon
+                    .as_ref()
+                    .is_some_and(|branches| branches.len() == ordinal)
+            })
+            && let Some(state) = self.pending_double_colon.get_mut(target)
+            && state.depth == 0
+            && state.active == Some(ordinal)
+            && let Some(remake) = state.remake.as_mut()
+        {
+            // A final synthetic command was still pending when the trailing
+            // optional source settled without running a recipe.
+            remake.use_declared_synthetic_head = true;
+        }
     }
 
     fn required_synthetic_recipe(&self, target: &[u8], ordinal: Option<usize>) -> bool {
@@ -14852,6 +15041,9 @@ impl Engine {
                     &self.output,
                     crate::debug::Event::MustRemake(target, debug_depth),
                 );
+            }
+            if before.is_none() && rule.recipes.is_none() {
+                self.discard_missing_archive_name(target);
             }
             if let Some(recipes) = &rule.recipes {
                 let normal: Vec<_> = normal
@@ -17240,6 +17432,49 @@ mod tests {
             open_error: None,
         });
         engine
+    }
+
+    #[test]
+    fn tentative_archive_member_keeps_the_raw_name_when_missing() {
+        let target = b"test-archive-owner(absent)";
+        let searched = b"staged/test-archive-owner(absent)";
+        let present = Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1_600_000_000));
+        for (time, keep_going) in [(None, false), (None, true), (present, false)] {
+            let mut engine = optional_failure_test_engine();
+            engine.remaking = false;
+            engine.active_makefile_remake = None;
+            engine.options.keep_going = keep_going;
+            engine.database.file_records.insert(target);
+            let record = engine.database.file_records.id(target);
+            engine.database.file_records.rehash(target, searched);
+            engine
+                .path_observations
+                .insert(target.to_vec(), Some((Some(searched.to_vec()), time)));
+            let outcome = engine.build_inner(
+                target,
+                target,
+                None,
+                0,
+                None,
+                BuildVisit::Ordinary,
+                &mut false,
+            );
+            assert_eq!(outcome.failed, time.is_none());
+            assert!(
+                (outcome.database_result == DatabaseResult::UnfinishedMissingRule)
+                    == (time.is_none() && !keep_going),
+            );
+            assert_eq!(outcome.time, time);
+            assert_eq!(engine.database.file_records.id(searched), record);
+            assert_eq!(
+                engine.resolved_name_ref(target),
+                if time.is_some() {
+                    searched.as_slice()
+                } else {
+                    target.as_slice()
+                },
+            );
+        }
     }
 
     #[test]
