@@ -1005,6 +1005,11 @@ struct MovedArchiveRecord {
     command_goal: bool,
 }
 
+enum MergedGoalReport {
+    CompletedSource(Vec<u8>),
+    UnattemptedDestination,
+}
+
 struct TargetReads<'a> {
     visits: &'a FileTraversals,
     retained_parents: &'a HashMap<Vec<u8>, OwnedScopeParent>,
@@ -1589,6 +1594,7 @@ pub struct Engine {
     // Its first traversal context still owns the recipe and diagnostics.
     retained_scope_parents: HashMap<Vec<u8>, OwnedScopeParent>,
     moved_archives: HashMap<FileRecordId, MovedArchiveRecord>,
+    merged_goal_reports: HashMap<FileRecordId, MergedGoalReport>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
     implicit_scopes: HashMap<Vec<u8>, ImplicitScope>,
     impossible_prerequisites: HashSet<Vec<u8>>,
@@ -2182,6 +2188,7 @@ impl Engine {
             file_traversals: FileTraversals::default(),
             retained_scope_parents: HashMap::new(),
             moved_archives: HashMap::new(),
+            merged_goal_reports: HashMap::new(),
             target_contexts: HashMap::new(),
             implicit_scopes: HashMap::new(),
             impossible_prerequisites: HashSet::new(),
@@ -7150,7 +7157,12 @@ impl Engine {
         {
             let identity = self.aliases.resolve(goal);
             let detached_head = self.database.has_detached_file_head(identity);
-            if detached_head && goal == identity {
+            let merged_report = self.merged_goal_report(goal);
+            if matches!(
+                merged_report,
+                Some(MergedGoalReport::UnattemptedDestination)
+            ) || (detached_head && goal == identity)
+            {
                 // The destination kept an unattempted status. The queued
                 // source head alone has a successful update to report.
                 return;
@@ -7177,7 +7189,13 @@ impl Engine {
                     .id(identity)
                     .and_then(|id| self.moved_archives.get(&id))
             };
-            let reported_goal = if let Some(owner) = moved_archive {
+            let completed_source = match merged_report {
+                Some(MergedGoalReport::CompletedSource(name)) => Some(name.as_slice()),
+                _ => None,
+            };
+            let reported_goal = if let Some(name) = completed_source {
+                name
+            } else if let Some(owner) = moved_archive {
                 owner.original.as_slice()
             } else {
                 self.resolved_names
@@ -7188,6 +7206,7 @@ impl Engine {
             // goal merges GNU's goal record; the old record has no summary.
             if reported_goal != goal
                 && moved_archive.is_none()
+                && completed_source.is_none()
                 && !(detached_head && self.aliases.retains_goal_status(goal))
                 && (if self.aliases.contains(goal) {
                     self.aliases.merged(goal)
@@ -10143,6 +10162,59 @@ impl Engine {
                 || all_recursive)
     }
 
+    fn merged_goal_report(&self, operand: &[u8]) -> Option<&MergedGoalReport> {
+        if self.merged_goal_reports.is_empty() {
+            return None;
+        }
+        let records = &self.database.file_records;
+        let owner = records
+            .moved_lookup_id_at_snapshot(operand)
+            .or_else(|| records.id(operand))?;
+        self.merged_goal_reports.get(&owner)
+    }
+
+    fn late_goal_merge_owners(
+        &self,
+        from: &[u8],
+        to: &[u8],
+    ) -> Option<(FileRecordId, FileRecordId)> {
+        // A prior terminal verdict can stop GNU's completion-time search
+        // without stopping subsequent goals under keep-going.
+        if self.remaking
+            || self.parallel_graph()
+            || self.ordinary_queries.first_verdict.is_some()
+            || !self.gpath_match(from, to)
+            || self.aliases.contains(to)
+            || rmake_core::filenames::archive_parts(from).is_some()
+            || rmake_core::filenames::archive_parts(to).is_some()
+            || self.file_traversals.visit(to).is_some()
+            || self.file_traversals.has_outcome(to)
+            || self.database.rules.get(to).is_some_and(|rule| {
+                !rule.record_only || rule.double_colon.is_some() || rule.group.is_some()
+            })
+        {
+            return None;
+        }
+        let rule = self.database.rules.get(from)?;
+        if rule.group.is_some()
+            || (rule.double_colon.is_some() && !self.database.has_plain_double_colon_rules(from))
+        {
+            return None;
+        }
+        let source = self.database.file_records.id(from)?;
+        let destination = self.database.file_records.id(to)?;
+        if source == destination
+            || self.merged_goal_reports.contains_key(&source)
+            || self.merged_goal_reports.contains_key(&destination)
+        {
+            return None;
+        }
+        // The completed source retains its status and adopts the new name.
+        // The existing destination inherits the updated flag and keeps its
+        // own unattempted status. Queued operands still refer to either ID.
+        Some((source, destination))
+    }
+
     fn observe_updated(&mut self, target: &[u8], mut outcome: Outcome) -> Outcome {
         // A completed GPATH rename has already selected the actual file.
         // Consume its timestamp without merging the original goal again.
@@ -10178,9 +10250,17 @@ impl Engine {
                 if let Some((Some(name), _)) = observation
                     && (self.gpath_match(target, &name) || self.other_file_record(&name, target))
                 {
+                    let owners = self.late_goal_merge_owners(target, &name);
                     if self.rename_search_record(target, &name).is_err() {
                         outcome.failed = true;
                         outcome.fatal = true;
+                    } else if let Some((source, destination)) = owners
+                        && !self.database.has_detached_file_head(&name)
+                    {
+                        self.merged_goal_reports
+                            .insert(source, MergedGoalReport::CompletedSource(name.clone()));
+                        self.merged_goal_reports
+                            .insert(destination, MergedGoalReport::UnattemptedDestination);
                     }
                     self.file_traversals.set_outcome(&name, outcome);
                     if self.database.has_detached_file_head(&name) {

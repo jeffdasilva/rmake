@@ -1,0 +1,12 @@
+id = "gpath-late-merge-ordinary-goal-status"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "Report the completed raw goal while its separately queued canonical destination stays silent."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after", "parent", "last", "src/parent"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "goals=[parent after parent last src/parent]\nbuild=[parent|input]\nmarker=[after]\nmake: 'src/parent' is up to date.\nmarker=[last]\n"
+stderr = ""

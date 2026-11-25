@@ -1,0 +1,12 @@
+id = "gpath-late-merge-cli-only-destination-status"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "A canonical operand entered only by the command line keeps its unattempted status."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after", "src/parent"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "goals=[parent after src/parent]\nbranch=[parent|input]\nbranch=[parent|other]\nmarker=[after]\n"
+stderr = ""
