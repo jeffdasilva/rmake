@@ -2554,13 +2554,13 @@ cases = ["secondary-retained-scope-active-eval", "secondary-retained-scope-cross
 
 [[requirements]]
 id = "scope.implicit-secondary-status"
-title = "File shell status during and after implicit secondary expansion"
+title = "File scope during and after implicit secondary expansion"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
-candidate_required = 21
-fixture_count = 21
+candidate_required = 29
+fixture_count = 29
 reference = "docs/target-scopes.md"
-cases = ["implicit-double-shell-status-assumed-and-overridden", "implicit-double-shell-status-rejected-candidate", "implicit-double-shell-status-sibling-scope", "implicit-secondary-status-archive-fallback", "implicit-secondary-status-empty-shell-control", "implicit-secondary-status-explicit-secondary-after-search", "implicit-secondary-status-global-status-unchanged", "implicit-secondary-status-inherited-without-local", "implicit-secondary-status-intermediate-compat-retry", "implicit-secondary-status-intermediate-pattern-once", "implicit-secondary-status-recursive-search-reads-parent", "implicit-secondary-status-rejected-before-default", "implicit-secondary-status-rejected-before-ordinary-winner", "implicit-secondary-status-rejected-intermediate-isolated", "implicit-secondary-status-selected-intermediate", "implicit-secondary-status-selected-intermediate-descendant", "implicit-secondary-status-selected-prerequisite", "implicit-secondary-status-selected-recipe", "implicit-secondary-status-unused-selected-intermediate-isolated", "implicit-secondary-status-up-to-date-retained", "implicit-secondary-status-winning-shell-overrides"]
+cases = ["implicit-double-shell-status-assumed-and-overridden", "implicit-double-shell-status-rejected-candidate", "implicit-double-shell-status-sibling-scope", "implicit-root-retained-accepted", "implicit-root-retained-all-rejected", "implicit-root-retained-archive-member", "implicit-root-retained-during-recursive-search", "implicit-root-retained-explicit-control", "implicit-root-retained-plain-winner-control", "implicit-root-retained-rejected-then-accepted", "implicit-root-retained-rejected-then-plain-winner", "implicit-secondary-status-archive-fallback", "implicit-secondary-status-empty-shell-control", "implicit-secondary-status-explicit-secondary-after-search", "implicit-secondary-status-global-status-unchanged", "implicit-secondary-status-inherited-without-local", "implicit-secondary-status-intermediate-compat-retry", "implicit-secondary-status-intermediate-pattern-once", "implicit-secondary-status-recursive-search-reads-parent", "implicit-secondary-status-rejected-before-default", "implicit-secondary-status-rejected-before-ordinary-winner", "implicit-secondary-status-rejected-intermediate-isolated", "implicit-secondary-status-selected-intermediate", "implicit-secondary-status-selected-intermediate-descendant", "implicit-secondary-status-selected-prerequisite", "implicit-secondary-status-selected-recipe", "implicit-secondary-status-unused-selected-intermediate-isolated", "implicit-secondary-status-up-to-date-retained", "implicit-secondary-status-winning-shell-overrides"]
 
 [[requirements]]
 id = "rules.generated-word-tail"

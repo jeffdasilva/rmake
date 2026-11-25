@@ -1,0 +1,12 @@
+id = "implicit-root-retained-explicit-control"
+requirement = "scope.implicit-secondary-status"
+candidate = "required"
+description = "Ordinary explicit secondary expansion retains its own file context."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "accepted-search|item.out||input\nread|child|item.out|||input|input|input input|ordered|17|parent|accepted\nchild|probe||17|global|accepted\nparent|item.out|||probe|probe input|probe input input|ordered|17|parent|accepted\nread|after|item.out|||probe|probe input|probe input input|ordered|17|parent|accepted\n"
+stderr = ""

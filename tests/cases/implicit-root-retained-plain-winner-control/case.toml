@@ -1,0 +1,12 @@
+id = "implicit-root-retained-plain-winner-control"
+requirement = "scope.implicit-secondary-status"
+candidate = "required"
+description = "An implicit winner without secondary expansion leaves no search automatics."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "read|child|||||||||parent|\nchild|probe|||global|\nparent|item.out||item|probe|probe input|probe input input|ordered||parent|\nread|after|item.out||item|probe|probe input|probe input input|ordered||parent|\n"
+stderr = ""

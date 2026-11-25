@@ -25,7 +25,7 @@ if mode == 'named-value':
 else:
     with Path('seen').open('ab') as stream:
         stream.write((name + '\n').encode())
-if mode == 'include':
+if mode in ('include', 'include-fail'):
     output = Path(name + '.gen')
     output.write_bytes((name.upper() + ' := loaded\n').encode())
     os.utime(output, ns=(1_000_000_001_000_000_000, 1_000_000_001_000_000_000))
@@ -48,6 +48,6 @@ if mode == 'append-primary':
         stream.write(b'# remade\n')
     os.utime(primary, ns=(1_000_000_004_000_000_000,) * 2)
 Path(name + '.done').write_bytes(b'done\n')
-if mode == 'fail':
+if mode in ('fail', 'include-fail'):
     print(name, flush=True)
     raise SystemExit(3 if name == 'left' else 4)

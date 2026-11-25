@@ -1,0 +1,12 @@
+id = "implicit-root-retained-during-recursive-search"
+requirement = "scope.implicit-secondary-status"
+candidate = "required"
+description = "An implicit child can reopen the root during recursive search before its later effects."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "read|child|item.out||item|input|input|input input|ordered||parent|\naccepted-search|item.out|item|input\nchild|item.mid|item|17|global|accepted\nparent|item.out||item|item.mid|item.mid input|item.mid input input|ordered|17|parent|accepted\nread|after|item.out||item|item.mid|item.mid input|item.mid input input|ordered|17|parent|accepted\n"
+stderr = ""

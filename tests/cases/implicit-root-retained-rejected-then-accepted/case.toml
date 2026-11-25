@@ -1,0 +1,12 @@
+id = "implicit-root-retained-rejected-then-accepted"
+requirement = "scope.implicit-secondary-status"
+candidate = "required"
+description = "The accepted candidate updates the stem while earlier rejected effects survive."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "rejected-search|item.out|em|input\naccepted-search|item.out|item|input\nread|child|item.out||item|input|input|input input|ordered|17|parent|rejected accepted\nchild|probe||17|global|rejected accepted\nparent|item.out||item|probe|probe input|probe input input|ordered|17|parent|rejected accepted\nread|after|item.out||item|probe|probe input|probe input input|ordered|17|parent|rejected accepted\n"
+stderr = ""

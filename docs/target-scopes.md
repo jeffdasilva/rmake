@@ -152,6 +152,10 @@ An `eval` inside a deferred pattern assignment reads the same retained target
 values as `eval` inside an ordinary secondary expansion word. This includes
 an already visited ancestor's automatic variables and shell status when the
 child is still a temporary implicit intermediate.
+An implicit parent also retains its search-time automatic variables for reads
+through `eval`. A rejected rule's search variables can remain visible when the
+selected rule has no secondary expansion. Recipe expansion computes its own
+automatic variables from the selected rule.
 
 ### Environment and shell status
 

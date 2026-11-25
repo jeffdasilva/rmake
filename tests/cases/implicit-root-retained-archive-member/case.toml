@@ -1,0 +1,12 @@
+id = "implicit-root-retained-archive-member"
+requirement = "scope.implicit-secondary-status"
+candidate = "required"
+description = "Archive fallback retains the container and member automatics in the root read table."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "accepted-search|lib.a|item|input\nread|child|lib.a|item.out|item|input|input|input input|ordered|17|parent|accepted\nchild|probe||17|global|accepted\nparent|lib.a|item.out|item|probe|probe input|probe input input|ordered|17|parent|accepted\nread|after|lib.a|item.out|item|probe|probe input|probe input input|ordered|17|parent|accepted\n"
+stderr = ""
