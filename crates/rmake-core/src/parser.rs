@@ -4480,17 +4480,27 @@ impl Database {
     }
 
     fn retain_native_reader_error(&mut self, location: &Location, context: &ExpansionContext<'_>) {
-        // The physical frame still owns the location at a terminal syntax
-        // error, including when the frame is an include.
-        if self.evaluation_depth == 0
-            && self.native_fatal_context.is_none()
-            && context.needs_fatal_expansion_context()
+        let evaluating = self.evaluation_depth != 0;
+        if self.native_fatal_context.is_some()
+            || (evaluating
+                && (location.file.is_null()
+                    || context.location.is_none_or(|caller| caller.file.is_null())))
+            || !context.needs_fatal_expansion_context()
         {
-            self.native_fatal_context = Some(Box::new(NativeFatalContext {
-                location: Some(location.clone()),
-                ..NativeFatalContext::default()
-            }));
+            return;
         }
+        // The frame owns the location, including an included source. Named
+        // eval also owns the caller's scopes until evaluate_in returns.
+        let mut retained = NativeFatalContext {
+            location: Some(location.clone()),
+            ..NativeFatalContext::default()
+        };
+        if evaluating {
+            retained.scope = self.evaluation_scope.clone();
+            retained.bindings = self.evaluation_bindings.clone();
+            retained.active = self.evaluation_active.clone();
+        }
+        self.native_fatal_context = Some(Box::new(retained));
     }
 
     fn read_frames(
@@ -4736,6 +4746,7 @@ impl Database {
             }
             if let Some(rest) = directive(text, b"else") {
                 let Some(top) = conditions.last_mut() else {
+                    self.retain_native_reader_error(&location, context);
                     return Err(ParseError::system(
                         location,
                         Message::ExtraneousConditional(b"else"),
@@ -4743,6 +4754,7 @@ impl Database {
                     ));
                 };
                 if top.otherwise {
+                    self.retain_native_reader_error(&location, context);
                     return Err(ParseError::system(
                         location,
                         Message::DuplicateElse,
@@ -4864,6 +4876,15 @@ impl Database {
                             // reader, whose EOF error is the open conditional.
                             break;
                         }
+                        // The diagnostic names the define header. The live
+                        // reader still points to the last body location.
+                        self.retain_native_reader_error(
+                            &Location {
+                                file: source_name.clone(),
+                                line: body_line,
+                            },
+                            context,
+                        );
                         return Err(ParseError::system(location, Message::MissingEndef, context));
                     };
                     if context.is_cancelled() {
@@ -5181,6 +5202,7 @@ impl Database {
             // Assignments and directives have already been handled. A raw
             // prefix here is an orphan, even if folding changed the first byte.
             if leading_prefix.matches(stripped_bom) {
+                self.retain_native_reader_error(&location, context);
                 return Err(ParseError::system(location, Message::OrphanRecipe, context));
             }
             self.finish_declaration(declaration, &location, context)?;
@@ -5399,6 +5421,7 @@ impl Database {
                     } else {
                         Message::TargetPatternWithoutPercent
                     };
+                    self.retain_native_reader_error(&location, context);
                     return Err(ParseError::system(location, message, context));
                 }
                 let pattern = Pattern::new(&patterns[0]);

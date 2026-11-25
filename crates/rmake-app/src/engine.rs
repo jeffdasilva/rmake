@@ -5098,16 +5098,15 @@ impl Engine {
                 && !skipped_required_read
                 && !remake_question
             {
-                // An unnamed dry-run pass used ordinary mode for every source.
+                // Only an explicitly requested makefile can use the goal modes.
                 let ordinary_visits = !modes.active()
-                    || (modes.only_dry_run()
-                        && read_files.iter().all(|(source, skip)| {
-                            *skip
-                                || !self.is_makefile_goal(
-                                    rmake_core::filenames::without_dot_prefix(&source.name),
-                                    named_sources.as_ref(),
-                                )
-                        }));
+                    || read_files.iter().all(|(source, skip)| {
+                        *skip
+                            || !self.is_makefile_goal(
+                                rmake_core::filenames::without_dot_prefix(&source.name),
+                                named_sources.as_ref(),
+                            )
+                    });
                 changed = (ordinary_visits || assumed_double_colon_dry_run.is_some())
                     && self.settled_parallel_assumed_source_has_new_clock(
                         &read_files,

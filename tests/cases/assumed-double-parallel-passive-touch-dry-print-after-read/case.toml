@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-passive-touch-dry-print-after-read"
+requirement = "options.assumed-double-colon-parallel-unnamed-passive-modes"
+candidate = "required"
+description = "Dry touch prints the goal selected by the restarted read."
+args = ["-rR", "--no-print-directory", "-j2", "-k", "--jobserver-style=fifo", "-nt", "-W", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nread=1 clock=1680300000\ntouch result.1\n"
+stderr = ""

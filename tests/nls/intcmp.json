@@ -1,0 +1,607 @@
+{
+  "classification": "Linux intcmp diagnostic composition with original malformed and valid inputs under verified locale profiles.",
+  "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
+  "fixture_sha256": {},
+  "rows": [
+    {
+      "id": "nls-intcmp-c-first",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d702062616425712c30290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** non-numeric first argument to 'intcmp' function: 'bad%q'.  Stop.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-c-second",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d7020302c2b3178290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** non-numeric second argument to 'intcmp' function: '+1x'.  Stop.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-c-empty-first",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d70202c30290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** non-numeric first argument to 'intcmp' function: empty value.  Stop.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-c-empty-second",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d7020302c290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** non-numeric second argument to 'intcmp' function: empty value.  Stop.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-c-valid",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f20636d703d5b2428696e74636d70202d342c302c6c6573732c24286572726f7220756e726561636861626c65292c24286572726f7220756e726561636861626c6529295d290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "cmp=[less]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\ngoal\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-fr-first",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d702062616425712c30290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** non-numeric first argument to 'intcmp' function: 'bad%q'. Arrêt.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-fr-second",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d7020302c2b3178290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** non-numeric second argument to 'intcmp' function: '+1x'. Arrêt.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-fr-empty-first",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d70202c30290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** non-numeric first argument to 'intcmp' function: empty value. Arrêt.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-fr-empty-second",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d7020302c290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** non-numeric second argument to 'intcmp' function: empty value. Arrêt.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-fr-valid",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f20636d703d5b2428696e74636d70202d342c302c6c6573732c24286572726f7220756e726561636861626c65292c24286572726f7220756e726561636861626c6529295d290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "cmp=[less]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\ngoal\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-de-first",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d702062616425712c30290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** Das erste Argument der Funktion „intcmp“ muss numerisch sein: 'bad%q'.  Schluss.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-de-second",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d7020302c2b3178290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** Das zweite Argument der Funktion „intcmp“ muss numerisch sein: '+1x'.  Schluss.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-de-empty-first",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d70202c30290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** Das erste Argument der Funktion „intcmp“ muss numerisch sein: leerer Wert.  Schluss.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-de-empty-second",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d7020302c290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** Das zweite Argument der Funktion „intcmp“ muss numerisch sein: leerer Wert.  Schluss.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-de-valid",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f20636d703d5b2428696e74636d70202d342c302c6c6573732c24286572726f7220756e726561636861626c65292c24286572726f7220756e726561636861626c6529295d290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "cmp=[less]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\ngoal\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-ja-first",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d702062616425712c30290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** 非数値の第1引数が 'intcmp' 関数に与えられました: 'bad%q'.  中止.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-ja-second",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d7020302c2b3178290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** 非数値の第2引数が 'intcmp' 関数に与えられました: '+1x'.  中止.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-ja-empty-first",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d70202c30290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** 非数値の第1引数が 'intcmp' 関数に与えられました: 空の値.  中止.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-ja-empty-second",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d7020302c290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** 非数値の第2引数が 'intcmp' 関数に与えられました: 空の値.  中止.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-ja-valid",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f20636d703d5b2428696e74636d70202d342c302c6c6573732c24286572726f7220756e726561636861626c65292c24286572726f7220756e726561636861626c6529295d290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "cmp=[less]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\ngoal\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-pl-first",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d702062616425712c30290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** pierwszy argument funkcji 'intcmp' nie jest liczbowy: 'bad%q'. Stop.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-pl-second",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d7020302c2b3178290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** drugi argument funkcji 'intcmp' nie jest liczbowy: '+1x'. Stop.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-pl-empty-first",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d70202c30290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** pierwszy argument funkcji 'intcmp' nie jest liczbowy: pusta wartość. Stop.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-pl-empty-second",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e74636d7020302c290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** drugi argument funkcji 'intcmp' nie jest liczbowy: pusta wartość. Stop.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-intcmp-pl-valid",
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f20636d703d5b2428696e74636d70202d342c302c6c6573732c24286572726f7220756e726561636861626c65292c24286572726f7220756e726561636861626c6529295d290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "cmp=[less]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\ngoal\n"
+      }
+    }
+  ]
+}

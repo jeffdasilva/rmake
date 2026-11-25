@@ -1896,6 +1896,30 @@ cases = [
 ]
 
 [[requirements]]
+id = "options.assumed-double-colon-parallel-unnamed-passive-modes"
+title = "Settle unnamed parallel makefile clocks before query and touch goals"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/assumed-files.md"
+candidate_required = 13
+fixture_count = 13
+cases = [
+  "assumed-double-parallel-passive-query-stale-after-read",
+  "assumed-double-parallel-passive-query-current-after-read",
+  "assumed-double-parallel-passive-query-dry-synthetic-effect",
+  "assumed-double-parallel-passive-touch-create-after-read",
+  "assumed-double-parallel-passive-touch-current-after-read",
+  "assumed-double-parallel-passive-touch-dry-print-after-read",
+  "assumed-double-parallel-passive-query-touch-create-after-read",
+  "assumed-double-parallel-passive-query-dry-touch-print-after-read",
+  "assumed-double-parallel-passive-query-named-read",
+  "assumed-double-parallel-passive-touch-named-read",
+  "assumed-double-parallel-passive-query-required-failure",
+  "assumed-double-parallel-passive-touch-unassumed",
+  "assumed-double-parallel-passive-query-touch-physical-rewrite",
+]
+
+[[requirements]]
 id = "options.assumed-double-colon-named-current-clock"
 title = "Restart after current synthetic entries settle for a named serial dry-run, query or touch"
 status = "fixture-ready"

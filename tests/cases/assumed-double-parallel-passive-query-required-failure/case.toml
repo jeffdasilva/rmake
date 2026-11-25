@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-passive-query-required-failure"
+requirement = "options.assumed-double-colon-parallel-unnamed-passive-modes"
+candidate = "required"
+description = "A failed required remake keeps the initial read and decides the error status."
+args = ["-rR", "--no-print-directory", "-j2", "-k", "--jobserver-style=pipe", "-q", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 2
+stdout = "read=0 clock=1680300000\n"
+stderr = "make: *** [Makefile:13: bad.inc] Error 1\nMakefile:12: Failed to remake makefile 'bad.inc'.\n"

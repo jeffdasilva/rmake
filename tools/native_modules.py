@@ -170,6 +170,8 @@ def models() -> list[Model]:
     result.extend(sync_warning_finalizer_models())
     result.extend(mutex_finalizer_models())
     result.extend(conditional_finalizer_models())
+    result.extend(raw_syntax_finalizer_models())
+    result.extend(named_eval_syntax_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -1272,6 +1274,132 @@ def conditional_finalizer_models() -> list[Model]:
               message=extra),
         model('balanced', head + opened + b'endif\n' + goal,
               status=0, marks=b'read\ninside\ngoal\n'),
+    ]
+
+
+def raw_syntax_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    extra_else = b"extraneous 'else'"
+    double_else = b"only one 'else' per conditional"
+    missing_endef = b"missing 'endef', unterminated 'define'"
+    orphan = b'recipe commences before first target'
+    multiple = b'multiple target patterns'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def model(name, source, message, location=b'make', *, final_location=None,
+              files=None, args=(), env=None, status=2, marks=b'read\n'):
+        fatal = location + b': *** ' + message + b'.  Stop.\n' if status else b''
+        stderr = fatal + (final_location or location) + b': finalizer-location\n'
+        return Model(
+            'native-raw-syntax-finalizer-' + name,
+            {'Makefile': source, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\n' + marks + b'scope=[||file|global||]\n',
+            (module,),
+            args=('-rR', '--no-print-directory', *args),
+            environment=env or {},
+        )
+
+    def nested_eval(body):
+        return b'define BUFFER\n' + body + b'endef\n$(eval $(value BUFFER))\n'
+
+    return [
+        model('extra-else', head + b'else\n' + goal, extra_else, b'Makefile:4'),
+        model('extra-else-include', head + b'include child.mk\n' + goal,
+              extra_else, b'child.mk:2', files={'child.mk': b'# first\nelse stray\n'}),
+        model('double-else-preload', goal, double_else, b'pre.mk:7',
+              files={'pre.mk': head + b'ifeq (yes,no)\n\nelse\nelse\n'},
+              env={'MAKEFILES': 'pre.mk'}),
+        model('missing-endef-header', head + b'define VALUE\n', missing_endef, b'Makefile:4'),
+        model('missing-endef-continued-header', head + b'define \\\n VALUE\nfirst\nsecond\n',
+              missing_endef, b'Makefile:4', final_location=b'Makefile:6'),
+        model('missing-endef-continued-body', head + b'define VALUE\nfirst\\\nsecond\nthird\n',
+              missing_endef, b'Makefile:4', final_location=b'Makefile:7'),
+        model('missing-endef-include', head + b'include child.mk\n' + goal,
+              missing_endef, b'child.mk:2', final_location=b'child.mk:4',
+              files={'child.mk': b'# first\ndefine VALUE\nfirst\nlast'}),
+        model('orphan-recipe', head + b'\t@printf unreachable\n' + goal, orphan, b'Makefile:4'),
+        model('static-missing', head + b'target: : source\n' + goal,
+              b'missing target pattern', b'Makefile:4'),
+        model('static-no-percent', head + b'target: pattern: source\n' + goal,
+              b"target pattern contains no '%'", b'Makefile:4'),
+        model('static-multiple', head + b'target: %.o %.c: source\n' + goal, multiple, b'Makefile:4'),
+        model('anonymous-nested-else', goal, extra_else,
+              args=('--eval', (head + nested_eval(b'else\n')).decode('ascii'))),
+        model('anonymous-nested-static', goal, multiple,
+              args=('--eval', (head + nested_eval(b'target: %.o %.c: source\n')).decode('ascii'))),
+        model('balanced-nested', head + nested_eval(
+            b'ifeq (yes,yes)\n$(file >>seen,nested)\nendif\n') + goal,
+              b'', status=0, marks=b'read\nnested\ngoal\n'),
+    ]
+
+
+def named_eval_syntax_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    recipe = b'.PHONY: all dep\nall: .LOADED := target\nall: dep\n\t@'
+    tail = b':\ndep:;@:\n'
+    define = b'define OUTER\n$(file >>seen,outer)\n$(eval $(file <payload.txt))\nendef\n'
+    evaluate = b'$(eval $(value OUTER))'
+    global_scope = b'scope=[||file|global||]\n'
+    target_scope = b'scope=[all|dep|file|target||]\n'
+    extra = b"extraneous 'else'"
+    missing_endef = b"missing 'endef', unterminated 'define'"
+    missing_endif = b"missing 'endif'"
+    orphan = b'recipe commences before first target'
+    static = b"target pattern contains no '%'"
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def model(name, text, payload, message, location=b'make', *, args=(), files=None,
+              scope=global_scope, marks=b'read\nouter\n', status=2, native_callback=False):
+        fatal = location + b': *** ' + message + b'.  Stop.\n' if status else b''
+        stderr = fatal + location + b': finalizer-location\n'
+        return Model(
+            'native-named-eval-syntax-finalizer-' + name,
+            {'Makefile': text, 'seen': b'anchor\n', 'payload.txt': payload, **(files or {})},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\n' + marks + scope,
+            (module, Module()) if native_callback else (module,),
+            args=('-rR', '--no-print-directory', *args),
+        )
+
+    open_conditional = b'ifeq (yes,yes)\n$(file >>seen,inside)\n'
+    return [
+        model('reader', head + define + evaluate + b'\n' + goal, b'else\n', extra, b'Makefile:8'),
+        model('reader-missing-endef', head + define + evaluate + b'\n' + goal,
+              b'define BROKEN\nbody\n', missing_endef, b'Makefile:8'),
+        model('included-caller', head + define + b'include entry.mk\n' + goal,
+              open_conditional, missing_endif, b'entry.mk:2', marks=b'read\nouter\ninside\n',
+              files={'entry.mk': b'# named caller\n' + evaluate + b'\n'}),
+        model('reader-foreach', head + define + b'$(foreach .LOADED,lexical,' + evaluate + b')\n' + goal,
+              b'else\n', extra, b'Makefile:8', scope=b'scope=[||automatic|lexical||]\n'),
+        model('recipe', head + define + recipe + evaluate + tail,
+              b'broken: pattern: p\n', static, b'Makefile:11', scope=target_scope),
+        model('recipe-call', head + define + b'RUN = ' + evaluate + b'\n'
+              + recipe + b'$(call RUN,argument)' + tail,
+              open_conditional, missing_endif, b'Makefile:12', marks=b'read\nouter\ninside\n',
+              scope=b'scope=[all|dep|file|target|RUN|argument]\n'),
+        model('recipe-let', head + define + recipe + b'$(let .LOADED,lexical,' + evaluate + b')' + tail,
+              b'\t@printf unreachable\n', orphan, b'Makefile:11',
+              scope=b'scope=[all|dep|automatic|lexical||]\n'),
+        model('recipe-physical-include', head + define + recipe + evaluate + tail,
+              b'include failure.mk\n', extra, b'failure.mk:2', scope=target_scope,
+              files={'failure.mk': b'# actual source\nelse\n'}),
+        model('native-inherited', head + b'load probe_api.so\n' + recipe
+              + b'$(probe_eval_guard $(file <payload.txt))' + tail,
+              b'else\n', extra, b'Makefile:8', marks=b'read\n', scope=target_scope,
+              native_callback=True),
+        model('native-explicit', head + b'load probe_api.so\n' + recipe
+              + b'$(probe_eval_location $(file <payload.txt))' + tail,
+              b'else\n', extra, b'module-eval.mk:23', marks=b'read\n', scope=target_scope,
+              native_callback=True),
+        model('anonymous', goal, b'else\n', extra,
+              args=('--eval', (head + define + evaluate).decode('ascii'))),
+        model('dormant', head + define + b'$(if ,' + evaluate + b')\n' + goal,
+              b'else\n', b'', status=0, marks=b'read\ngoal\n'),
+        model('successful-recipe', head + define + recipe + evaluate + tail,
+              b'$(file >>seen,complete)\n', b'', status=0, marks=b'read\nouter\ncomplete\n'),
     ]
 
 

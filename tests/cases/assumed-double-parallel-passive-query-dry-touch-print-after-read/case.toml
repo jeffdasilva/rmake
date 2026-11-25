@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-passive-query-dry-touch-print-after-read"
+requirement = "options.assumed-double-colon-parallel-unnamed-passive-modes"
+candidate = "required"
+description = "Combined question, dry-run and touch prints the restarted goal."
+args = ["-rR", "--no-print-directory", "-j2", "-k", "--jobserver-style=fifo", "-qnt", "-W", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nread=1 clock=1680300000\ntouch result.1\n"
+stderr = ""
