@@ -565,6 +565,7 @@ enum RemakeWait {
 enum AssumedDoubleColonDryRemake {
     Required,
     OptionalHandoff,
+    TerminalOptionalHandoff,
 }
 
 struct PendingMakefileRemake<'a> {
@@ -3899,8 +3900,11 @@ impl Engine {
                 } else {
                     None
                 };
-            let optional_assumed_dry_handoff =
-                assumed_double_colon_dry_run == Some(AssumedDoubleColonDryRemake::OptionalHandoff);
+            let terminal_optional_assumed_dry_handoff = assumed_double_colon_dry_run
+                == Some(AssumedDoubleColonDryRemake::TerminalOptionalHandoff);
+            let optional_assumed_dry_handoff = terminal_optional_assumed_dry_handoff
+                || assumed_double_colon_dry_run
+                    == Some(AssumedDoubleColonDryRemake::OptionalHandoff);
             let unrelated_assumption_dry_handoff = modes.only_dry_run()
                 && !debug_before_remake.has(Mask::MAKEFILES)
                 && self.job_slots() > 1
@@ -4732,13 +4736,13 @@ impl Engine {
                         && (physically_changed || simulated_change)
                         && (!optional_assumed_dry_handoff || optional_assumed_predecessor.is_some())
                         && !pending.is_empty()
-                        && read_files[source_index + 1..]
-                            .iter()
-                            .any(|(_, skip)| !*skip)
+                        && ((terminal_optional_assumed_dry_handoff && simulated_change)
+                            || read_files[source_index + 1..]
+                                .iter()
+                                .any(|(_, skip)| !*skip))
                     {
                         // An immediate optional update ends this visit pass.
-                        // A previous worker can complete under the named mode
-                        // before the next unvisited source starts.
+                        // The required predecessor can then finish under the named mode.
                         if visit_modes.touch && physically_changed {
                             touched_optional_remakes.insert(name);
                         }
@@ -5100,7 +5104,8 @@ impl Engine {
             changed |= assumed_remake_changed && !assumed_remake_blocked && !unsuccessful_remake;
             if !changed
                 && parallel_remakes
-                && settled_in_ordinary_mode
+                // With no pending worker, a current terminal include retains its named mode.
+                && (settled_in_ordinary_mode || terminal_optional_assumed_dry_handoff)
                 && restarts == 0
                 && self.assumptions.is_some()
                 && self.parallel_jobs.is_empty()
@@ -5824,18 +5829,19 @@ impl Engine {
         let mut later = sources.clone();
         let source = later.find(|file| without_dot_prefix(&file.name) == name)?;
         if source.location.is_none()
-            || later.clone().next().is_none()
-            || later.any(|file| without_dot_prefix(&file.name) == name)
+            || later
+                .clone()
+                .any(|file| without_dot_prefix(&file.name) == name)
         {
             return None;
         }
         let scope = if source.optional {
-            if !self.qualified_optional_assumed_dry_handoff(read_files, source) {
-                return None;
-            }
-            AssumedDoubleColonDryRemake::OptionalHandoff
+            self.qualified_optional_assumed_dry_handoff(read_files, source)?
         } else {
-            if !self.options.keep_going || sources.any(|file| file.optional) {
+            if !self.options.keep_going
+                || later.next().is_none()
+                || sources.any(|file| file.optional)
+            {
                 return None;
             }
             AssumedDoubleColonDryRemake::Required
@@ -5874,48 +5880,59 @@ impl Engine {
         &self,
         read_files: &[(Makefile, bool)],
         source: &Makefile,
-    ) -> bool {
+    ) -> Option<AssumedDoubleColonDryRemake> {
         use rmake_core::filenames::without_dot_prefix;
 
         let [
             (primary, false),
             (predecessor, false),
             (named, false),
-            (tail, false),
+            remaining @ ..,
         ] = read_files
         else {
-            return false;
+            return None;
+        };
+        let scope = match remaining {
+            [] => AssumedDoubleColonDryRemake::TerminalOptionalHandoff,
+            [(tail, false)] => {
+                let name = without_dot_prefix(&tail.name);
+                if tail.optional
+                    || tail.location.is_none()
+                    || name.contains(&b'/')
+                    || self.database.loaded_modules.contains_key(name)
+                    || !self.database.rules.get(name).is_some_and(|rule| {
+                        rule.double_colon.is_none()
+                            && rule.group.is_none()
+                            && rule.secondary.is_none()
+                            && rule.dependencies.is_empty()
+                            && rule.recipes.as_ref().is_some_and(|recipes| {
+                                recipes
+                                    .iter()
+                                    .all(|recipe| recipe.bytes.iter().all(u8::is_ascii_whitespace))
+                            })
+                    })
+                {
+                    return None;
+                }
+                AssumedDoubleColonDryRemake::OptionalHandoff
+            }
+            _ => return None,
         };
         let primary_name = without_dot_prefix(&primary.name);
         let predecessor_name = without_dot_prefix(&predecessor.name);
-        let tail_name = without_dot_prefix(&tail.name);
-        std::ptr::eq(named, source)
+        (std::ptr::eq(named, source)
             && !primary.optional
             && primary.location.is_none()
             && !predecessor.optional
             && predecessor.location.is_some()
-            && !tail.optional
-            && tail.location.is_some()
-            && [primary_name, predecessor_name, tail_name]
-                .iter()
-                .all(|name| {
-                    !name.contains(&b'/') && !self.database.loaded_modules.contains_key(*name)
-                })
+            && [primary_name, predecessor_name].iter().all(|name| {
+                !name.contains(&b'/') && !self.database.loaded_modules.contains_key(*name)
+            })
             && !self.database.rules.contains_key(b".ONESHELL".as_slice())
             && !self.database.rules.contains_key(primary_name)
             && self.database.implicit_candidates(primary_name).is_empty()
-            && self.simple_dry_remake_worker(predecessor_name, None)
-            && self.database.rules.get(tail_name).is_some_and(|rule| {
-                rule.double_colon.is_none()
-                    && rule.group.is_none()
-                    && rule.secondary.is_none()
-                    && rule.dependencies.is_empty()
-                    && rule.recipes.as_ref().is_some_and(|recipes| {
-                        recipes
-                            .iter()
-                            .all(|recipe| recipe.bytes.iter().all(u8::is_ascii_whitespace))
-                    })
-            })
+            && self.simple_dry_remake_worker(predecessor_name, None))
+        .then_some(scope)
     }
 
     fn simple_dry_remake_worker(&self, target: &[u8], assumed: Option<&[u8]>) -> bool {

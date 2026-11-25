@@ -1,0 +1,10 @@
+id = "assumed-double-terminal-optional-stale-no-worker"
+requirement = "options.assumed-double-colon-terminal-optional-dry"
+candidate = "required"
+description = "A stale terminal optional synthetic branch needs a live predecessor to cause a reread."
+args = ["-rR", "--no-print-directory", "-n", "-j2", "-k", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000 1680300000\nmake: 'b.mk' is up to date.\n"
+stderr = ""

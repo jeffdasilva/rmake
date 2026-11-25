@@ -282,6 +282,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += assumed_named_dry_run_models(worker, markers)
     results += assumed_named_double_colon_dry_models(worker, markers)
     results += optional_assumed_dry_handoff_models(worker, markers)
+    results += optional_assumed_dry_handoff_models(worker, markers, terminal=True)
     results += assumed_unnamed_dry_source_models(worker, markers)
     results += terminal_named_dry_clock_models(worker, markers)
     results += terminal_unrelated_assumption_dry_models(worker, markers)
@@ -1537,9 +1538,11 @@ def terminal_named_dry_forced_models(worker: bytes, markers: dict[str, bytes]) -
     return results
 
 
-def optional_assumed_dry_handoff_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+def optional_assumed_dry_handoff_models(
+        worker: bytes, markers: dict[str, bytes], *, terminal: bool = False) -> list[HeldModel]:
     summary = b"make: 'b.mk' is up to date.\n"
-    error = b'make: *** [Makefile:8: left.gen] Error 3\n'
+    line = 7 if terminal else 8
+    error = f'make: *** [Makefile:{line}: left.gen] Error 3\n'.encode()
     report = b"Makefile:3: Failed to remake makefile 'left.gen'.\n"
     clock = b'clock-1000000000 1000000000\n'
     refreshed = b'clock-1000000001 1000000000\n'
@@ -1548,9 +1551,9 @@ def optional_assumed_dry_handoff_models(worker: bytes, markers: dict[str, bytes]
     physical_tail = b'touch -d @1000000001 left.gen'
     marked_tail = b'printf "tail-ran\\n" >> seen'
     results = []
-    for context, transport, head, tail, handoff in (
+    cases = (
         ('stale', 'pipe', 'quiet', marked_tail, True),
-        ('physical-head', 'fifo', 'include', marked_tail, True),
+        ('physical-head', 'fifo', 'include', b'' if terminal else marked_tail, True),
         ('physical-tail', 'pipe', 'quiet', physical_tail, True),
         ('current', 'fifo', 'quiet', marked_tail, False),
         ('required', 'pipe', 'quiet', physical_tail, False),
@@ -1559,7 +1562,10 @@ def optional_assumed_dry_handoff_models(worker: bytes, markers: dict[str, bytes]
         ('stop', 'fifo', 'quiet', marked_tail, True),
         ('failed-keep', 'pipe', 'fail', marked_tail, True),
         ('failed-stop', 'fifo', 'fail', marked_tail, True),
-    ):
+    )
+    if terminal:
+        cases = (('clock', 'pipe', 'quiet', b'', True), *cases)
+    for context, transport, head, tail, handoff in cases:
         required = context == 'required'
         stopping = context in ('stop', 'failed-stop')
         fails = head == 'fail'
@@ -1569,14 +1575,16 @@ def optional_assumed_dry_handoff_models(worker: bytes, markers: dict[str, bytes]
             reads += 'include left.gen\n'
         else:
             reads = 'include left.gen\n' + reads
+        if not terminal:
+            reads += 'include tail.inc\n'
+        continuation = f'\t@{tail.decode()}\n' if tail else ''
         source = (
             '$(file >>seen,read-$(MAKE_RESTARTS))\n'
             '$(file >>seen,clock-$(shell stat -c %Y left.gen b.mk))\n'
             f'{reads}'
-            'include tail.inc\n'
             'ifeq ($(MAKE_RESTARTS),)\n'
             f'left.gen: left.seed\n\t@python3 worker.py left {head}\n'
-            f'\t@{tail.decode()}\n'
+            f'{continuation}'
             'else\n'
             'left.gen: ;\n'
             'endif\n'
@@ -1595,7 +1603,7 @@ def optional_assumed_dry_handoff_models(worker: bytes, markers: dict[str, bytes]
         stdout = b''
         if fails:
             stdout = b'left\n'
-        elif handoff:
+        elif handoff and tail:
             stdout = tail + b'\n'
         elif tail == marked_tail:
             seen += b'tail-ran\n'
@@ -1611,7 +1619,8 @@ def optional_assumed_dry_handoff_models(worker: bytes, markers: dict[str, bytes]
                 '-S' if stopping else '-k', f'--jobserver-style={transport}', '-W', 'b.mk', 'b.mk')
         expected = {'exit_code': 0 if restart else 2, 'stdout_template_hex': stdout.hex(),
                     'stderr_template_hex': stderr.hex()}
-        model = debug.Model(f'optional-assumed-dry-handoff-{context}-{transport}', files, args,
+        prefix = 'terminal-' if terminal else ''
+        model = debug.Model(f'{prefix}optional-assumed-dry-handoff-{context}-{transport}', files, args,
                             {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
         results.append(HeldModel(model, False, None, before_first=before_first))
     return results

@@ -1920,6 +1920,19 @@ cases = [
 ]
 
 [[requirements]]
+id = "options.assumed-double-colon-terminal-optional-dry"
+title = "Settle a terminal optional synthetic clock when no worker is pending"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/assumed-files.md"
+candidate_required = 2
+fixture_count = 2
+cases = [
+  "assumed-double-terminal-optional-current-no-worker",
+  "assumed-double-terminal-optional-stale-no-worker",
+]
+
+[[requirements]]
 id = "options.assumed-double-colon-named-current-clock"
 title = "Restart after current synthetic entries settle for a named serial dry-run, query or touch"
 status = "fixture-ready"
