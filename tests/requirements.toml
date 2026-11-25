@@ -2571,10 +2571,10 @@ id = "scope.target-eager-retained"
 title = "Eager declarations in a previously visited target scope"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
-candidate_required = 12
-fixture_count = 12
+candidate_required = 25
+fixture_count = 25
 reference = "docs/target-scopes.md"
-cases = ["target-eager-retained-caller-lexical-control", "target-eager-retained-computed-destination-name", "target-eager-retained-inherited-automatic", "target-eager-retained-live-declaration-and-global", "target-eager-retained-multiple-destinations", "target-eager-retained-nested-destination-publication", "target-eager-retained-private-ancestors", "target-eager-retained-retained-pattern", "target-eager-retained-shell-effect-ownership", "target-eager-retained-unvisited-destination-control", "target-eager-retained-visited-no-recipe-control", "target-eager-retained-visited-parent-locals"]
+cases = ["direct-double-head-blocked-head-after-secondary", "direct-double-head-blocked-head-control", "direct-double-head-failed-head", "direct-double-head-fresh-head-control", "direct-double-head-later-prepared-inherited-write", "direct-double-head-later-prepared-keeps-local", "direct-double-head-later-write", "direct-double-head-later-write-keeps-local", "direct-double-head-no-head-recipe-control", "direct-double-head-prerequisite-read-after-secondary", "direct-double-head-prerequisite-write", "direct-double-head-prerequisite-write-after-secondary", "direct-double-head-secondary-without-head-recipe", "target-eager-retained-caller-lexical-control", "target-eager-retained-computed-destination-name", "target-eager-retained-inherited-automatic", "target-eager-retained-live-declaration-and-global", "target-eager-retained-multiple-destinations", "target-eager-retained-nested-destination-publication", "target-eager-retained-private-ancestors", "target-eager-retained-retained-pattern", "target-eager-retained-shell-effect-ownership", "target-eager-retained-unvisited-destination-control", "target-eager-retained-visited-no-recipe-control", "target-eager-retained-visited-parent-locals"]
 
 [[requirements]]
 id = "scope.target-eager-suspended"

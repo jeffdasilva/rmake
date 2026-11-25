@@ -1,0 +1,12 @@
+id = "direct-double-head-failed-head"
+requirement = "scope.target-eager-retained"
+candidate = "required"
+description = "A failed head recipe retains the automatic variables established during its expansion."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-k", "-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 2
+stdout = "now=[parent|input|input|7|visible|]\neager=[parent|input|input|7|visible|]\nnow=[parent|other|other|13|visible|]\neager=[parent|input|input|7|visible|]\n"
+stderr = "make: *** [Makefile:10: parent] Error 1\n"

@@ -970,7 +970,8 @@ struct TargetReads<'a> {
     aliases: &'a Aliases,
     base: &'a HashMap<Vec<u8>, VariableStore>,
     recipes: &'a mut HashMap<Vec<u8>, VariableStore>,
-    branches: &'a HashMap<(Vec<u8>, usize), VariableStore>,
+    branches: &'a mut HashMap<(Vec<u8>, usize), VariableStore>,
+    direct_heads: bool,
 }
 
 impl TargetReads<'_> {
@@ -985,6 +986,31 @@ impl TargetReads<'_> {
 impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
     fn variables(&self, target: &[u8]) -> Option<&VariableStore> {
         self.recipes.get(target).or_else(|| self.base.get(target))
+    }
+
+    fn named_owner<'a>(&self, mut owner: ScopeParent<&'a [u8]>) -> ScopeParent<&'a [u8]> {
+        if owner.branch.is_some()
+            && (!self.direct_heads || self.aliases.contains_source_or_destination(owner.target))
+        {
+            owner.branch = None;
+        }
+        owner
+    }
+
+    fn named_variables(&self, owner: ScopeParent<&[u8]>) -> Option<&VariableStore> {
+        owner
+            .branch
+            .and_then(|ordinal| self.branches.get(&(owner.target.to_vec(), ordinal)))
+            .or_else(|| self.variables(owner.target))
+    }
+
+    fn retain_named_locals(&mut self, owner: ScopeParent<&[u8]>, variables: VariableStore) {
+        if let Some(ordinal) = owner.branch {
+            self.branches
+                .insert((owner.target.to_vec(), ordinal), variables);
+        } else {
+            self.retain_locals(owner.target, variables);
+        }
     }
 
     fn parent(&self, target: &[u8]) -> Option<Option<ScopeParent<&[u8]>>> {
@@ -2233,13 +2259,15 @@ impl Engine {
         location: Option<&Location>,
         operation: impl FnOnce(&mut Database, ExpansionContext<'_>) -> T,
     ) -> T {
+        let direct_heads = self.direct_named_head_reads();
         let mut target_reads = TargetReads {
             visits: &self.file_traversals,
             retained_parents: &self.retained_scope_parents,
             aliases: &self.aliases,
             base: &self.target_contexts,
             recipes: &mut self.database_contexts,
-            branches: &self.database_branch_contexts,
+            branches: &mut self.database_branch_contexts,
+            direct_heads,
         };
         let mut output =
             RuntimeOutput::new(&self.output, &self.program, &self.flag_state.warn_undefined);
@@ -14855,6 +14883,10 @@ impl Engine {
         Ok(variables)
     }
 
+    fn direct_named_head_reads(&self) -> bool {
+        !self.remaking && !self.parallel_graph()
+    }
+
     // Later double-colon branches see the head's table without sharing a
     // writable local table with it or with each other.
     fn rule_variables(
@@ -14867,7 +14899,18 @@ impl Engine {
         };
         let key = (self.aliases.resolve(target).to_vec(), ordinal);
         if let Some(scope) = self.database_branch_contexts.get(&key) {
-            return Ok(scope.clone());
+            let mut scope = scope.clone();
+            if ordinal != 0
+                && self.direct_named_head_reads()
+                && !self.aliases.contains_source_or_destination(&key.0)
+                && self.database.has_plain_double_colon_rules(&key.0)
+                && let Some(head) = self.database_branch_contexts.get(&(key.0, 0))
+            {
+                // A prerequisite can update the head after this branch's
+                // secondary expansion prepared its own file scope.
+                scope.refresh_double_colon_head_locals(head);
+            }
+            return Ok(scope);
         }
         if ordinal == 0 {
             return self.target_variables(&key.0);
@@ -15609,13 +15652,15 @@ impl Engine {
                     environment_variables.environment_order(|name, _| eligible.contains(name));
                 let mut emitted_order = Vec::new();
                 let mut inherited_mflags = false;
+                let direct_heads = self.direct_named_head_reads();
                 let mut target_reads = TargetReads {
                     visits: &self.file_traversals,
                     retained_parents: &self.retained_scope_parents,
                     aliases: &self.aliases,
                     base: &self.target_contexts,
                     recipes: &mut self.database_contexts,
-                    branches: &self.database_branch_contexts,
+                    branches: &mut self.database_branch_contexts,
+                    direct_heads,
                 };
                 for name in &exports {
                     self.database.refresh_scoped_variables(variables);

@@ -1,0 +1,12 @@
+id = "direct-double-head-prerequisite-write"
+requirement = "scope.target-eager-retained"
+candidate = "required"
+description = "An eager write from a prerequisite seeds the head before its recipe expands."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "eager=[|||19|visible|named]\nnow=[parent|input|input before|19|visible|named]\nnow=[parent|other|other|19|visible|named]\neager=[parent|input|input before|19|visible|named]\n"
+stderr = ""

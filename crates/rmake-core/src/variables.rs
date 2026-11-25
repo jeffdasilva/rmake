@@ -1762,6 +1762,24 @@ impl VariableStore {
         }
     }
 
+    /// Refresh inherited references to the same logical double-colon head table.
+    pub fn refresh_double_colon_head_locals(&mut self, head: &Self) {
+        let Some(history) = head.variables.database_history.as_ref() else {
+            return;
+        };
+        if let Some(index) = self.layers.iter().position(|layer| {
+            layer.file_locals
+                && !Arc::ptr_eq(&layer.variables, &head.variables)
+                && layer
+                    .variables
+                    .database_history
+                    .as_ref()
+                    .is_some_and(|table| table.same_table(history))
+        }) {
+            self.layers.make_mut()[index].variables = Arc::clone(&head.variables);
+        }
+    }
+
     /// A file rename can merge explicit bindings after its pattern scope was
     /// activated. Replace only that explicit layer, without replaying effects.
     pub fn refresh_target_scope(&mut self, scope: &TargetScope) {

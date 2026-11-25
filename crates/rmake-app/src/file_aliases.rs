@@ -26,6 +26,14 @@ impl Aliases {
         self.names.contains_key(name)
     }
 
+    pub fn contains_source_or_destination(&self, name: &[u8]) -> bool {
+        self.contains(name)
+            || self
+                .names
+                .values()
+                .any(|(destination, _)| destination.as_slice() == name)
+    }
+
     pub fn merged(&self, name: &[u8]) -> bool {
         self.names.get(name).is_some_and(|(_, merged)| *merged)
     }

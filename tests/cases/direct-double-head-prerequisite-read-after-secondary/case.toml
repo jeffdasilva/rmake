@@ -1,0 +1,12 @@
+id = "direct-double-head-prerequisite-read-after-secondary"
+requirement = "scope.target-eager-retained"
+candidate = "required"
+description = "Read the head's prepared automatic variables from a prerequisite."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "eager=[parent|||7|visible|]\nnow=[parent|input|input before|7|visible|]\nnow=[parent|other|other|7|visible|]\neager=[parent|input|input before|7|visible|]\n"
+stderr = ""

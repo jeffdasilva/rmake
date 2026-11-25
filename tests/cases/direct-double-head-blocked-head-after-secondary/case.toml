@@ -1,0 +1,12 @@
+id = "direct-double-head-blocked-head-after-secondary"
+requirement = "scope.target-eager-retained"
+candidate = "required"
+description = "Retain the head's prepared scope when a prerequisite then blocks its recipe."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-k", "-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 2
+stdout = "eager=[parent|||7|visible|]\nnow=[parent|other|other|13|visible|]\neager=[parent|||7|visible|]\n"
+stderr = "make: *** No rule to make target 'missing', needed by 'parent'.\nmake: Target 'parent' not remade because of errors.\n"

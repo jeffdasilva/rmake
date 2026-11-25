@@ -1,0 +1,12 @@
+id = "direct-double-head-no-head-recipe-control"
+requirement = "scope.target-eager-retained"
+candidate = "required"
+description = "A later recipe leaves an unexpanded head's automatic variables empty."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "eager=[||||visible|]\nnow=[parent|other|other|13|visible|]\neager=[||||visible|]\n"
+stderr = ""
