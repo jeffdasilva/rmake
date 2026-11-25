@@ -458,6 +458,28 @@ pub trait TargetReadReceiver {
         parent: ScopeParent<&[u8]>,
     ) -> Option<&crate::variables::VariableStore>;
     fn retain_locals(&mut self, target: &[u8], variables: crate::variables::VariableStore);
+
+    fn named_owner<'a>(&self, owner: ScopeParent<&'a [u8]>) -> ScopeParent<&'a [u8]> {
+        ScopeParent {
+            target: owner.target,
+            branch: None,
+        }
+    }
+
+    fn named_variables(
+        &self,
+        owner: ScopeParent<&[u8]>,
+    ) -> Option<&crate::variables::VariableStore> {
+        self.variables(owner.target)
+    }
+
+    fn retain_named_locals(
+        &mut self,
+        owner: ScopeParent<&[u8]>,
+        variables: crate::variables::VariableStore,
+    ) {
+        self.retain_locals(owner.target, variables);
+    }
 }
 
 /// Explicit caller context and output receiver. This is never stored in or

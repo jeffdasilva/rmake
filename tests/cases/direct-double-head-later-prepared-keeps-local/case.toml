@@ -1,0 +1,12 @@
+id = "direct-double-head-later-prepared-keeps-local"
+requirement = "scope.target-eager-retained"
+candidate = "required"
+description = "A later branch and its prerequisite keep their own earlier status when the prerequisite writes the head."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "now=[parent|input|input|7|visible|]\nnow=[child|||13|visible|]\neager=[parent|input|input|19|visible|]\nnow=[child|||13|visible|]\nnow=[parent|other|other child|13|visible|]\nnow=[parent|third|third|19|visible|]\neager=[parent|input|input|19|visible|]\n"
+stderr = ""

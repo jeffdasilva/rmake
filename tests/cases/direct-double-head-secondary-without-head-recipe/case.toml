@@ -1,0 +1,12 @@
+id = "direct-double-head-secondary-without-head-recipe"
+requirement = "scope.target-eager-retained"
+candidate = "required"
+description = "A secondary-expanded head retains its automatic target without a recipe."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "eager=[parent|||7|visible|]\nnow=[parent|other|other|13|visible|]\neager=[parent|||7|visible|]\n"
+stderr = ""

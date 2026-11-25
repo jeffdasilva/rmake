@@ -1,0 +1,12 @@
+id = "direct-double-head-fresh-head-control"
+requirement = "scope.target-eager-retained"
+candidate = "required"
+description = "A later branch can run while an up-to-date head keeps empty automatic variables."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "bootstrap", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "eager=[||||visible|]\nnow=[parent|other|other|13|visible|]\neager=[||||visible|]\n"
+stderr = ""

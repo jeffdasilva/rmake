@@ -1,0 +1,12 @@
+id = "direct-double-head-blocked-head-control"
+requirement = "scope.target-eager-retained"
+candidate = "required"
+description = "A blocked head without secondary expansion leaves its automatic variables empty."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-k", "-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 2
+stdout = "eager=[||||visible|]\nnow=[parent|other|other|13|visible|]\neager=[||||visible|]\n"
+stderr = "make: *** No rule to make target 'missing', needed by 'parent'.\nmake: Target 'parent' not remade because of errors.\n"

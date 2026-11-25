@@ -699,7 +699,7 @@ struct TargetRead {
 enum TargetReadOwner {
     Current,
     Suspended(usize),
-    Retained,
+    Retained(Option<usize>),
 }
 
 /// Compiled pure lookup policy, kept consistent by the directive reader.
@@ -876,6 +876,14 @@ impl Database {
         } else {
             parent.with_target_scopes(&[scope])
         }
+    }
+
+    /// Whether a named eager declaration can select an ordinary declared head.
+    pub fn has_plain_double_colon_rules(&self, target: &[u8]) -> bool {
+        self.rules
+            .get(target)
+            .and_then(|rule| rule.double_colon.as_ref())
+            .is_some_and(|branches| branches.iter().all(|branch| branch.group.is_none()))
     }
 
     /// The latest named variable declaration for this target.
@@ -3296,6 +3304,8 @@ impl Database {
             }
             self.file_records.enter_prerequisite(target);
             let raw_name = assignment.spec.name;
+            let reads = context.target_reads.as_deref();
+            let owner = reads.map(|reads| self.named_target_read_owner(target, reads));
             let scope = self
                 .target_scopes
                 .entry(target.to_vec())
@@ -3305,13 +3315,7 @@ impl Database {
                         .evaluation_scope
                         .as_ref()
                         .and_then(|active| active.file_scope_history(target))
-                        .or_else(|| {
-                            context
-                                .target_reads
-                                .as_deref()?
-                                .variables(target)?
-                                .file_scope_history(target)
-                        })
+                        .or_else(|| reads?.named_variables(owner?)?.file_scope_history(target))
                     {
                         scope.set_file_history(history);
                     }
@@ -3585,19 +3589,31 @@ impl Database {
         }
     }
 
+    fn named_target_read_owner<'a>(
+        &self,
+        target: &'a [u8],
+        reads: &dyn crate::diagnostic::TargetReadReceiver,
+    ) -> crate::diagnostic::ScopeParent<&'a [u8]> {
+        reads.named_owner(crate::diagnostic::ScopeParent {
+            target,
+            branch: self.has_plain_double_colon_rules(target).then_some(0),
+        })
+    }
+
     fn retained_target_read(
         &self,
-        target: &[u8],
+        owner: crate::diagnostic::ScopeParent<&[u8]>,
         declaration: &VariableStore,
         reads: &dyn crate::diagnostic::TargetReadReceiver,
         caller: Option<&VariableStore>,
     ) -> Option<VariableStore> {
+        let target = owner.target;
         if reads.has_parent_changes()
-            && let Some(read) = self.reparented_target_read(target, declaration, reads, caller)
+            && let Some(read) = self.reparented_target_read(owner, declaration, reads, caller)
         {
             return Some(read);
         }
-        if let Some(variables) = reads.variables(target) {
+        if let Some(variables) = reads.named_variables(owner) {
             return variables.active_target_read(target, declaration);
         }
 
@@ -3627,11 +3643,12 @@ impl Database {
 
     fn reparented_target_read(
         &self,
-        target: &[u8],
+        owner: crate::diagnostic::ScopeParent<&[u8]>,
         declaration: &VariableStore,
         reads: &dyn crate::diagnostic::TargetReadReceiver,
         caller: Option<&VariableStore>,
     ) -> Option<VariableStore> {
+        let target = owner.target;
         let mut path: Vec<crate::diagnostic::ScopeParent<&[u8]>> = Vec::new();
         let mut changed = false;
         let mut name = target;
@@ -3651,7 +3668,7 @@ impl Database {
             return None;
         }
 
-        let mut read = match reads.variables(target) {
+        let mut read = match reads.named_variables(owner) {
             Some(variables) => variables.active_target_read(target, declaration)?,
             None => self
                 .variables_for_target_prepared(target, &self.variables, None)
@@ -3707,8 +3724,10 @@ impl Database {
                     })
             })
             .or_else(|| {
-                self.retained_target_read(target, scope, context.target_reads.as_deref()?, caller)
-                    .map(|read| (TargetReadOwner::Retained, read))
+                let reads = context.target_reads.as_deref()?;
+                let owner = self.named_target_read_owner(target, reads);
+                self.retained_target_read(owner, scope, reads, caller)
+                    .map(|read| (TargetReadOwner::Retained(owner.branch), read))
             })
     }
 
@@ -3819,7 +3838,7 @@ impl Database {
                 .push(previous_scope.take().expect("active caller"));
         }
         let retained_before = file_read.as_ref().and_then(|(owner, read)| {
-            matches!(owner, TargetReadOwner::Retained).then(|| read.clone())
+            matches!(owner, TargetReadOwner::Retained(_)).then(|| read.clone())
         });
         let read = if let Some((owner, read)) = file_read.as_mut() {
             self.refresh_target_read(owner, read, scope);
@@ -3844,13 +3863,21 @@ impl Database {
                 TargetReadOwner::Suspended(index) => {
                     self.suspended_target_reads[index].retain_file_locals(read);
                 }
-                TargetReadOwner::Retained => {
+                TargetReadOwner::Retained(branch) => {
                     if retained_before.is_some_and(|before| !read.same_file_locals(&before)) {
+                        if branch == Some(0) {
+                            for suspended in &mut self.suspended_target_reads {
+                                suspended.refresh_double_colon_head_locals(&read);
+                            }
+                        }
                         context
                             .target_reads
                             .as_deref_mut()
                             .expect("retained target")
-                            .retain_locals(target, read);
+                            .retain_named_locals(
+                                crate::diagnostic::ScopeParent { target, branch },
+                                read,
+                            );
                     }
                 }
             }
