@@ -1421,6 +1421,7 @@ struct FailedOwner {
 pub struct Engine {
     options: Options,
     requested_goal_names: Option<HashSet<Vec<u8>>>,
+    requested_goal_aliases: HashSet<Vec<u8>>,
     clock_skew: Cell<ClockSkew>,
     delay_clock_checks: bool,
     deferred_clock_checks: RefCell<Vec<(Vec<u8>, SystemTime)>>,
@@ -2014,6 +2015,7 @@ impl Engine {
             (options.goals.len() >= 32).then(|| options.goals.iter().cloned().collect());
         let mut engine = Self {
             requested_goal_names,
+            requested_goal_aliases: HashSet::new(),
             initial_plan,
             assumptions,
             clock_skew: Cell::new(ClockSkew::Unchecked),
@@ -6351,7 +6353,9 @@ impl Engine {
                     && !self.special_for_rule(b".NOTINTERMEDIATE", target))
         };
         let explicitly_requested = || {
-            if self.aliases.is_empty() {
+            if let Some(goals) = &self.requested_goal_names {
+                goals.contains(target) || self.requested_goal_aliases.contains(target)
+            } else if self.aliases.is_empty() {
                 self.has_requested_goal_name(target)
             } else {
                 self.options
@@ -8273,7 +8277,32 @@ impl Engine {
             self.intermediates.insert(to.to_vec());
         }
         self.intermediate_policy.renamed(from, to, merged);
+        let replaces_alias = self.requested_goal_names.is_some() && self.aliases.contains(from);
+        if let Some(goals) = &self.requested_goal_names
+            && !replaces_alias
+        {
+            // An earlier requested alias can already resolve to this source.
+            let destination = self.aliases.resolve(to);
+            if from != destination
+                && (self.requested_goal_aliases.remove(from) || goals.contains(from))
+            {
+                self.requested_goal_aliases.insert(destination.to_vec());
+            }
+        }
         self.aliases.insert(from, to, merged);
+        if replaces_alias {
+            // A redirected alias can leave other requested names at its old
+            // destination. Recompute those resolutions for the new map.
+            self.requested_goal_aliases = self
+                .options
+                .goals
+                .iter()
+                .filter_map(|goal| {
+                    let destination = self.aliases.resolve(goal);
+                    (destination != goal.as_slice()).then(|| destination.to_vec())
+                })
+                .collect();
+        }
         Ok(())
     }
 
@@ -16329,6 +16358,41 @@ mod tests {
             engine.options.goals = vec![goal.as_bytes().to_vec()];
             assert!(!engine.ordinary_mode_remakes_settle(&reads, None, modes, false));
         }
+    }
+
+    #[test]
+    fn indexed_goal_aliases_follow_moves_and_independent_redirects() {
+        let mut args = vec![
+            OsString::from("-rR"),
+            OsString::from("requested-a"),
+            OsString::from("requested-b"),
+        ];
+        args.extend((0..32).map(|index| OsString::from(format!("goal-{index}"))));
+        let launch = Engine::invocation(args, b"rmake", OsStr::new("rmake"), None, None).unwrap();
+        let mut engine =
+            Engine::from_invocation(launch, b"rmake".to_vec(), OsStr::new("rmake")).unwrap();
+
+        engine
+            .rename_search_record(b"requested-a", b"cache/a")
+            .unwrap();
+        engine
+            .rename_search_record(b"requested-b", b"cache/a")
+            .unwrap();
+        engine.rename_search_record(b"cache/a", b"cache/b").unwrap();
+        engine.intermediates.insert(b"cache/b".to_vec());
+        assert!(!engine.intermediate(b"requested-a"));
+        assert!(!engine.intermediate(b"cache/b"));
+
+        engine
+            .rename_search_record(b"requested-a", b"cache/c")
+            .unwrap();
+        engine.intermediates.insert(b"cache/c".to_vec());
+        engine.intermediates.insert(b"unrequested".to_vec());
+        assert!(!engine.intermediate(b"cache/b"));
+        assert!(!engine.intermediate(b"cache/c"));
+        assert!(engine.intermediate(b"unrequested"));
+        assert!(engine.has_requested_goal_name(b"requested-a"));
+        assert!(!engine.has_requested_goal_name(b"cache/c"));
     }
 
     #[test]
