@@ -1298,6 +1298,7 @@ enum ImplicitFilenames {
 struct ImplicitScope {
     pattern: Option<TargetScope>,
     runtime_metadata: VariableStore,
+    revision: usize,
 }
 
 struct ImplicitSearch {
@@ -1305,6 +1306,34 @@ struct ImplicitSearch {
     archive: bool,
     intermediate_scope: Option<ImplicitScope>,
     branch: Option<usize>,
+}
+
+struct ImplicitSearchSession {
+    active: Vec<usize>,
+    budget: usize,
+    debug_depth: usize,
+    root_children: Vec<ImplicitSelection>,
+    published: HashMap<Vec<u8>, PublishedImplicit>,
+    scope_revision: usize,
+}
+
+#[derive(Default)]
+struct PublishedImplicit {
+    declaration: Option<Rule>,
+    scope_revision: usize,
+}
+
+struct PendingImplicitRoot {
+    selection: ImplicitSelection,
+    children: Vec<ImplicitSelection>,
+    published: HashMap<Vec<u8>, PublishedImplicit>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ImplicitPlacement {
+    Root,
+    DoubleColonRoot,
+    Descendant,
 }
 
 // A selected Makefile record can name a file that does not exist yet.
@@ -8521,7 +8550,7 @@ impl Engine {
             self.database_secondary.insert(target.to_vec());
         }
         if let Some(plan) = plan {
-            let _ = self.install_implicit_plan(target, plan, false);
+            let _ = self.install_implicit_plan(plan, ImplicitPlacement::Root);
         } else if let Some(dependencies) = default_dependencies
             && let Some(mut rule) = self.default_update_rule(target, debug_depth, graph_visit)
         {
@@ -8538,7 +8567,7 @@ impl Engine {
         debug_depth: usize,
         record_attempt: bool,
         branch: Option<usize>,
-    ) -> Result<Option<Vec<ImplicitSelection>>, ()> {
+    ) -> Result<Option<PendingImplicitRoot>, ()> {
         if self.terminal_prerequisites.contains(target) {
             return Ok(None);
         }
@@ -8556,20 +8585,24 @@ impl Engine {
             &self.output,
             crate::debug::Event::Looking(target, debug_depth + 1),
         );
-        let mut budget = 100_000;
-        match self.implicit_plan(
-            target,
-            &mut Vec::new(),
-            false,
-            &mut budget,
+        let mut session = ImplicitSearchSession {
+            active: Vec::new(),
+            budget: 100_000,
             debug_depth,
-            branch,
-        ) {
-            Ok(None) if budget == 0 => {
+            root_children: Vec::new(),
+            published: HashMap::new(),
+            scope_revision: 0,
+        };
+        match self.implicit_plan(target, &mut session, false, branch) {
+            Ok(None) if session.budget == 0 => {
                 self.fatal(None, b"rmake: implicit rule search resource limit exceeded");
                 Err(())
             }
-            Ok(plan) => Ok(plan),
+            Ok(selection) => Ok(selection.map(|selection| PendingImplicitRoot {
+                selection,
+                children: session.root_children,
+                published: session.published,
+            })),
             Err(error) => {
                 self.expansion_error(None, &error);
                 Err(())
@@ -8577,149 +8610,224 @@ impl Engine {
         }
     }
 
-    /// The synthetic double-colon input owns its selected root rule. Child
-    /// selections still enter the normal graph with their prepared state.
+    /// A detached double-colon root stays with its branch. Its children still
+    /// enter the normal graph.
     fn install_implicit_plan(
         &mut self,
-        target: &[u8],
-        plan: Vec<ImplicitSelection>,
-        detach_root: bool,
+        mut plan: PendingImplicitRoot,
+        placement: ImplicitPlacement,
     ) -> Option<Rule> {
-        let mut detached_rule = None;
-        // Recursive searches return unentered intermediate records. Commit
-        // each accepted child's input list when its parent installs it;
-        // the parent's candidate inputs are processed in reverse order.
-        let inferred: HashMap<_, _> = plan
+        self.publish_implicit_children(
+            &plan.selection,
+            plan.children,
+            &mut plan.published,
+            placement,
+        );
+        self.retain_implicit_selection_history(&plan.selection, placement);
+        let original = plan.published.get(&plan.selection.name);
+        self.attach_implicit_selection(plan.selection, placement, original)
+    }
+
+    fn install_declared_implicit_plan(&mut self, mut plan: PendingImplicitRoot) -> Option<Rule> {
+        if plan.selection.rule.group.is_none() {
+            return self.install_implicit_plan(plan, ImplicitPlacement::DoubleColonRoot);
+        }
+        // A declared branch cannot take a grouped recipe. Its search still
+        // accepted the child rules before returning the pending root.
+        self.publish_implicit_children(
+            &plan.selection,
+            plan.children,
+            &mut plan.published,
+            ImplicitPlacement::Descendant,
+        );
+        None
+    }
+
+    fn publish_implicit_children(
+        &mut self,
+        parent: &ImplicitSelection,
+        children: Vec<ImplicitSelection>,
+        published: &mut HashMap<Vec<u8>, PublishedImplicit>,
+        placement: ImplicitPlacement,
+    ) {
+        if children.is_empty() && placement == ImplicitPlacement::Descendant {
+            return;
+        }
+        let inferred: HashMap<_, _> = children
             .iter()
-            .map(|selection| (selection.name.as_slice(), &selection.rule))
+            .map(|child| (child.name.as_slice(), &child.rule))
             .collect();
-        for selection in &plan {
-            let group = selection.rule.group.as_ref();
-            // Detached double-colon roots prepare their own stem, but retain
-            // their selected prerequisite and pattern lookups here too.
-            // Recipes can request the database after this selection.
-            let retain_stem = group.is_some() || (!detach_root && selection.name == target);
-            let retain_history = retain_stem || (detach_root && selection.name == target);
-            for dependency in selection.rule.dependencies.iter().rev() {
-                if let Some(child) = inferred.get(dependency.name.as_slice()) {
-                    self.database.file_records.insert(&dependency.name);
-                    for input in child.dependencies.iter().filter(|dep| dep.name != b".WAIT") {
-                        self.database.file_records.insert(&input.name);
-                    }
-                } else if selection.name == target && dependency.name != b".WAIT" {
-                    if retain_history {
-                        if let Some(history) = self.database.database_history() {
-                            history.intern(&dependency.name);
-                        }
-                        self.database
-                            .file_records
-                            .enter_prerequisite(&dependency.name);
-                    } else {
-                        self.database.file_records.insert(&dependency.name);
-                    }
+        for child in &children {
+            self.retain_implicit_selection_history(child, ImplicitPlacement::Descendant);
+        }
+        // Process candidate inputs in reverse order when their owner accepts.
+        for dependency in parent.rule.dependencies.iter().rev() {
+            if let Some(child) = inferred.get(dependency.name.as_slice()) {
+                self.database.file_records.insert(&dependency.name);
+                for input in child.dependencies.iter().filter(|dep| dep.name != b".WAIT") {
+                    self.database.file_records.insert(&input.name);
                 }
-            }
-            if let Some(history) = self.database.database_history() {
-                if retain_stem && let Some(stem) = &selection.rule.stem {
-                    history.intern(stem);
+            } else if placement != ImplicitPlacement::Descendant && dependency.name != b".WAIT" {
+                if let Some(history) = self.database.database_history() {
+                    history.intern(&dependency.name);
                 }
-                if retain_history && let Some(pattern) = &selection.rule.implicit_pattern {
-                    history.record_file_lookup(pattern);
-                }
-            }
-            if let Some(group) = group {
-                for (peer, pattern) in &group.implicit_peer_patterns {
-                    if peer != &selection.name {
-                        if let Some(history) = self.database.database_history() {
-                            history.intern(peer);
-                        }
-                        self.database.file_records.insert(peer);
-                        if let Some(history) = self.database.database_history() {
-                            history.record_file_lookup(pattern);
-                        }
-                    }
-                }
+                self.database
+                    .file_records
+                    .enter_prerequisite(&dependency.name);
             }
         }
-        for selection in &plan {
+        // Bind a literal child as explicit when it enters the graph. Other
+        // inputs of a provisional parent wait until that parent is attached.
+        self.database.explicit_names.extend(
+            parent
+                .explicit_names
+                .iter()
+                .filter(|name| {
+                    placement != ImplicitPlacement::Descendant
+                        || inferred.contains_key(name.as_slice())
+                })
+                .cloned(),
+        );
+        for child in &children {
             self.database
                 .explicit_names
-                .extend(selection.explicit_names.iter().cloned());
+                .extend(child.explicit_names.iter().cloned());
         }
-        let mut attached_children = HashSet::new();
-        for selection in plan {
-            let ImplicitSelection {
-                name,
-                mut rule,
-                prepared_scope,
-                explicit_names: _,
-                intermediate_names,
-            } = selection;
-            if name != target && !attached_children.insert(name.clone()) {
-                // Repeated searches retain their effects, but the first accepted
-                // child owns its rule. A prior inferred rule is not an explicit
-                // prerequisite declaration to append to a later selection.
-                if let Some(scope) = prepared_scope {
-                    self.implicit_scopes.insert(name, *scope);
+        let mut attached = HashSet::new();
+        for mut child in children {
+            let retained = published.entry(child.name.clone()).or_insert_with(|| {
+                let declaration = self.database.rules.get(&child.name).map(|rule| Rule {
+                    dependencies: rule.dependencies.clone(),
+                    secondary: rule.secondary.clone(),
+                    ..Rule::default()
+                });
+                PublishedImplicit {
+                    declaration,
+                    ..PublishedImplicit::default()
                 }
-                continue;
+            });
+            // The latest preparation retains its effects even when an earlier
+            // selection supplies the rule.
+            if let Some(scope) = child.prepared_scope.take()
+                && scope.revision > retained.scope_revision
+            {
+                retained.scope_revision = scope.revision;
+                self.implicit_scopes.insert(child.name.clone(), *scope);
             }
-            // Only accepted recursive selections become searched file records.
-            // A detached root keeps its separate double-colon branch marker.
-            if name != target {
-                self.database_implicit.insert(name.clone());
+            if attached.insert(child.name.clone()) {
+                self.attach_implicit_selection(
+                    child,
+                    ImplicitPlacement::Descendant,
+                    Some(retained),
+                );
             }
-            if rule.terminal {
-                // Accepting a terminal rule bars implicit search when
-                // visiting its prerequisites. Explicit recipes and the
-                // ordinary default-recipe check still apply.
-                for dependency in &rule.dependencies {
-                    if dependency.name != b".WAIT" {
-                        self.terminal_prerequisites.insert(dependency.name.clone());
-                        self.database_implicit.insert(dependency.name.clone());
+        }
+    }
+
+    fn retain_implicit_selection_history(
+        &mut self,
+        selection: &ImplicitSelection,
+        placement: ImplicitPlacement,
+    ) {
+        let group = selection.rule.group.as_ref();
+        // Detached double-colon roots prepare their own stem at the branch.
+        let retain_stem = group.is_some() || placement == ImplicitPlacement::Root;
+        if let Some(history) = self.database.database_history() {
+            if retain_stem && let Some(stem) = &selection.rule.stem {
+                history.intern(stem);
+            }
+            if (retain_stem || placement == ImplicitPlacement::DoubleColonRoot)
+                && let Some(pattern) = &selection.rule.implicit_pattern
+            {
+                history.record_file_lookup(pattern);
+            }
+        }
+        if let Some(group) = group {
+            for (peer, pattern) in &group.implicit_peer_patterns {
+                if peer != &selection.name {
+                    if let Some(history) = self.database.database_history() {
+                        history.intern(peer);
+                    }
+                    self.database.file_records.insert(peer);
+                    if let Some(history) = self.database.database_history() {
+                        history.record_file_lookup(pattern);
                     }
                 }
             }
-            // A selected implicit rule promotes its file to a target,
-            // including recipes converted from undeclared builtin records.
-            rule.record_only = false;
-            let implicit_prefix = rule.dependencies.len();
-            let detached = detach_root && name == target;
-            if !detached && let Some(scope) = prepared_scope {
-                self.implicit_scopes.insert(name.clone(), *scope);
-            }
-            if let Some(group) = &rule.group {
-                for (peer, pattern) in &group.implicit_peer_patterns {
-                    let precious = self.special(b".PRECIOUS", pattern, false);
-                    let notintermediate = self.special(b".NOTINTERMEDIATE", pattern, false);
-                    let flags = self.inferred_peer_flags.entry(peer.clone()).or_default();
-                    flags.0 |= precious;
-                    flags.1 |= notintermediate;
+        }
+    }
+
+    fn attach_implicit_selection(
+        &mut self,
+        selection: ImplicitSelection,
+        placement: ImplicitPlacement,
+        original: Option<&PublishedImplicit>,
+    ) -> Option<Rule> {
+        let ImplicitSelection {
+            name,
+            mut rule,
+            prepared_scope,
+            explicit_names: _,
+            intermediate_names,
+        } = selection;
+        let descendant = placement == ImplicitPlacement::Descendant;
+        let detached = placement == ImplicitPlacement::DoubleColonRoot;
+        if descendant {
+            self.database_implicit.insert(name.clone());
+        }
+        if rule.terminal {
+            // Explicit recipes and default recipes still apply to these inputs.
+            for dependency in &rule.dependencies {
+                if dependency.name != b".WAIT" {
+                    self.terminal_prerequisites.insert(dependency.name.clone());
+                    self.database_implicit.insert(dependency.name.clone());
                 }
             }
-            if !detached && let Some(explicit) = self.database.rules.get(&name) {
-                rule.append_prerequisites(explicit);
-            }
-            if name != target
-                && !self.database.explicit_names.contains(&name)
-                && !self.options.goals.contains(&name)
-            {
-                self.intermediates.insert(name.clone());
-            }
-            self.intermediates.extend(intermediate_names);
-            if self.shuffle.enabled() && (implicit_prefix != 0 || !self.shuffle.has_plan(&name)) {
-                let disabled = self.database.globally_serial();
-                self.shuffle
-                    .regenerate(&name, &rule, &self.database, disabled, implicit_prefix);
-            }
-            if detached {
-                detached_rule = Some(rule);
-            } else {
-                self.invalidate_phony_names(&name);
-                self.database.rules.insert(name, rule);
+        }
+        // A selected rule promotes the file to a target, including previously
+        // undeclared builtin records.
+        rule.record_only = false;
+        let implicit_prefix = rule.dependencies.len();
+        if !detached && let Some(scope) = prepared_scope {
+            self.implicit_scopes.insert(name.clone(), *scope);
+        }
+        if let Some(group) = &rule.group {
+            for (peer, pattern) in &group.implicit_peer_patterns {
+                let precious = self.special(b".PRECIOUS", pattern, false);
+                let notintermediate = self.special(b".NOTINTERMEDIATE", pattern, false);
+                let flags = self.inferred_peer_flags.entry(peer.clone()).or_default();
+                flags.0 |= precious;
+                flags.1 |= notintermediate;
             }
         }
-        detached_rule
+        if !detached {
+            let declaration = match original {
+                Some(original) => original.declaration.as_ref(),
+                None => self.database.rules.get(&name),
+            };
+            if let Some(declaration) = declaration {
+                rule.append_prerequisites(declaration);
+            }
+        }
+        if descendant
+            && !self.database.explicit_names.contains(&name)
+            && !self.options.goals.contains(&name)
+        {
+            self.intermediates.insert(name.clone());
+        }
+        self.intermediates.extend(intermediate_names);
+        if self.shuffle.enabled() && (implicit_prefix != 0 || !self.shuffle.has_plan(&name)) {
+            let disabled = self.database.globally_serial();
+            self.shuffle
+                .regenerate(&name, &rule, &self.database, disabled, implicit_prefix);
+        }
+        if detached {
+            Some(rule)
+        } else {
+            self.invalidate_phony_names(&name);
+            self.database.rules.insert(name, rule);
+            None
+        }
     }
 
     fn default_update_rule(
@@ -8753,34 +8861,32 @@ impl Engine {
         let depth = depth + usize::from(self.remaking);
         Ok(
             match self.plan_implicit_update(target, depth, false, branch)? {
-                Some(plan) => self.install_implicit_plan(target, plan, true),
+                Some(plan) => self.install_implicit_plan(plan, ImplicitPlacement::DoubleColonRoot),
                 None => self.default_update_rule(target, depth, true),
             },
         )
     }
 
-    /// Search is transactional: a rejected branch never installs rules or marks
-    /// files intermediate. Rule identities, rather than names alone, prevent
-    /// unbounded chains such as %.x: %.x.x.
+    /// A selection stays pending until its parent accepts. Descendants already
+    /// attached by an accepting frame survive later rejection of its ancestors.
+    /// Rule identities prevent unbounded chains such as %.x: %.x.x.
     fn implicit_plan(
         &mut self,
         target: &[u8],
-        active: &mut Vec<usize>,
+        session: &mut ImplicitSearchSession,
         compatibility: bool,
-        budget: &mut usize,
-        debug_depth: usize,
         branch: Option<usize>,
-    ) -> Result<Option<Vec<ImplicitSelection>>, ExpandError> {
-        if active.len() >= 128 {
-            *budget = 0;
+    ) -> Result<Option<ImplicitSelection>, ExpandError> {
+        if session.active.len() >= 128 {
+            session.budget = 0;
         }
-        if *budget == 0 {
+        if session.budget == 0 {
             return Ok(None);
         }
-        let depth = debug_depth + active.len() + 1;
+        let depth = session.debug_depth + session.active.len() + 1;
         let archive_name = rmake_core::filenames::archive_parts(target)
             .map(|(archive, _)| &target[archive.len()..]);
-        let root = active.is_empty();
+        let root = session.active.is_empty();
         let mut search = ImplicitSearch {
             compatibility,
             archive: false,
@@ -8799,10 +8905,8 @@ impl Engine {
             }
             search.compatibility = compatibility;
             search.archive = archive_search;
-            if let Some(plan) =
-                self.implicit_search(target, active, &mut search, budget, debug_depth)?
-            {
-                return Ok(Some(plan));
+            if let Some(selection) = self.implicit_search(target, session, &mut search)? {
+                return Ok(Some(selection));
             }
             let printed = if archive_search {
                 archive_name.unwrap_or(target)
@@ -8825,52 +8929,55 @@ impl Engine {
     fn implicit_search(
         &mut self,
         target: &[u8],
-        active: &mut Vec<usize>,
+        session: &mut ImplicitSearchSession,
         search: &mut ImplicitSearch,
-        budget: &mut usize,
-        debug_depth: usize,
-    ) -> Result<Option<Vec<ImplicitSelection>>, ExpandError> {
+    ) -> Result<Option<ImplicitSelection>, ExpandError> {
+        let debug_depth = session.debug_depth;
         let compatibility = search.compatibility;
         let archive_search = search.archive;
         let tracing = self.output.debug_mask().has(crate::debug::Mask::IMPLICIT);
         // Both archive search phases match without ignoring any directory.
         let trace_directory =
             tracing && !archive_search && rmake_core::filenames::archive_parts(target).is_none();
-        if tracing && !active.is_empty() {
-            let mut blocked = active.clone();
+        if tracing && !session.active.is_empty() {
+            let mut blocked = session.active.clone();
             blocked.sort_unstable();
             for identity in blocked {
                 let label = crate::debug::rule_label(&self.database, identity);
                 crate::debug::emit(
                     &self.output,
-                    crate::debug::Event::AvoidingRecursion(&label, debug_depth + active.len() + 2),
+                    crate::debug::Event::AvoidingRecursion(
+                        &label,
+                        debug_depth + session.active.len() + 2,
+                    ),
                 );
             }
         }
         let mut candidates = if archive_search {
             self.database
-                .implicit_archive_candidates_excluding(target, active)
+                .implicit_archive_candidates_excluding(target, &session.active)
         } else {
-            self.database.implicit_candidates_excluding(target, active)
+            self.database
+                .implicit_candidates_excluding(target, &session.active)
         };
         let mut compatibility_needed = false;
         let mut cancelled = Vec::new();
-        let intermediate = !active.is_empty();
+        let intermediate = !session.active.is_empty();
         let mut variables = None;
         for chain in [false, true] {
             if chain && !candidates.is_empty() {
                 crate::debug::emit(
                     &self.output,
-                    crate::debug::Event::TryingHarder(debug_depth + active.len() + 2),
+                    crate::debug::Event::TryingHarder(debug_depth + session.active.len() + 2),
                 );
             }
             for (ordinal, candidate) in candidates.iter_mut().enumerate() {
-                if *budget == 0 {
+                if session.budget == 0 {
                     return Ok(None);
                 }
-                *budget -= 1;
+                session.budget -= 1;
                 if cancelled.get(ordinal).copied().unwrap_or(false)
-                    || active.contains(&candidate.identity)
+                    || session.active.contains(&candidate.identity)
                     || (chain && candidate.rule.terminal)
                     || (intermediate && candidate.match_anything && !candidate.rule.terminal)
                 {
@@ -8902,7 +9009,7 @@ impl Engine {
                         crate::debug::Event::TryingRule(
                             label,
                             printed_stem,
-                            debug_depth + active.len() + 2,
+                            debug_depth + session.active.len() + 2,
                         ),
                     );
                     if stem_too_long {
@@ -8911,7 +9018,7 @@ impl Engine {
                             crate::debug::Event::StemTooLong(
                                 directory,
                                 printed_stem,
-                                debug_depth + active.len() + 2,
+                                debug_depth + session.active.len() + 2,
                             ),
                         );
                     }
@@ -8926,7 +9033,7 @@ impl Engine {
                 let mut valid = true;
                 let mut order_only = false;
                 let mut stem_set = false;
-                active.push(candidate.identity);
+                session.active.push(candidate.identity);
                 'prerequisites: for (index, occurrence) in
                     candidate.rule.dependencies.iter().enumerate()
                 {
@@ -8984,6 +9091,8 @@ impl Engine {
                                 scope
                                     .runtime_metadata
                                     .retain_runtime_metadata(variables, true);
+                                session.scope_revision += 1;
+                                scope.revision = session.scope_revision;
                             } else if let Some(ordinal) = search.branch {
                                 // Each declared branch owns its runtime metadata,
                                 // including effects of a rejected implicit candidate.
@@ -9029,7 +9138,7 @@ impl Engine {
                                 dependency.name = identity.to_vec();
                             }
                             let name = &dependency.name;
-                            let event_depth = debug_depth + active.len() + 1;
+                            let event_depth = debug_depth + session.active.len() + 1;
                             let literal = tracing
                                 && self
                                     .database
@@ -9089,9 +9198,13 @@ impl Engine {
                             }
                             let attempt =
                                 crate::debug::Event::TryingPrerequisite(name, literal, event_depth);
+                            let declaration = match session.published.get(target) {
+                                Some(published) => published.declaration.as_ref(),
+                                None => self.database.rules.get(target),
+                            };
                             let explicit = (self.has_file_record(name)
                                 && self.record_is_target(name))
-                                || self.database.rules.get(target).is_some_and(|rule| {
+                                || declaration.is_some_and(|rule| {
                                     rule.dependencies.iter().enumerate().any(|(index, dep)| {
                                         dep.name == *name
                                             && !rule.secondary.as_ref().is_some_and(|clauses| {
@@ -9107,7 +9220,7 @@ impl Engine {
                                     &self.output,
                                     crate::debug::Event::OughtToExist(
                                         name,
-                                        debug_depth + active.len() + 1,
+                                        debug_depth + session.active.len() + 1,
                                     ),
                                 );
                             }
@@ -9195,15 +9308,10 @@ impl Engine {
                                             event_depth,
                                         ),
                                     );
-                                    if let Some(child) = self.implicit_plan(
-                                        name,
-                                        active,
-                                        compatibility,
-                                        budget,
-                                        debug_depth,
-                                        None,
-                                    )? {
-                                        plan.extend(child);
+                                    if let Some(child) =
+                                        self.implicit_plan(name, session, compatibility, None)?
+                                    {
+                                        plan.push(child);
                                     } else {
                                         if let Some(label) = &debug_label {
                                             crate::debug::emit(
@@ -9244,7 +9352,7 @@ impl Engine {
                         }
                     }
                 }
-                active.pop();
+                session.active.pop();
                 if valid {
                     if let Some(label) = &debug_label {
                         let printed = if archive_search {
@@ -9258,7 +9366,7 @@ impl Engine {
                             crate::debug::Event::FoundRule(
                                 label,
                                 printed,
-                                debug_depth + active.len() + 1,
+                                debug_depth + session.active.len() + 1,
                             ),
                         );
                     }
@@ -9267,24 +9375,37 @@ impl Engine {
                     Self::trim_implicit_waits(&mut dependencies);
                     selected.dependencies = dependencies;
                     selected.secondary = None;
-                    plan.push(ImplicitSelection {
+                    let selection = ImplicitSelection {
                         name: target.to_vec(),
                         rule: selected,
                         explicit_names,
                         intermediate_names,
                         prepared_scope: search.intermediate_scope.take().map(Box::new),
-                    });
-                    return Ok(Some(plan));
+                    };
+                    if intermediate {
+                        self.publish_implicit_children(
+                            &selection,
+                            plan,
+                            &mut session.published,
+                            ImplicitPlacement::Descendant,
+                        );
+                    } else {
+                        session.root_children = plan;
+                    }
+                    return Ok(Some(selection));
                 }
             }
         }
         if compatibility_needed && !compatibility {
             crate::debug::emit(
                 &self.output,
-                crate::debug::Event::SearchingCompatibility(target, debug_depth + active.len() + 1),
+                crate::debug::Event::SearchingCompatibility(
+                    target,
+                    debug_depth + session.active.len() + 1,
+                ),
             );
             search.compatibility = true;
-            return self.implicit_search(target, active, search, budget, debug_depth);
+            return self.implicit_search(target, session, search);
         }
         Ok(None)
     }
@@ -9325,6 +9446,7 @@ impl Engine {
             *intermediate_scope = Some(ImplicitScope {
                 pattern,
                 runtime_metadata: VariableStore::default(),
+                revision: 0,
             });
         }
         let mut context = if let Some(prepared) = intermediate_scope.as_ref() {
@@ -11042,10 +11164,7 @@ impl Engine {
                 // Each declared branch retains its own prerequisites and
                 // resolves a pattern recipe before visiting them.
                 if let Some(plan) = plan
-                    && plan
-                        .last()
-                        .is_some_and(|root| root.name == target && root.rule.group.is_none())
-                    && let Some(mut selected) = self.install_implicit_plan(target, plan, true)
+                    && let Some(mut selected) = self.install_declared_implicit_plan(plan)
                 {
                     if let Some(history) = self.database.database_history()
                         && let Some(stem) = &selected.stem
@@ -15234,15 +15353,18 @@ mod tests {
             ..Rule::default()
         };
         engine.install_implicit_plan(
-            b".PHONY",
-            vec![ImplicitSelection {
-                name: b".PHONY".to_vec(),
-                rule,
-                explicit_names: Vec::new(),
-                intermediate_names: Vec::new(),
-                prepared_scope: None,
-            }],
-            false,
+            PendingImplicitRoot {
+                selection: ImplicitSelection {
+                    name: b".PHONY".to_vec(),
+                    rule,
+                    explicit_names: Vec::new(),
+                    intermediate_names: Vec::new(),
+                    prepared_scope: None,
+                },
+                children: Vec::new(),
+                published: HashMap::new(),
+            },
+            ImplicitPlacement::Root,
         );
         assert!(engine.phony_names.is_none());
         assert!(engine.special(b".PHONY", b"inferred", false));

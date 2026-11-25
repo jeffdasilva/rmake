@@ -1,0 +1,12 @@
+id = "implicit-accepted-descendant-inner-reject"
+requirement = "resolution.shared-implicit-owner"
+candidate = "required"
+description = "A rejected inner rule leaves its selected child provisional for the fallback search"
+provenance = "Original rmake fixture independently authored against GNU 4.4.1; no upstream implementation or test material used."
+args = ["-rR","--no-print-directory","a.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "child|a.mid|extra\nfallback|a.out|a.mid\n"
+stderr = ""
