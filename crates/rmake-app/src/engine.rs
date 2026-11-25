@@ -1037,6 +1037,13 @@ enum MergedGoalReport {
     UnattemptedDestination,
 }
 
+#[derive(Clone, Copy)]
+struct MergedGoalOwners {
+    source: FileRecordId,
+    destination: FileRecordId,
+    destination_unattempted: bool,
+}
+
 struct TargetReads<'a> {
     visits: &'a FileTraversals,
     retained_parents: &'a HashMap<Vec<u8>, OwnedScopeParent>,
@@ -9041,10 +9048,11 @@ impl Engine {
                     } else {
                         None
                     };
-                let merged_owners =
-                    settled_container.and_then(|_| self.late_goal_merge_owners(archive, path));
+                let merged_owners = settled_container
+                    .and_then(|_| self.late_goal_merge_owners(archive, path))
+                    .filter(|owners| owners.destination_unattempted);
                 let retained_owner = if self.database.file_records.contains(path) {
-                    merged_owners.map(|(_, destination)| destination)
+                    merged_owners.map(|owners| owners.destination)
                 } else {
                     settled_container
                 };
@@ -9064,9 +9072,9 @@ impl Engine {
                     // Both kinds of permanent rename retain the update and
                     // the observation of the searched container.
                     outcome.time = location.container_time;
-                    if let Some((source, destination)) = merged_owners {
+                    if let Some(owners) = merged_owners {
                         outcome.database_result = DatabaseResult::MergedArchiveContainer;
-                        self.record_merged_goal_reports(source, destination, path);
+                        self.record_merged_goal_reports(owners, path);
                     }
                     self.file_traversals.set_outcome(path, outcome);
                     self.archive_vpath_reads
@@ -10386,23 +10394,18 @@ impl Engine {
         self.merged_goal_reports.get(&owner)
     }
 
-    fn record_merged_goal_reports(
-        &mut self,
-        source: FileRecordId,
-        destination: FileRecordId,
-        name: &[u8],
-    ) {
-        self.merged_goal_reports
-            .insert(source, MergedGoalReport::CompletedSource(name.to_vec()));
-        self.merged_goal_reports
-            .insert(destination, MergedGoalReport::UnattemptedDestination);
+    fn record_merged_goal_reports(&mut self, owners: MergedGoalOwners, name: &[u8]) {
+        self.merged_goal_reports.insert(
+            owners.source,
+            MergedGoalReport::CompletedSource(name.to_vec()),
+        );
+        if owners.destination_unattempted {
+            self.merged_goal_reports
+                .insert(owners.destination, MergedGoalReport::UnattemptedDestination);
+        }
     }
 
-    fn late_goal_merge_owners(
-        &self,
-        from: &[u8],
-        to: &[u8],
-    ) -> Option<(FileRecordId, FileRecordId)> {
+    fn late_goal_merge_owners(&self, from: &[u8], to: &[u8]) -> Option<MergedGoalOwners> {
         // A prior terminal verdict can stop GNU's completion-time search
         // without stopping subsequent goals under keep-going.
         if self.remaking
@@ -10412,8 +10415,6 @@ impl Engine {
             || self.aliases.contains(to)
             || rmake_core::filenames::archive_parts(from).is_some()
             || rmake_core::filenames::archive_parts(to).is_some()
-            || self.file_traversals.visit(to).is_some()
-            || self.file_traversals.has_outcome(to)
             || self.database.rules.get(to).is_some_and(|rule| {
                 !rule.record_only || rule.double_colon.is_some() || rule.group.is_some()
             })
@@ -10426,6 +10427,25 @@ impl Engine {
         {
             return None;
         }
+        let visited = self.file_traversals.visit(to).is_some();
+        let outcome = self.file_traversals.outcome(to);
+        let destination_unattempted = !visited && outcome.is_none();
+        if !destination_unattempted
+            && (!visited
+                || rule.double_colon.is_some()
+                || MakefileModes::from_options(&self.options).active()
+                || self.assumed_time(to).is_some()
+                || !outcome.is_some_and(|result| {
+                    !result.failed
+                        && !result.question_outdated
+                        && !result.ran
+                        && result.completion == CompletionTime::Unchanged
+                        && result.database_result == DatabaseResult::Outcome
+                        && result.time.is_some()
+                }))
+        {
+            return None;
+        }
         let source = self.database.file_records.id(from)?;
         let destination = self.database.file_records.id(to)?;
         if source == destination
@@ -10434,10 +10454,14 @@ impl Engine {
         {
             return None;
         }
-        // The completed source retains its status and adopts the new name.
-        // The existing destination inherits the updated flag and keeps its
-        // own unattempted status. Queued operands still refer to either ID.
-        Some((source, destination))
+        // The queued source keeps its success and adopts the new name. The
+        // destination keeps its own update result, including an earlier
+        // successful visit of an existing file without a recipe.
+        Some(MergedGoalOwners {
+            source,
+            destination,
+            destination_unattempted,
+        })
     }
 
     fn defer_goal_timestamp_after_failure(
@@ -10511,10 +10535,10 @@ impl Engine {
                     if self.rename_search_record(target, &name).is_err() {
                         outcome.failed = true;
                         outcome.fatal = true;
-                    } else if let Some((source, destination)) = owners
+                    } else if let Some(owners) = owners
                         && !self.database.has_detached_file_head(&name)
                     {
-                        self.record_merged_goal_reports(source, destination, &name);
+                        self.record_merged_goal_reports(owners, &name);
                     }
                     self.file_traversals.set_outcome(&name, outcome);
                     if self.database.has_detached_file_head(&name) {

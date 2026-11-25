@@ -1,0 +1,12 @@
+id = "gpath-late-merge-visited-expansion-status"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "A source completed by expansion is reported immediately and on a later queued occurrence."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "src/parent", "hide", "parent", "after", "parent"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "initial-goals=[src/parent hide parent after parent]\nmake: Nothing to be done for 'src/parent'.\nbuild=[parent|input]\nmake: 'src/parent' is up to date.\nlate-goals=[src/parent hide parent after parent]\nmake: 'src/parent' is up to date.\n"
+stderr = ""

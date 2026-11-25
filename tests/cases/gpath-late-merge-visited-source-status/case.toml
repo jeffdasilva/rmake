@@ -1,0 +1,12 @@
+id = "gpath-late-merge-visited-source-status"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "Report the queued source after the original spelling is recreated and the canonical owner was already visited."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "src/parent", "hide", "parent", "after", "parent"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "initial-goals=[src/parent hide parent after parent]\nmake: Nothing to be done for 'src/parent'.\nbuild=[parent|input]\nlate-goals=[src/parent hide parent after parent]\nmake: 'src/parent' is up to date.\n"
+stderr = ""
