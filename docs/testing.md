@@ -34,9 +34,11 @@ the development and optimized checks, plus separate Guile checks. See the
 [CI workflow](../.github/workflows/ci.yml).
 
 The [native AArch64 job](../.github/workflows/native-aarch64.yml) uses an
-AArch64 Linux runner to check the host metadata, subprocess and restart
-behavior, native standard streams, and shared jobservers. It builds a
-separate pinned GNU Make reference on the runner.
+AArch64 Linux runner to check host metadata, subprocess and restart behavior,
+native standard streams, shared jobservers, developer workflows, and deep
+evaluation. It builds a separate pinned GNU Make reference on the runner.
+Selected C and C.UTF-8 locale cases and the pinned xxHash project compare the
+optimized build with that reference.
 
 The [native x86-64 musl job](../.github/workflows/native-musl.yml) builds
 GNU Make and optimized rmake with a private musl 1.2.4 dynamic loader.
