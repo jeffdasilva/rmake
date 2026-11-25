@@ -34,7 +34,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, FileTimes, OpenOptions};
 use std::io::{self, Write};
-use std::num::NonZeroU64;
+use std::num::{NonZeroU64, NonZeroUsize};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
 use std::path::Path;
@@ -809,9 +809,37 @@ fn emit_getcwd_error(output: &crate::output::Controller, program: &[u8], error: 
     );
 }
 
+struct OwnedScopeParent {
+    target: Vec<u8>,
+    // A stored branch is the zero-based ordinal plus one.
+    packed_branch: Option<NonZeroUsize>,
+    record: Option<FileRecordId>,
+}
+
+impl OwnedScopeParent {
+    fn new(parent: ScopeParent<&[u8]>, record: Option<FileRecordId>) -> Self {
+        Self {
+            target: parent.target.to_vec(),
+            packed_branch: Self::pack_branch(parent.branch),
+            record,
+        }
+    }
+
+    fn pack_branch(branch: Option<usize>) -> Option<NonZeroUsize> {
+        branch.map(|index| {
+            NonZeroUsize::MIN
+                .checked_add(index)
+                .expect("double-colon branch index overflow")
+        })
+    }
+
+    fn branch(&self) -> Option<usize> {
+        self.packed_branch.map(|index| index.get() - 1)
+    }
+}
+
 struct FileVisit {
-    parent: Option<ScopeParent<Vec<u8>>>,
-    parent_record: Option<FileRecordId>,
+    parent: Option<OwnedScopeParent>,
     // Ordinary pass plus one, recorded when verbose output was disabled.
     quiet_consideration: Option<NonZeroU64>,
 }
@@ -969,11 +997,6 @@ impl FileTraversals {
     }
 }
 
-struct RetainedScopeParent {
-    scope: ScopeParent<Vec<u8>>,
-    record: Option<FileRecordId>,
-}
-
 struct MovedArchiveRecord {
     lookup: Vec<u8>,
     original: Vec<u8>,
@@ -982,7 +1005,7 @@ struct MovedArchiveRecord {
 
 struct TargetReads<'a> {
     visits: &'a FileTraversals,
-    retained_parents: &'a HashMap<Vec<u8>, RetainedScopeParent>,
+    retained_parents: &'a HashMap<Vec<u8>, OwnedScopeParent>,
     moved_archives: &'a HashMap<FileRecordId, MovedArchiveRecord>,
     aliases: &'a Aliases,
     base: &'a HashMap<Vec<u8>, VariableStore>,
@@ -992,19 +1015,16 @@ struct TargetReads<'a> {
 }
 
 impl TargetReads<'_> {
-    fn resolve_parent<'a>(
-        &'a self,
-        parent: &'a ScopeParent<Vec<u8>>,
-        record: Option<FileRecordId>,
-    ) -> ScopeParent<&'a [u8]> {
+    fn resolve_parent<'a>(&'a self, parent: &'a OwnedScopeParent) -> ScopeParent<&'a [u8]> {
         ScopeParent {
-            target: record
+            target: parent
+                .record
                 .and_then(|id| self.moved_archives.get(&id))
                 .map_or_else(
                     || self.aliases.resolve(&parent.target),
                     |file| self.aliases.resolve(&file.lookup),
                 ),
-            branch: parent.branch,
+            branch: parent.branch(),
         }
     }
 }
@@ -1044,7 +1064,7 @@ impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
             visit
                 .parent
                 .as_ref()
-                .map(|parent| self.resolve_parent(parent, visit.parent_record))
+                .map(|parent| self.resolve_parent(parent))
         })
     }
 
@@ -1054,12 +1074,12 @@ impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
 
     fn changed_parent(&self, target: &[u8]) -> Option<ScopeParent<&[u8]>> {
         if let Some(parent) = self.retained_parents.get(target) {
-            return Some(self.resolve_parent(&parent.scope, parent.record));
+            return Some(self.resolve_parent(parent));
         }
         let visit = self.visits.visit(target)?;
         let parent = visit.parent.as_ref()?;
-        self.moved_archives.get(&visit.parent_record?)?;
-        Some(self.resolve_parent(parent, visit.parent_record))
+        self.moved_archives.get(&parent.record?)?;
+        Some(self.resolve_parent(parent))
     }
 
     fn parent_variables(&self, parent: ScopeParent<&[u8]>) -> Option<&VariableStore> {
@@ -1565,7 +1585,7 @@ pub struct Engine {
     file_traversals: FileTraversals,
     // A later encounter affects declarations that revisit a completed file.
     // Its first traversal context still owns the recipe and diagnostics.
-    retained_scope_parents: HashMap<Vec<u8>, RetainedScopeParent>,
+    retained_scope_parents: HashMap<Vec<u8>, OwnedScopeParent>,
     moved_archives: HashMap<FileRecordId, MovedArchiveRecord>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
     implicit_scopes: HashMap<Vec<u8>, ImplicitScope>,
@@ -7526,8 +7546,7 @@ impl Engine {
         }
         let records = &self.database.file_records;
         self.file_traversals.remember_visit(target, || FileVisit {
-            parent: Some(parent.into_owned()),
-            parent_record: records.id(parent.target),
+            parent: Some(OwnedScopeParent::new(parent, records.id(parent.target))),
             quiet_consideration: None,
         });
         if !self.resolve_implicit_for_intermediate(target, depth) {
@@ -12312,13 +12331,10 @@ impl Engine {
             };
         let records = &self.database.file_records;
         self.file_traversals
-            .remember_visit(target, || {
-                let parent_record = parent.as_ref().and_then(|parent| records.id(parent.target));
-                FileVisit {
-                    parent: parent.map(ScopeParent::into_owned),
-                    parent_record,
-                    quiet_consideration,
-                }
+            .remember_visit(target, || FileVisit {
+                parent: parent
+                    .map(|parent| OwnedScopeParent::new(parent, records.id(parent.target))),
+                quiet_consideration,
             })
             .quiet_consideration = quiet_consideration;
         let phony = self.special(b".PHONY", target, false);
@@ -12496,11 +12512,11 @@ impl Engine {
         if !self.retained_scope_parents.is_empty()
             && let Some(latest) = self.retained_scope_parents.get_mut(target)
         {
-            if latest.scope.target.as_slice() != parent.target {
-                latest.scope.target.clear();
-                latest.scope.target.extend_from_slice(parent.target);
+            if latest.target.as_slice() != parent.target {
+                latest.target.clear();
+                latest.target.extend_from_slice(parent.target);
             }
-            latest.scope.branch = parent.branch;
+            latest.packed_branch = OwnedScopeParent::pack_branch(parent.branch);
             latest.record = self.database.file_records.id(parent.target);
             // Keep the live edge if it returns to its original parent. A
             // retained eager read may have updated this file's local table.
@@ -12508,19 +12524,16 @@ impl Engine {
         }
         if self.file_traversals.visit(target).is_some_and(|visit| {
             visit.parent.as_ref().map(|first| {
-                let name = visit
-                    .parent_record
+                let name = first
+                    .record
                     .and_then(|id| self.moved_archives.get(&id))
                     .map_or(first.target.as_slice(), |owner| owner.lookup.as_slice());
-                (self.aliases.resolve(name), first.branch)
+                (self.aliases.resolve(name), first.branch())
             }) != Some((parent.target, parent.branch))
         }) {
             self.retained_scope_parents.insert(
                 target.to_vec(),
-                RetainedScopeParent {
-                    scope: parent.into_owned(),
-                    record: self.database.file_records.id(parent.target),
-                },
+                OwnedScopeParent::new(parent, self.database.file_records.id(parent.target)),
             );
         }
     }
@@ -15531,11 +15544,11 @@ impl Engine {
         }
         let parent = self.file_traversals.visit(target).and_then(|visit| {
             visit.parent.as_ref().map(|parent| {
-                let name = visit
-                    .parent_record
+                let name = parent
+                    .record
                     .and_then(|id| self.moved_archives.get(&id))
                     .map_or(parent.target.as_slice(), |owner| owner.lookup.as_slice());
-                (name.to_vec(), parent.branch)
+                (name.to_vec(), parent.branch())
             })
         });
         let inherited = if let Some((parent, branch)) = parent {
@@ -17136,11 +17149,13 @@ mod tests {
         assert!(files.visit(name).is_none());
 
         files.remember_visit(name, || FileVisit {
-            parent: Some(ScopeParent {
-                target: b"parent".to_vec(),
-                branch: Some(1),
-            }),
-            parent_record: None,
+            parent: Some(OwnedScopeParent::new(
+                ScopeParent {
+                    target: b"parent",
+                    branch: Some(1),
+                },
+                None,
+            )),
             quiet_consideration: NonZeroU64::new(2),
         });
         assert!(files.remove_outcome(name).expect("initial outcome").ran);
@@ -17161,7 +17176,7 @@ mod tests {
         let moved = files.visit(alias).expect("moved visit");
         let parent = moved.parent.as_ref().expect("scope parent");
         assert_eq!(parent.target, b"parent");
-        assert_eq!(parent.branch, Some(1));
+        assert_eq!(parent.branch(), Some(1));
         assert_eq!(moved.quiet_consideration, NonZeroU64::new(2));
 
         files.set_outcome(b"third", Outcome::default());
@@ -17232,11 +17247,13 @@ mod tests {
         let mut engine = optional_failure_test_engine();
         let leaf = b"missing-diagnostic-leaf";
         engine.file_traversals.remember_visit(leaf, || FileVisit {
-            parent: Some(ScopeParent {
-                target: b"first".to_vec(),
-                branch: None,
-            }),
-            parent_record: None,
+            parent: Some(OwnedScopeParent::new(
+                ScopeParent {
+                    target: b"first",
+                    branch: None,
+                },
+                None,
+            )),
             quiet_consideration: None,
         });
         engine.file_traversals.set_outcome(
