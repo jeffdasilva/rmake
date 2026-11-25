@@ -1376,6 +1376,7 @@ struct FailedOwner {
 
 pub struct Engine {
     options: Options,
+    requested_goal_names: Option<HashSet<Vec<u8>>>,
     clock_skew: Cell<ClockSkew>,
     delay_clock_checks: bool,
     deferred_clock_checks: RefCell<Vec<(Vec<u8>, SystemTime)>>,
@@ -1960,7 +1961,12 @@ impl Engine {
                 .map_err(|message| StartupError::from(Diagnostic::from(message.to_vec())))
         );
         let initial_plan = Some(plan);
+        // Preserve the ordered operands for execution. Large invocations also
+        // need repeated membership checks during implicit graph traversal.
+        let requested_goal_names =
+            (options.goals.len() >= 32).then(|| options.goals.iter().cloned().collect());
         let mut engine = Self {
+            requested_goal_names,
             initial_plan,
             assumptions,
             clock_skew: Cell::new(ClockSkew::Unchecked),
@@ -5223,6 +5229,13 @@ impl Engine {
         }
     }
 
+    fn has_requested_goal_name(&self, name: &[u8]) -> bool {
+        self.requested_goal_names.as_ref().map_or_else(
+            || self.options.goals.iter().any(|goal| goal == name),
+            |goals| goals.contains(name),
+        )
+    }
+
     fn index_named_remake_sources<'files>(
         &self,
         read_files: &'files [(Makefile, bool)],
@@ -5231,15 +5244,14 @@ impl Engine {
         if read_files.len() < 16 || self.options.goals.len() < 32 {
             return None;
         }
-        let goals: HashSet<_> = self.options.goals.iter().map(Vec::as_slice).collect();
-        // Keep only source-name borrows so runtime option updates can still
-        // take ownership of the original goal vector while remakes run.
+        // A file-name subset keeps each remake lookup independent of the
+        // number of sources and of changes to runtime flags.
         Some(
             read_files
                 .iter()
                 .filter(|(_, skip)| !skip)
                 .map(|(file, _)| rmake_core::filenames::without_dot_prefix(&file.name))
-                .filter(|name| goals.contains(name))
+                .filter(|name| self.has_requested_goal_name(name))
                 .collect(),
         )
     }
@@ -5248,10 +5260,7 @@ impl Engine {
         if let Some(indexed) = indexed {
             indexed.contains(name)
         } else {
-            self.options
-                .goals
-                .iter()
-                .any(|goal| goal.as_slice() == name)
+            self.has_requested_goal_name(name)
         }
     }
 
@@ -6085,7 +6094,7 @@ impl Engine {
                     self.aliases.merged(goal)
                 } else {
                     self.database.explicit_names.contains(reported_goal)
-                        || self.options.goals.iter().any(|name| name == reported_goal)
+                        || self.has_requested_goal_name(reported_goal)
                 })
             {
                 return;
@@ -6166,10 +6175,14 @@ impl Engine {
                     && !self.special_for_rule(b".NOTINTERMEDIATE", target))
         };
         let explicitly_requested = || {
-            self.options
-                .goals
-                .iter()
-                .any(|goal| self.aliases.resolve(goal) == target)
+            if self.aliases.is_empty() {
+                self.has_requested_goal_name(target)
+            } else {
+                self.options
+                    .goals
+                    .iter()
+                    .any(|goal| self.aliases.resolve(goal) == target)
+            }
         };
         if self.intermediate_policy.all_secondary || !self.aliases.is_empty() {
             // Broad eligibility and live aliases can make the policy check
@@ -7803,7 +7816,7 @@ impl Engine {
         self.database.file_records.rename(from, to);
         let merged = self.database.explicit_names.contains(to)
             || self.database.target_scopes.contains_key(to)
-            || self.options.goals.iter().any(|goal| goal == to);
+            || self.has_requested_goal_name(to);
         self.invalidate_phony_names(from);
         self.invalidate_phony_names(to);
         let source = self.database.rules.remove(from);
@@ -9063,7 +9076,7 @@ impl Engine {
         }
         if descendant
             && !self.database.explicit_names.contains(&name)
-            && !self.options.goals.contains(&name)
+            && !self.has_requested_goal_name(&name)
         {
             self.intermediates.insert(name.clone());
         }
