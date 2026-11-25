@@ -95,9 +95,11 @@ class Subject:
         # The pinned installed compiler is an input. Cargo cache and target
         # paths remain private to this subject; neither clean nor bootstrap
         # is allowed to write to the real checkout.
-        toolchain = (ROOT / '.tools/rustup/toolchains' /
-                     f'{rust.TOOLCHAIN}-x86_64-unknown-linux-gnu' / 'bin')
-        cargo_bin = tools / 'cargo/bin'
+        host = rust.rustup_host()
+        require(host is not None, 'local Rust bootstrap supports x86_64 and AArch64 Linux')
+        toolchain = (rust.local_tool_root(host) / 'rustup' / 'toolchains' /
+                     f'{rust.TOOLCHAIN}-{host}' / 'bin')
+        cargo_bin = rust.local_tool_root(host, tools=tools) / 'cargo' / 'bin'
         cargo_bin.mkdir(parents=True)
         for name in ('cargo', 'rustc'):
             executable = toolchain / name
