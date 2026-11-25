@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-current-physical-rewrite"
+requirement = "options.assumed-double-colon-parallel-unnamed-current"
+candidate = "required"
+description = "A physical write of an ordinary unnamed include supplies the clock for the restarted read."
+args = ["-rR", "--no-print-directory", "-j2", "-k", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nread=1 clock=1700000000\ngoal-1\n"
+stderr = ""

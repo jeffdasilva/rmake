@@ -4479,6 +4479,20 @@ impl Database {
         result
     }
 
+    fn retain_native_reader_error(&mut self, location: &Location, context: &ExpansionContext<'_>) {
+        // The physical frame still owns the location at a terminal syntax
+        // error, including when the frame is an include.
+        if self.evaluation_depth == 0
+            && self.native_fatal_context.is_none()
+            && context.needs_fatal_expansion_context()
+        {
+            self.native_fatal_context = Some(Box::new(NativeFatalContext {
+                location: Some(location.clone()),
+                ..NativeFatalContext::default()
+            }));
+        }
+    }
+
     fn read_frames(
         &mut self,
         reader: ParserReader<'_>,
@@ -4616,14 +4630,12 @@ impl Database {
                 .map_err(|message| source_read_error_at(source_name.clone(), message, context))?
             else {
                 if !conditions.is_empty() {
-                    return Err(ParseError::system(
-                        Location {
-                            file: source_name.clone(),
-                            line: evaluated_at.unwrap_or(*last_line + 1),
-                        },
-                        Message::MissingEndif,
-                        context,
-                    ));
+                    let location = Location {
+                        file: source_name.clone(),
+                        line: evaluated_at.unwrap_or(*last_line + 1),
+                    };
+                    self.retain_native_reader_error(&location, context);
+                    return Err(ParseError::system(location, Message::MissingEndif, context));
                 }
                 self.finish_declaration(
                     declaration,
@@ -4767,6 +4779,7 @@ impl Database {
                     );
                 }
                 if conditions.pop().is_none() {
+                    self.retain_native_reader_error(&location, context);
                     return Err(ParseError::system(
                         location,
                         Message::ExtraneousConditional(b"endif"),
@@ -5340,18 +5353,7 @@ impl Database {
                 } else {
                     Message::MissingSeparator { tabs: false }
                 };
-                // A physical reader frame still owns this source when GNU
-                // stops. Preserve it for finalizer diagnostics after the
-                // parser returns, including when the frame is an include.
-                if self.evaluation_depth == 0
-                    && self.native_fatal_context.is_none()
-                    && context.needs_fatal_expansion_context()
-                {
-                    self.native_fatal_context = Some(Box::new(NativeFatalContext {
-                        location: Some(location.clone()),
-                        ..NativeFatalContext::default()
-                    }));
-                }
+                self.retain_native_reader_error(&location, context);
                 return Err(ParseError::system(location, message, context));
             };
             declaration.location = Some(location.clone());

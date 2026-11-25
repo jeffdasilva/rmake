@@ -1,0 +1,13 @@
+id = "assumed-double-parallel-current-optional-unnamed"
+requirement = "options.assumed-double-colon-parallel-unnamed-current"
+candidate = "required"
+description = "A current optional include supplies the same restart clock with stopping traversal."
+args = ["-rR", "--no-print-directory", "-j2", "-S", "--jobserver-style=fifo", "-W", "b.mk", "all"]
+
+[environment]
+GNUMAKEFLAGS = ""
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nread=1 clock=1680300000\ngoal-1\n"
+stderr = ""

@@ -168,6 +168,8 @@ def models() -> list[Model]:
     result.extend(flag_finalizer_models())
     result.extend(fast_sync_finalizer_models())
     result.extend(sync_warning_finalizer_models())
+    result.extend(mutex_finalizer_models())
+    result.extend(conditional_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -1158,6 +1160,118 @@ def sync_warning_finalizer_models() -> list[Model]:
               {'exit_code': 2, 'stdout_hex': '',
                'stderr_hex': (b'Makefile:3: before-fatal\n' + sync_error).hex()},
               b'anchor\nread\n', ()),
+    ]
+
+
+def mutex_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    recipe = b'.PHONY: all dep\nall: .LOADED := target\nall: dep\n\t@'
+    tail = b':\ndep:;@:\n'
+    missing = b'--sync-mutex=fnm:absent'
+    valid = b'--sync-mutex=fnm:lock'
+    lock_error = b'make: *** cannot open output sync mutex absent: No such file or directory.  Stop.\n'
+    global_scope = b'scope=[||file|global||]\n'
+    target_scope = b'scope=[all|dep|file|target||]\n'
+    first = rb'FIRST:=$$(file\ >>seen,first)'
+    last = rb'LAST:=$$(file\ >>seen,last)'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+    prefix = b'MAKEFLAGS := '
+
+    def evaluate(flags):
+        return b'$(eval ' + (prefix + flags).replace(b'$', b'$$') + b')'
+
+    def model(name, text, location=b'make', *, message=lock_error, scope=global_scope,
+              marks=b'read\n', args=(), env=None, files=None, status=2, warnings=b''):
+        stderr = message + location + b': finalizer-location\n' + warnings
+        return Model(
+            'native-live-mutex-finalizer-' + name,
+            {'Makefile': text, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\n' + marks + scope,
+            (module,),
+            args=('-rR', '--no-print-directory', *args),
+            environment={'MAKEFLAGS': '', 'GNUMAKEFLAGS': '', **(env or {})},
+        )
+
+    payload = b' '.join((first, missing, last))
+    payload_marks = b'read\nfirst\nlast\n'
+    lexical_flags = b' '.join((first, b'--warn-undefined-variables', missing, last))
+    lexical = b'$(foreach .LOADED,lexical,' + evaluate(lexical_flags) + b')'
+    mutex_notice = b"make: invalid --sync-mutex string 'broken'\n"
+    return [
+        model('reader', head + prefix + missing + b'\n' + goal, b'Makefile:4'),
+        model('include-payload', head + b'include child.mk\n' + goal, b'child.mk:2',
+              marks=payload_marks, files={'child.mk': b'# first\n' + prefix + payload + b'\n'}),
+        model('reader-owned', head + prefix + b'-I~/absent ' + missing + b'\n' + goal,
+              b'Makefile:4'),
+        model('recipe', head + recipe + evaluate(missing) + tail, b'Makefile:7',
+              scope=target_scope),
+        model('recipe-lexical', head + recipe + lexical + tail, b'Makefile:7',
+              scope=b'scope=[all|dep|automatic|lexical||]\n', marks=payload_marks,
+              args=('-j2', '-Otarget', '--sync-mutex=fnm:lock'), files={'lock': b''},
+              warnings=b"Makefile:7: warning: undefined variable '0'\n"
+                       b"Makefile:7: warning: undefined variable '1'\n"),
+        model('mode-first', head + prefix + b'--output-sync=z ' + missing + b'\n' + goal,
+              b'Makefile:4', message=b"make: *** unknown output-sync type 'z'.  Stop.\n"),
+        model('post-read', head + b'GNUMAKEFLAGS := ' + payload + b'\n' + goal,
+              marks=payload_marks),
+        model('anonymous-eval', goal,
+              args=('--eval', (head + prefix + missing).decode('ascii'))),
+        model('inherited', goal, env={'MAKEFLAGS': '$(eval load fatal_scope.so) ' + missing.decode('ascii')},
+              marks=b'', scope=b'scope=[||file|fatal_scope.so||]\n'),
+        model('valid-lock', head + prefix + valid + b'\n' + goal,
+              files={'lock': b''}, status=0, message=b'', marks=b'read\ngoal\n'),
+        model('replacement-lock', head + prefix + missing + b' ' + valid + b'\n' + goal,
+              files={'lock': b''}, status=0, message=b'', marks=b'read\ngoal\n'),
+        model('recoverable-tag', head + prefix + b'--sync-mutex=broken\n' + goal,
+              status=0, message=mutex_notice * 2, marks=b'read\ngoal\n'),
+    ]
+
+
+def conditional_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    opened = b'ifeq (yes,yes)\n$(file >>seen,inside)\n'
+    missing = b"missing 'endif'"
+    extra = b"extraneous 'endif'"
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def model(name, source, location=b'make', *, message=missing, marks=b'read\n',
+              files=None, args=(), env=None, notice=b'', status=2):
+        fatal = location + b': *** ' + message + b'.  Stop.\n' if status else b''
+        stderr = notice + fatal + location + b': finalizer-location\n'
+        return Model(
+            'native-reader-conditional-finalizer-' + name,
+            {'Makefile': source, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\n' + marks + b'scope=[||file|global||]\n',
+            (module,),
+            args=('-rR', '--no-print-directory', *args),
+            environment=env or {},
+        )
+
+    return [
+        model('missing', head + opened + goal, b'Makefile:8', marks=b'read\ninside\n'),
+        model('missing-inactive',
+              head + opened.replace(b'(yes,yes)', b'(yes,no)') + goal, b'Makefile:8'),
+        model('missing-include', head + b'include child.mk\n' + goal, b'child.mk:4',
+              files={'child.mk': b'# first\n' + opened}, marks=b'read\ninside\n'),
+        model('missing-preload', goal, b'preload.mk:6', files={'preload.mk': head + opened},
+              env={'MAKEFILES': 'preload.mk'}, marks=b'read\ninside\n'),
+        model('extra', head + b'endif\n' + goal, b'Makefile:4', message=extra),
+        model('extra-include', head + b'include child.mk\n' + goal,
+              b'grandchild.mk:2', message=extra,
+              files={'child.mk': b'include grandchild.mk\n',
+                     'grandchild.mk': b'# first\nendif\n'}),
+        model('extra-tail', head + b'endif stray\n' + goal, b'Makefile:4',
+              message=extra, notice=b"Makefile:4: extraneous text after 'endif' directive\n"),
+        model('anonymous-missing', goal, args=('--eval', (head + opened).decode('ascii')),
+              marks=b'read\ninside\n'),
+        model('anonymous-extra', goal, args=('--eval', (head + b'endif\n').decode('ascii')),
+              message=extra),
+        model('balanced', head + opened + b'endif\n' + goal,
+              status=0, marks=b'read\ninside\ngoal\n'),
     ]
 
 

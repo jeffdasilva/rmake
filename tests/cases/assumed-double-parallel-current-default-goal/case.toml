@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-current-default-goal"
+requirement = "options.assumed-double-colon-parallel-unnamed-current"
+candidate = "required"
+description = "The current include restarts parallel make when the ordinary goal comes from the makefile."
+args = ["-rR", "--no-print-directory", "-j2", "-W", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nread=1 clock=1680300000\ngoal-1\n"
+stderr = ""

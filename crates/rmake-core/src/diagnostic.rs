@@ -723,7 +723,10 @@ impl<'a> ExpansionContext<'a> {
                 .as_mut()
                 .expect("configured receiver")
                 .complete_live_flags()
-                .map_err(ExpandError::UnlocatedError)?;
+                .map_err(|error| {
+                    self.retain_native_flag_error_scope(database);
+                    ExpandError::UnlocatedError(error)
+                })?;
         }
         if let Some(mut preparation) = result.prepare_includes.take() {
             // Argument-driving depth, terminal and following-definition state

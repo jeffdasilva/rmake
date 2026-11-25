@@ -561,6 +561,12 @@ enum RemakeWait {
     LoadPass,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum AssumedDoubleColonDryRemake {
+    Required,
+    OptionalHandoff,
+}
+
 struct PendingMakefileRemake<'a> {
     modes: MakefileModes,
     file: &'a Makefile,
@@ -3887,9 +3893,14 @@ impl Engine {
                         || optional_dependency_load_debug
                         || named_load_debug
                         || optional_named_load));
-            let assumed_double_colon_dry_run = !debug_before_remake.has(Mask::MAKEFILES)
-                && self.job_slots() > 1
-                && self.qualified_assumed_double_colon_dry_run(&read_files, modes);
+            let assumed_double_colon_dry_run =
+                if !debug_before_remake.has(Mask::MAKEFILES) && self.job_slots() > 1 {
+                    self.qualified_assumed_double_colon_dry_run(&read_files, modes)
+                } else {
+                    None
+                };
+            let optional_assumed_dry_handoff =
+                assumed_double_colon_dry_run == Some(AssumedDoubleColonDryRemake::OptionalHandoff);
             let remakes_can_overlap = !ordinary_mode
                 || ((!debug_before_remake.has(Mask::MAKEFILES)
                     || (final_named_touch && final_named_touch_debug)
@@ -3903,7 +3914,7 @@ impl Engine {
                                 &read_files,
                                 named_sources.as_ref(),
                             ))))
-                    && (assumed_double_colon_dry_run
+                    && (assumed_double_colon_dry_run.is_some()
                         || self.ordinary_mode_remakes_settle(
                             &read_files,
                             named_sources.as_ref(),
@@ -4266,14 +4277,25 @@ impl Engine {
                 }
                 // A named visit can precede the next reap when an earlier
                 // unnamed recipe could change the order of its load decision.
-                let build_visit = if mixed_named_overlap
-                    && self.parallel_makefile_remakes
+                let optional_assumed_predecessor = if optional_assumed_dry_handoff
+                    && optional
                     && named_source
-                    && (final_named_dry
-                        || final_named_touch
-                        || (modes.touch
-                            && source_index == 2
-                            && self.pending(&read_files[1].0.name)))
+                    && visit_modes.only_dry_run()
+                {
+                    self.sole_required_dry_worker(&pending)
+                        .and_then(|(name, wait)| (wait == RemakeWait::Command).then_some(name))
+                } else {
+                    None
+                };
+                let build_visit = if optional_assumed_predecessor.is_some()
+                    || (mixed_named_overlap
+                        && self.parallel_makefile_remakes
+                        && named_source
+                        && (final_named_dry
+                            || final_named_touch
+                            || (modes.touch
+                                && source_index == 2
+                                && self.pending(&read_files[1].0.name))))
                 {
                     BuildVisit::NamedRemakeWithoutPoll
                 } else {
@@ -4703,6 +4725,7 @@ impl Engine {
                         && visit_modes.active()
                         && !result.question_outdated
                         && (physically_changed || simulated_change)
+                        && (!optional_assumed_dry_handoff || optional_assumed_predecessor.is_some())
                         && !pending.is_empty()
                         && read_files[source_index + 1..]
                             .iter()
@@ -4730,6 +4753,20 @@ impl Engine {
                                 && !self.pending(&read_files[0].0.name));
                         (pass_reaps, pass_progress) =
                             self.settle_optional_remake_pass(pass_progress, defer_load_refill);
+                        if simulated_change && let Some(prior) = optional_assumed_predecessor {
+                            // The optional source ended the visit pass. Its
+                            // predecessor may finish under the retained dry mode.
+                            changed |= self
+                                .file_traversals
+                                .outcome(self.aliases.resolve(prior))
+                                .is_some_and(|outcome| {
+                                    outcome.terminal_verdict().is_none()
+                                        && !outcome.fatal
+                                        && outcome.ran
+                                        && outcome.completion == CompletionTime::AssumeNew
+                                        && outcome.database_result == DatabaseResult::Simulated
+                                });
+                        }
                         if optional_named_load
                             && verbose_load_trace
                             && self.shutdown.get() == Shutdown::Running
@@ -5053,7 +5090,6 @@ impl Engine {
             changed |= assumed_remake_changed && !assumed_remake_blocked && !unsuccessful_remake;
             if !changed
                 && parallel_remakes
-                && (!modes.active() || assumed_double_colon_dry_run)
                 && settled_in_ordinary_mode
                 && restarts == 0
                 && self.assumptions.is_some()
@@ -5062,12 +5098,23 @@ impl Engine {
                 && !skipped_required_read
                 && !remake_question
             {
-                changed = self.settled_parallel_assumed_source_has_new_clock(
-                    &read_files,
-                    &visited,
-                    named_sources.as_ref(),
-                    !modes.active(),
-                );
+                // An unnamed dry-run pass used ordinary mode for every source.
+                let ordinary_visits = !modes.active()
+                    || (modes.only_dry_run()
+                        && read_files.iter().all(|(source, skip)| {
+                            *skip
+                                || !self.is_makefile_goal(
+                                    rmake_core::filenames::without_dot_prefix(&source.name),
+                                    named_sources.as_ref(),
+                                )
+                        }));
+                changed = (ordinary_visits || assumed_double_colon_dry_run.is_some())
+                    && self.settled_parallel_assumed_source_has_new_clock(
+                        &read_files,
+                        &visited,
+                        named_sources.as_ref(),
+                        ordinary_visits,
+                    );
             }
             changed |= grouped_changes
                 .as_ref()
@@ -5094,7 +5141,7 @@ impl Engine {
             }
             if !changed
                 && (!parallel_remakes
-                    || (assumed_double_colon_dry_run
+                    || (assumed_double_colon_dry_run.is_some()
                         && settled_in_ordinary_mode
                         && self.parallel_jobs.is_empty()))
                 && restarts == 0
@@ -5729,15 +5776,14 @@ impl Engine {
         &self,
         read_files: &[(Makefile, bool)],
         modes: MakefileModes,
-    ) -> bool {
+    ) -> Option<AssumedDoubleColonDryRemake> {
         use rmake_core::filenames::{archive_parts, without_dot_prefix};
 
         let [name] = self.options.goals.as_slice() else {
-            return false;
+            return None;
         };
         let name = name.as_slice();
         if !modes.only_dry_run()
-            || !self.options.keep_going
             || self.options.always
             || !self.options.no_rules
             || self.options.check_symlink_times
@@ -5758,30 +5804,39 @@ impl Engine {
                 .assumed_new_double_colon_entries(name)
                 .is_none_or(|(_, count)| count != 1)
         {
-            return false;
+            return None;
         }
         let mut sources = read_files
             .iter()
             .filter_map(|(file, skip)| (!skip).then_some(file));
-        if sources.clone().any(|file| file.optional || file.missing) {
-            return false;
+        if sources.clone().any(|file| file.missing) {
+            return None;
         }
-        let Some(source) = sources.find(|file| without_dot_prefix(&file.name) == name) else {
-            return false;
-        };
-        // A later ordinary source visit restores the mode before reaping.
+        let mut later = sources.clone();
+        let source = later.find(|file| without_dot_prefix(&file.name) == name)?;
         if source.location.is_none()
-            || sources.clone().next().is_none()
-            || sources.any(|file| without_dot_prefix(&file.name) == name)
+            || later.clone().next().is_none()
+            || later.any(|file| without_dot_prefix(&file.name) == name)
         {
-            return false;
+            return None;
         }
+        let scope = if source.optional {
+            if !self.qualified_optional_assumed_dry_handoff(read_files, source) {
+                return None;
+            }
+            AssumedDoubleColonDryRemake::OptionalHandoff
+        } else {
+            if !self.options.keep_going || sources.any(|file| file.optional) {
+                return None;
+            }
+            AssumedDoubleColonDryRemake::Required
+        };
         let [(_, implicit)] = self.database.database_implicit_rules() else {
-            return false;
+            return None;
         };
         // The synthetic entry can check freshness without starting a child
         // or expanding a second-stage prerequisite.
-        implicit.group.is_none()
+        let simple_synthetic_entry = implicit.group.is_none()
             && implicit.secondary.is_none()
             && !implicit.terminal
             && matches!(implicit.dependencies.as_slice(), [dep]
@@ -5802,7 +5857,76 @@ impl Engine {
                         && matches!(branch.recipes.as_deref(), Some([recipe])
                             if !recipe_is_recursive(recipe)))
             })
-            && !self.database.implicit_candidates(name).is_empty()
+            && !self.database.implicit_candidates(name).is_empty();
+        simple_synthetic_entry.then_some(scope)
+    }
+
+    fn qualified_optional_assumed_dry_handoff(
+        &self,
+        read_files: &[(Makefile, bool)],
+        source: &Makefile,
+    ) -> bool {
+        use rmake_core::filenames::without_dot_prefix;
+
+        let [
+            (primary, false),
+            (predecessor, false),
+            (named, false),
+            (tail, false),
+        ] = read_files
+        else {
+            return false;
+        };
+        let primary_name = without_dot_prefix(&primary.name);
+        let predecessor_name = without_dot_prefix(&predecessor.name);
+        let tail_name = without_dot_prefix(&tail.name);
+        std::ptr::eq(named, source)
+            && !primary.optional
+            && primary.location.is_none()
+            && !predecessor.optional
+            && predecessor.location.is_some()
+            && !tail.optional
+            && tail.location.is_some()
+            && [primary_name, predecessor_name, tail_name]
+                .iter()
+                .all(|name| {
+                    !name.contains(&b'/') && !self.database.loaded_modules.contains_key(*name)
+                })
+            && !self.database.rules.contains_key(b".ONESHELL".as_slice())
+            && !self.database.rules.contains_key(primary_name)
+            && self.database.implicit_candidates(primary_name).is_empty()
+            && self
+                .database
+                .rules
+                .get(predecessor_name)
+                .is_some_and(|rule| {
+                    rule.double_colon.is_none()
+                        && rule.group.is_none()
+                        && rule.secondary.is_none()
+                        && matches!(rule.dependencies.as_slice(), [dep]
+                        if !dep.order_only && self.simple_remake_prerequisite(dep, &[]))
+                        && rule.recipes.as_ref().is_some_and(|recipes| {
+                            (1..=2).contains(&recipes.len())
+                                && recipes.iter().all(|recipe| {
+                                    let (command, _) = crate::oneshell::prefixes(&recipe.bytes);
+                                    !recipe_is_recursive(recipe)
+                                        && !command.contains(&b'$')
+                                        && !command.contains(&b'\n')
+                                        && command.iter().any(|byte| !byte.is_ascii_whitespace())
+                                })
+                        })
+                })
+            && self.database.rules.get(tail_name).is_some_and(|rule| {
+                rule.double_colon.is_none()
+                    && rule.group.is_none()
+                    && rule.secondary.is_none()
+                    && rule.dependencies.is_empty()
+                    && rule.recipes.as_ref().is_some_and(|recipes| {
+                        recipes
+                            .iter()
+                            .all(|recipe| recipe.bytes.iter().all(u8::is_ascii_whitespace))
+                    })
+            })
     }
 
     fn qualified_debug_remake_sources(
@@ -6023,11 +6147,48 @@ impl Engine {
     ) -> Option<RemakeWait> {
         use rmake_core::filenames::without_dot_prefix;
 
-        let [worker] = pending else { return None };
         if self.assumptions.is_some()
             || self.options.load_limit.is_some()
             || self.options.goals.len() != 1
-            || self.parallel_jobs.len() != 1
+        {
+            return None;
+        }
+        let (_, wait) = self.sole_required_dry_worker(pending)?;
+        // A current terminal named source supplies the dry-run cursor. A
+        // forced continuation keeps that cursor until its recipe completes.
+        read_files
+            .iter()
+            .rfind(|(_, skip)| !*skip)
+            .is_some_and(|(source, _)| {
+                let name = without_dot_prefix(&source.name);
+                let target = self.aliases.resolve(name);
+                !source.optional
+                    && !source.missing
+                    && source.location.is_some()
+                    && self.is_makefile_goal(name, named_sources)
+                    && self.database.rules.get(target).is_some_and(|rule| {
+                        rule.double_colon.is_none()
+                            && rule.group.is_none()
+                            && rule.dependencies.is_empty()
+                            && rule.secondary.is_none()
+                    })
+                    && self.file_traversals.outcome(target).is_some_and(|outcome| {
+                        outcome.terminal_verdict().is_none()
+                            && !outcome.fatal
+                            && !outcome.ran
+                            && outcome.time.is_some()
+                            && outcome.completion == CompletionTime::Unchanged
+                    })
+            })
+            .then_some(wait)
+    }
+
+    fn sole_required_dry_worker<'files>(
+        &self,
+        pending: &[PendingMakefileRemake<'files>],
+    ) -> Option<(&'files [u8], RemakeWait)> {
+        let [worker] = pending else { return None };
+        if self.parallel_jobs.len() != 1
             || worker.modes.active()
             || worker.duplicate
             || !worker.active
@@ -6065,33 +6226,7 @@ impl Engine {
         } else {
             RemakeWait::Command
         };
-        // A current terminal named source supplies the dry-run cursor. A
-        // forced continuation keeps that cursor until its recipe completes.
-        read_files
-            .iter()
-            .rfind(|(_, skip)| !*skip)
-            .is_some_and(|(source, _)| {
-                let name = without_dot_prefix(&source.name);
-                let target = self.aliases.resolve(name);
-                !source.optional
-                    && !source.missing
-                    && source.location.is_some()
-                    && self.is_makefile_goal(name, named_sources)
-                    && self.database.rules.get(target).is_some_and(|rule| {
-                        rule.double_colon.is_none()
-                            && rule.group.is_none()
-                            && rule.dependencies.is_empty()
-                            && rule.secondary.is_none()
-                    })
-                    && self.file_traversals.outcome(target).is_some_and(|outcome| {
-                        outcome.terminal_verdict().is_none()
-                            && !outcome.fatal
-                            && !outcome.ran
-                            && outcome.time.is_some()
-                            && outcome.completion == CompletionTime::Unchanged
-                    })
-            })
-            .then_some(wait)
+        Some((worker.file.name.as_slice(), wait))
     }
 
     fn simple_named_assumed_dry_run(&self, file: &Makefile, name: &[u8]) -> bool {
@@ -8447,14 +8582,26 @@ impl Engine {
             self.database.file_records.rename(from, to);
             return Ok(());
         }
-        // An unseen destination without a declaration table can adopt the
-        // completed ordinary file's whole variable table.
-        let adopt_retained_scope = self.database_contexts.contains_key(from)
+        let retained_ordinary = self.database_contexts.contains_key(from);
+        let retained_head = !retained_ordinary
+            && self.file_traversals.has_outcome(from)
             && self
                 .database
                 .rules
                 .get(from)
-                .is_none_or(|rule| rule.double_colon.is_none())
+                .is_some_and(|rule| rule.double_colon.is_some())
+            && self
+                .database_branch_contexts
+                .contains_key(&(from.to_vec(), 0));
+        // An unseen destination without a declaration table can adopt the
+        // completed file's ordinary table or declared double-colon head.
+        let adopt_retained_scope = (retained_head
+            || (retained_ordinary
+                && self
+                    .database
+                    .rules
+                    .get(from)
+                    .is_none_or(|rule| rule.double_colon.is_none())))
             && !self.database.target_scopes.contains_key(to)
             && !self.target_contexts.contains_key(to)
             && !self.database_contexts.contains_key(to)
@@ -8621,7 +8768,17 @@ impl Engine {
             .cloned()
             .collect();
         for key in branch_keys {
-            if let Some(context) = self.database_branch_contexts.remove(&key) {
+            if let Some(mut context) = self.database_branch_contexts.remove(&key) {
+                if adopt_retained_scope && retained_head && key.1 == 0 {
+                    // A named eager declaration opens the head. The saved
+                    // later branches still own their original runtime locals.
+                    context.rename_retained_file_scope(
+                        from,
+                        to,
+                        self.database.target_scopes.get(to),
+                    );
+                    self.database_contexts.insert(to.to_vec(), context.clone());
+                }
                 self.database_branch_contexts
                     .entry((to.to_vec(), key.1))
                     .or_insert(context);
@@ -11929,7 +12086,7 @@ impl Engine {
         read_files: &[(Makefile, bool)],
         visited: &MakefileVisits<'_>,
         named_sources: Option<&HashSet<&[u8]>>,
-        ordinary_mode: bool,
+        ordinary_visits: bool,
     ) -> bool {
         // A source can settle on the second visit after its order-only
         // prerequisites finish. The synthetic entry retains the visit clock
@@ -11955,12 +12112,14 @@ impl Engine {
             };
             match outcome.completion {
                 CompletionTime::Unchanged | CompletionTime::Preserve => {
-                    self.is_makefile_goal(
-                        rmake_core::filenames::without_dot_prefix(name),
-                        named_sources,
-                    ) && self.settled_assumed_new_makefile_clock(target, false, Some(before))
+                    (ordinary_visits
+                        || self.is_makefile_goal(
+                            rmake_core::filenames::without_dot_prefix(name),
+                            named_sources,
+                        ))
+                        && self.settled_assumed_new_makefile_clock(target, false, Some(before))
                 }
-                CompletionTime::Refresh if ordinary_mode => {
+                CompletionTime::Refresh if ordinary_visits => {
                     // The synthetic recipe can restore the real read time
                     // without writing the source. Its own result owns that clock.
                     self.settled_assumed_new_makefile_branches_match(

@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-current-required-unnamed"
+requirement = "options.assumed-double-colon-parallel-unnamed-current"
+candidate = "required"
+description = "A current required include with an empty synthetic entry restarts ordinary parallel make."
+args = ["-rR", "--no-print-directory", "-j2", "-k", "--jobserver-style=pipe", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\nread=1 clock=1680300000\ngoal-1\n"
+stderr = ""
