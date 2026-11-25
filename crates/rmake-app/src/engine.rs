@@ -327,6 +327,8 @@ enum DatabaseResult {
     Outcome,
     Simulated,
     SimulatedQuery,
+    // The settled synthetic branch supplies the failed-source restart verdict.
+    SimulatedTouch,
     ObservedGroup,
     ObservedDoubleColon,
     RecipeUnstarted,
@@ -4758,18 +4760,19 @@ impl Engine {
                 .as_ref()
                 .is_some_and(SerialGroupedRemakeChanges::changed);
             // An optional failure can expose a successful simulated source
-            // timestamp even when both dry-run and query are active.
+            // timestamp under dry-run, query or a simulated touch.
             if !changed
                 && !parallel_remakes
                 && restarts == 0
                 && self.assumptions.is_some()
-                && !modes.touch
-                && (modes.dry_run || modes.question)
+                && (modes.dry_run || (modes.question && !modes.touch))
                 && optional_remake_failed
                 && !failed
                 && !remake_question
             {
-                let simulation = if modes.question {
+                let simulation = if modes.touch {
+                    DatabaseResult::SimulatedTouch
+                } else if modes.question {
                     DatabaseResult::SimulatedQuery
                 } else {
                     DatabaseResult::Simulated
@@ -13065,6 +13068,22 @@ impl Engine {
                     && execution.status == Status::Success
                 {
                     outcome.database_result = DatabaseResult::SimulatedQuery;
+                } else if execution.simulated_touch
+                    && self.remaking
+                    && !self.parallel_makefile_remakes
+                    && !execution.pending
+                    && !grouped
+                    && execution.status == Status::Success
+                    && outcome.completion == CompletionTime::AssumeNew
+                    && branch.is_some_and(|ordinal| {
+                        self.database
+                            .rules
+                            .get(target)
+                            .and_then(|rule| rule.double_colon.as_ref())
+                            .is_some_and(|declarations| ordinal == declarations.len())
+                    })
+                {
+                    outcome.database_result = DatabaseResult::SimulatedTouch;
                 }
                 if rule.grouped_double_id().is_some()
                     && execution.status == Status::Fatal
@@ -14745,6 +14764,7 @@ impl Engine {
             return Execution::success(ran).with_recursion(all_recursive);
         }
         let passes = flow.completion_passes();
+        let mut simulated_touch = false;
         for pass in 0..passes {
             if pass + 1 == passes
                 && let Some(buffer) = &output
@@ -14753,6 +14773,7 @@ impl Engine {
             }
             let mut touched = self.touch_target(target);
             ran |= touched.ran;
+            simulated_touch |= touched.simulated_touch;
             if matches!(touched.status, Status::Failure | Status::Fatal) {
                 // Only dispatch completion can fail before a continuation owner
                 // performs cleanup. The owner's final completion has no such step.
@@ -14763,7 +14784,10 @@ impl Engine {
                 return touched;
             }
         }
-        Execution::success(ran).with_recursion(all_recursive)
+        Execution {
+            simulated_touch,
+            ..Execution::success(ran).with_recursion(all_recursive)
+        }
     }
 
     fn touch_target(&mut self, target: &[u8]) -> Execution {
@@ -14772,7 +14796,10 @@ impl Engine {
             self.stdout(&[b"touch ".as_slice(), target].concat());
         }
         if self.options.dry_run {
-            return Execution::success(true);
+            return Execution {
+                simulated_touch: true,
+                ..Execution::success(true)
+            };
         }
         if let Some((archive, member)) = rmake_core::filenames::archive_parts(target) {
             return match rmake_linux::archive::touch(archive, member) {

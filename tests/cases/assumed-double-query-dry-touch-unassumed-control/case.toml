@@ -1,0 +1,10 @@
+id = "assumed-double-query-dry-touch-unassumed-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "An optional failure alone leaves the original pass when there is no what-if entry."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-t", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

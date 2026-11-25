@@ -1855,8 +1855,8 @@ title = "Restart a named simulated what-if source after an unrelated optional fa
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 15
-fixture_count = 15
+candidate_required = 25
+fixture_count = 25
 cases = [
   "assumed-double-simulated-failed-remake-absent",
   "assumed-double-simulated-failed-remake-current-control",
@@ -1873,6 +1873,16 @@ cases = [
   "assumed-double-query-dry-unassumed-control",
   "assumed-double-query-dry-verdict-control",
   "assumed-double-query-dry-successful-sibling-control",
+  "assumed-double-dry-touch-failed-remake-empty",
+  "assumed-double-query-dry-touch-failed-remake-command",
+  "assumed-double-query-dry-touch-silent",
+  "assumed-double-query-dry-touch-forced-empty-tail",
+  "assumed-double-query-dry-touch-forced-only-control",
+  "assumed-double-query-dry-touch-verdict-control",
+  "assumed-double-dry-touch-successful-sibling-control",
+  "assumed-double-query-dry-touch-current-control",
+  "assumed-double-query-dry-touch-unassumed-control",
+  "assumed-double-query-touch-physical-control",
 ]
 
 [[requirements]]

@@ -33,6 +33,8 @@ pub enum Cleanup {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Execution {
     pub ran: bool,
+    /// Touch completion simulated the update under dry-run.
+    pub simulated_touch: bool,
     /// The recipe was handed off as a running or load-queued job.
     pub pending: bool,
     /// A nonignored recipe command failed before starting a child.

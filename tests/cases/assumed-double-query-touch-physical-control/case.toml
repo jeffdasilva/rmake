@@ -1,0 +1,10 @@
+id = "assumed-double-query-touch-physical-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "Query with touch and a successful optional sibling performs a physical touch in one pass."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-t", "-W", "b.mk", "b.mk", "check-clock"]
+
+[expected]
+exit_code = 0
+stdout = "touch b.mk\n"
+stderr = ""

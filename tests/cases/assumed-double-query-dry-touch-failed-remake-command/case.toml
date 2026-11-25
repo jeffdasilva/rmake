@@ -1,0 +1,10 @@
+id = "assumed-double-query-dry-touch-failed-remake-command"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A simulated touch suppresses an ordinary recipe and restarts the source under all three modes."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-t", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "touch b.mk\ntouch b.mk\n"
+stderr = ""
