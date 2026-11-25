@@ -6241,7 +6241,7 @@ impl Engine {
         {
             return None;
         }
-        let (_, wait) = self.sole_required_dry_worker(pending)?;
+        let (worker, wait) = self.sole_required_dry_worker(pending)?;
         // A current terminal named source supplies the dry-run cursor. A
         // forced continuation keeps that cursor until its recipe completes.
         read_files
@@ -6250,7 +6250,18 @@ impl Engine {
             .is_some_and(|(source, _)| {
                 let name = without_dot_prefix(&source.name);
                 let target = self.aliases.resolve(name);
-                !source.optional
+                let eligible_source = !source.optional
+                    || (self.assumptions.is_none()
+                        && wait == RemakeWait::Command
+                        && self.no_remake_recipe_fallback()
+                        && matches!(read_files, [(primary, false), (predecessor, false), (_, false)]
+                            if !primary.optional
+                                && !primary.missing
+                                && primary.location.is_none()
+                                && !self.database.rules.contains_key(without_dot_prefix(&primary.name))
+                                && predecessor.name.as_slice() == worker
+                                && self.simple_dry_remake_worker(without_dot_prefix(worker), None)));
+                eligible_source
                     && !source.missing
                     && source.location.is_some()
                     && self.is_makefile_goal(name, named_sources)
