@@ -289,6 +289,11 @@ named source simulated under `-k -n`. The [forced peer fixture](../tests/cases/i
 and [held required-failure models](../tools/remake_parallel.py) cover the
 error pass, including a second failure after a restart.
 
+A terminal current named include can also supply dry-run mode when the
+remake pass reaps one earlier required worker. The held cases cover a
+completed command, an ordinary continuation printed under `-n`, and rereads
+with unchanged physical timestamps.
+
 The [composed validation from PR #374](https://github.com/jeffdasilva/rmake/pull/374)
 and [grouped double-colon database models](../tools/database_grouped_double_output.py)
 record secondary prerequisites, stems, branch ownership, physical timestamps,

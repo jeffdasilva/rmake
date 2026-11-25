@@ -280,6 +280,9 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += named_double_colon_dry_run_models(worker, markers)
     results += failed_required_named_dry_models(worker, markers)
     results += assumed_named_dry_run_models(worker, markers)
+    results += terminal_named_dry_clock_models(worker, markers)
+    results += terminal_named_dry_tail_models(worker, markers)
+    results += terminal_named_dry_failed_models(worker, markers)
     results += parallel_named_mode_models(worker, markers)
     results += primary_named_mode_models(worker, markers)
     results += primary_named_group_models(worker, markers)
@@ -1134,6 +1137,180 @@ def assumed_named_dry_run_models(worker: bytes, markers: dict[str, bytes]) -> li
                             {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
         results.append(HeldModel(model, slots > 1, before_second, before_first,
                                  before_second_stdout=b''))
+    return results
+
+
+def terminal_named_dry_clock_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    summary = b"make: 'b.mk' is up to date.\n"
+    original_clock = b'clock-1000000000 1000000000\n'
+    read = BEFORE_FIRST + original_clock
+    left_markers = {name: value for name, value in markers.items() if name.startswith('left.')}
+    results = []
+    for context, transport, sources, slots, rewrite in (
+        ('terminal', 'pipe', 'left.gen b.mk', 2, False),
+        ('physical', 'fifo', 'left.gen b.mk', 2, True),
+        ('expanded-empty', 'fifo', 'left.gen b.mk', 2, False),
+        ('named-first', 'pipe', 'b.mk left.gen', 2, False),
+        ('ordinary-tail', 'fifo', 'left.gen b.mk tail.inc', 2, False),
+        ('serial', 'pipe', 'left.gen b.mk', 1, False),
+    ):
+        empty_tail = context == 'expanded-empty'
+        continuation = '\t@$(file >>seen,tail-expanded)\n' if empty_tail else ''
+        action = 'include' if rewrite else 'quiet'
+        source = (
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            '$(file >>seen,clock-$(shell stat -c %Y left.gen b.mk))\n'
+            f'include {sources}\n'
+            'ifeq ($(MAKE_RESTARTS),)\n'
+            f'left.gen: left.seed\n\t@python3 worker.py left {action}\n'
+            f'{continuation}'
+            'else\n'
+            'left.gen: ;\n'
+            'endif\n'
+            'b.mk: ; @$(file >>seen,named-ran)printf "named\\n"\n'
+            'tail.inc: ;\n'
+        )
+        files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR,
+                 'left.gen': b'# already read\n', 'b.mk': b'# already read\n',
+                 'left.seed': b'new\n', 'tail.inc': b'# unchanged\n'}
+        times = dict.fromkeys(files, INPUT_TIME)
+        times['left.seed'] += 2_000_000_000
+        before_first = read + (b'tail-expanded\n' if empty_tail else b'')
+        seen = before_first + b'left\n'
+        updates = left_markers.copy()
+        if rewrite:
+            updates['left.gen'] = b'LEFT := loaded\n'
+            seen += b'read-1\nclock-1000000001 1000000000\n'
+        elif context == 'terminal':
+            seen += b'read-1\n' + original_clock
+        args = ('-rR', '--no-print-directory', '-n', f'-j{slots}',
+                f'--jobserver-style={transport}', 'b.mk')
+        expected = {'exit_code': 0, 'stdout_template_hex': summary.hex(), 'stderr_template_hex': ''}
+        model = debug.Model(f'terminal-named-dry-clock-{context}-{transport}', files, args,
+                            {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
+        results.append(HeldModel(model, False, None, before_first=before_first))
+    return results
+
+
+def terminal_named_dry_tail_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    summary = b"make: 'b.mk' is up to date.\n"
+    original_clock = b'clock-1000000000 1000000000\n'
+    new_clock = b'clock-1000000001 1000000000\n'
+    before_first = BEFORE_FIRST + original_clock
+    left_markers = {name: value for name, value in markers.items() if name.startswith('left.')}
+    print_tail = b'printf "left-tail\\n" >> seen'
+    touch_tail = b'touch -d @1000000001 left.gen'
+    results = []
+    for context, transport, command, terminal, synced in (
+        ('terminal', 'pipe', print_tail, True, False),
+        ('physical', 'fifo', touch_tail, True, False),
+        ('sync', 'pipe', print_tail, True, True),
+        ('ordinary-tail', 'fifo', print_tail, False, False),
+        ('ordinary-physical', 'pipe', touch_tail, False, False),
+        ('stop', 'pipe', print_tail, True, False),
+    ):
+        stopping = context == 'stop'
+        sources = 'left.gen b.mk' if terminal else 'left.gen b.mk tail.inc'
+        action = 'fail' if stopping else 'quiet'
+        source = (
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            '$(file >>seen,clock-$(shell stat -c %Y left.gen b.mk))\n'
+            f'include {sources}\n'
+            'ifeq ($(MAKE_RESTARTS),)\n'
+            f'left.gen: left.seed\n\t@python3 worker.py left {action}\n'
+            f'\t@{command.decode()}\n'
+            'else\n'
+            'left.gen: ;\n'
+            'endif\n'
+            'b.mk: ; @$(file >>seen,named-ran)printf "named\\n"\n'
+            'tail.inc: ;\n'
+        )
+        files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR,
+                 'left.gen': b'# already read\n', 'b.mk': b'# already read\n',
+                 'left.seed': b'new\n', 'tail.inc': b'# unchanged\n'}
+        times = dict.fromkeys(files, INPUT_TIME)
+        times['left.seed'] += 2_000_000_000
+        seen = before_first + b'left\n'
+        stdout = summary
+        stderr = b''
+        if stopping:
+            stdout = b'left\n'
+            stderr = b'make: *** [Makefile:6: left.gen] Error 3\n'
+        elif terminal:
+            seen += b'read-1\n' + original_clock
+            stdout = command + b'\n' + summary
+        elif command == touch_tail:
+            seen += b'read-1\n' + new_clock
+        else:
+            seen += b'left-tail\n'
+        args = ('-rR', '--no-print-directory', '-n', '-j2', '-S' if stopping else '-k',
+                f'--jobserver-style={transport}')
+        if synced:
+            args += ('-Otarget',)
+        expected = {'exit_code': 2 if stopping else 0, 'stdout_template_hex': stdout.hex(),
+                    'stderr_template_hex': stderr.hex()}
+        model = debug.Model(f'terminal-named-dry-tail-{context}-{transport}', files, (*args, 'b.mk'),
+                            {'GNUMAKEFLAGS': ''}, expected, seen, updates=left_markers, mtimes_ns=times)
+        results.append(HeldModel(model, False, None, before_first=before_first))
+    return results
+
+
+def terminal_named_dry_failed_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    summary = b"make: 'b.mk' is up to date.\n"
+    error = b'make: *** [Makefile:6: left.gen] Error 3\n'
+    report = b"Makefile:3: Failed to remake makefile 'left.gen'.\n"
+    original_clock = b'clock-1000000000 1000000000\n'
+    new_clock = b'clock-1000000001 1000000000\n'
+    read = BEFORE_FIRST + original_clock
+    left_markers = {name: value for name, value in markers.items() if name.startswith('left.')}
+    results = []
+    for context, transport, tail, restart in (
+        ('terminal', 'pipe', '', True),
+        ('ordinary-continuation', 'fifo', '\t@printf "tail-ran\\n" >> seen\n', True),
+        ('physical', 'fifo', '', True),
+        ('stop', 'pipe', '', False),
+        ('ordinary-after', 'fifo', '', False),
+        ('expanded-empty', 'pipe', '\t@$(file >>seen,tail-expanded)\n', False),
+    ):
+        stopping = context == 'stop'
+        rewrite = context == 'physical'
+        action = 'include-fail' if rewrite else 'fail'
+        sources = 'left.gen b.mk tail.inc' if context == 'ordinary-after' else 'left.gen b.mk'
+        source = (
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            '$(file >>seen,clock-$(shell stat -c %Y left.gen b.mk))\n'
+            f'include {sources}\n'
+            'ifeq ($(MAKE_RESTARTS),)\n'
+            f'left.gen: left.seed\n\t@python3 worker.py left {action}\n'
+            f'{tail}'
+            'else\n'
+            'left.gen: ;\n'
+            'endif\n'
+            'b.mk: ; @$(file >>seen,named-ran)printf "named\\n"\n'
+            'tail.inc: ;\n'
+        )
+        files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR,
+                 'left.gen': b'# already read\n', 'b.mk': b'# already read\n',
+                 'left.seed': b'new\n', 'tail.inc': b'# unchanged\n'}
+        times = dict.fromkeys(files, INPUT_TIME)
+        times['left.seed'] += 2_000_000_000
+        before_first = read + (b'tail-expanded\n' if context == 'expanded-empty' else b'')
+        seen = before_first + b'left\n'
+        stdout = b'left\n'
+        if restart:
+            seen += b'read-1\n' + (new_clock if rewrite else original_clock)
+            stdout += summary
+        updates = left_markers.copy()
+        if rewrite:
+            updates['left.gen'] = b'LEFT := loaded\n'
+        stderr = error if stopping else error + report
+        args = ('-rR', '--no-print-directory', '-n', '-j2', '-S' if stopping else '-k',
+                f'--jobserver-style={transport}', 'b.mk')
+        expected = {'exit_code': 0 if restart else 2, 'stdout_template_hex': stdout.hex(),
+                    'stderr_template_hex': stderr.hex()}
+        model = debug.Model(f'terminal-named-dry-failed-{context}-{transport}', files, args,
+                            {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
+        results.append(HeldModel(model, False, None, before_first=before_first))
     return results
 
 

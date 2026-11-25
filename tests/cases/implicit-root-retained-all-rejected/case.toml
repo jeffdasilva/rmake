@@ -1,0 +1,12 @@
+id = "implicit-root-retained-all-rejected"
+requirement = "scope.implicit-secondary-status"
+candidate = "required"
+description = "The root read table survives complete implicit search failure."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "rejected-search|item.out|em|input\nrejected-search|item.out|em|input\nread|child|item.out||em|input|input probe|input input probe|ordered|23|parent|rejected rejected\nchild|probe||23|global|rejected rejected\nread|after|item.out||em|input|input probe|input input probe|ordered|23|parent|rejected rejected\n"
+stderr = ""

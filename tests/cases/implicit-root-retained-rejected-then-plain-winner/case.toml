@@ -1,0 +1,12 @@
+id = "implicit-root-retained-rejected-then-plain-winner"
+requirement = "scope.implicit-secondary-status"
+candidate = "required"
+description = "A winner without deferred expansion leaves the rejected candidate search locals intact."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "rejected-search|item.out|em|input\nread|child|item.out||em|input|input|input input|ordered|23|parent|rejected\nchild|probe||23|global|rejected\nparent|item.out||item|probe|probe input|probe input input|ordered|23|parent|rejected\nread|after|item.out||item|probe|probe input|probe input input|ordered|23|parent|rejected\n"
+stderr = ""

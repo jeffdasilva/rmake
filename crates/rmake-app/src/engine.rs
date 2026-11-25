@@ -539,6 +539,10 @@ impl MakefileModes {
         self.dry_run || self.question || self.touch
     }
 
+    fn only_dry_run(self) -> bool {
+        self.dry_run && !self.question && !self.touch
+    }
+
     fn check_update(self, outcome: Outcome) -> bool {
         !self.dry_run
             && !self.question
@@ -4791,7 +4795,16 @@ impl Engine {
                                     .get(self.aliases.resolve(&file.name))
                                     .is_some_and(|job| job.child.is_some())
                             })));
-                if MakefileModes::from_options(&self.options).active()
+                let live_modes = MakefileModes::from_options(&self.options);
+                let terminal_named_dry_reap = modes.only_dry_run()
+                    && live_modes.only_dry_run()
+                    && !failed
+                    && !optional_remake_failed
+                    && !remake_question
+                    && !debug_before_remake.has(Mask::MAKEFILES)
+                    && self.terminal_named_dry_reap(&read_files, named_sources.as_ref(), &pending);
+                if live_modes.active()
+                    && !terminal_named_dry_reap
                     && !active_primary
                     && !pending.last().is_some_and(|remake| remake.modes.active())
                 {
@@ -4887,8 +4900,18 @@ impl Engine {
                                     && (self.options.keep_going
                                         || self.cached_optional_group_peer_failure(name))
                                 {
-                                    failed_remakes
-                                        .insert(name, (before, result.ran && !result.blocked));
+                                    let refresh_timestamp = result.ran && !result.blocked;
+                                    failed_remakes.insert(name, (before, refresh_timestamp));
+                                    if terminal_named_dry_reap
+                                        && self.options.keep_going
+                                        && refresh_timestamp
+                                        && !result.question_outdated
+                                        && result.completion == CompletionTime::AssumeNew
+                                    {
+                                        // Settle the failed worker's logical timestamp
+                                        // before reporting the required source failure.
+                                        settled_failed_source_changes.insert(name);
+                                    }
                                 } else {
                                     stopped = true;
                                 }
@@ -4905,7 +4928,10 @@ impl Engine {
                                 && result.completion == CompletionTime::AssumeNew;
                             if remake.modes.check_update(result) || completed_in_other_mode {
                                 changed |= self.modified(name) != before
-                                    || result.remake_group_peer_updated;
+                                    || result.remake_group_peer_updated
+                                    || (terminal_named_dry_reap
+                                        && completed_in_other_mode
+                                        && result.database_result == DatabaseResult::Simulated);
                             }
                         }
                     }
@@ -5890,6 +5916,82 @@ impl Engine {
                                     || self.simple_remake_prerequisite(dep, earlier_sources)
                             })))
                     && rule.recipes.is_some()
+            })
+    }
+
+    fn terminal_named_dry_reap(
+        &self,
+        read_files: &[(Makefile, bool)],
+        named_sources: Option<&HashSet<&[u8]>>,
+        pending: &[PendingMakefileRemake<'_>],
+    ) -> bool {
+        use rmake_core::filenames::without_dot_prefix;
+
+        let [worker] = pending else { return false };
+        if self.assumptions.is_some()
+            || self.options.load_limit.is_some()
+            || self.options.goals.len() != 1
+            || self.parallel_jobs.len() != 1
+            || worker.modes.active()
+            || worker.duplicate
+            || !worker.active
+            || worker.file.optional
+            || worker.file.missing
+            || worker.file.location.is_none()
+        {
+            return false;
+        }
+        let target = self.aliases.resolve(&worker.file.name);
+        if self.running_groups.contains_key(target)
+            || !self.parallel_jobs.primary.get(target).is_some_and(|job| {
+                job.child.is_some()
+                    && job.before.is_some()
+                    && !job.phony
+                    && !job.recursive
+                    && job.continuation.branch.is_none()
+                    && !job.continuation.one_shell
+                    && job.continuation.expanded.len() <= 1
+                    && job
+                        .continuation
+                        .expanded
+                        .front()
+                        .is_none_or(|(index, bytes, _)| {
+                            let (command, prefixes) = crate::oneshell::prefixes(bytes);
+                            !prefixes.force
+                                && !job.continuation.flow.recursive(*index)
+                                && !command.contains(&b'\n')
+                                && command.iter().any(|byte| !byte.is_ascii_whitespace())
+                        })
+            })
+        {
+            return false;
+        }
+        // The terminal current source supplies the mode for the sole reap.
+        // The worker can finish or report its sole ordinary continuation
+        // before the next visit restores that source's mode.
+        read_files
+            .iter()
+            .rfind(|(_, skip)| !*skip)
+            .is_some_and(|(source, _)| {
+                let name = without_dot_prefix(&source.name);
+                let target = self.aliases.resolve(name);
+                !source.optional
+                    && !source.missing
+                    && source.location.is_some()
+                    && self.is_makefile_goal(name, named_sources)
+                    && self.database.rules.get(target).is_some_and(|rule| {
+                        rule.double_colon.is_none()
+                            && rule.group.is_none()
+                            && rule.dependencies.is_empty()
+                            && rule.secondary.is_none()
+                    })
+                    && self.file_traversals.outcome(target).is_some_and(|outcome| {
+                        outcome.terminal_verdict().is_none()
+                            && !outcome.fatal
+                            && !outcome.ran
+                            && outcome.time.is_some()
+                            && outcome.completion == CompletionTime::Unchanged
+                    })
             })
     }
 
@@ -9829,10 +9931,16 @@ impl Engine {
                                 let mut context = self.rule_variables(target, Some(ordinal))?;
                                 context.retain_runtime_metadata(variables, true);
                                 self.retain_database_context(target, Some(ordinal), &context);
-                            } else if let Some(context) =
-                                self.target_contexts.get_mut(self.aliases.resolve(target))
-                            {
-                                context.retain_runtime_metadata(variables, true);
+                            } else {
+                                let target = self.aliases.resolve(target);
+                                if let Some(context) = self.target_contexts.get_mut(target) {
+                                    context.retain_runtime_metadata(variables, true);
+                                }
+                                // The root's read table sees search automatics even
+                                // if this candidate is rejected. Recipes and inputs
+                                // keep their separately prepared variable contexts.
+                                self.database_contexts
+                                    .insert(target.to_vec(), variables.clone());
                             }
                             let value = value?;
                             ImplicitFilenames::Expanded(self.implicit_filenames(
