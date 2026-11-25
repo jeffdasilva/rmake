@@ -59,6 +59,15 @@ jobs:
             evaluation::tests:: -- --test-threads=1
           python3 tools/rust.py cargo test --locked --release -p rmake-linux --lib \
             evaluation::tests:: -- --test-threads=1
+      - name: Check deep live evaluation
+        run: |
+          for kind in debug release; do
+            python3 tools/conformance.py --candidate "target/$kind/rmake" \
+              --case live-eval-129-pure-none \
+              --case live-eval-512-effects-target \
+              --case live-eval-512-cycle-none \
+              --repeat 2 --artifacts "artifacts/evaluation-aarch64/$kind"
+          done
       - name: Retain native profile and reports
         if: always()
         continue-on-error: true
@@ -69,6 +78,7 @@ jobs:
           path: |
             .tools/oracle/profile.json
             artifacts/developer-flows/
+            artifacts/evaluation-aarch64/
             artifacts/process-restarts/
             artifacts/restart-pipe/
             artifacts/native/
