@@ -9414,6 +9414,8 @@ impl Engine {
         };
         let uninitialized_visited_destination = uninitialized_visited_destination
             && (!needs_visited_context || visited_context.is_some());
+        let uninitialized_named_destination = destination_has_scope
+            && late_goal_owners.is_some_and(|owners| owners.destination_unattempted);
         let completed_scope_merge = !self.remaking
             && retained_ordinary
             && self
@@ -9599,7 +9601,7 @@ impl Engine {
                 source,
                 self.database_contexts.get(to).or(visited_context.as_ref()),
                 self.target_contexts.get(to).or(visited_context.as_ref()),
-                uninitialized_visited_destination,
+                uninitialized_visited_destination || uninitialized_named_destination,
             )
         {
             self.database_contexts.insert(to.to_vec(), saved);
