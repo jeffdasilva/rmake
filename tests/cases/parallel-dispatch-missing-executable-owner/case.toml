@@ -1,0 +1,12 @@
+id = "parallel-dispatch-missing-executable-owner"
+requirement = "parallel.dispatch-failure"
+candidate = "required"
+description = "The jobs debug stream has no live child identity for a failed executable lookup."
+provenance = "Original rmake fixture with independently observed GNU Make 4.4.1 streams and status."
+args = ["-rR", "--no-print-directory", "--debug=j", "-j"]
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "make: ./missing-program: No such file or directory\nmake: *** [Makefile:1: all] Error 127\n"
+stderr = ""

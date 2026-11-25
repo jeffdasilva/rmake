@@ -1,0 +1,12 @@
+id = "parallel-dispatch-missing-secondary-serial"
+requirement = "parallel.dispatch-failure"
+candidate = "required"
+description = "Serial dispatch reports status 127 before visiting the sibling prerequisites."
+provenance = "Original rmake fixture with independently observed GNU Make 4.4.1 streams and status."
+args = ["-rR", "--no-print-directory", "-j1"]
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "make: ./missing-program: No such file or directory\nmake: *** [Makefile:3: one] Error 127\n"
+stderr = ""

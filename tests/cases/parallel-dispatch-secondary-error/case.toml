@@ -1,0 +1,12 @@
+id = "parallel-dispatch-secondary-error"
+requirement = "parallel.dispatch-failure"
+candidate = "required"
+description = "A fatal secondary expansion exits with no worker wait or pending recipe failure summary."
+provenance = "Original rmake fixture with independently observed GNU Make 4.4.1 streams and status."
+args = ["-rR", "--no-print-directory", "-j"]
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "make: ./missing-program: No such file or directory\nmake: *** secondary-fatal.  Stop.\n"
+stderr = ""

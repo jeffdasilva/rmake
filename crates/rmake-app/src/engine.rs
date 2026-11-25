@@ -1273,7 +1273,13 @@ struct GroupRun {
     members: Vec<(Vec<u8>, Option<SystemTime>, bool)>,
 }
 
-type JobResult = (Vec<u8>, u64, Option<io::Result<std::process::ExitStatus>>);
+enum JobCompletion {
+    Child(io::Result<std::process::ExitStatus>),
+    FailedDispatch,
+    LoadReady,
+}
+
+type JobResult = (Vec<u8>, u64, JobCompletion);
 
 #[derive(Default)]
 struct ArchiveVpathReads {
@@ -1430,6 +1436,9 @@ pub struct Engine {
     forced_query_stop: bool,
     ordinary_queries: OrdinaryQueries,
     parallel_jobs: ParallelJobs,
+    // An executable lookup can fail without admitting a worker. Keep its
+    // completion for the scheduler boundary, rather than a graph-only poll.
+    failed_dispatch: Option<(Vec<u8>, u64)>,
     aborted_recipe_permit: Option<Permit>,
     job_debug: crate::debug::Jobs,
     load_waiting: Vec<(Vec<u8>, u64)>,
@@ -2018,6 +2027,7 @@ impl Engine {
             forced_query_stop: false,
             ordinary_queries: OrdinaryQueries::default(),
             parallel_jobs: ParallelJobs::default(),
+            failed_dispatch: None,
             aborted_recipe_permit: None,
             job_debug: crate::debug::Jobs::default(),
             load_waiting: Vec::new(),
@@ -5147,6 +5157,9 @@ impl Engine {
                         && self.queued_query_tail(&goal.name))
             })
         {
+            if self.complete_failed_dispatch() && self.graph_abort.is_some() {
+                break;
+            }
             self.ordinary_queries.pass = self.ordinary_queries.pass.wrapping_add(1);
             self.advance_debug_pass();
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
@@ -5886,7 +5899,7 @@ impl Engine {
             .wrapping_add(self.filesystem.borrow().file_writes())
     }
 
-    /// A child reap or a make-function file write advances the goal diagnostics.
+    /// A job completion or a make-function file write advances the goal diagnostics.
     /// Speculative scheduler rescans leave this progress unchanged.
     fn advance_debug_pass(&mut self) {
         let progress = self.debug_progress();
@@ -7073,6 +7086,9 @@ impl Engine {
         block: bool,
         additional: Option<std::os::fd::RawFd>,
     ) -> io::Result<bool> {
+        if block && self.complete_failed_dispatch() {
+            return Ok(true);
+        }
         let children = self.parallel_child_handles();
         if children.is_empty() && additional.is_none() {
             return Ok(false);
@@ -7178,7 +7194,7 @@ impl Engine {
                 Ok(None) => continue,
                 Err(error) => Err(error),
             };
-            return Some((target.to_vec(), identity, Some(result)));
+            return Some((target.to_vec(), identity, JobCompletion::Child(result)));
         }
         None
     }
@@ -7370,7 +7386,7 @@ impl Engine {
                 break;
             };
             let (target, identity) = self.load_waiting.remove(index);
-            self.complete_job((target, identity, None), false);
+            self.complete_job((target, identity, JobCompletion::LoadReady), false);
         }
     }
 
@@ -7500,13 +7516,34 @@ impl Engine {
         });
     }
 
+    fn complete_failed_dispatch(&mut self) -> bool {
+        let Some((target, identity)) = self.failed_dispatch.take() else {
+            return false;
+        };
+        if self.shutdown.get() == Shutdown::Running {
+            self.complete_job((target, identity, JobCompletion::FailedDispatch), false);
+        } else {
+            // A later graph error drains real workers only. The launch errno
+            // has already been reported to this dispatch's output context.
+            self.parallel_jobs
+                .remove(&target, identity)
+                .expect("reserved failed dispatch");
+        }
+        true
+    }
+
     fn finish_parallel_job(
         &mut self,
         target: Vec<u8>,
         mut job: ParallelJob,
-        result: Option<io::Result<std::process::ExitStatus>>,
+        completion: JobCompletion,
         blocking_reap: bool,
     ) {
+        let (result, failed_dispatch) = match completion {
+            JobCompletion::Child(result) => (Some(result), false),
+            JobCompletion::FailedDispatch => (None, true),
+            JobCompletion::LoadReady => (None, false),
+        };
         let output = job.continuation.output.clone();
         let debug_job = job.continuation.debug_job.clone();
         if let Some(result) = &result {
@@ -7516,22 +7553,25 @@ impl Engine {
                 result.as_ref().is_ok_and(|status| status.success()),
             );
         }
-        if result.as_ref().is_some_and(|status| status.is_ok()) {
+        let launched = result.as_ref().is_some_and(Result::is_ok);
+        if launched || failed_dispatch {
             self.recipe_reaps = self.recipe_reaps.wrapping_add(1);
+        }
+        if launched {
             self.load.reaped();
             if let Some(buffer) = &output {
                 buffer.child_reaped(true);
             }
         }
-        let report_error = result
-            .as_ref()
-            .is_some_and(|r| !r.as_ref().is_ok_and(|status| status.success()));
+        let report_error = failed_dispatch
+            || result
+                .as_ref()
+                .is_some_and(|r| !r.as_ref().is_ok_and(|status| status.success()));
         if report_error {
             self.output
                 .select(output.as_ref().filter(|buffer| buffer.enabled()));
         }
-        let launched = result.as_ref().is_some_and(Result::is_ok);
-        if result.is_some() {
+        if failed_dispatch || result.is_some() {
             self.filesystem.borrow_mut().child_completed();
         }
         let signaled = result
@@ -7541,11 +7581,13 @@ impl Engine {
         let error_code = match result.as_ref() {
             Some(Ok(status)) => status.code().filter(|code| *code != 0),
             Some(Err(_)) => Some(127),
+            None if failed_dispatch => Some(127),
             None => None,
         };
         let command_question =
             self.options.question && job.recursive && !job.ignore && error_code == Some(1);
         let error = match result {
+            None if failed_dispatch => Some("Error 127".to_owned()),
             None => None,
             Some(Ok(status)) if status.success() || command_question => None,
             Some(Ok(status)) => Some(
@@ -10131,7 +10173,7 @@ impl Engine {
             let mut shutdown = self.shutdown.get();
             shutdown.drain();
             self.shutdown.set(shutdown);
-            if self.parallel_jobs.values().any(|job| !job.waiting_load) {
+            if self.parallel_jobs.values().any(|job| job.child.is_some()) {
                 self.notice_waiting_for_jobs();
             }
             self.graph_abort = Some(status);
@@ -13848,6 +13890,9 @@ impl Engine {
         // their raw recursion/touch decisions without allocating one per leaf.
         let flow = Flow::new(recipes.iter().map(recursive_line));
         let parallel = self.parallel_graph();
+        // Secondary expansion can run before the next recipe starts. Consume a
+        // failed launch here, before expanding any of the new recipe's lines.
+        self.complete_failed_dispatch();
         if self.graph_abort == Some(Status::Fatal) {
             return Execution::fatal(false);
         }
@@ -14693,6 +14738,28 @@ impl Engine {
                 },
             );
             self.retain_database_context(target, branch, variables);
+            // An ordinary parallel executable lookup failure still occupies its
+            // recipe's graph frame until the next dispatch or goal sweep. Keep
+            // this path to a first attempt with no previously admitted job.
+            let failed_dispatch = parallel
+                && !self.remaking
+                && remake.is_none()
+                && !ignore
+                && !flow.retained_owner()
+                && !flow.failed_launch()
+                && !(self.options.dry_run || self.options.question || self.options.touch)
+                && self.parallel_jobs.is_empty()
+                && process.as_ref().is_err_and(|error| {
+                    matches!(
+                        error.kind(),
+                        io::ErrorKind::NotFound
+                            | io::ErrorKind::PermissionDenied
+                            | io::ErrorKind::NotADirectory
+                    )
+                });
+            if failed_dispatch && let Err(error) = &process {
+                self.stderr(&[program.as_slice(), b": ", os_error(error).as_bytes()].concat());
+            }
             self.output.select(None);
             if let Ok(child) = &process {
                 if owner.debug_job.is_none() {
@@ -14709,65 +14776,56 @@ impl Engine {
             let mut signal_cleaned = false;
             #[cfg(feature = "guile")]
             let mut interpreter_failed = false;
-            let result = if parallel {
-                match process {
-                    Ok(child) => {
-                        let identity = self.next_job;
-                        self.next_job = self.next_job.wrapping_add(1);
-                        self.parallel_jobs.insert(
-                            target.to_vec(),
-                            ParallelJob {
-                                identity,
-                                program,
-                                location: recipe.location.clone(),
-                                ignore,
-                                recursive: force,
-                                before,
-                                phony,
-                                stdin_owner,
-                                waiting_load: false,
-                                child: Some(child),
-                                signal_cleaned: false,
-                                continuation: RecipeState {
-                                    branch,
-                                    remake,
-                                    output,
-                                    expanded,
-                                    variables: variables.clone(),
-                                    flow,
-                                    ran,
-                                    one_shell,
-                                    environment,
-                                    permit: owner.permit.take(),
-                                    debug_job: owner.debug_job.clone(),
-                                },
-                            },
-                        );
-                        self.observe_interrupt();
-                        return Execution::pending();
-                    }
-                    Err(error) => Err(error),
+            if parallel && (failed_dispatch || process.is_ok()) {
+                let identity = self.next_job;
+                self.next_job = self.next_job.wrapping_add(1);
+                if failed_dispatch {
+                    self.failed_dispatch = Some((target.to_vec(), identity));
                 }
-            } else {
-                match process {
-                    Ok(mut child) => self
-                        .wait_serial_child(
-                            &mut child,
-                            target,
-                            before,
-                            phony,
-                            owner.debug_job.as_ref(),
-                        )
-                        .map(|wait| {
-                            signal_cleaned = wait.cleaned;
-                            #[cfg(feature = "guile")]
-                            {
-                                interpreter_failed = wait.interpreter_failed;
-                            }
-                            wait.status
-                        }),
-                    Err(error) => Err(error),
-                }
+                self.parallel_jobs.insert(
+                    target.to_vec(),
+                    ParallelJob {
+                        identity,
+                        program,
+                        location: recipe.location.clone(),
+                        ignore,
+                        recursive: force,
+                        before,
+                        phony,
+                        stdin_owner,
+                        waiting_load: false,
+                        child: process.ok(),
+                        signal_cleaned: false,
+                        continuation: RecipeState {
+                            branch,
+                            remake,
+                            output,
+                            expanded,
+                            variables: variables.clone(),
+                            flow,
+                            ran,
+                            one_shell,
+                            environment,
+                            permit: owner.permit.take(),
+                            debug_job: owner.debug_job.clone(),
+                        },
+                    },
+                );
+                self.observe_interrupt();
+                return Execution::pending();
+            }
+            let result = match process {
+                Ok(mut child) => self
+                    .wait_serial_child(&mut child, target, before, phony, owner.debug_job.as_ref())
+                    .map(|wait| {
+                        signal_cleaned = wait.cleaned;
+                        #[cfg(feature = "guile")]
+                        {
+                            interpreter_failed = wait.interpreter_failed;
+                        }
+                        wait.status
+                    }),
+                Err(error) => Err(error),
             };
             self.output
                 .select(output.as_ref().filter(|buffer| buffer.enabled()));

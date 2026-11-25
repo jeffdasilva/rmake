@@ -1,0 +1,12 @@
+id = "parallel-dispatch-missing-secondary"
+requirement = "parallel.dispatch-failure"
+candidate = "required"
+description = "The sibling expands its prerequisites before completion and skips its recipe body."
+provenance = "Original rmake fixture with independently observed GNU Make 4.4.1 streams and status."
+args = ["-rR", "--no-print-directory", "-j"]
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "make: ./missing-program: No such file or directory\nsibling-secondary\nmake: *** [Makefile:3: one] Error 127\n"
+stderr = ""

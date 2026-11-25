@@ -1,0 +1,12 @@
+id = "parallel-dispatch-missing-double-colon-keep-going"
+requirement = "parallel.dispatch-failure"
+candidate = "required"
+description = "A failed double-colon dispatch completes before the next declaration is evaluated."
+provenance = "Original rmake fixture with independently observed GNU Make 4.4.1 streams and status."
+args = ["-rR", "--no-print-directory", "--debug=v", "-j", "-k"]
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "GNU Make 4.4.1\nBuilt for x86_64-pc-linux-gnu\nCopyright (C) 1988-2023 Free Software Foundation, Inc.\nLicense GPLv3+: GNU GPL version 3 or later <https://gnu.org/licenses/gpl.html>\nThis is free software: you are free to change and redistribute it.\nThere is NO WARRANTY, to the extent permitted by law.\nReading makefiles...\nReading makefile 'Makefile'...\nUpdating makefiles....\nUpdating goal targets....\nConsidering target file 'all'.\n File 'all' does not exist.\n Considering target file 'one'.\n  File 'one' does not exist.\n Finished prerequisites of target file 'one'.\n Target 'one' is double-colon and has no prerequisites.\n Must remake target 'one'.\nmake: ./missing-program: No such file or directory\n Recipe of 'one' is being run.\nThe prerequisites of 'all' are being made.\nmake: *** [Makefile:2: one] Error 127\nConsidering target file 'all'.\n File 'all' does not exist.\n Considering target file 'one'.\n Recently tried and failed to update file 'one'.\n Considering target file 'one'.\n  File 'one' does not exist.\n Finished prerequisites of target file 'one'.\n Target 'one' is double-colon and has no prerequisites.\n Must remake target 'one'.\nsecond-expansion\n Recipe of 'one' is being run.\nThe prerequisites of 'all' are being made.\nConsidering target file 'all'.\n File 'all' does not exist.\n Considering target file 'one'.\n Recently tried and failed to update file 'one'.\n Considering target file 'one'.\n File 'one' was considered already.\nFinished prerequisites of target file 'all'.\nGiving up on target file 'all'.\nmake: Target 'all' not remade because of errors.\n"
+stderr = ""
