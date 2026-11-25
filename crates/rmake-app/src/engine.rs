@@ -4568,6 +4568,12 @@ impl Engine {
                             .assumed_new_double_colon_entries(self.aliases.resolve(name))
                             .is_some_and(|(_, count)| count == 1));
                 let mut source_started_command = false;
+                let inline_optional_dispatch =
+                    (trailing_optional_source.as_ref().is_some_and(|trailing| {
+                        name == trailing.neighbor && trailing.kind == TrailingOptionalKind::Declared
+                    }) && !pending_peer
+                        && !self.file_traversals.has_outcome(self.aliases.resolve(name)))
+                    .then_some(self.next_job);
                 let mut result = self.build_recording_initial_time(
                     name,
                     None,
@@ -4836,7 +4842,12 @@ impl Engine {
                 if let Some(trailing) = &trailing_optional_source
                     && name == trailing.neighbor
                     && self.options.keep_going
-                    && self.settled_trailing_optional_remake(trailing, before, result)
+                    && self.settled_trailing_optional_remake(
+                        trailing,
+                        before,
+                        result,
+                        inline_optional_dispatch == Some(self.next_job),
+                    )
                 {
                     self.qualify_synthetic_recipe_after_optional_read(&trailing.required.name);
                 }
@@ -12891,26 +12902,37 @@ impl Engine {
         trailing: &TrailingOptionalRemake<'_>,
         before: Option<SystemTime>,
         result: Outcome,
+        inline_completion: bool,
     ) -> bool {
-        if result.ran || result.fatal || result.question_outdated || result.time != before {
+        if result.fatal || result.question_outdated || result.time != before {
             return false;
         }
         let name = trailing.neighbor;
         match trailing.kind {
             TrailingOptionalKind::Unruled => {
-                before.is_some() && !result.failed && self.unruled_remake_source(name)
+                before.is_some()
+                    && !result.ran
+                    && !result.failed
+                    && self.unruled_remake_source(name)
             }
             TrailingOptionalKind::Declared => {
                 before.is_some()
                     && !result.failed
                     && !result.blocked
                     && self.declared_optional_remake_source(name)
+                    // A prepared ':' counts as run but creates no recipe job.
+                    && (!result.ran
+                        || (inline_completion
+                            && result.completion == CompletionTime::Refresh
+                            && self.parallel_jobs.len() == 1
+                            && !MakefileModes::from_options(&self.options).active()))
             }
             TrailingOptionalKind::Missing => {
                 // The optional file settled as a direct missing-rule visit.
                 // Keep that failure available to ordinary prerequisites.
                 before.is_none()
                     && result.failed
+                    && !result.ran
                     && !result.blocked
                     && self
                         .missing_rule_parents
