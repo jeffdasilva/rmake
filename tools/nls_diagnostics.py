@@ -103,6 +103,10 @@ def cases(selection):
               touch_open, cleanup, wait_notice, intermediate, file_io, output_lock, debug_options)
     if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 18, 15, 20, 14, 13, 18, 16, 12, 12, 8, 12, 12, 8, 7):
         raise h.HarnessError("unexpected NLS model inventory")
+    shuffle_option = json.loads((DATA / "shuffle-option.json").read_bytes())
+    if len(shuffle_option["rows"]) != 6 or shuffle_option["fixture_sha256"]:
+        raise h.HarnessError("unexpected shuffle option models")
+    suites += (shuffle_option,)
     rows = [row for suite in suites for row in suite["rows"]]
     if len({row["id"] for row in rows}) != len(rows):
         raise h.HarnessError("duplicate NLS model ID")
@@ -240,6 +244,7 @@ def main(argv=None):
               "oracle": h.executable_identity(oracle, oracle=True), "oracle_profile_id": oracle_profile["profile_id"], "candidate": h.executable_identity(args.candidate) if args.candidate else None,
               "reference_catalog": {"path": str(catalog), "sha256": h.sha256_file(catalog)},
               "owned_catalog_manifest_sha256": h.sha256_file(ROOT / "catalogs/provenance.json"),
+              "shuffle_option_sha256": h.sha256_file(DATA / "shuffle-option.json"),
               "functional_cpu_affinity": sorted(os.sched_getaffinity(0)), "cases": [], "passed": False}
     args.report.parent.mkdir(parents=True, exist_ok=True)
     def publish():

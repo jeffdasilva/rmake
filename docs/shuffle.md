@@ -6,6 +6,8 @@ word remains a goal. Startup canonicalizes mode spelling and Linux unsigned-long
 conversion before command-line eval buffers run. Generated random seeds become
 numeric recursive flags. Later decoded flags change requested/exported metadata,
 while the running process retains its startup traversal policy and failure suffix.
+The [invalid startup option tests](../tests/nls/shuffle-option.json) check the
+selected catalog, the seed conversion detail, and the original operand bytes.
 
 The separate owned planner permutes goal and prerequisite traversal indices.
 Declaration order remains available to automatic variables. Its iterative graph
