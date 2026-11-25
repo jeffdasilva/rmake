@@ -1,0 +1,10 @@
+id = "include-serial-forced-named-dry-cleaner-clock-retimed-present"
+requirement = "includes.serial-forced-named-dry-cleaner-clock"
+candidate = "required"
+description = "Ordinary declarations run against the original read and a later settled physical time triggers a reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "clean.inc"]
+
+[expected]
+exit_code = 0
+stdout = "READ:0:1680300000\nDATA:0:original\nprintf \"clean:%s:%s\\n\" \"0\" \"1680300000\" >> proof; touch -d @1680300020 b.mk\nREAD:1:1680300020\nDATA:1:original\nmake: 'clean.inc' is up to date.\n"
+stderr = ""

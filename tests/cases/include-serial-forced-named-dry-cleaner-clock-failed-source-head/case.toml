@@ -1,0 +1,10 @@
+id = "include-serial-forced-named-dry-cleaner-clock-failed-source-head"
+requirement = "includes.serial-forced-named-dry-cleaner-clock"
+candidate = "required"
+description = "The required failed head reports its existing diagnostics and status."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "clean.inc"]
+
+[expected]
+exit_code = 2
+stdout = "READ:0:1680300000\nDATA:0:original\nprintf \"clean:%s:%s\\n\" \"0\" \"1680300000\" >> proof; rm -f b.mk\n"
+stderr = "make: *** [Makefile:19: b.mk] Error 1\nMakefile:11: Failed to remake makefile 'b.mk'.\n"

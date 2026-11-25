@@ -1,0 +1,10 @@
+id = "include-serial-forced-named-dry-cleaner-clock-single-colon"
+requirement = "includes.serial-forced-named-dry-cleaner-clock"
+candidate = "required"
+description = "An ordinary explicit single-colon source uses the same loaded clock."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "clean.inc"]
+
+[expected]
+exit_code = 2
+stdout = "READ:0:1680300000\nDATA:0:original\nprintf \"clean:%s:%s\\n\" \"0\" \"1680300000\" >> proof; rm -f b.mk\nREAD:1:absent\nDATA:1:\n"
+stderr = "Makefile:11: b.mk: No such file or directory\nmake: *** No rule to make target 'b.mk'.\nMakefile:11: Failed to remake makefile 'b.mk'.\n"

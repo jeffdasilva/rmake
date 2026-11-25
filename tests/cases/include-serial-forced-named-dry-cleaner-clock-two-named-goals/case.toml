@@ -1,0 +1,10 @@
+id = "include-serial-forced-named-dry-cleaner-clock-two-named-goals"
+requirement = "includes.serial-forced-named-dry-cleaner-clock"
+candidate = "required"
+description = "Two named sources keep their established optional simulation behavior."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "clean.inc", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "READ:0:1680300000\nDATA:0:original\nprintf \"clean:%s:%s\\n\" \"0\" \"1680300000\" >> proof; rm -f b.mk\nprintf \"branch-0:%s:%s\\n\" \"0\" \"absent\" >> proof; :\nprintf \"branch-1:%s:%s\\n\" \"0\" \"absent\" >> proof; :\nmake: 'clean.inc' is up to date.\nmake: 'b.mk' is up to date.\n"
+stderr = ""

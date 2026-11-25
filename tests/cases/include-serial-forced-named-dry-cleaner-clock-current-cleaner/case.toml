@@ -1,0 +1,10 @@
+id = "include-serial-forced-named-dry-cleaner-clock-current-cleaner"
+requirement = "includes.serial-forced-named-dry-cleaner-clock"
+candidate = "required"
+description = "A current named cleaner cannot alter the subsequent ordinary source."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "clean.inc"]
+
+[expected]
+exit_code = 0
+stdout = "READ:0:1680300000\nDATA:0:original\nmake: 'clean.inc' is up to date.\n"
+stderr = ""

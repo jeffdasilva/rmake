@@ -4280,7 +4280,19 @@ impl Engine {
                 // A fresh serial visit still sees the local timestamp
                 // retained before earlier remakes wrote or removed the file.
                 let loaded_local_time = if !parallel_remakes
-                    && (!modes.active() || serial_ordinary_source_clocks)
+                    && (!modes.active()
+                        || serial_ordinary_source_clocks
+                        || (self.job_slots() == 1
+                            && modes.only_dry_run()
+                            && !visit_modes.active()
+                            && !failed
+                            && !optional_remake_failed
+                            && !remake_question
+                            && self.follows_forced_named_dry_remake(
+                                &read_files,
+                                makefile,
+                                named_sources.as_ref(),
+                            )))
                     && self.assumptions.is_none()
                     && !makefile.missing
                     && before.is_some()
@@ -12403,6 +12415,56 @@ impl Engine {
             return None;
         }
         sampled.time
+    }
+
+    fn follows_forced_named_dry_remake(
+        &self,
+        read_files: &[(Makefile, bool)],
+        source: &Makefile,
+        named_sources: Option<&HashSet<&[u8]>>,
+    ) -> bool {
+        use rmake_core::filenames::without_dot_prefix;
+
+        let [(primary, false), (earlier, false), (later, false)] = read_files else {
+            return false;
+        };
+        let earlier_name = earlier.name.as_slice();
+        std::ptr::eq(later, source)
+            && source.location.is_some()
+            && !primary.optional
+            && !primary.missing
+            && primary.location.is_none()
+            && !earlier.optional
+            && !earlier.missing
+            && earlier.location.is_some()
+            && self.options.goals.len() == 1
+            && !self.options.check_symlink_times
+            && self.no_remake_recipe_fallback()
+            && !self
+                .database
+                .rules
+                .contains_key(without_dot_prefix(&primary.name))
+            && self.is_makefile_goal(without_dot_prefix(earlier_name), named_sources)
+            && self.aliases.resolve(earlier_name) == earlier_name
+            && self.database.rules.get(earlier_name).is_some_and(|rule| {
+                rule.double_colon.is_none()
+                    && rule.grouped_targets().is_none()
+                    && rule.implicit_pattern.is_none()
+                    && !rule.default_recipe
+                    && rule.recipes.is_some()
+            })
+            && self
+                .file_traversals
+                .outcome(earlier_name)
+                .is_some_and(|outcome| {
+                    // An ordinary simulated cleaner cannot replace the loaded clock.
+                    outcome.ran
+                        && outcome.completion == CompletionTime::Refresh
+                        && outcome.database_result == DatabaseResult::Outcome
+                        && !outcome.blocked
+                        && !outcome.fatal
+                        && outcome.terminal_verdict().is_none()
+                })
     }
 
     fn removed_required_dry_declaration_count(
