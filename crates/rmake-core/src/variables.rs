@@ -1473,22 +1473,44 @@ impl VariableStore {
     /// Rust maps while sharing one GNU file table. Pattern and parent scopes
     /// remain distinct and are never flattened into this diagnostic view.
     pub fn database_file_definitions(&self) -> Vec<(&[u8], &Variable)> {
+        self.database_file_definitions_with_scope(None)
+    }
+
+    pub fn database_file_definitions_with_scope<'a>(
+        &'a self,
+        scope: Option<&'a TargetScope>,
+    ) -> Vec<(&'a [u8], &'a Variable)> {
         let Some(history) = &self.variables.database_history else {
             return self.database_definitions().collect();
         };
         history.ordered_items(|name| {
             std::iter::once(&self.variables)
-                .chain(self.layers.iter().filter_map(|layer| {
-                    (!layer.inherited
-                        && !layer.global
-                        && !layer.pattern
-                        && layer
-                            .variables
-                            .database_history
-                            .as_ref()
-                            .is_some_and(|other| history.same_table(other)))
-                    .then_some(&layer.variables)
-                }))
+                .chain(
+                    self.layers
+                        .iter()
+                        .filter(|layer| {
+                            !layer.inherited
+                                && !layer.global
+                                && !layer.pattern
+                                && layer
+                                    .variables
+                                    .database_history
+                                    .as_ref()
+                                    .is_some_and(|other| history.same_table(other))
+                        })
+                        .map(|layer| {
+                            scope
+                                .filter(|scope| {
+                                    layer.target == scope.target
+                                        && scope
+                                            .variables
+                                            .database_history
+                                            .as_ref()
+                                            .is_some_and(|other| history.same_table(other))
+                                })
+                                .map_or(&layer.variables, |scope| &scope.variables)
+                        }),
+                )
                 .find_map(|values| {
                     values
                         .values

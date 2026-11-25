@@ -1,0 +1,12 @@
+id = "tentative-archive-retained-bound-goal"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Keep a queued raw goal and later raw prerequisite attached to their own archive file records."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "bundle", "move", "bundle(member)", "bundle", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "searched=[bundle|inherited-source|override|recursive|inherited-$(V)|source]\nraw=[||undefined|undefined||]\nredo=[bundle|member]\nmake: 'bundle' is up to date.\nraw=[after||undefined|undefined||]\nsearched=[bundle|inherited-source|override|recursive|inherited-$(V)|source]\n"
+stderr = ""

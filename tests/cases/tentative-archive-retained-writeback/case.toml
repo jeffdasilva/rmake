@@ -1,0 +1,12 @@
+id = "tentative-archive-retained-writeback"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Write through the searched archive binding while the recreated raw scope remains separate."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "bundle", "move", "bundle(member)", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "make: Nothing to be done for 'src/bundle(member)'.\nsearched=[bundle|inherited-source|override|recursive|inherited-$(V)|source]\nsearched=[bundle|rebound|override|simple|rebound|source]\nraw=[||undefined|undefined||]\n"
+stderr = ""

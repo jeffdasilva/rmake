@@ -1,0 +1,12 @@
+id = "tentative-archive-retained-source-status"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Read the original automatic value and recursive shell status through the searched archive lookup."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "bundle", "move", "bundle(member)", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "raw=[bundle|inherited-source|override|recursive|inherited-$(V)|source]\nmake: Nothing to be done for 'src/bundle(member)'.\nraw=[||undefined|undefined||]\nsearched=[bundle|inherited-source|override|recursive|inherited-$(V)|source]\n"
+stderr = ""

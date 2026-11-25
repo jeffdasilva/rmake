@@ -1,0 +1,12 @@
+id = "tentative-archive-retained-retained-dependent"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Refresh a retained dependent through its original moved archive parent."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "bundle", "move", "bundle(member)", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "make: Nothing to be done for 'src/bundle(member)'.\nsearched=[bundle|inherited-source|override|recursive|inherited-$(V)|source]\nchild=[piece|source|inherited-source]\nraw=[||undefined|undefined||]\n"
+stderr = ""

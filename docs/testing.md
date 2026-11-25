@@ -33,6 +33,11 @@ Use `make help` to find other suites and their replay settings. GitHub CI runs
 the development and optimized checks, plus separate Guile checks. See the
 [CI workflow](../.github/workflows/ci.yml).
 
+The [native AArch64 job](../.github/workflows/native-aarch64.yml) uses an
+AArch64 Linux runner to check the host metadata, subprocess and restart
+behavior, native standard streams, and shared jobservers. It builds a
+separate pinned GNU Make reference on the runner.
+
 To replay one ordinary case, build the candidate and pass the case ID to the
 runner. The runner uses `.tools/oracle/bin/make` by default.
 
