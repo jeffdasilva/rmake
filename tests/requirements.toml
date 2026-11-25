@@ -1911,8 +1911,8 @@ title = "Restart a named what-if source after another source fails"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 63
-fixture_count = 63
+candidate_required = 76
+fixture_count = 76
 cases = [
   "assumed-double-simulated-failed-remake-absent",
   "assumed-double-simulated-failed-remake-current-control",
@@ -1977,6 +1977,19 @@ cases = [
   "assumed-double-repeated-query-dry-touch-current-control",
   "assumed-double-repeated-query-dry-touch-forced-control",
   "assumed-double-repeated-query-dry-touch-verdict-control",
+  "assumed-double-old-new-dry-failed-remake",
+  "assumed-double-old-new-query-failed-remake",
+  "assumed-double-old-new-query-dry-failed-remake",
+  "assumed-double-old-new-dry-touch-failed-remake",
+  "assumed-double-old-new-query-dry-touch-required-failure",
+  "assumed-double-old-new-query-touch-restored-clock",
+  "assumed-double-old-new-old-only-control",
+  "assumed-double-old-new-new-only-control",
+  "assumed-double-old-new-current-control",
+  "assumed-double-old-new-ordinary-control",
+  "assumed-double-old-new-successful-touch-control",
+  "assumed-double-old-new-query-verdict-control",
+  "assumed-double-old-new-forced-control",
 ]
 
 [[requirements]]

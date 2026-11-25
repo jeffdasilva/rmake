@@ -1,0 +1,10 @@
+id = "assumed-double-old-new-old-only-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "An old-file entry alone adds no completed new branch or reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-t", "-o", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

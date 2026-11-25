@@ -1,0 +1,10 @@
+id = "assumed-double-old-new-dry-touch-failed-remake"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A simulated touch keeps the physical age and permits the failed optional reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-t", "-o", "b.mk", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "touch b.mk\nmake: 'b.mk' is up to date.\n"
+stderr = ""

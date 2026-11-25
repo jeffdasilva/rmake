@@ -1,0 +1,10 @@
+id = "assumed-double-old-new-query-dry-failed-remake"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "Reversing the two operand flags retains the query and dry-run restart."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-W", "b.mk", "-o", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

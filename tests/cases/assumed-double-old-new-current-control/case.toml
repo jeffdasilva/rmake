@@ -1,0 +1,10 @@
+id = "assumed-double-old-new-current-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A current new branch has no simulated completion after the optional failure."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-o", "b.mk", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

@@ -198,6 +198,11 @@ impl Engine {
             .then_some((files.new, entry.new_count))
     }
 
+    pub(super) fn single_active_new_double_colon_time(&self, name: &[u8]) -> Option<SystemTime> {
+        let files = self.assumptions.as_ref()?;
+        (files.new_double_colon_entry_count(name) == 1).then_some(files.new)
+    }
+
     pub(super) fn assumed_new_double_colon_time(&self, name: &[u8]) -> Option<SystemTime> {
         self.assumptions
             .as_ref()

@@ -1,0 +1,10 @@
+id = "assumed-double-old-new-ordinary-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "An empty recipe without nonexecuting flags preserves the original failed optional pass."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-o", "b.mk", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

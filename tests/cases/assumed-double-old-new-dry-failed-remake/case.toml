@@ -1,0 +1,10 @@
+id = "assumed-double-old-new-dry-failed-remake"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A completed dry-run branch leaves a restart clock beside the old-file entry."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-o", "b.mk", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

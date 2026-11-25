@@ -11439,10 +11439,14 @@ impl Engine {
         source: &[u8],
         allow_stopping_repeats: bool,
     ) -> bool {
+        let target = self.aliases.resolve(source);
+        if self.assumed_new_double_colon_entries(target).is_none() {
+            return false;
+        }
         // Synthetic entries can settle on physical timestamps even when
         // their recipes did not need to run.
         self.settled_assumed_new_makefile_branches_match(
-            self.aliases.resolve(source),
+            target,
             allow_stopping_repeats,
             |assumed_time, branch| {
                 !matches!(
@@ -11458,7 +11462,13 @@ impl Engine {
         target: &[u8],
         allow_stopping_repeats: bool,
     ) -> Option<(SystemTime, std::ops::Range<usize>)> {
-        let (assumed_time, count) = self.assumed_new_double_colon_entries(target)?;
+        let (assumed_time, count) =
+            self.assumed_new_double_colon_entries(target).or_else(|| {
+                // A failed pass can still use the completed singleton NEW
+                // entry when an OLD operand also marked this source.
+                self.single_active_new_double_colon_time(target)
+                    .map(|time| (time, 1))
+            })?;
         if count > 1 && !self.options.keep_going && !allow_stopping_repeats {
             return None;
         }

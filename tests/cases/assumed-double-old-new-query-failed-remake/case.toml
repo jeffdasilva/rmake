@@ -1,0 +1,10 @@
+id = "assumed-double-old-new-query-failed-remake"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A singleton empty query permits a reread in a stopping pass after an optional failure."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q", "-o", "b.mk", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""
