@@ -1879,6 +1879,23 @@ cases = [
 ]
 
 [[requirements]]
+id = "options.assumed-double-colon-parallel-unnamed-current"
+title = "Restart ordinary parallel remakes after a current unnamed synthetic source read"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/assumed-files.md"
+candidate_required = 6
+fixture_count = 6
+cases = [
+  "assumed-double-parallel-current-required-unnamed",
+  "assumed-double-parallel-current-optional-unnamed",
+  "assumed-double-parallel-current-default-goal",
+  "assumed-double-parallel-current-serial",
+  "assumed-double-parallel-current-unassumed",
+  "assumed-double-parallel-current-physical-rewrite",
+]
+
+[[requirements]]
 id = "options.assumed-double-colon-named-current-clock"
 title = "Restart after current synthetic entries settle for a named serial dry-run, query or touch"
 status = "fixture-ready"

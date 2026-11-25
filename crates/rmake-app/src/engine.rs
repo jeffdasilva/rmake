@@ -12080,10 +12080,12 @@ impl Engine {
             };
             match outcome.completion {
                 CompletionTime::Unchanged | CompletionTime::Preserve => {
-                    self.is_makefile_goal(
-                        rmake_core::filenames::without_dot_prefix(name),
-                        named_sources,
-                    ) && self.settled_assumed_new_makefile_clock(target, false, Some(before))
+                    (ordinary_mode
+                        || self.is_makefile_goal(
+                            rmake_core::filenames::without_dot_prefix(name),
+                            named_sources,
+                        ))
+                        && self.settled_assumed_new_makefile_clock(target, false, Some(before))
                 }
                 CompletionTime::Refresh if ordinary_mode => {
                     // The synthetic recipe can restore the real read time

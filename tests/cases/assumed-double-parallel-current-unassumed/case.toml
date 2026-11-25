@@ -1,0 +1,10 @@
+id = "assumed-double-parallel-current-unassumed"
+requirement = "options.assumed-double-colon-parallel-unnamed-current"
+candidate = "required"
+description = "An ordinary parallel include with no assumption reads once because its physical clock stays current."
+args = ["-rR", "--no-print-directory", "-j2", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\ngoal-0\n"
+stderr = ""
