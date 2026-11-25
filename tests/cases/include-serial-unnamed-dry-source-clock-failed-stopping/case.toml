@@ -1,0 +1,10 @@
+id = "include-serial-unnamed-dry-source-clock-failed-stopping"
+requirement = "includes.serial-unnamed-dry-source-clock"
+candidate = "required"
+description = "The failed head stops a dry-run invocation before the next declaration."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-n", "all"]
+
+[expected]
+exit_code = 2
+stdout = "read=0 time=1680300000\ndata=0:original:\n"
+stderr = "make: *** No rule to make target 'b.mk'.  Stop.\n"

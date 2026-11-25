@@ -3937,6 +3937,11 @@ impl Engine {
                         )));
             let parallel_remakes =
                 self.job_slots() > 1 && remakes_can_overlap && parallel_remake_debug;
+            let unnamed_serial_source_clocks = self.job_slots() == 1
+                && modes.active()
+                && read_files
+                    .iter()
+                    .all(|(file, skip)| *skip || !named_include(file));
             self.parallel_makefile_remakes = parallel_remakes && !check_primary_before_overlap;
             let mut loaded_prerequisite_times = HashMap::new();
             if !parallel_remakes {
@@ -4216,7 +4221,7 @@ impl Engine {
                 // A fresh serial visit still sees the local timestamp
                 // retained before earlier remakes wrote or removed the file.
                 let loaded_local_time = if !parallel_remakes
-                    && !modes.active()
+                    && (!modes.active() || unnamed_serial_source_clocks)
                     && self.assumptions.is_none()
                     && !makefile.missing
                     && before.is_some()
@@ -4242,11 +4247,13 @@ impl Engine {
                         && rule.recipes.is_none()
                     {
                         // Its visit can still select an implicit recipe.
-                        (None, Some(time))
+                        (None, (!modes.active()).then_some(time))
                     } else {
                         let declared_time = (!declared.is_empty()
                             && declared.iter().all(|branch| {
-                                branch.grouped_targets().is_none() && branch.recipes.is_some()
+                                branch.grouped_targets().is_none()
+                                    && branch.recipes.is_some()
+                                    && (!modes.active() || branch.implicit_pattern.is_none())
                             }))
                         .then_some((time, declared.len()));
                         (declared_time, None)
@@ -4353,7 +4360,8 @@ impl Engine {
                 // the declared head.
                 let failed_source_time = loaded_source
                     .filter(|&(_, declarations)| {
-                        chain_failed
+                        !modes.active()
+                            && chain_failed
                             && !result.fatal
                             && !result.question_outdated
                             && self.options.keep_going

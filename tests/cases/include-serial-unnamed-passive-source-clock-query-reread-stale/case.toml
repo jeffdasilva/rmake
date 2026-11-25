@@ -1,0 +1,10 @@
+id = "include-serial-unnamed-passive-source-clock-query-reread-stale"
+requirement = "includes.serial-unnamed-query-touch-source-clock"
+candidate = "required"
+description = "The reread selects a missing query leaf after the optional include is removed."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q"]
+
+[expected]
+exit_code = 1
+stdout = "read=0 clock=1680300000\npayload=0:original\nread=1 clock=absent\npayload=1:\n"
+stderr = ""

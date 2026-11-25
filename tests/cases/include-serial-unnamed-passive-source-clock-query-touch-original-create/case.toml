@@ -1,0 +1,10 @@
+id = "include-serial-unnamed-passive-source-clock-query-touch-original-create"
+requirement = "includes.serial-unnamed-query-touch-source-clock"
+candidate = "required"
+description = "Combined query and touch creates the missing initial leaf after a same-time recreation."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-qt"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\npayload=0:original\ntouch result.0\n"
+stderr = ""

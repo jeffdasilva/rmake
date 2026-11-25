@@ -3105,6 +3105,57 @@ cases = [
 ]
 
 [[requirements]]
+id = "includes.serial-unnamed-dry-source-clock"
+title = "Compare ordinary serial source clocks during an unnamed dry-run pass"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 13
+fixture_count = 13
+cases = [
+  "include-serial-unnamed-dry-source-clock-optional-absent",
+  "include-serial-unnamed-dry-source-clock-required-stopping",
+  "include-serial-unnamed-dry-source-clock-required-original",
+  "include-serial-unnamed-dry-source-clock-default-original",
+  "include-serial-unnamed-dry-source-clock-optional-new",
+  "include-serial-unnamed-dry-source-clock-earlier-retime",
+  "include-serial-unnamed-dry-source-clock-current-chain",
+  "include-serial-unnamed-dry-source-clock-empty-explicit",
+  "include-serial-unnamed-dry-source-clock-single-double",
+  "include-serial-unnamed-dry-source-clock-implicit-original",
+  "include-serial-unnamed-dry-source-clock-named-cleaner",
+  "include-serial-unnamed-dry-source-clock-named-source",
+  "include-serial-unnamed-dry-source-clock-failed-stopping",
+]
+
+[[requirements]]
+id = "includes.serial-unnamed-query-touch-source-clock"
+title = "Compare ordinary serial source clocks before unnamed query and touch goals"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 16
+fixture_count = 16
+cases = [
+  "include-serial-unnamed-passive-source-clock-query-reread-stale",
+  "include-serial-unnamed-passive-source-clock-query-reread-current",
+  "include-serial-unnamed-passive-source-clock-query-original-stale",
+  "include-serial-unnamed-passive-source-clock-query-original-current",
+  "include-serial-unnamed-passive-source-clock-touch-reread-create",
+  "include-serial-unnamed-passive-source-clock-touch-original-preserve",
+  "include-serial-unnamed-passive-source-clock-query-dry-reread",
+  "include-serial-unnamed-passive-source-clock-touch-dry-original",
+  "include-serial-unnamed-passive-source-clock-query-touch-original-create",
+  "include-serial-unnamed-passive-source-clock-query-dry-touch-reread",
+  "include-serial-unnamed-passive-source-clock-required-stopping",
+  "include-serial-unnamed-passive-source-clock-named-query-cleaner",
+  "include-serial-unnamed-passive-source-clock-named-touch-current",
+  "include-serial-unnamed-passive-source-clock-implicit-original",
+  "include-serial-unnamed-passive-source-clock-real-recreation",
+  "include-serial-unnamed-passive-source-clock-failed-stopping",
+]
+
+[[requirements]]
 id = "includes.serial-failed-source-restart-baseline"
 title = "Use the read timestamp after a settled failed serial refresh"
 status = "fixture-ready"

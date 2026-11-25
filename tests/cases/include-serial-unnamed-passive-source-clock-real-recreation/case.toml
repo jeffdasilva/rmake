@@ -1,0 +1,10 @@
+id = "include-serial-unnamed-passive-source-clock-real-recreation"
+requirement = "includes.serial-unnamed-query-touch-source-clock"
+candidate = "required"
+description = "A real newer recreation still triggers a reread before touch."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-t"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\npayload=0:original\nread=1 clock=1680300020\npayload=1:new\nmake: 'result.1' is up to date.\n"
+stderr = ""

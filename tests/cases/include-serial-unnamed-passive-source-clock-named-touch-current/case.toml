@@ -1,0 +1,10 @@
+id = "include-serial-unnamed-passive-source-clock-named-touch-current"
+requirement = "includes.serial-unnamed-query-touch-source-clock"
+candidate = "required"
+description = "A current named single-colon source retains its touch result."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-t", "clean.inc"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000\npayload=0:original\nmake: 'clean.inc' is up to date.\n"
+stderr = ""
