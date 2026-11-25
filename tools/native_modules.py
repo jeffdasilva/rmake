@@ -175,6 +175,9 @@ def models() -> list[Model]:
     result.extend(anonymous_include_finalizer_models())
     result.extend(anonymous_eval_scope_finalizer_models())
     result.extend(explicit_eval_source_finalizer_models())
+    result.extend(invalid_conditional_finalizer_models())
+    result.extend(empty_name_finalizer_models())
+    result.extend(declaration_close_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -1607,6 +1610,217 @@ def explicit_eval_source_finalizer_models() -> list[Model]:
         model('after-success', scoped_call(explicit) + b'\nelse', payload=valid,
               marks=b'body-lexical-GO-arg\neval-returned\n'),
         model('dormant', scoped_call(b'$(if ,' + explicit + b')'), status=0, marks=b'goal\n'),
+    ]
+
+
+def invalid_conditional_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    after = b'$(file >>seen,after)\n'
+    malformed = b'ifeq ($(file >>seen,left)x,$(file >>seen,right)y\n'
+    lexical = (b'RUN = $(foreach .LOADED,lexical,$(eval $(file <payload.txt)))\n'
+               b'$(call RUN,arg)\n')
+    invalid_name = b'ifndef $(file >>seen,live-$(.LOADED)-$(1))FIRST SECOND\n'
+    global_scope = b'scope=[||file|global||]\n'
+    lexical_scope = b'scope=[||automatic|lexical|RUN|arg]\n'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def model(name, body, location=b'Makefile:4', *, anonymous=False, files=None,
+              message=b'invalid syntax in conditional', notice=b'', scope=global_scope,
+              marks=b'', status=2):
+        startup = head + body + after
+        source = goal if anonymous else startup + goal
+        args = ('--eval', startup.decode('ascii')) if anonymous else ()
+        fatal = location + b': *** ' + message + b'.  Stop.\n' if status else b''
+        stderr = notice + fatal + location + b': finalizer-location\n'
+        return Model(
+            'native-invalid-conditional-finalizer-' + name,
+            {'Makefile': source, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': status, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\nread\n' + marks + scope, (module,),
+            args=('-rR', '--no-print-directory', '-f', 'Makefile', *args, 'all'),
+        )
+
+    return [
+        model('no-comma', b'ifeq (left)\n'),
+        model('no-closing', malformed, marks=b'left\n'),
+        model('quote-right', b"ifneq '$(file >>seen,left)x' $(file >>seen,right)y\n",
+              marks=b'left\n'),
+        model('ifdef-extra-name', b'ifdef $(file >>seen,name)FIRST SECOND\n', marks=b'name\n'),
+        model('continued', malformed.replace(b'ifeq ', b'ifeq \\\n ', 1), marks=b'left\n'),
+        model('physical-include', b'include child.mk\n', b'child.mk:3',
+              files={'child.mk': b'# first\n$(file >>seen,child)\nifeq (left)\n'},
+              marks=b'child\n'),
+        model('named-lexical', lexical, b'Makefile:5', files={'payload.txt': invalid_name},
+              marks=b'live-lexical-arg\n', scope=lexical_scope),
+        model('anonymous-lexical', lexical, b'make', anonymous=True,
+              files={'payload.txt': invalid_name}, marks=b'live-lexical-arg\n', scope=lexical_scope),
+        model('anonymous-physical-include', lexical, b'child.mk:3', anonymous=True,
+              files={'payload.txt': b'include child.mk\n',
+                     'child.mk': b'# first\n$(file >>seen,child)\n' + invalid_name},
+              marks=b'child\nlive-lexical-arg\n', scope=lexical_scope),
+        model('anonymous-unscoped', b'ifeq (left)\n', b'make', anonymous=True),
+        model('inactive', b'ifeq (a,b)\n' + malformed + b'endif\nendif\n',
+              b'make', status=0, marks=b'after\ngoal\n'),
+        model('taken-else-if', b'ifeq (a,a)\n$(file >>seen,matched)\nelse ' + malformed + b'endif\n',
+              b'make', status=0, marks=b'matched\nafter\ngoal\n'),
+        model('operand-error', b'ifeq ($(error operand),x)\nendif\n', message=b'operand'),
+        model('valid-with-warning',
+              b'ifeq ($(file >>seen,left)x,$(file >>seen,right)x) tail\n'
+              b'$(file >>seen,inside)\nendif\n',
+              b'make', status=0, marks=b'left\nright\ninside\nafter\ngoal\n',
+              notice=b"Makefile:4: extraneous text after 'ifeq' directive\n"),
+    ]
+
+
+def empty_name_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    after = b'$(file >>seen,after)\n'
+    assignment = b'$(file >>seen,name) := $(file >>seen,rhs-forbidden)value\n'
+    define = b'define $(file >>seen,name)\n$(file >>seen,body-forbidden)\nendef\n'
+    undefine = b'undefine $(file >>seen,name)\n'
+    lexical = (b'RUN = $(foreach .LOADED,lexical,$(eval $(file <payload.txt)))\n'
+               b'$(call RUN,arg)\n')
+    live_name = b'$(file >>seen,live-$(.LOADED)-$(1))'
+    global_scope = b'scope=[||file|global||]\n'
+    lexical_scope = b'scope=[||automatic|lexical|RUN|arg]\n'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def model(name, body, location=b'Makefile:4', *, anonymous=False, files=None,
+              message=b'empty variable name', scope=global_scope, marks=b'name\n',
+              status=2, tail=after + goal):
+        source = goal if anonymous else head + body + tail
+        args = ('--eval', (head + body + after).decode('ascii')) if anonymous else ()
+        fatal = location + b': *** ' + message + b'.  Stop.\n' if status else b''
+        return Model(
+            'native-empty-name-finalizer-' + name,
+            {'Makefile': source, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': status, 'stdout_hex': '',
+             'stderr_hex': (fatal + location + b': finalizer-location\n').hex()},
+            b'anchor\nread\n' + marks + scope, (module,),
+            args=('-rR', '--no-print-directory', '-f', 'Makefile', *args, 'all'),
+        )
+
+    return [
+        model('assignment', assignment),
+        model('override', b'override ' + assignment),
+        model('define', define),
+        model('continued-define', define.replace(b'define ', b'define \\\n ', 1)),
+        model('undefine', undefine),
+        model('bare-undefine', b'undefine\n', marks=b''),
+        model('physical-include', b'include child.mk\n', b'child.mk:3',
+              files={'child.mk': b'# first\n$(file >>seen,child)\n' + assignment},
+              marks=b'child\nname\n'),
+        model('named-lexical', lexical, b'Makefile:5',
+              files={'payload.txt': live_name + b' := $(file >>seen,rhs-forbidden)value\n'},
+              marks=b'live-lexical-arg\n', scope=lexical_scope),
+        model('anonymous-lexical', lexical, b'make', anonymous=True,
+              files={'payload.txt': b'undefine ' + live_name + b'\n'},
+              marks=b'live-lexical-arg\n', scope=lexical_scope),
+        model('anonymous-unscoped', assignment, b'make', anonymous=True),
+        model('recipe-eval', b'all: .LOADED := target\nall: dep\n'
+              b'\t@$(eval $(file <payload.txt)):\ndep:;@:\n',
+              b'Makefile:6', files={'payload.txt': b'$(file >>seen,live-$(.LOADED)-$@-$<) := value\n'},
+              marks=b'live-target-all-dep\n', scope=b'scope=[all|dep|file|target||]\n', tail=b''),
+        model('inactive', b'ifeq (a,b)\n' + assignment + define + undefine + b'endif\n',
+              b'make', status=0, marks=b'after\ngoal\n'),
+        model('name-expansion-error',
+              b'$(file >>seen,name)$(error name-error) := $(file >>seen,rhs-forbidden)value\n',
+              message=b'name-error'),
+        model('success', b'$(file >>seen,assignment-name)V := $(file >>seen,value)ok\n'
+              b'define $(file >>seen,define-name)D :=\n$(file >>seen,body)defined\nendef\n'
+              b'undefine $(file >>seen,undefine-name)V\n$(file >>seen,kept-$(origin V)-$(D))\n',
+              b'make', status=0,
+              marks=b'assignment-name\nvalue\ndefine-name\nbody\nundefine-name\n'
+                    b'kept-undefined-defined\nafter\ngoal\n'),
+    ]
+
+
+def declaration_close_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    group = b'left right &: $(file >>seen,header)dep\n'
+    static = b'%.o: %.o: $(file >>seen,header)%.c\n'
+    mixed = b'%.o ordinary: $(file >>seen,header)dep\n'
+    conflict = b'same: one\nsame:: $(file >>seen,header)two\n'
+    conditional = b'ifeq ($(file >>seen,conditional)x,x)\nendif\n'
+    close = b'NEXT := $(file >>seen,closing-forbidden)\n'
+    grouped_error = b'grouped targets must provide a recipe'
+    mixed_static = b'mixed implicit and static pattern rules'
+    mixed_normal = b'mixed implicit and normal rules'
+    colon_error = b"target file 'same' has both : and :: entries"
+    global_scope = b'scope=[||file|global||]\n'
+    live_scope = b'scope=[||automatic|lexical|RUN|arg]\n'
+    lexical = (b'RUN = $(foreach .LOADED,lexical,$(eval $(file <payload.txt)))\n'
+               b'$(call RUN,arg)\n')
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def model(name, body, header=b'Makefile:4', closing=b'Makefile:5', *,
+              message=grouped_error, notice=b'', scope=global_scope, marks=b'header\n',
+              files=None, tail=goal, anonymous=False, status=2):
+        source = goal if anonymous else head + body + tail
+        args = ('--eval', (head + body).decode('ascii')) if anonymous else ()
+        fatal = header + b': *** ' + message + b'.  Stop.\n' if status else b''
+        return Model(
+            'native-declaration-close-finalizer-' + name,
+            {'Makefile': source, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': status, 'stdout_hex': '',
+             'stderr_hex': (notice + fatal + closing + b': finalizer-location\n').hex()},
+            b'anchor\nread\n' + marks + scope, (module,),
+            args=('-rR', '--no-print-directory', '-f', 'Makefile', *args, 'all'),
+        )
+
+    live_mark = b'live-$(.LOADED)-$(1)'
+    child = b'# first\n$(file >>seen,child)\n'
+    return [
+        model('group-next', group + conditional + close, closing=b'Makefile:7',
+              marks=b'header\nconditional\n'),
+        model('group-continued-header-eof', group.replace(b'&: ', b'&: \\\n ') + b'# last\n',
+              closing=b'Makefile:7', tail=b''),
+        model('group-continued-close', group + close.replace(b':= ', b':= \\\n ')),
+        model('group-child-eof', b'include child.mk\n', b'child.mk:3', b'child.mk:5',
+              files={'child.mk': child + group + b'# last\n'}, marks=b'child\nheader\n'),
+        model('mixed-static', static + close, message=mixed_static),
+        model('mixed-normal', mixed + conditional + close, closing=b'Makefile:7',
+              message=mixed_normal, marks=b'header\nconditional\n'),
+        model('colon-conflict', conflict + close, b'Makefile:5', b'Makefile:6',
+              message=colon_error),
+        model('colon-child-eof', b'include child.mk\n', b'child.mk:4', b'child.mk:6',
+              message=colon_error, marks=b'child\nheader\n',
+              files={'child.mk': child + conflict + b'# last\n'}),
+        model('named-lexical', lexical, b'Makefile:5', b'Makefile:5',
+              files={'payload.txt': group.replace(b'header', live_mark)},
+              marks=b'live-lexical-arg\n', scope=live_scope),
+        model('anonymous-lexical', lexical, b'make', b'make', anonymous=True,
+              message=mixed_normal, files={'payload.txt': mixed.replace(b'header', live_mark) + close},
+              marks=b'live-lexical-arg\n', scope=live_scope),
+        model('anonymous-child', lexical, b'child.mk:2', b'child.mk:3', anonymous=True,
+              message=mixed_static, files={'payload.txt': b'include child.mk\n',
+                                            'child.mk': b'# first\n' + static.replace(b'header', live_mark) + close},
+              marks=b'live-lexical-arg\n', scope=live_scope),
+        model('recipe-child', b'all: .LOADED := target\nall: dep\n'
+              b'\t@$(eval $(file <payload.txt)):\ndep:;@:\n',
+              b'child.mk:1', b'child.mk:3', tail=b'',
+              message=b'prerequisites cannot be defined in recipes',
+              files={'payload.txt': b'include child.mk\n',
+                     'child.mk': b'made: $(file >>seen,live-$(.LOADED)-$@-$<)missing\n# comment\n'},
+              marks=b'live-target-all-dep\n', scope=b'scope=[all|dep|file|target||]\n'),
+        model('group-success', b'left right &:;@$(file >>seen,group):\n'
+              b'tail:;@$(file >>seen,tail):\nall: left tail\n',
+              closing=b'make', status=0, marks=b'group\ntail\ngoal\n'),
+        model('mixed-nonfatal', b'ordinary %.o: $(file >>seen,header)dep\n'
+              b'NEXT := $(file >>seen,closed-successfully)\n',
+              closing=b'make', status=0, marks=b'header\nclosed-successfully\ngoal\n',
+              notice=b'Makefile:4: *** mixed implicit and normal rules: deprecated syntax\n'),
+        model('first-fatal-lexical', lexical, b'Makefile:5', b'Makefile:5',
+              message=b'lexical-close', scope=live_scope,
+              files={'payload.txt': group + b'ifeq ($(error lexical-close),x)\nendif\n'}),
+        model('first-fatal-conditional-eof', group + b'ifeq (x,x)\n# last\n',
+              b'Makefile:7', b'Makefile:7', message=b"missing 'endif'", tail=b''),
+        model('first-fatal-deferred', group + b'NEXT := $(error must-not-run)\n'),
+        model('successful-close-then-fatal', b'left right &:;@:\nNEXT := $(error after-good-close)\n',
+              b'Makefile:5', b'Makefile:5', message=b'after-good-close', marks=b''),
     ]
 
 

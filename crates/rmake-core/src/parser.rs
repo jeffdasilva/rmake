@@ -2791,6 +2791,7 @@ impl Database {
             name.pop();
         }
         if name.is_empty() {
+            self.retain_native_reader_error(location, context);
             return Err(ParseError::system(
                 location.clone(),
                 Message::EmptyVariableName,
@@ -2946,6 +2947,7 @@ impl Database {
     ) -> Result<(Vec<u8>, Option<ConditionalFlagBinding>), ParseError> {
         let name = self.expand(spec.name, location, context)?;
         if name.is_empty() {
+            self.retain_native_reader_error(location, context);
             return Err(ParseError::system(
                 location.clone(),
                 Message::EmptyVariableName,
@@ -3845,8 +3847,15 @@ impl Database {
         &mut self,
         bytes: &[u8],
         location: &Location,
+        opening: bool,
         context: &mut ExpansionContext<'_>,
     ) -> Result<Option<bool>, ParseError> {
+        let invalid = |database: &mut Self, context: &mut ExpansionContext<'_>| {
+            if opening {
+                database.retain_native_reader_error(location, context);
+            }
+            ParseError::system(location.clone(), Message::InvalidConditional, context)
+        };
         for (keyword, negate) in [(b"ifdef".as_slice(), false), (b"ifndef", true)] {
             if let Some(name) = directive(bytes, keyword) {
                 let name = self.expand(name, location, context)?;
@@ -3855,11 +3864,7 @@ impl Database {
                     .position(|byte| is_c_space(*byte))
                     .unwrap_or(name.len());
                 if !assignment_start(&name[end..]).is_empty() {
-                    return Err(ParseError::system(
-                        location.clone(),
-                        Message::InvalidConditional,
-                        context,
-                    ));
+                    return Err(invalid(self, context));
                 }
                 return Ok(Some(
                     self.evaluation_bindings
@@ -3879,9 +3884,6 @@ impl Database {
         }
         for (keyword, negate) in [(b"ifeq".as_slice(), false), (b"ifneq", true)] {
             if let Some(args) = directive(bytes, keyword) {
-                let invalid = |context: &mut ExpansionContext<'_>| {
-                    ParseError::system(location.clone(), Message::InvalidConditional, context)
-                };
                 let (left, right, extra) = if matches!(args.first(), Some(b'(' | b',')) {
                     // The first operand can include literal closing parentheses.
                     // A comma ends it once no unmatched opener precedes it.
@@ -3898,7 +3900,7 @@ impl Database {
                             _ => {}
                         }
                     }
-                    let comma = comma.ok_or_else(|| invalid(context))?;
+                    let comma = comma.ok_or_else(|| invalid(self, context))?;
                     // GNU evaluates the complete left operand before it checks
                     // that the right operand has a closing delimiter.
                     let left = &args[1..comma];
@@ -3922,36 +3924,37 @@ impl Database {
                             _ => {}
                         }
                     }
-                    let closing = closing.ok_or_else(|| invalid(context))?;
+                    let closing = closing.ok_or_else(|| invalid(self, context))?;
                     (
                         left,
                         assignment_start(&args[comma + 1..closing]),
                         &args[closing + 1..],
                     )
                 } else {
-                    let quote = *args.first().ok_or_else(|| invalid(context))?;
+                    let quote = *args.first().ok_or_else(|| invalid(self, context))?;
                     if quote != b'\'' && quote != b'"' {
-                        return Err(invalid(context));
+                        return Err(invalid(self, context));
                     }
                     let end = args[1..]
                         .iter()
                         .position(|b| *b == quote)
-                        .ok_or_else(|| invalid(context))?
+                        .ok_or_else(|| invalid(self, context))?
                         + 1;
                     let left = self.expand(&args[1..end], location, context)?;
                     let rest = assignment_start(&args[end + 1..]);
-                    let (right, extra) = match *rest.first().ok_or_else(|| invalid(context))? {
-                        b')' => (&b""[..], &rest[1..]),
-                        quote @ (b'\'' | b'"') => {
-                            let end = rest[1..]
-                                .iter()
-                                .position(|b| *b == quote)
-                                .ok_or_else(|| invalid(context))?
-                                + 1;
-                            (&rest[1..end], &rest[end + 1..])
-                        }
-                        _ => return Err(invalid(context)),
-                    };
+                    let (right, extra) =
+                        match *rest.first().ok_or_else(|| invalid(self, context))? {
+                            b')' => (&b""[..], &rest[1..]),
+                            quote @ (b'\'' | b'"') => {
+                                let end = rest[1..]
+                                    .iter()
+                                    .position(|b| *b == quote)
+                                    .ok_or_else(|| invalid(self, context))?
+                                    + 1;
+                                (&rest[1..end], &rest[end + 1..])
+                            }
+                            _ => return Err(invalid(self, context)),
+                        };
                     (left, right, extra)
                 };
                 if !assignment_start(extra).is_empty() {
@@ -4867,7 +4870,10 @@ impl Database {
             }
             let keyword = directive_keyword(text);
             if [b"ifdef".as_slice(), b"ifndef", b"ifeq", b"ifneq"].contains(&keyword) {
-                let yes = active && self.condition(text, &location, context)?.unwrap_or(false);
+                let yes = active
+                    && self
+                        .condition(text, &location, true, context)?
+                        .unwrap_or(false);
                 conditions.push(Conditional {
                     parent: active,
                     active: yes,
@@ -4900,7 +4906,10 @@ impl Database {
                 } else if [b"ifdef".as_slice(), b"ifndef", b"ifeq", b"ifneq"]
                     .contains(&directive_keyword(rest))
                 {
-                    eligible && self.condition(rest, &location, context)?.unwrap_or(false)
+                    eligible
+                        && self
+                            .condition(rest, &location, false, context)?
+                            .unwrap_or(false)
                 } else {
                     record_warning(
                         &mut self.warnings,
@@ -5667,10 +5676,11 @@ impl Database {
     fn finish_declaration(
         &mut self,
         declaration: &mut RuleDeclaration,
-        location: &Location,
+        closing_location: &Location,
         context: &mut ExpansionContext<'_>,
     ) -> Result<(), ParseError> {
         if declaration.header.is_some() && self.rules_frozen {
+            self.retain_native_reader_error(closing_location, context);
             return Err(ParseError {
                 unlocated: false,
                 location: declaration.location.clone().expect("rule header location"),
@@ -5681,9 +5691,12 @@ impl Database {
             && declaration.recipes.is_empty()
             && !declaration.targets.is_empty();
         if declaration.header.is_some() && !missing_group {
-            self.record_declaration(declaration, location, context)?;
+            self.record_declaration(declaration, closing_location, context)?;
         }
-        declaration.finish(&mut self.rules, &mut self.warnings, context)
+        // The grouped-rule error in finish owns the header location.
+        declaration
+            .finish(&mut self.rules, &mut self.warnings, context)
+            .inspect_err(|_| self.retain_native_reader_error(closing_location, context))
     }
 
     fn record_declaration(
@@ -5737,6 +5750,7 @@ impl Database {
         }
         let implicit = declaration.target_patterns[0];
         if implicit && static_pattern.is_some() {
+            self.retain_native_reader_error(closing_location, context);
             return Err(ParseError {
                 unlocated: false,
                 location,
@@ -5744,6 +5758,7 @@ impl Database {
             });
         }
         if implicit && declaration.target_patterns.iter().any(|pattern| !pattern) {
+            self.retain_native_reader_error(closing_location, context);
             return Err(ParseError {
                 unlocated: false,
                 location,
@@ -5824,6 +5839,7 @@ impl Database {
                 let record_start = root.dependencies.len();
                 root.record_only = false;
                 if occupied && root.double_colon.is_some() != double_colon {
+                    self.retain_native_reader_error(closing_location, context);
                     return Err(ParseError {
                         unlocated: false,
                         location: location.clone(),
