@@ -1,34 +1,55 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 Jeff DaSilva
 
-//! Observable GNU file-record traversal order, with owned names and no pointers.
+//! Observable GNU file-record traversal order and lookup identity.
 //! Rule contents and explicit/intermediate flags live separately from this index.
 //! The fingerprint is the Jenkins three-lane string permutation used by the
 //! pinned Linux oracle. Numeric vectors are observations, not upstream tests.
 
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 
 const INLINE_FILENAME_BYTES: usize = 15;
+
+/// Identity of a live file record within one file table. Rehashing an entry
+/// preserves this value even when its lookup spelling changes.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct FileRecordId(NonZeroUsize);
+
+#[derive(Clone, Copy)]
+pub struct FileRecordEntry<'a> {
+    pub id: FileRecordId,
+    pub lookup_name: &'a [u8],
+    pub logical_name: &'a [u8],
+}
 
 #[derive(Clone)]
 enum FileSlot {
     Unused,
     Deleted,
     Short {
+        id: FileRecordId,
         length: u8,
         bytes: [u8; INLINE_FILENAME_BYTES],
     },
-    Long(Box<[u8]>),
+    Long {
+        id: FileRecordId,
+        name: Box<[u8]>,
+    },
 }
 
 impl FileSlot {
-    fn new(name: &[u8]) -> Self {
+    fn new(name: &[u8], id: FileRecordId) -> Self {
         if name.len() > INLINE_FILENAME_BYTES {
-            return Self::Long(name.into());
+            return Self::Long {
+                id,
+                name: name.into(),
+            };
         }
         let mut bytes = [0; INLINE_FILENAME_BYTES];
         bytes[..name.len()].copy_from_slice(name);
         Self::Short {
+            id,
             length: name.len() as u8,
             bytes,
         }
@@ -37,8 +58,15 @@ impl FileSlot {
     fn name(&self) -> Option<&[u8]> {
         match self {
             Self::Unused | Self::Deleted => None,
-            Self::Short { length, bytes } => Some(&bytes[..usize::from(*length)]),
-            Self::Long(name) => Some(name),
+            Self::Short { length, bytes, .. } => Some(&bytes[..usize::from(*length)]),
+            Self::Long { name, .. } => Some(name),
+        }
+    }
+
+    fn id(&self) -> Option<FileRecordId> {
+        match self {
+            Self::Unused | Self::Deleted => None,
+            Self::Short { id, .. } | Self::Long { id, .. } => Some(*id),
         }
     }
 }
@@ -48,6 +76,7 @@ pub struct FileRecords {
     database_history: Option<crate::database::History>,
     // Keeping tombstones preserves collision chains on renaming.
     slots: Vec<FileSlot>,
+    next_id: NonZeroUsize,
     live: usize,
     empty: usize,
     rehashed_names: HashMap<Vec<u8>, Vec<u8>>,
@@ -58,6 +87,7 @@ impl Default for FileRecords {
         Self {
             database_history: None,
             slots: vec![FileSlot::Unused; 1024],
+            next_id: NonZeroUsize::MIN,
             live: 0,
             empty: 1024,
             rehashed_names: HashMap::new(),
@@ -95,6 +125,15 @@ impl FileRecords {
         !name.is_empty() && self.position(name).1
     }
 
+    /// Resolve an exact lookup key without following a logical spelling.
+    pub fn id(&self, lookup: &[u8]) -> Option<FileRecordId> {
+        if lookup.is_empty() {
+            return None;
+        }
+        let (position, found) = self.position(lookup);
+        found.then(|| self.slots[position].id()).flatten()
+    }
+
     /// GNU prerequisite binding observes the existing file first and enters
     /// a new record only when absent. A found builtin retains its origin.
     pub fn enter_prerequisite(&mut self, name: &[u8]) {
@@ -110,7 +149,7 @@ impl FileRecords {
             if let Some(history) = &self.database_history {
                 history.record_file_enter_hashed(name, fingerprint);
             }
-            self.insert_at(name, position);
+            self.insert_at(name, position, None);
         }
     }
 
@@ -129,6 +168,10 @@ impl FileRecords {
     }
 
     pub fn insert(&mut self, name: &[u8]) {
+        self.insert_with_id(name, None);
+    }
+
+    fn insert_with_id(&mut self, name: &[u8], id: Option<FileRecordId>) {
         if name.is_empty() {
             return;
         }
@@ -138,15 +181,20 @@ impl FileRecords {
         }
         let (position, found) = self.position_hashed(name, fingerprint);
         if !found {
-            self.insert_at(name, position);
+            self.insert_at(name, position, id);
         }
     }
 
-    fn insert_at(&mut self, name: &[u8], position: usize) {
+    fn insert_at(&mut self, name: &[u8], position: usize, id: Option<FileRecordId>) {
+        let id = id.unwrap_or_else(|| {
+            let id = self.next_id;
+            self.next_id = id.checked_add(1).expect("file record identity overflow");
+            FileRecordId(id)
+        });
         if matches!(self.slots[position], FileSlot::Unused) {
             self.empty -= 1;
         }
-        self.slots[position] = FileSlot::new(name);
+        self.slots[position] = FileSlot::new(name, id);
         self.live += 1;
         if self.empty < self.slots.len() / 16 {
             let size = if self.live >= self.slots.len() * 15 / 16 {
@@ -190,14 +238,17 @@ impl FileRecords {
 
     fn move_key(&mut self, from: &[u8], to: &[u8]) {
         let (position, found) = self.position(from);
+        let mut id = None;
         if found {
             if let Some(history) = &self.database_history {
                 history.record_file_remove(from);
             }
+            id = self.slots[position].id();
             self.slots[position] = FileSlot::Deleted;
             self.live -= 1;
         }
-        self.insert(to);
+        // A merge keeps the existing destination slot and its identity.
+        self.insert_with_id(to, id);
     }
 
     pub fn rehash(&mut self, from: &[u8], to: &[u8]) {
@@ -241,11 +292,19 @@ impl FileRecords {
         self.slots.get(index).and_then(FileSlot::name)
     }
 
+    pub fn entries(&self) -> impl Iterator<Item = FileRecordEntry<'_>> {
+        self.slots.iter().filter_map(|slot| {
+            let lookup_name = slot.name()?;
+            Some(FileRecordEntry {
+                id: slot.id().expect("live file slot"),
+                lookup_name,
+                logical_name: self.logical_name(lookup_name).unwrap_or(lookup_name),
+            })
+        })
+    }
+
     pub fn names(&self) -> impl Iterator<Item = &[u8]> {
-        self.slots
-            .iter()
-            .filter_map(FileSlot::name)
-            .map(|key| self.logical_name(key).unwrap_or(key))
+        self.entries().map(|entry| entry.logical_name)
     }
 }
 
@@ -466,6 +525,50 @@ mod tests {
     }
 
     #[test]
+    fn tentative_archive_lookup_and_recreated_raw_name_have_distinct_owners() {
+        let history = crate::database::History::default();
+        let mut records = FileRecords::default();
+        records.enable_database_history(history.clone());
+        records.insert(b"bundle");
+        let original = records.id(b"bundle").unwrap();
+        records.rehash(b"bundle", b"src/bundle");
+        assert_eq!(records.id(b"bundle"), None);
+        assert_eq!(records.id(b"src/bundle"), Some(original));
+
+        records.enter_prerequisite(b"bundle");
+        let recreated = records.id(b"bundle").unwrap();
+        assert_ne!(recreated, original);
+        let entries: HashMap<_, _> = records
+            .entries()
+            .filter(|entry| entry.logical_name == b"bundle")
+            .map(|entry| (entry.lookup_name, entry.id))
+            .collect();
+        assert_eq!(
+            entries,
+            HashMap::from([
+                (b"bundle".as_slice(), recreated),
+                (b"src/bundle".as_slice(), original),
+            ])
+        );
+        assert_eq!(history.file_stats().filled, 2);
+
+        // Moving the existing searched key leaves the fresh raw owner alone.
+        records.rehash(b"src/bundle", b"other/long/directory/bundle");
+        assert_eq!(records.id(b"src/bundle"), None);
+        assert_eq!(records.id(b"bundle"), Some(recreated));
+        assert_eq!(records.id(b"other/long/directory/bundle"), Some(original));
+        assert_eq!(
+            records.logical_name(b"other/long/directory/bundle"),
+            Some(b"bundle".as_slice())
+        );
+
+        records.rename(b"other/long/directory/bundle", b"bundle");
+        assert_eq!(records.id(b"bundle"), Some(recreated));
+        assert_eq!(records.id(b"other/long/directory/bundle"), None);
+        assert_eq!(history.file_stats().filled, 1);
+    }
+
+    #[test]
     fn collision_tombstones_merges_and_growth_preserve_every_name() {
         let mut records = FileRecords::default();
         let colliding: Vec<_> = (0..10000)
@@ -490,10 +593,12 @@ mod tests {
                 colliding[3].as_bytes()
             ]
         );
+        let stable = records.id(colliding[1].as_bytes()).unwrap();
         for n in 0..4000 {
             records.insert(format!("raw-{n}-\u{ff}").as_bytes());
         }
         assert_eq!(records.names().count(), 4004);
+        assert_eq!(records.id(colliding[1].as_bytes()), Some(stable));
         for n in 0..4000 {
             assert!(records.contains(format!("raw-{n}-\u{ff}").as_bytes()));
         }
@@ -502,5 +607,6 @@ mod tests {
         assert!(clone.contains(colliding[1].as_bytes()));
         assert!(!records.contains(colliding[1].as_bytes()));
         assert!(records.contains(b"replacement"));
+        assert_eq!(records.id(b"replacement"), Some(stable));
     }
 }

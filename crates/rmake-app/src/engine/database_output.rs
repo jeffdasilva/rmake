@@ -151,8 +151,19 @@ impl Engine {
             .database
             .database_history()
             .expect("startup database history");
+        let moved_original_names: HashSet<_> = self
+            .moved_archives
+            .values()
+            .map(|owner| owner.original.as_slice())
+            .collect();
         let mut snapshots = Vec::new();
-        for name in self.database.file_records.names() {
+        for entry in self.database.file_records.entries() {
+            let moved = self.moved_archives.get(&entry.id);
+            let name = if moved.is_some() {
+                entry.lookup_name
+            } else {
+                entry.logical_name
+            };
             if self.options.no_rules && history.is_builtin_file(name) {
                 continue;
             }
@@ -162,7 +173,20 @@ impl Engine {
                     snapshots.push(self.database_file(name, Some(rule), Some(ordinal))?);
                 }
             } else {
-                snapshots.push(self.database_file(name, head, None)?);
+                let mut snapshot = self.database_file(name, head, None)?;
+                if let Some(owner) = moved {
+                    snapshot.view.name = entry.logical_name;
+                    snapshot.view.command_line = owner.command_goal;
+                    if let Some(variables) = snapshot.view.local_scope {
+                        snapshot.automatic =
+                            Some(variables.database_file_definitions_with_scope(
+                                snapshot.view.target_variables,
+                            ));
+                    }
+                } else if moved_original_names.contains(name) {
+                    snapshot.view.command_line = false;
+                }
+                snapshots.push(snapshot);
             }
         }
         let files: Vec<_> = snapshots

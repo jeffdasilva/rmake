@@ -1,0 +1,12 @@
+id = "tentative-archive-retained-missing-member"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Keep the tentative container rehash when the requested member is missing."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "bundle", "move", "bundle(absent)", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 2
+stdout = "raw=[||undefined|undefined||]\nsearched=[bundle|inherited-source|override|recursive|inherited-$(V)|source]\n"
+stderr = "make: *** No rule to make target 'bundle(absent)'.\n"

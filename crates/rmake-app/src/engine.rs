@@ -19,6 +19,7 @@ use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status, TouchComple
 use rmake_core::diagnostic::{
     Diagnostic, ExpansionContext, IncludeError, IncludeFailure, Output, OutputReceiver, ScopeParent,
 };
+use rmake_core::file_records::FileRecordId;
 use rmake_core::messages::Message;
 use rmake_core::parser::{
     Database, Dependency, Location, Makefile, Recipe, RecipeSource, Rule, words,
@@ -807,6 +808,7 @@ fn emit_getcwd_error(output: &crate::output::Controller, program: &[u8], error: 
 
 struct FileVisit {
     parent: Option<ScopeParent<Vec<u8>>>,
+    parent_record: Option<FileRecordId>,
     // Ordinary pass plus one, recorded when verbose output was disabled.
     quiet_consideration: Option<NonZeroU64>,
 }
@@ -964,9 +966,21 @@ impl FileTraversals {
     }
 }
 
+struct RetainedScopeParent {
+    scope: ScopeParent<Vec<u8>>,
+    record: Option<FileRecordId>,
+}
+
+struct MovedArchiveRecord {
+    lookup: Vec<u8>,
+    original: Vec<u8>,
+    command_goal: bool,
+}
+
 struct TargetReads<'a> {
     visits: &'a FileTraversals,
-    retained_parents: &'a HashMap<Vec<u8>, ScopeParent<Vec<u8>>>,
+    retained_parents: &'a HashMap<Vec<u8>, RetainedScopeParent>,
+    moved_archives: &'a HashMap<FileRecordId, MovedArchiveRecord>,
     aliases: &'a Aliases,
     base: &'a HashMap<Vec<u8>, VariableStore>,
     recipes: &'a mut HashMap<Vec<u8>, VariableStore>,
@@ -975,9 +989,18 @@ struct TargetReads<'a> {
 }
 
 impl TargetReads<'_> {
-    fn resolve_parent<'a>(&'a self, parent: &'a ScopeParent<Vec<u8>>) -> ScopeParent<&'a [u8]> {
+    fn resolve_parent<'a>(
+        &'a self,
+        parent: &'a ScopeParent<Vec<u8>>,
+        record: Option<FileRecordId>,
+    ) -> ScopeParent<&'a [u8]> {
         ScopeParent {
-            target: self.aliases.resolve(&parent.target),
+            target: record
+                .and_then(|id| self.moved_archives.get(&id))
+                .map_or_else(
+                    || self.aliases.resolve(&parent.target),
+                    |file| self.aliases.resolve(&file.lookup),
+                ),
             branch: parent.branch,
         }
     }
@@ -1018,18 +1041,22 @@ impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
             visit
                 .parent
                 .as_ref()
-                .map(|parent| self.resolve_parent(parent))
+                .map(|parent| self.resolve_parent(parent, visit.parent_record))
         })
     }
 
     fn has_parent_changes(&self) -> bool {
-        !self.retained_parents.is_empty()
+        !self.retained_parents.is_empty() || !self.moved_archives.is_empty()
     }
 
     fn changed_parent(&self, target: &[u8]) -> Option<ScopeParent<&[u8]>> {
-        self.retained_parents
-            .get(target)
-            .map(|parent| self.resolve_parent(parent))
+        if let Some(parent) = self.retained_parents.get(target) {
+            return Some(self.resolve_parent(&parent.scope, parent.record));
+        }
+        let visit = self.visits.visit(target)?;
+        let parent = visit.parent.as_ref()?;
+        self.moved_archives.get(&visit.parent_record?)?;
+        Some(self.resolve_parent(parent, visit.parent_record))
     }
 
     fn parent_variables(&self, parent: ScopeParent<&[u8]>) -> Option<&VariableStore> {
@@ -1535,7 +1562,8 @@ pub struct Engine {
     file_traversals: FileTraversals,
     // A later encounter affects declarations that revisit a completed file.
     // Its first traversal context still owns the recipe and diagnostics.
-    retained_scope_parents: HashMap<Vec<u8>, ScopeParent<Vec<u8>>>,
+    retained_scope_parents: HashMap<Vec<u8>, RetainedScopeParent>,
+    moved_archives: HashMap<FileRecordId, MovedArchiveRecord>,
     target_contexts: HashMap<Vec<u8>, VariableStore>,
     implicit_scopes: HashMap<Vec<u8>, ImplicitScope>,
     impossible_prerequisites: HashSet<Vec<u8>>,
@@ -2128,6 +2156,7 @@ impl Engine {
             visiting: HashSet::new(),
             file_traversals: FileTraversals::default(),
             retained_scope_parents: HashMap::new(),
+            moved_archives: HashMap::new(),
             target_contexts: HashMap::new(),
             implicit_scopes: HashMap::new(),
             impossible_prerequisites: HashSet::new(),
@@ -2263,6 +2292,7 @@ impl Engine {
         let mut target_reads = TargetReads {
             visits: &self.file_traversals,
             retained_parents: &self.retained_scope_parents,
+            moved_archives: &self.moved_archives,
             aliases: &self.aliases,
             base: &self.target_contexts,
             recipes: &mut self.database_contexts,
@@ -5483,7 +5513,14 @@ impl Engine {
         let mut requested = Vec::new();
         let initial_goal_generation = self.filesystem.borrow().generation();
         let goal_count = goals.len();
-        for (index, goal) in goals.into_iter().enumerate() {
+        let goal_records: Vec<_> = goals
+            .iter()
+            .map(|goal| self.database.file_records.id(goal))
+            .collect();
+        for (index, (goal, record)) in goals.into_iter().zip(goal_records).enumerate() {
+            let goal = record
+                .and_then(|id| self.moved_archives.get(&id))
+                .map_or(goal, |owner| owner.lookup.clone());
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let name = self.aliases.resolve(&goal);
             let already_done = (self.file_traversals.has_outcome(name)
@@ -7020,13 +7057,25 @@ impl Engine {
                         .as_ref()
                         .is_some_and(|branches| branches.iter().any(|rule| rule.recipes.is_some()))
             }) && !self.special(b".PHONY", goal, false);
-            let reported_goal = self
-                .resolved_names
-                .get(identity)
-                .map_or(identity, Vec::as_slice);
+            let moved_archive = if self.moved_archives.is_empty() {
+                None
+            } else {
+                self.database
+                    .file_records
+                    .id(identity)
+                    .and_then(|id| self.moved_archives.get(&id))
+            };
+            let reported_goal = if let Some(owner) = moved_archive {
+                owner.original.as_slice()
+            } else {
+                self.resolved_names
+                    .get(identity)
+                    .map_or(identity, Vec::as_slice)
+            };
             // Rehashing into a file already entered by a declaration or CLI
             // goal merges GNU's goal record; the old record has no summary.
             if reported_goal != goal
+                && moved_archive.is_none()
                 && (if self.aliases.contains(goal) {
                     self.aliases.merged(goal)
                 } else {
@@ -7384,8 +7433,10 @@ impl Engine {
                 pending: self.pending(target),
             };
         }
+        let records = &self.database.file_records;
         self.file_traversals.remember_visit(target, || FileVisit {
             parent: Some(parent.into_owned()),
+            parent_record: records.id(parent.target),
             quiet_consideration: None,
         });
         if !self.resolve_implicit_for_intermediate(target, depth) {
@@ -8742,10 +8793,20 @@ impl Engine {
                 return Ok(Some(name));
             }
             if let Some(path) = &location.path {
-                if !self.has_file_record(path) {
-                    self.database.file_records.rehash(archive, path);
-                }
                 let name = [path.as_slice(), b"(", member, b")"].concat();
+                if !self.has_file_record(path) {
+                    if let Some(owner) = self.settled_archive_record(archive) {
+                        if let Some(history) = self.database.database_history() {
+                            // VPATH interns the container result before the
+                            // archive rehash interns its member spelling.
+                            history.intern(path);
+                            history.intern(&name);
+                        }
+                        self.relocate_search_record(archive, path, Some(owner))?;
+                    } else {
+                        self.database.file_records.rehash(archive, path);
+                    }
+                }
                 if self.other_file_record(&name, target) {
                     self.rename_search_record(target, &name)?;
                     let observation = self
@@ -8789,7 +8850,44 @@ impl Engine {
         Ok(None)
     }
 
+    fn settled_archive_record(&self, archive: &[u8]) -> Option<FileRecordId> {
+        if self.remaking
+            || self.parallel_graph()
+            || self.options.dry_run
+            || self.options.question
+            || self.options.touch
+            || self.aliases.contains_source_or_destination(archive)
+            || self.visiting.contains(archive)
+            || self.pending(archive)
+            || !self.database_contexts.contains_key(archive)
+            || !self.target_contexts.contains_key(archive)
+            || !self
+                .database
+                .rules
+                .get(archive)
+                .is_some_and(|rule| rule.double_colon.is_none() && rule.group.is_none())
+            || !self
+                .file_traversals
+                .outcome(archive)
+                .is_some_and(|outcome| {
+                    outcome.ran && !outcome.failed && !outcome.search_after_update
+                })
+        {
+            return None;
+        }
+        self.database.file_records.id(archive)
+    }
+
     fn rename_search_record(&mut self, from: &[u8], to: &[u8]) -> Result<(), ()> {
+        self.relocate_search_record(from, to, None)
+    }
+
+    fn relocate_search_record(
+        &mut self,
+        from: &[u8],
+        to: &[u8],
+        tentative_archive: Option<FileRecordId>,
+    ) -> Result<(), ()> {
         if from == to {
             return Ok(());
         }
@@ -8863,7 +8961,13 @@ impl Engine {
             self.archive_completion_times
                 .insert(to.to_vec(), completion);
         }
-        self.database.file_records.rename(from, to);
+        let command_goal = tentative_archive.is_some() && self.has_requested_goal_name(from);
+        if let Some(owner) = tentative_archive {
+            self.database.file_records.rehash(from, to);
+            debug_assert_eq!(self.database.file_records.id(to), Some(owner));
+        } else {
+            self.database.file_records.rename(from, to);
+        }
         let merged = self.database.explicit_names.contains(to)
             || destination_has_scope
             || self.has_requested_goal_name(to);
@@ -9011,6 +9115,14 @@ impl Engine {
         self.database
             .rename_target_scope(from, to, adopt_retained_scope);
         self.file_traversals.rename_visit(from, to);
+        if tentative_archive.is_some()
+            && let Some(mut outcome) = self.file_traversals.remove_outcome(from)
+        {
+            // The member's successful VPATH hit already observed that the
+            // original recipe spelling did not exist.
+            outcome.time = None;
+            self.file_traversals.set_outcome(to, outcome);
+        }
         // The source identity is retired. An existing destination can keep
         // its own failed verdict and diagnostic edge.
         self.missing_rule_parents.remove(from);
@@ -9123,12 +9235,33 @@ impl Engine {
             self.implicit_scopes.entry(to.to_vec()).or_insert(scope);
         }
         if self.database.explicit_names.contains(from) {
+            if tentative_archive.is_some() {
+                self.database.explicit_names.remove(from);
+            }
             self.database.explicit_names.insert(to.to_vec());
         }
         if !merged && self.intermediates.remove(from) {
             self.intermediates.insert(to.to_vec());
         }
         self.intermediate_policy.renamed(from, to, merged);
+        if let Some(owner) = tentative_archive {
+            if let Some(reads) = self.archive_vpath_reads.get_mut()
+                && reads.archives.remove(from)
+            {
+                reads.archives.insert(to.to_vec());
+            }
+            self.database_unchecked_times.borrow_mut().remove(to);
+            self.database_times.borrow_mut().insert(to.to_vec(), None);
+            self.moved_archives.insert(
+                owner,
+                MovedArchiveRecord {
+                    lookup: to.to_vec(),
+                    original: from.to_vec(),
+                    command_goal,
+                },
+            );
+            return Ok(());
+        }
         let rebuild_goal_aliases = if let Some(goals) = &self.requested_goal_names {
             let previous = self.aliases.resolve(from);
             let destination = self.aliases.resolve(to);
@@ -9441,7 +9574,6 @@ impl Engine {
             ));
         }
         let member_time = self.name_time(member);
-        self.database.file_records.insert(archive);
         let container = self
             .database
             .file_records
@@ -9449,6 +9581,32 @@ impl Engine {
             .unwrap_or(archive)
             .to_vec();
         let local_time = self.name_time(&container);
+        let rebuilt_from = if refresh && local_time.is_some() && !self.moved_archives.is_empty() {
+            self.archive_vpath_reads
+                .get_mut()
+                .as_ref()
+                .and_then(|reads| reads.paths.get(target))
+                .filter(|previous| {
+                    self.database
+                        .file_records
+                        .id(previous)
+                        .and_then(|id| self.moved_archives.get(&id))
+                        .is_some_and(|owner| owner.original == archive)
+                })
+                .cloned()
+        } else {
+            None
+        };
+        if rebuilt_from.is_some() {
+            if !self.database.file_records.contains(archive)
+                && let Some(history) = self.database.database_history()
+            {
+                history.intern(archive);
+            }
+            self.database.file_records.enter_prerequisite(archive);
+        } else {
+            self.database.file_records.insert(archive);
+        }
         let path = if local_time.is_none() {
             self.archive_remote_vpath(&container)?
         } else {
@@ -9478,11 +9636,28 @@ impl Engine {
             let mut reads = self.archive_vpath_reads.borrow_mut();
             let reads = reads.get_or_insert_with(Default::default);
             reads.members.insert(target.to_vec());
-            reads.archives.insert(archive.to_vec());
+            let owner = self.database.file_records.id(path);
+            let observed = if owner.is_some_and(|id| self.moved_archives.contains_key(&id)) {
+                path.as_slice()
+            } else {
+                archive
+            };
+            reads.archives.insert(observed.to_vec());
             reads
                 .paths
                 .entry(target.to_vec())
                 .or_insert_with(|| path.clone());
+        } else if let Some(previous) = rebuilt_from
+            && let Some(time) = local_time
+        {
+            // A member can recreate the raw archive after the earlier owner
+            // was rehashed. Its local observation belongs to the new record.
+            self.path_observations
+                .entry(archive.to_vec())
+                .or_insert(Some((None, Some(time))));
+            if let Some(outcome) = self.file_traversals.outcome_mut(&previous) {
+                outcome.time = Some(time);
+            }
         }
         Ok(ArchiveLocation {
             refresh,
@@ -11987,10 +12162,15 @@ impl Engine {
             } else {
                 NonZeroU64::new(self.debug_pass.wrapping_add(1))
             };
+        let records = &self.database.file_records;
         self.file_traversals
-            .remember_visit(target, || FileVisit {
-                parent: parent.map(ScopeParent::into_owned),
-                quiet_consideration,
+            .remember_visit(target, || {
+                let parent_record = parent.as_ref().and_then(|parent| records.id(parent.target));
+                FileVisit {
+                    parent: parent.map(ScopeParent::into_owned),
+                    parent_record,
+                    quiet_consideration,
+                }
             })
             .quiet_consideration = quiet_consideration;
         let phony = self.special(b".PHONY", target, false);
@@ -12168,24 +12348,32 @@ impl Engine {
         if !self.retained_scope_parents.is_empty()
             && let Some(latest) = self.retained_scope_parents.get_mut(target)
         {
-            if latest.target.as_slice() != parent.target {
-                latest.target.clear();
-                latest.target.extend_from_slice(parent.target);
+            if latest.scope.target.as_slice() != parent.target {
+                latest.scope.target.clear();
+                latest.scope.target.extend_from_slice(parent.target);
             }
-            latest.branch = parent.branch;
+            latest.scope.branch = parent.branch;
+            latest.record = self.database.file_records.id(parent.target);
             // Keep the live edge if it returns to its original parent. A
             // retained eager read may have updated this file's local table.
             return;
         }
-        if self.file_traversals.visit(target).is_some_and(|first| {
-            first
-                .parent
-                .as_ref()
-                .map(|first| (self.aliases.resolve(&first.target), first.branch))
-                != Some((parent.target, parent.branch))
+        if self.file_traversals.visit(target).is_some_and(|visit| {
+            visit.parent.as_ref().map(|first| {
+                let name = visit
+                    .parent_record
+                    .and_then(|id| self.moved_archives.get(&id))
+                    .map_or(first.target.as_slice(), |owner| owner.lookup.as_slice());
+                (self.aliases.resolve(name), first.branch)
+            }) != Some((parent.target, parent.branch))
         }) {
-            self.retained_scope_parents
-                .insert(target.to_vec(), parent.into_owned());
+            self.retained_scope_parents.insert(
+                target.to_vec(),
+                RetainedScopeParent {
+                    scope: parent.into_owned(),
+                    record: self.database.file_records.id(parent.target),
+                },
+            );
         }
     }
 
@@ -15055,12 +15243,17 @@ impl Engine {
             self.database.refresh_scoped_variables(&mut variables);
             return Ok(variables);
         }
-        let parent = self
-            .file_traversals
-            .visit(target)
-            .and_then(|visit| visit.parent.clone());
-        let inherited = if let Some(parent) = parent {
-            self.rule_variables(&parent.target, parent.branch)?
+        let parent = self.file_traversals.visit(target).and_then(|visit| {
+            visit.parent.as_ref().map(|parent| {
+                let name = visit
+                    .parent_record
+                    .and_then(|id| self.moved_archives.get(&id))
+                    .map_or(parent.target.as_slice(), |owner| owner.lookup.as_slice());
+                (name.to_vec(), parent.branch)
+            })
+        });
+        let inherited = if let Some((parent, branch)) = parent {
+            self.rule_variables(&parent, branch)?
         } else {
             self.database.variables.clone()
         };
@@ -15855,6 +16048,7 @@ impl Engine {
                 let mut target_reads = TargetReads {
                     visits: &self.file_traversals,
                     retained_parents: &self.retained_scope_parents,
+                    moved_archives: &self.moved_archives,
                     aliases: &self.aliases,
                     base: &self.target_contexts,
                     recipes: &mut self.database_contexts,
@@ -16660,6 +16854,7 @@ mod tests {
                 target: b"parent".to_vec(),
                 branch: Some(1),
             }),
+            parent_record: None,
             quiet_consideration: NonZeroU64::new(2),
         });
         assert!(files.remove_outcome(name).expect("initial outcome").ran);
@@ -16754,6 +16949,7 @@ mod tests {
                 target: b"first".to_vec(),
                 branch: None,
             }),
+            parent_record: None,
             quiet_consideration: None,
         });
         engine.file_traversals.set_outcome(

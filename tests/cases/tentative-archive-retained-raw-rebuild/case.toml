@@ -1,0 +1,12 @@
+id = "tentative-archive-retained-raw-rebuild"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Physically rebuild a stale archive member at the original spelling after a tentative search."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "bundle", "move", "bundle(member)", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "redo=[bundle|member]\nraw=[||undefined|undefined||]\nsearched=[bundle|inherited-source|override|recursive|inherited-$(V)|source]\n"
+stderr = ""
