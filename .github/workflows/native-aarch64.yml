@@ -68,6 +68,19 @@ jobs:
               --case live-eval-512-cycle-none \
               --repeat 2 --artifacts "artifacts/evaluation-aarch64/$kind"
           done
+      - name: Check optimized file and archive ownership
+        shell: bash
+        timeout-minutes: 3
+        run: |
+          mkdir -p artifacts/file-owner-aarch64
+          python3 tools/conformance.py --candidate target/release/rmake \
+            --case gpath-late-merge-ordinary-goal-status \
+            --case late-gpath-double-disjoint-imported-bindings \
+            --case tentative-archive-missing-explicit-member \
+            --case tentative-archive-retained-missing-member \
+            --case tentative-archive-retained-gpath-control \
+            --repeat 2 --artifacts artifacts/file-owner-aarch64 2>&1 \
+            | tee artifacts/file-owner-aarch64/optimized.log
       - name: Check C and C.UTF-8 locale behavior
         timeout-minutes: 3
         run: |
@@ -91,6 +104,7 @@ jobs:
             .tools/oracle/profile.json
             artifacts/developer-flows/
             artifacts/evaluation-aarch64/
+            artifacts/file-owner-aarch64/
             artifacts/locales/aarch64-*.json
             artifacts/integration/
             artifacts/process-restarts/
