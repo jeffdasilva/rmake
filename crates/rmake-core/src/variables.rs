@@ -1918,17 +1918,25 @@ impl VariableStore {
 
     /// Rebase only declared target layers after an eval changes their source
     /// tables. Pattern activation and automatic values stay owned by the file.
-    pub(crate) fn refresh_declared_scopes(
+    pub(crate) fn refresh_declared_scopes<'a>(
         &mut self,
-        scopes: &std::collections::HashMap<Vec<u8>, TargetScope>,
         revision: u64,
+        scope: impl Fn(&[u8], Option<usize>) -> Option<&'a TargetScope>,
     ) {
         if self.target_scope_revision == revision {
             return;
         }
         for index in 0..self.layers.len() {
             let layer = &self.layers[index];
-            if let Some(scope) = layer.target.as_deref().and_then(|name| scopes.get(name))
+            if let Some(name) = layer.target.as_deref()
+                && let Some(scope) = scope(
+                    name,
+                    layer
+                        .variables
+                        .database_history
+                        .as_ref()
+                        .map(TableHistory::identity),
+                )
                 && !Arc::ptr_eq(&layer.variables, &scope.variables)
             {
                 self.layers.make_mut()[index].variables = Arc::clone(&scope.variables);
@@ -2054,6 +2062,30 @@ impl VariableStore {
         let mut read = self.clone();
         read.replace_target_read_declarations(declaration);
         Some(read)
+    }
+
+    pub(crate) fn file_read_table_identity(&self) -> Option<usize> {
+        self.layers
+            .first()
+            .filter(|layer| self.file_locals && !layer.inherited)?
+            .variables
+            .database_history
+            .as_ref()
+            .map(TableHistory::identity)
+    }
+
+    pub(crate) fn active_detached_target_read(&self, declaration: &Self) -> Option<Self> {
+        let identity = declaration.variables.database_history.as_ref()?.identity();
+        if self.file_read_table_identity() != Some(identity) {
+            return None;
+        }
+        let mut read = self.clone();
+        read.replace_target_read_declarations(declaration);
+        Some(read)
+    }
+
+    pub(crate) fn local_binding_slot(&self, name: &[u8]) -> Option<(&Arc<[u8]>, &Variable)> {
+        self.variables.values.get_key_value(name)
     }
 
     pub(crate) fn replace_target_read_declarations(&mut self, declaration: &Self) {
@@ -2972,6 +3004,12 @@ impl PatternVariable {
     }
 }
 
+#[derive(Clone)]
+pub(crate) struct ImportedFileBinding {
+    pub source: Arc<[u8]>,
+    pub destination: Arc<[u8]>,
+}
+
 impl TargetScope {
     pub(crate) fn for_target(name: &[u8]) -> Self {
         Self {
@@ -3049,6 +3087,81 @@ impl TargetScope {
         complete.names_cache = OnceLock::new();
         complete.shell_status_order = None;
         Some(complete)
+    }
+
+    pub(crate) fn disjoint_head_import(
+        &self,
+        from: &[u8],
+        source: Option<&Self>,
+        runtime: &VariableStore,
+    ) -> Option<(Self, VariableStore, Self, Vec<ImportedFileBinding>)> {
+        let mut source = match source {
+            Some(scope) => scope.clone(),
+            None => {
+                let history = runtime.undeclared_own_file_history(from)?;
+                let mut scope = Self::for_target(from);
+                scope.set_file_history(history.clone());
+                scope
+            }
+        };
+        let mut runtime = runtime.clone();
+        if runtime.file_read_table_identity().is_none() {
+            runtime.refresh_target_scope(&source);
+        }
+        let incoming = source.complete_file_bindings(Some(&runtime))?;
+        let existing = self.complete_file_bindings(None)?;
+        let incoming_history = incoming.database_history.as_ref()?;
+        let existing_history = existing.database_history.as_ref()?;
+        if incoming_history.same_table(existing_history)
+            || incoming
+                .values
+                .keys()
+                .any(|name| existing.values.contains_key(name))
+        {
+            return None;
+        }
+        let merged = self.merge_file_bindings(existing, incoming.clone())?;
+        let imports = incoming
+            .order
+            .names()
+            .map(|name| {
+                let (source, _) = incoming.values.get_key_value(name).expect("source slot");
+                let (destination, _) = merged
+                    .variables
+                    .values
+                    .get_key_value(name)
+                    .expect("imported slot");
+                ImportedFileBinding {
+                    source: Arc::clone(source),
+                    destination: Arc::clone(destination),
+                }
+            })
+            .collect();
+        source.retain_read_bindings(&runtime);
+        Some((source, runtime, merged, imports))
+    }
+
+    pub(crate) fn table_identity(&self) -> Option<usize> {
+        self.variables
+            .database_history
+            .as_ref()
+            .map(TableHistory::identity)
+    }
+
+    pub(crate) fn binding_slot(&self, name: &[u8]) -> Option<(&Arc<[u8]>, &Variable)> {
+        self.variables.values.get_key_value(name)
+    }
+
+    pub(crate) fn refresh_imported_slot(&mut self, slot: &Arc<[u8]>, value: &Variable) {
+        if let Some((key, _)) = self.binding_slot(slot)
+            && Arc::ptr_eq(slot, key)
+        {
+            Arc::make_mut(&mut self.variables)
+                .values
+                .get_mut(slot.as_ref())
+                .expect("existing imported binding")
+                .clone_from(value);
+        }
     }
 
     pub(crate) fn merge_completed_file_bindings(

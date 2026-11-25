@@ -577,6 +577,10 @@ pub struct Database {
     /// Target-only variable declarations never create rules or select a goal.
     pub target_scopes: HashMap<Vec<u8>, TargetScope>,
     target_scope_revision: u64,
+    named_head_records:
+        HashMap<crate::file_records::FileRecordId, crate::file_records::FileRecordId>,
+    detached_heads: HashMap<crate::file_records::FileRecordId, DetachedTargetHead>,
+    detached_history_owners: HashMap<usize, crate::file_records::FileRecordId>,
     pub pattern_assignments: Vec<PatternAssignment>,
     pub rules: HashMap<Vec<u8>, Rule>,
     /// Names mentioned by explicit declarations, distinct from inferred graph
@@ -693,12 +697,59 @@ impl Hash for ImplicitRuleKey<'_> {
 #[derive(Clone)]
 struct TargetRead {
     target: Vec<u8>,
+    head: Option<crate::file_records::FileRecordId>,
     global_lexical: crate::variables::DeclarationLexical,
+}
+
+#[derive(Clone)]
+struct DetachedTargetHead {
+    destination: Vec<u8>,
+    scope: TargetScope,
+    runtime: VariableStore,
+    imports: Vec<crate::variables::ImportedFileBinding>,
+}
+
+impl DetachedTargetHead {
+    fn publish_binding(
+        &self,
+        scopes: &mut HashMap<Vec<u8>, TargetScope>,
+        binding: Option<(&std::sync::Arc<[u8]>, &crate::variables::Variable)>,
+    ) {
+        if let Some((slot, value)) = binding
+            && let Some(import) = self
+                .imports
+                .iter()
+                .find(|import| std::sync::Arc::ptr_eq(slot, &import.source))
+            && let Some(destination) = scopes.get_mut(&self.destination)
+        {
+            destination.refresh_imported_slot(&import.destination, value);
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct TargetDeclaration<'a> {
+    name: &'a [u8],
+    head: Option<crate::file_records::FileRecordId>,
+}
+
+impl TargetDeclaration<'_> {
+    fn scope_mut<'a>(
+        self,
+        named: &'a mut HashMap<Vec<u8>, TargetScope>,
+        detached: &'a mut HashMap<crate::file_records::FileRecordId, DetachedTargetHead>,
+    ) -> Option<&'a mut TargetScope> {
+        match self.head {
+            Some(head) => detached.get_mut(&head).map(|head| &mut head.scope),
+            None => named.get_mut(self.name),
+        }
+    }
 }
 
 enum TargetReadOwner {
     Current,
     Suspended(usize),
+    Detached(crate::file_records::FileRecordId),
     Retained(Option<usize>),
 }
 
@@ -896,7 +947,97 @@ impl Database {
     /// Refresh a cached file context without rerunning its pattern effects.
     pub fn refresh_scoped_variables(&self, variables: &mut VariableStore) {
         variables.refresh_globals(&self.variables);
-        variables.refresh_declared_scopes(&self.target_scopes, self.target_scope_revision);
+        variables.refresh_declared_scopes(self.target_scope_revision, |name, history| {
+            self.declaration_scope_for_layer(name, history)
+        });
+    }
+
+    fn declaration_scope_for_layer(
+        &self,
+        name: &[u8],
+        history: Option<usize>,
+    ) -> Option<&TargetScope> {
+        history
+            .and_then(|history| self.detached_history_owners.get(&history))
+            .and_then(|owner| self.detached_heads.get(owner))
+            .map(|head| &head.scope)
+            .or_else(|| self.target_scopes.get(name))
+    }
+
+    fn target_declaration_scope(&self, declaration: TargetDeclaration<'_>) -> Option<&TargetScope> {
+        match declaration.head {
+            Some(head) => self.detached_heads.get(&head).map(|head| &head.scope),
+            None => self.target_scopes.get(declaration.name),
+        }
+    }
+
+    fn named_target_declaration<'a>(&self, name: &'a [u8]) -> TargetDeclaration<'a> {
+        let head = (!self.named_head_records.is_empty())
+            .then(|| self.file_records.id(name))
+            .flatten()
+            .and_then(|id| self.named_head_records.get(&id).copied());
+        TargetDeclaration { name, head }
+    }
+
+    /// A completed head can survive a rename into an unvisited, variable-only
+    /// destination. That file keeps its physical record and gains the head's
+    /// disjoint bindings. Later eager declarations still open the old head.
+    pub fn import_disjoint_file_head(
+        &mut self,
+        from: &[u8],
+        to: &[u8],
+        runtime: &VariableStore,
+    ) -> bool {
+        let Some(source) = self.file_records.id(from) else {
+            return false;
+        };
+        let Some(physical) = self.file_records.id(to) else {
+            return false;
+        };
+        if source == physical
+            || self.detached_heads.contains_key(&source)
+            || self.named_head_records.contains_key(&source)
+            || self.named_head_records.contains_key(&physical)
+        {
+            return false;
+        }
+        let Some((scope, runtime, merged, imports)) =
+            self.target_scopes.get(to).and_then(|destination| {
+                destination.disjoint_head_import(from, self.target_scopes.get(from), runtime)
+            })
+        else {
+            return false;
+        };
+        let history = scope.table_identity().expect("detached file table");
+        self.target_scopes.remove(from);
+        self.target_scopes.insert(to.to_vec(), merged);
+        self.detached_heads.insert(
+            source,
+            DetachedTargetHead {
+                destination: to.to_vec(),
+                scope,
+                runtime,
+                imports,
+            },
+        );
+        self.detached_history_owners.insert(history, source);
+        self.named_head_records.insert(physical, source);
+        self.target_scope_revision = self.target_scope_revision.wrapping_add(1);
+        true
+    }
+
+    pub fn has_detached_file_head(&self, name: &[u8]) -> bool {
+        self.named_target_declaration(name).head.is_some()
+    }
+
+    pub fn is_recreated_file_head_name(&self, name: &[u8], destination: &[u8]) -> bool {
+        name != destination
+            && self
+                .named_target_declaration(destination)
+                .head
+                .and_then(|owner| self.detached_heads.get(&owner))
+                .is_some_and(|head| head.runtime.is_file_read_context(name))
+            && self.file_records.contains(name)
     }
 
     pub fn merge_target_scope(&mut self, from: &[u8], to: &[u8]) {
@@ -968,6 +1109,37 @@ impl Database {
         variables: &mut VariableStore,
         status: &[u8],
     ) -> Result<(), ExpandError> {
+        if !self.detached_history_owners.is_empty()
+            && let Some(owner) = variables
+                .file_read_table_identity()
+                .and_then(|history| self.detached_history_owners.get(&history).copied())
+        {
+            let head = self
+                .detached_heads
+                .get_mut(&owner)
+                .expect("detached file head");
+            if let Some(target) = variables.declared_file_status_name().map(<[u8]>::to_vec)
+                && head.scope.owns_file_status_binding(variables)
+            {
+                head.scope.refresh_read_bindings(variables);
+                variables.with_flag_destination(Some(&target), |file| {
+                    file.define_literal(b".SHELLSTATUS", status, Origin::Override)
+                })?;
+                head.scope.retain_read_bindings(variables);
+                head.publish_binding(
+                    &mut self.target_scopes,
+                    head.scope.binding_slot(b".SHELLSTATUS"),
+                );
+                self.target_scope_revision = self.target_scope_revision.wrapping_add(1);
+            } else {
+                variables.define_shell_status(status)?;
+                head.publish_binding(
+                    &mut self.target_scopes,
+                    variables.local_binding_slot(b".SHELLSTATUS"),
+                );
+            }
+            return Ok(());
+        }
         let target = variables.merged_file_scope_name().or_else(|| {
             variables.declared_file_status_name().filter(|target| {
                 self.rules
@@ -3050,7 +3222,13 @@ impl Database {
         let lookup_scope = if matches!(spec.kind, Assignment::Append | Assignment::Conditional) {
             self.evaluation_scope.as_mut().map(|scope| {
                 scope.refresh_globals(&self.variables);
-                scope.refresh_declared_scopes(&self.target_scopes, self.target_scope_revision);
+                scope.refresh_declared_scopes(self.target_scope_revision, |name, history| {
+                    history
+                        .and_then(|history| self.detached_history_owners.get(&history))
+                        .and_then(|owner| self.detached_heads.get(owner))
+                        .map(|head| &head.scope)
+                        .or_else(|| self.target_scopes.get(name))
+                });
                 scope.clone()
             })
         } else {
@@ -3303,24 +3481,32 @@ impl Database {
                 history.intern(target);
             }
             self.file_records.enter_prerequisite(target);
+            let declaration = self.named_target_declaration(target);
             let raw_name = assignment.spec.name;
             let reads = context.target_reads.as_deref();
             let owner = reads.map(|reads| self.named_target_read_owner(target, reads));
-            let scope = self
-                .target_scopes
-                .entry(target.to_vec())
-                .or_insert_with(|| {
-                    let mut scope = TargetScope::for_target(target);
-                    if let Some(history) = self
-                        .evaluation_scope
-                        .as_ref()
-                        .and_then(|active| active.file_scope_history(target))
-                        .or_else(|| reads?.named_variables(owner?)?.file_scope_history(target))
-                    {
-                        scope.set_file_history(history);
-                    }
-                    scope
-                });
+            let scope = if let Some(head) = declaration.head {
+                &mut self
+                    .detached_heads
+                    .get_mut(&head)
+                    .expect("resolved detached head")
+                    .scope
+            } else {
+                self.target_scopes
+                    .entry(target.to_vec())
+                    .or_insert_with(|| {
+                        let mut scope = TargetScope::for_target(target);
+                        if let Some(history) = self
+                            .evaluation_scope
+                            .as_ref()
+                            .and_then(|active| active.file_scope_history(target))
+                            .or_else(|| reads?.named_variables(owner?)?.file_scope_history(target))
+                        {
+                            scope.set_file_history(history);
+                        }
+                        scope
+                    })
+            };
             let (scope, name) = if raw_name.is_empty() || raw_name.contains(&b'$') {
                 let mut parse_variables = scope.context(&self.variables);
                 let name = self.with_target_read(
@@ -3346,9 +3532,8 @@ impl Database {
                 );
                 // The name may have changed this target's own table. Finish
                 // those effects before selecting the RHS definition owner.
-                let scope = self
-                    .target_scopes
-                    .get_mut(target)
+                let scope = declaration
+                    .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
                     .expect("target declaration");
                 scope.retain_read_bindings(&parse_variables);
                 (scope, name)
@@ -3385,28 +3570,28 @@ impl Database {
             let kind = assignment.spec.kind;
             let scope = if name == b".SHELLSTATUS"
                 && scope.get(&name).is_none()
-                && self
-                    .rules
-                    .get(target)
-                    .is_some_and(|rule| rule.double_colon.is_none() && rule.group.is_none())
+                && (declaration.head.is_some()
+                    || self
+                        .rules
+                        .get(target)
+                        .is_some_and(|rule| rule.double_colon.is_none() && rule.group.is_none()))
             {
                 let mut declarations = scope.context(&self.variables);
                 let assigned = self
                     .assign_existing_file_status(
-                        target,
+                        declaration,
                         &mut declarations,
                         &assignment,
                         location,
                         context.at(Some(location)),
                     )
                     .map_err(parse_error)?;
-                let scope = self
-                    .target_scopes
-                    .get_mut(target)
+                let scope = declaration
+                    .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
                     .expect("target declaration");
                 if assigned {
                     scope.retain_read_bindings(&declarations);
-                    self.publish_target_scope(target);
+                    self.publish_target_scope(declaration, &name);
                     continue;
                 }
                 scope
@@ -3426,9 +3611,8 @@ impl Database {
                         context.at(Some(location)),
                     )
                     .map_err(parse_error)?;
-                let scope = self
-                    .target_scopes
-                    .get_mut(target)
+                let scope = declaration
+                    .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
                     .expect("target declaration");
                 if let Some(owner) = replayed {
                     scope.retain_read_bindings(&declarations);
@@ -3436,7 +3620,7 @@ impl Database {
                         self.variables
                             .qualify_global_target_flags(assignment.private, assignment.export);
                     }
-                    self.publish_target_scope(target);
+                    self.publish_target_scope(declaration, &name);
                     continue;
                 }
                 scope
@@ -3461,12 +3645,12 @@ impl Database {
                         assignment.private,
                         assignment.export,
                     ) {
-                        self.publish_target_scope(target);
+                        self.publish_target_scope(declaration, &name);
                         continue;
                     }
                 }
-                self.target_scopes
-                    .get_mut(target)
+                declaration
+                    .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
                     .expect("target declaration")
             } else {
                 scope
@@ -3498,7 +3682,9 @@ impl Database {
                 );
                 self.variables = globals;
                 if result.is_ok() {
-                    self.target_scopes.insert(target.to_vec(), updated);
+                    *declaration
+                        .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
+                        .expect("target declaration") = updated;
                 }
                 result
             } else {
@@ -3516,7 +3702,7 @@ impl Database {
                 )
             };
             let lookup_origin = result.map_err(parse_error)?;
-            self.publish_target_scope(target);
+            self.publish_target_scope(declaration, &name);
             if lookup_origin
                 && !self
                     .evaluation_bindings
@@ -3529,13 +3715,12 @@ impl Database {
                     .unwrap_or(&self.variables)
                     .target_command_value(&name)
                     .map_err(parse_error)?
-                && self
-                    .target_scopes
-                    .get_mut(target)
+                && declaration
+                    .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
                     .expect("target declaration")
                     .adopt_target_command_value(&name, value)
             {
-                self.publish_target_scope(target);
+                self.publish_target_scope(declaration, &name);
             }
         }
         Ok(has_targets)
@@ -3570,22 +3755,26 @@ impl Database {
         })
     }
 
-    fn publish_target_scope(&mut self, target: &[u8]) {
+    fn publish_target_scope(&mut self, declaration: TargetDeclaration<'_>, name: &[u8]) {
         self.target_scope_revision = self.target_scope_revision.wrapping_add(1);
-        self.target_scopes
-            .get_mut(target)
+        declaration
+            .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
             .expect("published target declaration")
             .declaration_revision = self.target_scope_revision;
-        if let Some(active) = self.evaluation_scope.as_mut() {
-            active.refresh_globals(&self.variables);
-            active.refresh_declared_scopes(&self.target_scopes, self.target_scope_revision);
-            if self
-                .target_read
-                .as_ref()
-                .is_some_and(|read| read.target == target)
-            {
-                self.target_scopes[target].refresh_read_bindings(active);
+        if let Some(owner) = declaration.head {
+            let head = &self.detached_heads[&owner];
+            head.publish_binding(&mut self.target_scopes, head.scope.binding_slot(name));
+        }
+        if let Some(mut active) = self.evaluation_scope.take() {
+            self.refresh_scoped_variables(&mut active);
+            if self.target_read.as_ref().is_some_and(|read| {
+                read.target == declaration.name && read.head == declaration.head
+            }) {
+                self.target_declaration_scope(declaration)
+                    .expect("target declaration")
+                    .refresh_read_bindings(&mut active);
             }
+            self.evaluation_scope = Some(active);
         }
     }
 
@@ -3709,8 +3898,22 @@ impl Database {
         caller: Option<&VariableStore>,
         context: &ExpansionContext<'_>,
     ) -> Option<(TargetReadOwner, VariableStore)> {
+        let declaration = self.named_target_declaration(target);
+        let active_read = |active: &VariableStore| {
+            if declaration.head.is_some() {
+                return active.active_detached_target_read(scope);
+            }
+            if !self.detached_history_owners.is_empty()
+                && active
+                    .file_read_table_identity()
+                    .is_some_and(|identity| self.detached_history_owners.contains_key(&identity))
+            {
+                return None;
+            }
+            active.active_target_read(target, scope)
+        };
         caller
-            .and_then(|caller| caller.active_target_read(target, scope))
+            .and_then(active_read)
             .map(|read| (TargetReadOwner::Current, read))
             .or_else(|| {
                 self.suspended_target_reads
@@ -3718,12 +3921,18 @@ impl Database {
                     .enumerate()
                     .rev()
                     .find_map(|(index, caller)| {
-                        caller
-                            .active_target_read(target, scope)
-                            .map(|read| (TargetReadOwner::Suspended(index), read))
+                        active_read(caller).map(|read| (TargetReadOwner::Suspended(index), read))
                     })
             })
             .or_else(|| {
+                if let Some(head) = declaration.head {
+                    return self
+                        .detached_heads
+                        .get(&head)?
+                        .runtime
+                        .active_detached_target_read(scope)
+                        .map(|read| (TargetReadOwner::Detached(head), read));
+                }
                 let reads = context.target_reads.as_deref()?;
                 let owner = self.named_target_read_owner(target, reads);
                 self.retained_target_read(owner, scope, reads, caller)
@@ -3747,45 +3956,56 @@ impl Database {
 
     fn assign_existing_file_status(
         &mut self,
-        target: &[u8],
+        declaration: TargetDeclaration<'_>,
         declarations: &mut VariableStore,
         assignment: &TargetAssignment<'_>,
         location: &Location,
         context: ExpansionContext<'_>,
     ) -> Result<bool, ExpandError> {
         let name = b".SHELLSTATUS";
-        self.with_target_read(target, declarations, context, |database, read, context| {
-            if !read.is_file_read_context(target)
-                || read
-                    .local_shell_status()
-                    .is_none_or(|status| status.origin() < Origin::Override)
-            {
-                return Ok(false);
-            }
-            // This status already occupies a slot in the file's logical
-            // local table. Resolve the new assignment against that binding.
-            read.define_with_using(
-                name,
-                assignment.spec.value,
-                assignment.spec.kind,
-                assignment.origin,
-                Some(location),
-                context,
-                None,
-                None,
-                |read, bytes, shell, context| {
-                    if shell {
-                        crate::variables::shell_scoped_database(database, read, bytes, context)
-                    } else {
-                        crate::variables::expand_scoped_database::<false>(
-                            database, read, bytes, context,
-                        )
-                    }
-                },
-            )?;
-            read.qualify_local_target_binding(name, assignment.private, assignment.export);
-            Ok(true)
-        })
+        self.with_target_read(
+            declaration.name,
+            declarations,
+            context,
+            |database, read, context| {
+                if (declaration.head.is_none() && !read.is_file_read_context(declaration.name))
+                    || read
+                        .local_shell_status()
+                        .is_none_or(|status| status.origin() < Origin::Override)
+                {
+                    return Ok(false);
+                }
+                // This status already occupies a slot in the file's logical
+                // local table. Resolve the new assignment against that binding.
+                read.define_with_using(
+                    name,
+                    assignment.spec.value,
+                    assignment.spec.kind,
+                    assignment.origin,
+                    Some(location),
+                    context,
+                    None,
+                    None,
+                    |read, bytes, shell, context| {
+                        if shell {
+                            crate::variables::shell_scoped_database(database, read, bytes, context)
+                        } else {
+                            crate::variables::expand_scoped_database::<false>(
+                                database, read, bytes, context,
+                            )
+                        }
+                    },
+                )?;
+                read.qualify_local_target_binding(name, assignment.private, assignment.export);
+                if let Some(owner) = declaration.head {
+                    database.detached_heads[&owner].publish_binding(
+                        &mut database.target_scopes,
+                        read.local_binding_slot(name),
+                    );
+                }
+                Ok(true)
+            },
+        )
     }
 
     fn expand_target_read(
@@ -3847,8 +4067,10 @@ impl Database {
             scope.add_declaration_lexical(&global_lexical);
             &mut *scope
         };
+        let declaration = self.named_target_declaration(target);
         let parent = self.target_read.replace(TargetRead {
             target: target.to_vec(),
+            head: declaration.head,
             global_lexical,
         });
         let previous_bindings = std::mem::take(&mut self.evaluation_bindings);
@@ -3862,6 +4084,13 @@ impl Database {
                     .retain_file_locals(read),
                 TargetReadOwner::Suspended(index) => {
                     self.suspended_target_reads[index].retain_file_locals(read);
+                }
+                TargetReadOwner::Detached(head) => {
+                    self.detached_heads
+                        .get_mut(&head)
+                        .expect("retained head")
+                        .runtime
+                        .retain_file_locals(read);
                 }
                 TargetReadOwner::Retained(branch) => {
                     if retained_before.is_some_and(|before| !read.same_file_locals(&before)) {
@@ -3888,7 +4117,10 @@ impl Database {
             // declaration can publish an update to that table while it is paused.
             if let (Some(parent), Some(scope)) = (&parent, &mut previous_scope)
                 && !scope.is_file_read_context(&parent.target)
-                && let Some(declarations) = self.target_scopes.get(&parent.target)
+                && let Some(declarations) = self.target_declaration_scope(TargetDeclaration {
+                    name: &parent.target,
+                    head: parent.head,
+                })
             {
                 declarations.refresh_read_bindings(scope);
             }
@@ -4552,10 +4784,13 @@ impl Database {
         // preceding changes before re-entering the reader; it refreshes the
         // saved scope when another declaration commits to the same owner.
         if let (Some(read), Some(scope)) = (&self.target_read, scope.as_deref()) {
-            self.target_scopes
-                .get_mut(&read.target)
-                .expect("active target declaration")
-                .retain_read_bindings(scope);
+            TargetDeclaration {
+                name: &read.target,
+                head: read.head,
+            }
+            .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
+            .expect("active target declaration")
+            .retain_read_bindings(scope);
         }
         let previous_scope =
             std::mem::replace(&mut self.evaluation_scope, scope.as_deref().cloned());

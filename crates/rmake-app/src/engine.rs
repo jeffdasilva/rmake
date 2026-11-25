@@ -9009,6 +9009,31 @@ impl Engine {
             && self
                 .database_branch_contexts
                 .contains_key(&(from.to_vec(), 0));
+        let disjoint_file_head = retained_head
+            && tentative_archive.is_none()
+            && self.direct_named_head_reads()
+            && self.gpath_match(from, to)
+            && destination_has_scope
+            && self.database.has_plain_double_colon_rules(from)
+            && self
+                .file_traversals
+                .outcome(from)
+                .is_some_and(|outcome| !outcome.failed)
+            && self.file_traversals.visit(to).is_none()
+            && !self.target_contexts.contains_key(to)
+            && !self.database_contexts.contains_key(to)
+            && self.database.rules.get(to).is_none_or(|rule| {
+                rule.record_only && rule.group.is_none() && rule.double_colon.is_none()
+            })
+            && rmake_core::filenames::archive_parts(from).is_none()
+            && rmake_core::filenames::archive_parts(to).is_none()
+            && !self.aliases.contains_source_or_destination(from)
+            && !self.aliases.contains_source_or_destination(to)
+            && self.database.import_disjoint_file_head(
+                from,
+                to,
+                &self.database_branch_contexts[&(from.to_vec(), 0)],
+            );
         // An unseen destination without a declaration table can adopt the
         // completed file's ordinary table or declared double-colon head.
         let adopt_retained_scope = (retained_head
@@ -9191,6 +9216,9 @@ impl Engine {
                 // source file's recipe stem through GNU's record merge.
                 if merged {
                     source.stem = None;
+                }
+                if disjoint_file_head && let Some(branches) = &mut source.double_colon {
+                    branches.truncate(1);
                 }
                 self.database.rules.insert(to.to_vec(), source);
             }
@@ -10120,6 +10148,13 @@ impl Engine {
                         outcome.fatal = true;
                     }
                     self.file_traversals.set_outcome(&name, outcome);
+                    if self.database.has_detached_file_head(&name) {
+                        // A new record can reuse the old lookup key. Keep the
+                        // completed update on its physical destination.
+                        self.file_traversals.remove_outcome(target);
+                        self.record_graph_failure(outcome);
+                        return outcome;
+                    }
                 }
             }
             Err(error) => {

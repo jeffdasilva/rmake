@@ -914,6 +914,9 @@ impl TableHistory {
     pub fn stats(&self) -> HashStats {
         self.with(|table| table.stats())
     }
+    pub(crate) fn identity(&self) -> usize {
+        std::sync::Arc::as_ptr(&self.0) as usize
+    }
     pub(crate) fn same_table(&self, other: &Self) -> bool {
         std::sync::Arc::ptr_eq(&self.0, &other.0)
     }
@@ -1281,6 +1284,8 @@ pub struct AutomaticVariables<'a> {
 #[derive(Clone, Copy, Debug)]
 pub struct FileView<'a> {
     pub name: &'a [u8],
+    /// The row owns this spelling even when a graph alias has the same name.
+    pub preserve_name: bool,
     pub rule: Option<&'a Rule>,
     pub expanded_prerequisites: Option<&'a [Dependency]>,
     pub is_target: bool,
@@ -1311,6 +1316,7 @@ impl<'a> FileView<'a> {
     pub fn unchecked(name: &'a [u8], rule: Option<&'a Rule>) -> Self {
         Self {
             name,
+            preserve_name: false,
             rule,
             expanded_prerequisites: None,
             is_target: rule.is_some_and(|rule| !rule.record_only),
@@ -1378,7 +1384,11 @@ impl<'a, W: Write> FilePrinter<'a, W> {
     pub fn write(&mut self, file: FileView<'_>) -> io::Result<()> {
         let names = self.names;
         let presentation = self.presentation;
-        let file_name = resolved_file_name(names, file.name);
+        let file_name = if file.preserve_name {
+            file.name
+        } else {
+            resolved_file_name(names, file.name)
+        };
         let output = &mut self.output;
         output.write_all(b"\n")?;
         if let Some(recipes) = file.rule.and_then(|rule| rule.recipes.as_ref()) {

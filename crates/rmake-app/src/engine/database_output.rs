@@ -183,6 +183,12 @@ impl Engine {
                                 snapshot.view.target_variables,
                             ));
                     }
+                } else if self
+                    .database
+                    .is_recreated_file_head_name(name, self.aliases.resolve(name))
+                {
+                    snapshot.view.command_line = false;
+                    snapshot.view.preserve_name = true;
                 } else if moved_original_names.contains(name) {
                     snapshot.view.command_line = false;
                 }
@@ -279,13 +285,18 @@ impl Engine {
     ) -> io::Result<FileSnapshot<'a>> {
         let is_head = branch.is_none_or(|ordinal| ordinal == 0);
         let branch_key = branch.map(|ordinal| (name.to_vec(), ordinal));
-        let variables = if let Some(key) = &branch_key {
+        let detached_head = is_head && self.database.has_detached_file_head(name);
+        let variables = if detached_head {
+            // The canonical hash entry owns a different table from the head
+            // selected by eager declarations.
+            None
+        } else if let Some(key) = &branch_key {
             self.database_branch_contexts.get(key)
         } else {
             self.database_contexts.get(name)
         }
         .or_else(|| {
-            if is_head {
+            if is_head && !detached_head {
                 self.target_contexts.get(name)
             } else {
                 None
@@ -372,7 +383,11 @@ impl Engine {
                     .contains_key(&(name.to_vec(), branches.len() - 1))
             })
             .and_then(|_| self.file_traversals.outcome(name));
-        let timestamp_outcome = shared_time.or(outcome);
+        let timestamp_outcome = if detached_head {
+            self.file_traversals.outcome(name).or(outcome)
+        } else {
+            shared_time.or(outcome)
+        };
         let peer_time =
             branch.and_then(|ordinal| self.database_group_peer_times.get(name)?.get(ordinal));
         let (database_result, cached) = if let Some(GroupPeerTime::Observed(time)) = peer_time {
@@ -383,6 +398,7 @@ impl Engine {
             let retained = || times.get(name).copied().flatten();
             let outcome_time = || timestamp_outcome.and_then(|outcome| outcome.time);
             let cached = match result {
+                _ if detached_head => outcome_time().or_else(retained),
                 DatabaseResult::ObservedGroup if branch.is_some() => outcome_time(),
                 DatabaseResult::ObservedGroup | DatabaseResult::ObservedDoubleColon => retained(),
                 _ => outcome_time()
@@ -459,7 +475,11 @@ impl Engine {
         }
         if let Some(outcome) = outcome {
             view.updated = true;
-            view.status = if outcome.failed {
+            view.status = if detached_head {
+                // Rehash copies the updated flag onto the unvisited physical
+                // destination and leaves its update result untouched.
+                FileStatus::Unattempted
+            } else if outcome.failed {
                 FileStatus::Failed
             } else if outcome.question_outdated {
                 FileStatus::Question
