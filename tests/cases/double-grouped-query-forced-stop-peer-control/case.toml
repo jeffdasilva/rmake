@@ -1,0 +1,11 @@
+id = "double-grouped-query-forced-stop-peer-control"
+requirement = "rules.grouped"
+candidate = "required"
+description = "A forced command's query verdict stops grouped peer expansion."
+provenance = "Original rmake fixture independently checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "-q", "a"]
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""

@@ -1,0 +1,12 @@
+id = "named-remake-query-summary-double-head-control"
+requirement = "includes.named-remake-mode"
+candidate = "required"
+description = "The current double-colon head keeps its success summary when the tail returns a query verdict"
+provenance = "Original rmake regression independently authored against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-n", "b.mk"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 1
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

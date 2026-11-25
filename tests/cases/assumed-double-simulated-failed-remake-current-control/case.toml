@@ -1,0 +1,10 @@
+id = "assumed-double-simulated-failed-remake-current-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A current synthetic entry has a physical clock and the unrelated failure suppresses restart."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

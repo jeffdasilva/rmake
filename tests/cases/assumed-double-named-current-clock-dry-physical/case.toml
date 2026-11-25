@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-dry-physical"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "A forced declared recipe updates the physical clock under the existing named dry-run policy."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "touch -d @1680300040 b.mk && printf 'declared=%s\\n' '0' >> proof\nmake: 'b.mk' is up to date.\n"
+stderr = ""

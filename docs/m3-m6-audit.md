@@ -191,6 +191,13 @@ also retains the result of a failed optional makefile recipe seen earlier,
 including when `-k` is absent. More cases remain for duplicate peers, mixed
 failure policies, and parallel scheduling and tracing.
 
+An unavailable prerequisite during a parallel remake now emits the failure
+event under basic debugging for optional sources and for required remakes with
+`-k`. The [remake debug fixtures](../tests/debug-output/remake-cache-phase.toml)
+cover missing leaves, order-only inputs, shared prerequisites and cache visits.
+The held abort fixture also checks that a required failure still drains the
+running worker without announcing another prerequisite wait.
+
 Cached prerequisite failures already reported by a required remake now retain
 their reporting state through an optional visit, as checked by the
 [shared-failure regression](../tests/cases/optional-cached-failure-required-two/Makefile).
@@ -220,14 +227,22 @@ read positions, ordinary and order-only prerequisites, implicit rules, recursive
 recipes and workers already started by earlier includes. Held shuffle controls
 separate ordinary goal order from remake order.
 
-For ordinary explicit single-colon grouped targets under `-q` without `-k`, a query
-verdict ends the current member's dependency scan. Later members still begin
-their own scans. A forced recipe can stop the whole query. The
+For ordinary explicit grouped targets under `-q` without `-k`, a query verdict
+ends the current member's dependency scan. Later members still begin their own
+scans. A forced recipe can stop the whole query. The
 [grouped query fixtures](../tests/cases/grouped-query-expands-and-runs-first-peer-edge/Makefile)
 check expansion effects, forced recipes and missing prerequisites. The
+[double-colon fixtures](../tests/cases/double-grouped-query-expands-and-runs-peer/Makefile)
+cover the same member scan and its later branch verdict. The
 [parallel models](../tests/debug-output/grouped-single-wait-frontiers.toml)
-also cover live workers, `.WAIT` boundaries and cached debug events. Grouped
-double-colon queries still need separate validation.
+also cover live workers, `.WAIT` boundaries and cached debug events. Combined
+query modes and later queued goals still need broader validation.
+
+A retained query verdict suppresses the ordinary success summary after a
+single-colon goal or prerequisite is found out of date. Double-colon goals can
+still report a current head when a later branch supplies the query verdict. The
+[named query fixtures](../tests/cases/named-remake-query-summary-double-head-control/Makefile)
+check the summary and exit status together.
 
 [Serial remake diagnostics](debug-output.md) cover double-colon failure recovery,
 returned failures and cached visits to required and optional declarations.
@@ -321,6 +336,9 @@ and line/target synchronization. Further combinations remain required.
 Extend native setup, callbacks, shutdown, source restarts and standard-stream
 handling across startup phases, profiles and resource failures. Preserve
 registration, allocator and callback ownership through those combinations.
+When a remake pass returns a query verdict, unloaded modules stay closed.
+The [native lifecycle gate](native-modules.md) checks query, dry-run and
+ordinary reload behavior.
 GNU Make remains an external test reference and cannot serve as a runtime
 implementation fallback.
 

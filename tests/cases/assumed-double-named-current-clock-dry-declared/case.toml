@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-dry-declared"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "A simulated declared recipe keeps the chain logically new."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "printf 'declared=%s\\n' '0' >> proof\nmake: 'b.mk' is up to date.\n"
+stderr = ""

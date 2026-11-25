@@ -1,0 +1,12 @@
+id = "include-live-touch-query-control"
+requirement = "includes.remake"
+candidate = "required"
+description = "A physical touch under a live query leaves the read pass unchanged"
+provenance = "Original rmake fixture with independent output and physical timestamp checks against GNU 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read|\ntouch b.mk\ngoal|\n"
+stderr = ""

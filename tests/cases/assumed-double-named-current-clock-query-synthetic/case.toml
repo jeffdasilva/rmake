@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-query-synthetic"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "An out-of-date synthetic query keeps the original read."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""

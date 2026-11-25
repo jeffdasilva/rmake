@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-query-current"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "A current required source can restart during a named query."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

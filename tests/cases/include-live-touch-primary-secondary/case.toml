@@ -1,0 +1,12 @@
+id = "include-live-touch-primary-secondary"
+requirement = "includes.remake"
+candidate = "required"
+description = "A physical touch of the primary makefile during secondary expansion triggers a restart"
+provenance = "Original rmake fixture with independent output and physical timestamp checks against GNU 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "read|\ntouch Makefile\nread|1\ngoal|1\n"
+stderr = ""

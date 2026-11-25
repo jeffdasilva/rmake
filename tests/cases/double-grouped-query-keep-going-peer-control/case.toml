@@ -1,0 +1,11 @@
+id = "double-grouped-query-keep-going-peer-control"
+requirement = "rules.grouped"
+candidate = "required"
+description = "Keep-going continues through a grouped peer's remaining prerequisites without visiting an independent declaration."
+provenance = "Original rmake fixture independently checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "-q", "-k", "a"]
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""

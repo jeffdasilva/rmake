@@ -193,6 +193,25 @@ def lifecycle_models() -> list[Model]:
                         (Module(defines=('PROBE_TRACE_SETUP', 'PROBE_VERSION=1')),
                          Module(filename='replacement.so', defines=('PROBE_TRACE_SETUP', 'PROBE_VERSION=2'))),
                         mtimes_ns={'probe_api.so': 1_000_000_000, 'replacement.so': 2_000_000_000}))
+    unchanged = (b'load probe_api.so\nall:;@echo goal\n'
+                 b'probe_api.so: seed\n\t@echo rebuilt\n')
+    image_lifetime = b'constructor\nsetup\ndestructor\n'
+    for name, arguments, status, stdout, lifetimes in (
+        ('query', ('-q', 'probe_api.so'), 1, b'', 1),
+        ('query-keep', ('-q', '-k', 'probe_api.so'), 1, b'', 1),
+        ('dry', ('-n', 'probe_api.so'), 0,
+         b"echo rebuilt\nmake: 'probe_api.so' is up to date.\n", 2),
+        ('normal', ('all',), 0, b'rebuilt\ngoal\n', 2),
+    ):
+        result.append(Model(
+            f'native-remake-reload-{name}',
+            {'Makefile': unchanged, 'seed': b'newer\n', 'seen': b'anchor\n'},
+            {'exit_code': status, 'stdout_hex': stdout.hex(), 'stderr_hex': ''},
+            b'anchor\n' + image_lifetime * lifetimes,
+            (Module(defines=('PROBE_TRACE_SETUP', 'PROBE_LIFECYCLE')),),
+            args=('-rR', '--no-print-directory', *arguments),
+            mtimes_ns={'probe_api.so': INPUT_TIME_NS, 'seed': INPUT_TIME_NS + 1_000_000_000},
+        ))
     parent = (b'$(file >>seen,before)\n.PHONY: all child after\nall: child after\nchild:\n'
               b'\t+@$(MAKE) --no-print-directory -f native-child.mk\nafter:\n\t@:\n')
     child = (b'load probe_api.so\n.PHONY: all worker bad\nall: worker bad\nworker:\n'

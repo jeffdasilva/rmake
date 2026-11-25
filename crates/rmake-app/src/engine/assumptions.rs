@@ -186,6 +186,15 @@ impl Engine {
         })
     }
 
+    pub(super) fn single_assumed_new_double_colon_time(&self, name: &[u8]) -> Option<SystemTime> {
+        let files = self.assumptions.as_ref()?;
+        let entry = files.entries.get(name)?;
+        (files.new_active
+            && entry.bits & (OLD | DOUBLE_COLON) == DOUBLE_COLON
+            && entry.new_count == 1)
+            .then_some(files.new)
+    }
+
     pub(super) fn assumed_new_double_colon_time(&self, name: &[u8]) -> Option<SystemTime> {
         self.assumptions
             .as_ref()

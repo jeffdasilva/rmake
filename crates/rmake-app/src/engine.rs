@@ -1242,8 +1242,8 @@ struct GroupState {
 }
 
 impl GroupState {
-    fn ordinary_explicit_single_colon(&self) -> bool {
-        self.run.ordinary && !self.run.implicit && self.run.double_colon.is_none()
+    fn ordinary_explicit(&self) -> bool {
+        self.run.ordinary && !self.run.implicit
     }
 }
 
@@ -3824,6 +3824,13 @@ impl Engine {
             self.remaking = true;
             self.defer_stopped_remake_load = ordinary_mode;
             let mut changed = false;
+            let named_assumed_mode = !modes.touch && modes.dry_run != modes.question;
+            let track_assumed_remake = !parallel_remakes
+                && (!modes.active() || named_assumed_mode)
+                && restarts == 0
+                && self.assumptions.is_some();
+            let mut assumed_remake_changed = false;
+            let mut assumed_remake_blocked = false;
             let mut grouped_changes =
                 (!parallel_remakes && !ordinary_mode).then(SerialGroupedRemakeChanges::default);
             let mut ran_remake_recipe = false;
@@ -4071,15 +4078,46 @@ impl Engine {
                     && !self.parallel_makefile_remakes
                     && !modes.active()
                     && self.observed_failed_duplicate_peer(name);
+                let track_named_source = track_assumed_remake && named_assumed_mode && named_source;
+                let mut source_started_command = false;
                 let mut result = self.build_recording_initial_time(
                     name,
                     None,
                     0,
                     initial_time,
                     build_visit,
-                    None,
+                    track_named_source.then_some(&mut source_started_command),
                 );
                 let chain_failed = result.failed;
+                if track_assumed_remake {
+                    // This verdict belongs to the source pass. A later
+                    // failure can override a logical timestamp change.
+                    assumed_remake_blocked |=
+                        chain_failed || result.fatal || result.question_outdated;
+                    if !assumed_remake_blocked
+                        && !assumed_remake_changed
+                        && !makefile.missing
+                        && let Some(before) = before.flatten()
+                    {
+                        let regular_visit = !modes.active()
+                            && !visit_modes.active()
+                            && !MakefileModes::from_options(&self.options).active();
+                        // A named dry-run or query can leave every branch
+                        // current. A simulated declaration can propagate its
+                        // assumed-new time to the entire chain.
+                        let current_named_source = track_named_source
+                            && !source_started_command
+                            && !result.ran
+                            && matches!(
+                                result.completion,
+                                CompletionTime::Unchanged | CompletionTime::Preserve
+                            )
+                            && self.modified(name) == Some(before);
+                        if regular_visit || current_named_source {
+                            assumed_remake_changed = self.settled_assumed_new_makefile_clock(name);
+                        }
+                    }
+                }
                 if let Some(changes) = &mut grouped_changes {
                     changes.failed |= chain_failed;
                 }
@@ -4292,7 +4330,13 @@ impl Engine {
                         .remove(&makefile.name);
                     // A completed recipe can invalidate the makefile's time.
                     // Expansion effects alone leave its cached observation intact.
-                    let record_change = visit_modes.check_update(result);
+                    // Expansion can enable touch after the visit's initial
+                    // modes were set. Check the resulting physical update.
+                    let record_change = visit_modes.check_update(result)
+                        || (!visit_modes.active()
+                            && self.options.touch
+                            && !result.question_outdated
+                            && MakefileModes::from_options(&self.options).check_update(result));
                     // Question mode suppresses the restart verdict, but a
                     // physical optional touch can still end this visit pass.
                     let check_optional_touch = optional
@@ -4633,9 +4677,23 @@ impl Engine {
                     }
                 }
             }
+            changed |= assumed_remake_changed && !assumed_remake_blocked && !unsuccessful_remake;
             changed |= grouped_changes
                 .as_ref()
                 .is_some_and(SerialGroupedRemakeChanges::changed);
+            if !changed
+                && track_assumed_remake
+                && modes.dry_run
+                && optional_remake_failed
+                && !failed
+                && !remake_question
+            {
+                changed = self.failed_remake_has_simulated_assumed_source(
+                    &read_files,
+                    &visited,
+                    named_sources.as_ref(),
+                );
+            }
             // A skipped required read suppresses an otherwise successful
             // restart. A failed remake still checks for physically updated peers.
             if changed && !remake_question && (!skipped_required_read || unsuccessful_remake) {
@@ -4653,11 +4711,17 @@ impl Engine {
                 // goal activity only for recipes started in that phase.
                 self.file_traversals.clear_recipe_activity();
             }
-            for module in crate::native::unloaded() {
-                let location = self.database.loaded_modules.get(&module).cloned();
-                if let Err(error) = self.native_module_operation(&module, location.as_ref(), true) {
-                    self.expansion_error(location.as_ref(), &error);
-                    return 2;
+            // A query verdict leaves any objects unloaded by the remake pass
+            // in that state for the ordinary goals.
+            if !remake_question {
+                for module in crate::native::unloaded() {
+                    let location = self.database.loaded_modules.get(&module).cloned();
+                    if let Err(error) =
+                        self.native_module_operation(&module, location.as_ref(), true)
+                    {
+                        self.expansion_error(location.as_ref(), &error);
+                        return 2;
+                    }
                 }
             }
             false
@@ -5717,7 +5781,7 @@ impl Engine {
             || self.graph_abort.is_some()
             || self.shutdown.get() != Shutdown::Running
             || outcome.fatal
-            || (!self.options.keep_going && (outcome.failed || outcome.question_outdated))
+            || (!self.options.keep_going && outcome.failed)
             || outcome.replayed_double_colon_goal_failure
         {
             return;
@@ -5732,7 +5796,30 @@ impl Engine {
             // Each extra goal entry returns to the same considered chain head.
             let count = branches.len() + usize::from(self.visited_cached_double_colon_input(name));
             let mut repeats = count.saturating_sub(1);
-            if self.remaking && self.optional_remake() && outcome.remake_group_peer_updated {
+            if outcome.question_outdated && !self.options.keep_going {
+                if !self.options.question
+                    || self.remaking
+                    || self.active_makefile_remake.is_some()
+                    || self.options.goals.len() > 1
+                    || self.ordinary_queries.first_verdict.is_some()
+                    || self.forced_query_stop
+                    || self.pending(name)
+                {
+                    return;
+                }
+                // Earlier declarations revisit the chain head before the
+                // declaration with the first query verdict stops the goal.
+                let mut key = (name.to_vec(), 0);
+                let Some(ordinal) = (0..branches.len()).find(|ordinal| {
+                    key.1 = *ordinal;
+                    self.database_branch_outcomes
+                        .get(&key)
+                        .is_some_and(|branch| branch.question_outdated)
+                }) else {
+                    return;
+                };
+                repeats = ordinal;
+            } else if self.remaking && self.optional_remake() && outcome.remake_group_peer_updated {
                 // An optional source advances after its first declaration
                 // already updated as another group's peer. Earlier entries
                 // can still revisit and prune the fresh chain head.
@@ -5876,7 +5963,14 @@ impl Engine {
             && !self.globally_silent()
         {
             let identity = self.aliases.resolve(goal);
-            let has_recipe = self.database.rules.get(identity).is_some_and(|rule| {
+            let rule = self.database.rules.get(identity);
+            // A live query can leave a verdict after makefile remaking restores
+            // the invocation mode. A double-colon head can still be current
+            // while a later declaration returns a query verdict.
+            if outcome.question_outdated && rule.is_none_or(|rule| rule.double_colon.is_none()) {
+                return;
+            }
+            let has_recipe = rule.is_some_and(|rule| {
                 rule.recipes.is_some()
                     || rule
                         .double_colon
@@ -10790,10 +10884,7 @@ impl Engine {
                 self.show_makefile_error();
                 self.report_missing_rule(target, parent.map(|parent| parent.target));
             }
-            let serial_remake = self.remaking && !self.parallel_makefile_remakes;
-            if (self.optional_remake() && (depth == 0 || serial_remake))
-                || (self.options.keep_going && (!self.remaking || serial_remake))
-            {
+            if self.optional_remake() || self.options.keep_going {
                 crate::debug::emit(
                     &self.output,
                     crate::debug::Event::Failed(target, debug_depth),
@@ -10933,6 +11024,83 @@ impl Engine {
         }
         let branches = self.database.rules.get(target)?.double_colon.as_ref()?;
         Some(branches.len())
+    }
+
+    fn settled_assumed_new_makefile_branch(&self, source: &[u8]) -> Option<(SystemTime, Outcome)> {
+        let name = self.aliases.resolve(source);
+        let assumed_time = self.single_assumed_new_double_colon_time(name)?;
+        let declarations = self.database.rules.get(name)?.double_colon.as_ref()?;
+        let branch = *self
+            .database_branch_outcomes
+            .get(&(name.to_vec(), declarations.len()))?;
+        (!branch.failed && !branch.fatal && !branch.question_outdated)
+            .then_some((assumed_time, branch))
+    }
+
+    fn settled_assumed_new_makefile_clock(&self, source: &[u8]) -> bool {
+        // An existing source's synthetic entry can settle on a physical
+        // timestamp even if its recipe did not need to run. Compare it
+        // with that entry's own initial assumed timestamp.
+        self.settled_assumed_new_makefile_branch(source)
+            .is_some_and(|(assumed_time, branch)| {
+                !matches!(
+                    branch.completion,
+                    CompletionTime::AssumeNew | CompletionTime::AssumeNewPhony
+                ) && branch.time.is_some_and(|time| time != assumed_time)
+            })
+    }
+
+    fn failed_remake_has_simulated_assumed_source(
+        &self,
+        read_files: &[(Makefile, bool)],
+        visited: &MakefileVisits<'_>,
+        named_sources: Option<&HashSet<&[u8]>>,
+    ) -> bool {
+        let failed = read_files.iter().find_map(|(source, skip)| {
+            let name = source.name.as_slice();
+            let target = self.aliases.resolve(name);
+            (!*skip
+                && source.optional
+                && visited.contains_key(name)
+                && self.file_traversals.outcome(target).is_some_and(|outcome| {
+                    outcome.failed && !outcome.fatal && !outcome.question_outdated
+                }))
+            .then_some(target)
+        });
+        let Some(failed) = failed else {
+            return false;
+        };
+
+        // The failed remake pass compares successful source heads. A
+        // simulated synthetic entry can leave its newest time on the head
+        // even when that source's physical timestamp has not changed.
+        let succeeded = |outcome: &Outcome| outcome.terminal_verdict().is_none() && !outcome.fatal;
+        read_files.iter().any(|(source, skip)| {
+            let name = source.name.as_slice();
+            let target = self.aliases.resolve(name);
+            !*skip
+                && !source.missing
+                && target != failed
+                && self.is_makefile_goal(
+                    rmake_core::filenames::without_dot_prefix(name),
+                    named_sources,
+                )
+                && self
+                    .settled_assumed_new_makefile_branch(target)
+                    .is_some_and(|(_, branch)| {
+                        branch.database_result == DatabaseResult::Simulated
+                            && branch.completion == CompletionTime::AssumeNew
+                    })
+                && self.file_traversals.outcome(target).is_some_and(succeeded)
+                && self
+                    .database_branch_outcomes
+                    .get(&(target.to_vec(), 0))
+                    .is_some_and(succeeded)
+                && visited
+                    .get(name)
+                    .and_then(|(before, _)| *before)
+                    .is_some_and(|before| self.modified(target) == Some(before))
+        })
     }
 
     fn resume_double_colon_state(&mut self, target: &[u8], mut state: DoubleColonState) -> Outcome {
@@ -11960,7 +12128,7 @@ impl Engine {
                 && !self.forced_query_stop
                 && !self.options.keep_going
                 && let Some(group) = state.group.as_mut()
-                && group.ordinary_explicit_single_colon()
+                && group.ordinary_explicit()
             {
                 // A query verdict ends this member's scan. A resumed frontier
                 // can already have later members' prerequisites in the rule.
@@ -12035,10 +12203,16 @@ impl Engine {
         if waiting {
             if !state.waited_for_prerequisites || replay_debug {
                 state.waited_for_prerequisites = true;
-                crate::debug::emit(
-                    &self.output,
-                    crate::debug::Event::PrerequisitesRunning(target, debug_depth),
-                );
+                let aborted_required_remake = self.graph_abort.is_some()
+                    && self.remaking
+                    && self.parallel_makefile_remakes
+                    && !self.optional_remake();
+                if !aborted_required_remake {
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::PrerequisitesRunning(target, debug_depth),
+                    );
+                }
             }
             self.visiting.remove(target);
             let outcome = state.outcome;
@@ -12215,7 +12389,7 @@ impl Engine {
                         && state
                             .group
                             .as_ref()
-                            .is_some_and(|group| group.ordinary_explicit_single_colon());
+                            .is_some_and(|group| group.ordinary_explicit());
                     self.debug_cached_prerequisite_visit_with_question(
                         dependency,
                         state.depth + usize::from(self.remaking) + 1,

@@ -1,0 +1,15 @@
+id = "assumed-double-source-clock-unassumed"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "A real declared recipe can leave the physical timestamp unchanged without a restart."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0
+declared=0
+goal=0
+b.mk=1680300000
+'''
+stderr = ""

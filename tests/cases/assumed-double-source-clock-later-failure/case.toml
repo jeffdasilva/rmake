@@ -1,0 +1,15 @@
+id = "assumed-double-source-clock-later-failure"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "A later failure overrides an earlier logical restart verdict."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = '''
+read=0
+synthetic=0
+goal=0
+b.mk=1680300000
+'''
+stderr = ""
