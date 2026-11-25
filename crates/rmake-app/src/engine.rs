@@ -363,6 +363,7 @@ struct Outcome {
     debug_time_changed: bool,
     // A serial peer completed with its owner before its own diagnostic visit.
     debug_serial_group_peer: bool,
+    replayed_double_colon_goal_failure: bool,
 }
 
 impl Outcome {
@@ -5683,6 +5684,7 @@ impl Engine {
             || self.shutdown.get() != Shutdown::Running
             || outcome.fatal
             || (!self.options.keep_going && (outcome.failed || outcome.question_outdated))
+            || outcome.replayed_double_colon_goal_failure
         {
             return;
         }
@@ -10034,6 +10036,65 @@ impl Engine {
         }
     }
 
+    fn replay_settled_double_colon_goal_failure(
+        &mut self,
+        target: &[u8],
+        depth: usize,
+    ) -> Option<Outcome> {
+        if self.remaking
+            || !self.options.keep_going
+            || self.graph_abort.is_some()
+            || self.shutdown.get() != Shutdown::Running
+        {
+            return None;
+        }
+        let cause = self.optional_remake_failures.get(target)?.as_ref()?.clone();
+        let outcome = *self.file_traversals.outcome(target)?;
+        if !outcome.failed
+            || outcome.fatal
+            || outcome.question_outdated
+            || outcome.completion == CompletionTime::ArchiveUnknown
+            || cause.target == target
+            || !self.makefile_names.contains(target)
+            || self.pending(target)
+            || self
+                .active_peers
+                .get(target)
+                .is_some_and(|owner| owner != target)
+            || self.ordinary_queries.deferred_tails.contains_key(target)
+            || self.cached_double_colon_input_due(target)
+            || self.visited_cached_double_colon_input(target)
+        {
+            return None;
+        }
+        let declarations = self.serial_double_colon_declarations(target)?;
+        let mut key = (target.to_vec(), 0);
+        if !self
+            .database_branch_outcomes
+            .get(&key)
+            .is_some_and(|head| head.failed)
+            || !(1..declarations).all(|ordinal| {
+                key.1 = ordinal;
+                self.database_branch_outcomes.contains_key(&key)
+            })
+        {
+            return None;
+        }
+
+        // Each ordinary goal entry revisits the settled declaration chain.
+        // The head repeats its retained cause; the tails only report their
+        // cached status. No prerequisites or recipes run again.
+        for _ in 0..declarations {
+            self.debug_completed_double_colon_declarations(target, 0..1, depth);
+            self.show_retained_optional_failure(target, None, Some(Rc::clone(&cause)));
+            self.debug_completed_double_colon_declarations(target, 1..declarations, depth);
+        }
+        Some(Outcome {
+            replayed_double_colon_goal_failure: true,
+            ..outcome
+        })
+    }
+
     fn show_retained_optional_failure(
         &mut self,
         target: &[u8],
@@ -10286,6 +10347,12 @@ impl Engine {
         reused_failed_outcome: &mut bool,
     ) -> Outcome {
         self.prepare_missing_rule_visit(target, parent.map(|parent| parent.target));
+        if parent.is_none()
+            && let Some(outcome) = self.replay_settled_double_colon_goal_failure(target, depth)
+        {
+            *reused_failed_outcome = true;
+            return outcome;
+        }
         let mut traced_optional_failure = false;
         if !self.optional_remake()
             && let Some(cause) = self.optional_remake_failures.get(target).cloned()

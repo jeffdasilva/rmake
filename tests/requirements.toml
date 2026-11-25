@@ -3143,3 +3143,18 @@ candidate_status = "partial"
 fixture_count = 16
 candidate_required = 16
 cases = ["retained-failure-parent-single-shared-later-a", "retained-failure-parent-double-b-later-a", "retained-failure-parent-reverse-include-order", "retained-failure-parent-reverse-declaration-order", "retained-failure-parent-shared-bridge", "retained-failure-parent-distinct-missing", "retained-failure-parent-direct-missing-goal", "retained-failure-parent-third-include", "retained-failure-parent-later-new-parent", "retained-failure-parent-repeated-before-after-new-parent", "retained-failure-parent-aliased-leaf", "retained-failure-parent-order-only-leaf", "retained-failure-parent-no-keep-going", "retained-failure-parent-dry-run", "retained-failure-parent-query", "retained-failure-parent-touch"]
+
+[[requirements]]
+id = "debug.optional-double-colon-goal-replay"
+title = "Replay retained optional failures for settled double-colon goals"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/debug-output.md"
+candidate_required = 4
+fixture_count = 4
+cases = [
+  "optional-double-colon-goal-replay-dependency",
+  "optional-double-colon-goal-replay-explicit",
+  "optional-double-colon-goal-replay-repeated-verbose",
+  "optional-double-colon-goal-replay-successful-tail-verbose",
+]

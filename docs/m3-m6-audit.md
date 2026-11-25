@@ -190,8 +190,11 @@ their reporting state through an optional visit, as checked by the
 [shared-failure regression](../tests/cases/optional-cached-failure-required-two/Makefile).
 Retained missing-rule messages now follow the latest actual prerequisite edge,
 including a [later ordinary-goal visit](../tests/cases/retained-failure-parent-later-new-parent/Makefile),
-while variable inheritance keeps its first owner. Later explicit-goal replay
-counts and verbose event order remain open.
+while variable inheritance keeps its first owner. An explicit visit to a
+settled optional double-colon makefile now repeats its retained diagnostic for
+each declared branch. The [verbose replay fixture](../tests/cases/optional-double-colon-goal-replay-repeated-verbose/Makefile)
+checks the order of those diagnostics and the cached branch reports. Parallel
+startup diagnostics and combinations with `-W` still need work.
 
 Local jobserver acceptance also needs broader combinations of transports,
 recursive builds, restarts, loaded modules and resource pressure. Preserve the

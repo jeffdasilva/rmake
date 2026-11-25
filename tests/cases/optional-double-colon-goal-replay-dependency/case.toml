@@ -1,0 +1,15 @@
+id = "optional-double-colon-goal-replay-dependency"
+requirement = "debug.optional-double-colon-goal-replay"
+candidate = "required"
+description = "A prerequisite visit reports the cached cause once."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all", "use"]
+
+[expected]
+exit_code = 2
+stdout = "ordinary\n"
+stderr = '''
+make: *** No rule to make target 'second', needed by 'b.mk'.
+make: *** No rule to make target 'first', needed by 'b.mk'.
+make: *** No rule to make target 'first', needed by 'b.mk'.
+make: Target 'use' not remade because of errors.
+'''
