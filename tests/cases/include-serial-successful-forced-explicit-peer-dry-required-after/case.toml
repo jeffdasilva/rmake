@@ -1,0 +1,12 @@
+id = "include-serial-successful-forced-explicit-peer-dry-required-after"
+requirement = "includes.remake"
+candidate = "required"
+description = "A later required failure under keep-going exposes a successful physical dry-run peer sample."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "payload.owner", "payload.mk", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:old:Makefile payload.owner payload.mk tail.inc other.inc\necho EXEC:\"payload.owner\"; echo \"payload.owner\" >> executed; printf \"VALUE := written\\n\" > payload.mk; touch -d @1600000007 payload.mk\nEXEC:payload.owner\nTAIL\nOTHER\nREAD:1:written:old:Makefile payload.owner payload.mk tail.inc other.inc\nmake: Nothing to be done for 'payload.owner'.\nmake: Nothing to be done for 'payload.mk'.\necho ALL:written:old:1\n"
+stderr = "make: *** [Makefile:18: other.inc] Error 1\nMakefile:10: Failed to remake makefile 'other.inc'.\n"

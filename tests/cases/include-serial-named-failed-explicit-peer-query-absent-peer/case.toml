@@ -1,0 +1,12 @@
+id = "include-serial-named-failed-explicit-peer-query-absent-peer"
+requirement = "includes.remake"
+candidate = "required"
+description = "A named query sees the failed peer sampled absent before later recreation."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "payload.mk", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:0:old:Makefile payload.owner payload.mk tail.inc\nEXEC:payload.owner\nTAIL\n"
+stderr = "make: *** [Makefile:13: payload.owner] Error 1\nMakefile:7: Failed to remake makefile 'payload.owner'.\nMakefile:8: Failed to remake makefile 'payload.mk'.\n"

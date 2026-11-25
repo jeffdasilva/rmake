@@ -280,6 +280,14 @@ group owner also retains its completion sample. A directly visited implicit
 owner uses the final physical comparison. The
 [restored explicit owner fixture](../tests/cases/include-serial-failed-direct-explicit-group-owner-restore/)
 checks the restart after a later source restores the old timestamp.
+The same completion sample applies to read peers after an actual explicit
+group recipe fails under dry-run or question mode. The [forced query fixture](../tests/cases/include-serial-named-failed-explicit-peer-query-forced-owner/)
+checks this after a later source restores the peer's original timestamp.
+An unrelated source failure can also trigger a reread using the successful
+explicit peer's sampled physical change, or the logical update of a required
+named source simulated under `-k -n`. The [forced peer fixture](../tests/cases/include-serial-successful-forced-explicit-peer-combined-optional-after/)
+and [held required-failure models](../tools/remake_parallel.py) cover the
+error pass, including a second failure after a restart.
 
 The [composed validation from PR #374](https://github.com/jeffdasilva/rmake/pull/374)
 and [grouped double-colon database models](../tools/database_grouped_double_output.py)

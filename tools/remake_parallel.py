@@ -133,15 +133,17 @@ def assumed_current_source_models(worker: bytes, markers: dict[str, bytes]) -> l
     return results
 
 
-def assumed_late_source_write_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+def assumed_source_write_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
     results = []
     before_first = BEFORE_FIRST + b'clock-1000000000\nloaded-\n'
     marker = b'settled-b\n'
-    before_second = before_first + b'right\nsearch-0\n' + marker
     for context, transport, worker_mode, clock in (
         ('late-write', 'pipe', 'write-assumed-source', b'1000000002'),
         ('late-write', 'fifo', 'write-assumed-source', b'1000000002'),
         ('late-restore', 'pipe', 'restore-assumed-source', b'1000000000'),
+        ('early-write', 'pipe', 'write-assumed-source', b'1000000002'),
+        ('early-write', 'fifo', 'write-assumed-source', b'1000000002'),
+        ('early-unassumed', 'pipe', 'write-assumed-source', b'1000000002'),
     ):
         source = (
             '$(file >>seen,read-$(MAKE_RESTARTS))\n'
@@ -168,17 +170,31 @@ def assumed_late_source_write_models(worker: bytes, markers: dict[str, bytes]) -
         mtimes = dict.fromkeys(files, INPUT_TIME)
         mtimes.update({'left.seed': INPUT_TIME + 2_000_000_000, 'b.seed': INPUT_TIME - 1_000_000_000,
                        'marker.seed': INPUT_TIME + 2_000_000_000})
-        seen = before_second + b'left\nread-1\nclock-' + clock + b'\nloaded-settled\nsearch-1\n'
+        assumed = context != 'early-unassumed'
+        if context.startswith('early-'):
+            order = ('left', 'right')
+            before_second = before_first + b'left\n'
+            before_second_stdout = b''
+            seen = before_second + b'right\n' + (b'search-0\n' if assumed else b'') + marker
+        else:
+            order = ('right', 'left')
+            before_second = before_first + b'right\nsearch-0\n' + marker
+            before_second_stdout = marker
+            seen = before_second + b'left\n'
+        if assumed:
+            seen += b'read-1\nclock-' + clock + b'\nloaded-settled\nsearch-1\n'
         stdout = marker + b"make: 'b.mk' is up to date.\n"
         updates = {**markers, 'b.mk': b'AFTER := settled\n'}
-        args = ('-rR', '--no-print-directory', '-j2', '-k', f'--jobserver-style={transport}',
-                '-W', 'b.mk', 'b.mk')
+        args = ('-rR', '--no-print-directory', '-j2', '-k', f'--jobserver-style={transport}')
+        if assumed:
+            args += ('-W', 'b.mk')
         expected = {'exit_code': 0, 'stdout_template_hex': stdout.hex(), 'stderr_template_hex': ''}
-        model = debug.Model(f'assumed-source-clock-{context}-{transport}', files, args,
+        model = debug.Model(f'assumed-source-clock-{context}-{transport}', files, (*args, 'b.mk'),
                             {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=mtimes)
         results.append(HeldModel(model, True, before_second, before_first=before_first,
-                                 before_second_stdout=marker, second_stdout_barrier=marker,
-                                 release_order=('right', 'left')))
+                                 before_second_stdout=before_second_stdout,
+                                 second_stdout_barrier=before_second_stdout or None,
+                                 release_order=order))
     return results
 
 
@@ -260,8 +276,9 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
         results += grouped_optional_mode_models(worker, markers, suffix, prerequisite)
     results += named_source_mode_models(worker, markers)
     results += assumed_current_source_models(worker, markers)
-    results += assumed_late_source_write_models(worker, markers)
+    results += assumed_source_write_models(worker, markers)
     results += named_double_colon_dry_run_models(worker, markers)
+    results += failed_required_named_dry_models(worker, markers)
     results += parallel_named_mode_models(worker, markers)
     results += primary_named_mode_models(worker, markers)
     results += primary_named_group_models(worker, markers)
@@ -984,6 +1001,89 @@ def named_double_colon_dry_run_models(worker: bytes, markers: dict[str, bytes]) 
                             {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
         results.append(HeldModel(model, False, None, before_first=expanded if parallel else read,
                                  before_first_stdout=command if parallel else b''))
+    return results
+
+
+def failed_required_named_dry_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    command = b"printf 'named\\n' >> named.worked\n"
+    summary = b"make: 'named.gen' is up to date.\n"
+    error = b'make: *** [Makefile:5: left.gen] Error 3\n'
+    report = b"Makefile:3: Failed to remake makefile 'left.gen'.\n"
+    clock = b'clock-1000000000 1000000000\n'
+    read = BEFORE_FIRST + clock
+    expanded = read + b'named-0\n'
+    left_markers = {name: value for name, value in markers.items() if name.startswith('left.')}
+    results = []
+    for context, transport, slots, separator, flag, restarts in (
+        ('single', 'pipe', 2, ':', '-n', 1),
+        ('double', 'fifo', 2, '::', '-n', 1),
+        ('empty', 'pipe', 1, ':', '-n', 1),
+        ('twice', 'pipe', 1, ':', '-n', 2),
+        ('current', 'fifo', 2, ':', '-n', 0),
+        ('sibling-success', 'pipe', 2, ':', '-n', 0),
+        ('stop', 'pipe', 2, ':', '-n', 0),
+        ('query', 'fifo', 2, ':', '-q', 0),
+    ):
+        if context == 'empty':
+            recipe = ''
+        else:
+            recipe = "@$(file >>seen,named-$(or $(MAKE_RESTARTS),0))printf 'named\\n' >> named.worked"
+        recheck = 'else ifeq ($(MAKE_RESTARTS),1)\nleft.gen: left.seed ; @false\n' if restarts == 2 else ''
+        fail = context != 'sibling-success'
+        action = 'fail' if fail else 'quiet'
+        source = (
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            '$(file >>seen,clock-$(shell stat -c %Y left.gen named.gen))\n'
+            'include left.gen named.gen tail.inc\n'
+            'ifeq ($(MAKE_RESTARTS),)\n'
+            f'left.gen: left.seed ; @python3 worker.py left {action}\n'
+            f'{recheck}'
+            'else\n'
+            'left.gen: ;\n'
+            'endif\n'
+            f'named.gen{separator} named.seed ; {recipe}\n'
+            'tail.inc: ;\n'
+        )
+        files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR,
+                 'left.gen': b'# already read\n', 'named.gen': b'# already read\n',
+                 'left.seed': b'new\n', 'named.seed': b'new\n', 'tail.inc': b'# unchanged\n'}
+        times = dict.fromkeys(files, INPUT_TIME)
+        times.update(dict.fromkeys(('left.seed', 'named.seed'), INPUT_TIME + 2_000_000_000))
+        current = context == 'current'
+        if current:
+            times['named.seed'] = INPUT_TIME - 1_000_000_000
+        keep_going = context != 'stop'
+        query = flag == '-q'
+        expands = bool(recipe) and not current
+        expands_under_hold = expands and slots > 1
+        before_first = expanded if expands_under_hold else read
+        first_command = command if expands and not query else b''
+        stdout = b'left\n' if fail else b''
+        stdout = first_command + stdout if expands_under_hold else stdout + first_command
+        stderr = error if fail else b''
+        if fail and keep_going and not query:
+            stderr += report
+        if restarts == 2:
+            stderr += b'make: *** [Makefile:7: left.gen] Error 1\n' + report
+        seen = before_first + b'left\n'
+        if expands and not expands_under_hold:
+            seen += b'named-0\n'
+        for restart in range(1, restarts + 1):
+            seen += f'read-{restart}\n'.encode() + clock
+            if expands:
+                seen += f'named-{restart}\n'.encode()
+            stdout += first_command
+        status = 1 if query else 2 if fail and not restarts else 0
+        if status == 0:
+            stdout += summary
+        expected = {'exit_code': status, 'stdout_template_hex': stdout.hex(),
+                    'stderr_template_hex': stderr.hex()}
+        args = ('-rR', '--no-print-directory', f'-j{slots}', '-k' if keep_going else '-S',
+                f'--jobserver-style={transport}', flag, 'named.gen')
+        model = debug.Model(f'failed-required-named-dry-{context}-{transport}', files, args,
+                            {'GNUMAKEFLAGS': ''}, expected, seen, updates=left_markers, mtimes_ns=times)
+        results.append(HeldModel(model, False, None, before_first=before_first,
+                                 before_first_stdout=first_command if expands_under_hold else b''))
     return results
 
 

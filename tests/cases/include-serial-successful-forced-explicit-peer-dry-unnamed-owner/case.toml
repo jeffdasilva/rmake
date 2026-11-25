@@ -1,0 +1,12 @@
+id = "include-serial-successful-forced-explicit-peer-dry-unnamed-owner"
+requirement = "includes.remake"
+candidate = "required"
+description = "An actual unnamed owner supplies a physical failed-pass clock to its successful named peer."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "payload.mk", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:old:Makefile payload.owner payload.mk tail.inc other.inc\nEXEC:payload.owner\nTAIL\nOTHER\nREAD:1:written:old:Makefile payload.owner payload.mk tail.inc other.inc\nmake: Nothing to be done for 'payload.mk'.\necho ALL:written:old:1\n"
+stderr = ""

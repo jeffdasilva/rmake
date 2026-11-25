@@ -101,7 +101,8 @@ source then determines the failure status.
 In a successful ordinary parallel pass, an existing named source with one
 assumed entry can settle on its physical time after its order-only prerequisite
 finishes. The reread decision uses the settled result after the other remake
-workers drain. The held remake models cover pipe and FIFO jobservers.
+workers drain. The held remake models cover pipe and FIFO jobservers and writes
+on either side of the order-only prerequisite's completion.
 
 ## Qualification and limits
 
