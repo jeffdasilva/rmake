@@ -3250,6 +3250,8 @@ impl Engine {
         self.print_database();
         let plan = self.initial_plan.take().expect("initial invocation");
         let retired_slots = self.jobserver.as_ref().and_then(Jobserver::owned_slots);
+        self.job_debug
+            .drain(self.output.debug_mask(), retired_slots);
         let inherited_jobserver = self
             .jobserver
             .as_ref()
