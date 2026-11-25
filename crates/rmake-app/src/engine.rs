@@ -12895,7 +12895,11 @@ impl Engine {
                 match self.synthetic_double_colon_recipe(target, state.depth, implicit_branch) {
                     Ok(Some(rule)) => rule,
                     Ok(None) => {
-                        self.fail_double_colon_input(target, state.depth, &mut state.combined);
+                        self.fail_double_colon_input(
+                            target,
+                            state.depth + usize::from(self.remaking),
+                            &mut state.combined,
+                        );
                         state
                             .combined
                             .first_branch_verdict
