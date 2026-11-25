@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-query-dry-touch-successful-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "Two successful touch entries keep one source pass when the sibling succeeds."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-t", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "touch b.mk\ntouch b.mk\n"
+stderr = ""

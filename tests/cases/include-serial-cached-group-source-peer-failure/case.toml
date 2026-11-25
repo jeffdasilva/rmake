@@ -1,0 +1,12 @@
+id = "include-serial-cached-group-source-peer-failure"
+requirement = "includes.remake"
+candidate = "required"
+description = "A failed prerequisite group preserves the loaded peer failure under keep-going."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:0:old::Makefile worker.inc payload.mk\nREMAKE:payload.other:trigger\n"
+stderr = "make: *** [Makefile:14: payload.other] Error 1\nMakefile:8: Failed to remake makefile 'worker.inc'.\nMakefile:9: Failed to remake makefile 'payload.mk'.\n"

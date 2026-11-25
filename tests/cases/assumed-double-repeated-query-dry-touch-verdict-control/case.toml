@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-query-dry-touch-verdict-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "An actual query verdict leaves the original source pass with repeated what-if entries."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-t", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 1
+stdout = ":\n:\n"
+stderr = "make: *** No rule to make target 'missing', needed by 'broken.inc'.\n"

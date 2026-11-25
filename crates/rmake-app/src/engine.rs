@@ -3843,10 +3843,8 @@ impl Engine {
                         {
                             let needs_implicit_recipe =
                                 self.database.rules.get(name).map_or(Some(true), |rule| {
-                                    (rule.double_colon.is_none()
-                                        && rule.grouped_targets().is_none()
-                                        && rule.implicit_pattern.is_none())
-                                    .then_some(rule.recipes.is_none())
+                                    (rule.double_colon.is_none() && rule.implicit_pattern.is_none())
+                                        .then_some(rule.recipes.is_none())
                                 });
                             if let Some(needs_implicit_recipe) = needs_implicit_recipe
                                 && (!needs_implicit_recipe || has_implicit_recipes)
@@ -4052,8 +4050,8 @@ impl Engine {
                     && self.cached_optional_group_peer_failure(name);
                 let pending_peer = self.parallel_makefile_remakes && self.pending(name);
                 // A previous source can have remade this prerequisite.
-                // Preserve the settled clock even if a later recipe retimed
-                // the file before its own source visit.
+                // Preserve the owner's settled clock even if a later recipe
+                // retimed the file. Group peers keep their own update policy.
                 let cached_prerequisite_change = loaded_prerequisite_times.get(name).and_then(
                     |&(time, needs_implicit_recipe)| {
                         let cached = self.file_traversals.outcome(name)?;
@@ -4066,13 +4064,15 @@ impl Engine {
                             && !cached.failed
                             && !cached.fatal
                             && !cached.question_outdated
+                            && !cached.remake_group_peer_updated
                             && cached.ran
                             && cached.completion == CompletionTime::Refresh
                             && (!needs_implicit_recipe
-                                || self.database.rules.get(name).is_some_and(|rule| {
-                                    rule.implicit_pattern.is_some()
-                                        && rule.grouped_targets().is_none()
-                                })))
+                                || self
+                                    .database
+                                    .rules
+                                    .get(name)
+                                    .is_some_and(|rule| rule.implicit_pattern.is_some())))
                         .then_some(cached.time != Some(time))
                     },
                 );
@@ -11264,6 +11264,23 @@ impl Engine {
             })
     }
 
+    fn assumed_new_makefile_branches(&self, target: &[u8]) -> Option<std::ops::Range<usize>> {
+        let (_, count) = self.assumed_new_double_colon_entries(target)?;
+        // Restrict repeated operands to keep-going. The restart check
+        // requires a settled outcome for each synthetic entry.
+        if count > 1 && !self.options.keep_going {
+            return None;
+        }
+        let declared = self
+            .database
+            .rules
+            .get(target)?
+            .double_colon
+            .as_ref()?
+            .len();
+        Some(declared..declared + count)
+    }
+
     fn failed_remake_has_updated_assumed_source(
         &self,
         read_files: &[(Makefile, bool)],
@@ -11303,10 +11320,19 @@ impl Engine {
                     named_sources,
                 )
                 && self
-                    .settled_assumed_new_makefile_branch(target)
-                    .is_some_and(|(_, branch)| {
-                        branch.database_result == completion
-                            && branch.completion == CompletionTime::AssumeNew
+                    .assumed_new_makefile_branches(target)
+                    .is_some_and(|mut ordinals| {
+                        let mut key = (target.to_vec(), 0);
+                        ordinals.all(|ordinal| {
+                            key.1 = ordinal;
+                            self.database_branch_outcomes
+                                .get(&key)
+                                .is_some_and(|branch| {
+                                    succeeded(branch)
+                                        && branch.database_result == completion
+                                        && branch.completion == CompletionTime::AssumeNew
+                                })
+                        })
                     })
                 && self.file_traversals.outcome(target).is_some_and(succeeded)
                 && self
@@ -13184,13 +13210,10 @@ impl Engine {
                     && rule.grouped_targets().is_none()
                     && execution.status == Status::Success
                     && outcome.completion == CompletionTime::AssumeNew
-                    && branch.is_some_and(|ordinal| {
-                        self.database
-                            .rules
-                            .get(target)
-                            .and_then(|rule| rule.double_colon.as_ref())
-                            .is_some_and(|declarations| ordinal == declarations.len())
-                    })
+                    && let Some(ordinal) = branch
+                    && self
+                        .assumed_new_makefile_branches(target)
+                        .is_some_and(|ordinals| ordinals.contains(&ordinal))
                 {
                     outcome.database_result = match execution.touch {
                         TouchCompletion::None => DatabaseResult::Outcome,

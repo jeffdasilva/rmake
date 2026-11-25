@@ -187,12 +187,20 @@ impl Engine {
     }
 
     pub(super) fn single_assumed_new_double_colon_time(&self, name: &[u8]) -> Option<SystemTime> {
+        let (time, count) = self.assumed_new_double_colon_entries(name)?;
+        (count == 1).then_some(time)
+    }
+
+    pub(super) fn assumed_new_double_colon_entries(
+        &self,
+        name: &[u8],
+    ) -> Option<(SystemTime, usize)> {
         let files = self.assumptions.as_ref()?;
         let entry = files.entries.get(name)?;
         (files.new_active
             && entry.bits & (OLD | DOUBLE_COLON) == DOUBLE_COLON
-            && entry.new_count == 1)
-            .then_some(files.new)
+            && entry.new_count != 0)
+            .then_some((files.new, entry.new_count))
     }
 
     pub(super) fn assumed_new_double_colon_time(&self, name: &[u8]) -> Option<SystemTime> {

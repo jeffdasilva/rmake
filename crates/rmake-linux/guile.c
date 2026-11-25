@@ -253,7 +253,7 @@ static SCM convert_scalar(SCM value) {
     return scm_call_1(converter, value);
 }
 static SCM queue_conversion_child(SCM work, SCM child, int native_link, SCM *active_pairs) {
-    /* Only follow structural ancestry across a link the accessor left intact. */
+    /* A link created by a callback starts a separate structural ancestry. */
     if (!native_link) {
         work = scm_cons(scm_cons(SCM_UNDEFINED, *active_pairs), work);
         *active_pairs = SCM_BOOL_F;
@@ -261,6 +261,9 @@ static SCM queue_conversion_child(SCM work, SCM child, int native_link, SCM *act
     return scm_cons(scm_cons(SCM_BOOL_F, child), work);
 }
 static SCM object_text(SCM value) {
+    const int native_root = scm_is_pair(value);
+    const SCM root_car = native_root ? scm_car(value) : SCM_UNDEFINED;
+    const SCM root_cdr = native_root ? scm_cdr(value) : SCM_UNDEFINED;
     if (scm_is_false(scm_call_1(conversion_is_pair, value))) {
         SCM text = convert_scalar(value);
         SCM parts = scm_is_false(text) ? SCM_EOL : scm_list_1(text);
@@ -286,9 +289,12 @@ static SCM object_text(SCM value) {
             // The Scheme converter can mutate this pair while visiting its car.
             // Read the live cdr now and reuse this frame for leaving the pair.
             scm_set_car_x(item, leave_pair);
-            SCM original = scm_is_pair(current) ? scm_cdr(current) : SCM_UNDEFINED;
+            const int native_pair = scm_is_pair(current);
+            SCM original = scm_hashq_ref(active_pairs, current, SCM_UNDEFINED);
+            SCM before_call = native_pair ? scm_cdr(current) : SCM_UNDEFINED;
             SCM child = scm_call_1(conversion_cdr, current);
-            int native_link = scm_is_pair(current) && scm_is_eq(child, original)
+            int native_link = native_pair && scm_is_eq(child, original)
+                              && scm_is_eq(child, before_call)
                               && scm_is_eq(child, scm_cdr(current));
             work = queue_conversion_child(frame, child, native_link, &active_pairs);
             continue;
@@ -303,17 +309,26 @@ static SCM object_text(SCM value) {
             scm_hashq_remove_x(active_pairs, current);
             continue;
         }
-        if(scm_is_eq(phase,first_pair)
-           || scm_is_true(scm_call_1(conversion_is_pair,current))) {
+        const int first = scm_is_eq(phase, first_pair);
+        const int native_pair = scm_is_pair(current);
+        SCM original_car = root_car;
+        SCM original_cdr = root_cdr;
+        if (!first) {
+            original_car = native_pair ? scm_car(current) : SCM_UNDEFINED;
+            original_cdr = native_pair ? scm_cdr(current) : SCM_UNDEFINED;
+        }
+        if (first || scm_is_true(scm_call_1(conversion_is_pair, current))) {
             if (scm_is_false(active_pairs))
                 active_pairs = scm_make_hash_table(scm_from_int(31));
-            else if (scm_is_true(scm_hashq_ref(active_pairs, current, SCM_BOOL_F)))
+            else if (scm_is_true(scm_hashq_get_handle(active_pairs, current)))
                 scm_misc_error("guile", "circular value conversion", SCM_EOL);
-            scm_hashq_set_x(active_pairs, current, SCM_BOOL_T);
+            // Keep the tail from before the predicate and head conversion.
+            scm_hashq_set_x(active_pairs, current, original_cdr);
             work = scm_cons(scm_cons(follow_tail, current), work);
-            SCM original = scm_is_pair(current) ? scm_car(current) : SCM_UNDEFINED;
+            SCM before_call = native_pair ? scm_car(current) : SCM_UNDEFINED;
             SCM child = scm_call_1(conversion_car, current);
-            int native_link = scm_is_pair(current) && scm_is_eq(child, original)
+            int native_link = native_pair && scm_is_eq(child, original_car)
+                              && scm_is_eq(child, before_call)
                               && scm_is_eq(child, scm_car(current));
             work = queue_conversion_child(work, child, native_link, &active_pairs);
         }else {

@@ -1,0 +1,10 @@
+id = "assumed-double-repeated-query-dry-touch-distinct-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "Two named sources keep independent singleton synthetic entries."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-t", "-W", "b.mk", "-W", "c.mk", "c.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "touch b.mk\ntouch c.mk\ntouch c.mk\ntouch b.mk\n"
+stderr = ""
