@@ -13582,7 +13582,7 @@ impl Engine {
         if failed_prerequisite
             && self.makefile_names.contains(target)
             && match &group {
-                Some(group) => group.implicit && group.double_colon.is_none(),
+                Some(group) => group.double_colon.is_none(),
                 None => self.database.rules.get(target).is_some_and(|rule| {
                     rule.double_colon.is_none()
                         && rule.grouped_targets().is_none()

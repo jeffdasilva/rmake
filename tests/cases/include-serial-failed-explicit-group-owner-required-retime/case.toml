@@ -1,0 +1,12 @@
+id = "include-serial-failed-explicit-group-owner-required-retime"
+requirement = "includes.remake"
+candidate = "required"
+description = "A required explicit group owner retains the changed timestamp settled by its prerequisite visit."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ:0:old:Makefile worker.inc payload.mk\nREMAKE:payload.mk:trigger\nREAD:1:new:Makefile worker.inc payload.mk\nALL:new:1\nVALUE := new\n"
+stderr = "make: *** [Makefile:14: payload.mk] Error 1\nMakefile:8: Failed to remake makefile 'worker.inc'.\nMakefile:9: Failed to remake makefile 'payload.mk'.\n"
