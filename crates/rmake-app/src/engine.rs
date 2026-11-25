@@ -334,6 +334,8 @@ enum DatabaseResult {
     ObservedGroup,
     ObservedDoubleColon,
     RecipeUnstarted,
+    // A stopping missing-rule diagnostic precedes update completion.
+    UnfinishedMissingRule,
 }
 
 impl DatabaseResult {
@@ -11458,6 +11460,19 @@ impl Engine {
         self.resolved_name_ref(name).to_vec()
     }
 
+    fn discard_missing_archive_name(&mut self, target: &[u8]) -> bool {
+        if let Some(searched) = self.resolved_names.get(target)
+            && rmake_core::filenames::archive_parts(target).is_some()
+            && self.database.file_records.logical_name(searched) == Some(target)
+        {
+            // A tentative rehash keeps the member's searched key. Its
+            // filename is promoted only when the member is current.
+            self.resolved_names.remove(target);
+            return true;
+        }
+        false
+    }
+
     fn debug_no_remake(&self, target: &[u8], depth: usize) {
         if self.output.debug_mask().has(crate::debug::Mask::VERBOSE) {
             let path = self.resolved_name_ref(target);
@@ -12431,13 +12446,16 @@ impl Engine {
                 &self.output,
                 crate::debug::Event::MustRemake(target, debug_depth),
             );
+            let tentative_member = self.discard_missing_archive_name(target);
+            let optional = self.optional_remake();
+            let keep_going = self.options.keep_going;
             self.missing_rule_parents
                 .insert(target.to_vec(), parent.map(|parent| parent.target.to_vec()));
-            if !self.optional_remake() {
+            if !optional {
                 self.show_makefile_error();
                 self.report_missing_rule(target, parent.map(|parent| parent.target));
             }
-            if self.optional_remake() || self.options.keep_going {
+            if optional || keep_going {
                 crate::debug::emit(
                     &self.output,
                     crate::debug::Event::Failed(target, debug_depth),
@@ -12445,6 +12463,11 @@ impl Engine {
             }
             let result = Outcome {
                 failed: true,
+                database_result: if tentative_member && !optional && !keep_going {
+                    DatabaseResult::UnfinishedMissingRule
+                } else {
+                    DatabaseResult::Outcome
+                },
                 ..Outcome::default()
             };
             self.file_traversals.set_outcome(target, result);
@@ -14853,6 +14876,9 @@ impl Engine {
                     crate::debug::Event::MustRemake(target, debug_depth),
                 );
             }
+            if before.is_none() && rule.recipes.is_none() {
+                self.discard_missing_archive_name(target);
+            }
             if let Some(recipes) = &rule.recipes {
                 let normal: Vec<_> = normal
                     .iter()
@@ -17240,6 +17266,49 @@ mod tests {
             open_error: None,
         });
         engine
+    }
+
+    #[test]
+    fn tentative_archive_member_keeps_the_raw_name_when_missing() {
+        let target = b"test-archive-owner(absent)";
+        let searched = b"staged/test-archive-owner(absent)";
+        let present = Some(SystemTime::UNIX_EPOCH + Duration::from_secs(1_600_000_000));
+        for (time, keep_going) in [(None, false), (None, true), (present, false)] {
+            let mut engine = optional_failure_test_engine();
+            engine.remaking = false;
+            engine.active_makefile_remake = None;
+            engine.options.keep_going = keep_going;
+            engine.database.file_records.insert(target);
+            let record = engine.database.file_records.id(target);
+            engine.database.file_records.rehash(target, searched);
+            engine
+                .path_observations
+                .insert(target.to_vec(), Some((Some(searched.to_vec()), time)));
+            let outcome = engine.build_inner(
+                target,
+                target,
+                None,
+                0,
+                None,
+                BuildVisit::Ordinary,
+                &mut false,
+            );
+            assert_eq!(outcome.failed, time.is_none());
+            assert!(
+                (outcome.database_result == DatabaseResult::UnfinishedMissingRule)
+                    == (time.is_none() && !keep_going),
+            );
+            assert_eq!(outcome.time, time);
+            assert_eq!(engine.database.file_records.id(searched), record);
+            assert_eq!(
+                engine.resolved_name_ref(target),
+                if time.is_some() {
+                    searched.as_slice()
+                } else {
+                    target.as_slice()
+                },
+            );
+        }
     }
 
     #[test]

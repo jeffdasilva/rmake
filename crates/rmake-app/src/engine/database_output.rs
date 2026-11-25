@@ -474,8 +474,10 @@ impl Engine {
             view.intermediate = true;
         }
         if let Some(outcome) = outcome {
-            view.updated = true;
-            view.status = if detached_head {
+            view.updated = outcome.database_result != DatabaseResult::UnfinishedMissingRule;
+            view.status = if !view.updated {
+                FileStatus::Unattempted
+            } else if detached_head {
                 // Rehash copies the updated flag onto the unvisited physical
                 // destination and leaves its update result untouched.
                 FileStatus::Unattempted
