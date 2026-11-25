@@ -13700,15 +13700,56 @@ impl Engine {
                         target,
                         false,
                         |assumed_time, branch| {
-                            branch.completion == CompletionTime::Refresh
-                                && branch.time == Some(before)
+                            branch.time == Some(before)
                                 && before != assumed_time
+                                && (branch.completion == CompletionTime::Refresh
+                                    || (!branch.ran
+                                        && !branch.blocked
+                                        && branch.completion == CompletionTime::Unchanged
+                                        && !MakefileModes::from_options(&self.options).active()
+                                        && self.successful_explicit_source_refresh(target, before)))
                         },
                     )
                 }
                 _ => false,
             }
         })
+    }
+
+    fn successful_explicit_source_refresh(&self, target: &[u8], before: SystemTime) -> bool {
+        let Some(declarations) = self
+            .database
+            .rules
+            .get(target)
+            .and_then(|rule| rule.double_colon.as_ref())
+        else {
+            return false;
+        };
+        // A completed explicit recipe can refresh the shared clock before
+        // the current synthetic declaration propagates it to the chain.
+        let mut key = (target.to_vec(), 0);
+        let mut refreshed = false;
+        for (ordinal, rule) in declarations.iter().enumerate() {
+            if rule.recipes.is_none()
+                || rule.implicit_pattern.is_some()
+                || rule.default_recipe
+                || rule.grouped_targets().is_some()
+            {
+                return false;
+            }
+            key.1 = ordinal;
+            let Some(branch) = self.database_branch_outcomes.get(&key) else {
+                return false;
+            };
+            if branch.fatal || branch.blocked || branch.terminal_verdict().is_some() {
+                return false;
+            }
+            refreshed |= branch.ran
+                && branch.completion == CompletionTime::Refresh
+                && branch.database_result == DatabaseResult::Outcome
+                && branch.time == Some(before);
+        }
+        refreshed
     }
 
     fn settled_grouped_double_peer_time(&self, name: &[u8]) -> Option<SystemTime> {
