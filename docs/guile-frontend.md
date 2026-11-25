@@ -68,7 +68,7 @@ The conversion and module tests preserve several observable details.
 
 | Area | Behavior covered by the tests |
 | --- | --- |
-| Lists | Conversion uses the module's live `pair?`, `car`, and `cdr` bindings. The iterative converter calls the predicate once at each visit and reads each tail after converting its head. Tests cover binding changes, public callbacks, shared pairs, and repeated visits through live accessors. Native pair links retain cycle detection. |
+| Lists | Conversion uses the module's live `pair?`, `car`, and `cdr` bindings. The iterative converter calls the predicate once at each visit and reads each tail after converting its head. Tests cover binding changes, shared pairs, and temporary links created by predicates, accessors, and scalar converters. Stable native pair links retain cycle detection. |
 | Conversion procedures | Conversion selects the module's `string-join` procedure before calling `reverse!`. A local shadow introduced after the first lookup leaves the resolved import in use. An assignment to that binding takes effect on the next conversion. Scalar and empty results have controls too. |
 | `gmk-var` | The public binding takes one argument. It selects the module's expansion and formatting procedures before converting the variable name. Rebinding during conversion affects the next call. |
 | Unsupported scalar values | The first conversion resolves the module's `error` procedure. Tests cover definitions before lookup, later shadowing, changes to a resolved binding, and effects through scalar returns and each public bridge. |
