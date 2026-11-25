@@ -349,6 +349,43 @@ enum GroupPeerTime {
 }
 
 #[derive(Clone, Copy, Default)]
+enum GroupPeerFailure {
+    #[default]
+    None,
+    Optional,
+    RequiredClockUnchanged,
+    RequiredClockChanged,
+    OptionalClockUnchanged,
+    OptionalClockChanged,
+}
+
+impl GroupPeerFailure {
+    fn is_optional(self) -> bool {
+        matches!(
+            self,
+            Self::Optional | Self::OptionalClockUnchanged | Self::OptionalClockChanged
+        )
+    }
+
+    fn with_optional(self) -> Self {
+        match self {
+            Self::None => Self::Optional,
+            Self::RequiredClockUnchanged => Self::OptionalClockUnchanged,
+            Self::RequiredClockChanged => Self::OptionalClockChanged,
+            optional => optional,
+        }
+    }
+
+    fn clock_changed(self) -> Option<bool> {
+        match self {
+            Self::RequiredClockUnchanged | Self::OptionalClockUnchanged => Some(false),
+            Self::RequiredClockChanged | Self::OptionalClockChanged => Some(true),
+            Self::None | Self::Optional => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
 struct Outcome {
     time: Option<SystemTime>,
     ran: bool,
@@ -360,8 +397,7 @@ struct Outcome {
     blocked: bool,
     // A failed dispatch in an optional parallel remake can precede more visits.
     deferred_spawn_failure: bool,
-    // An optional grouped recipe already supplied this peer's failure.
-    optional_group_peer_failure: bool,
+    group_peer_failure: GroupPeerFailure,
     // A successful grouped remake invalidates each other read peer,
     // including one whose physical timestamp did not change.
     remake_group_peer_updated: bool,
@@ -2435,7 +2471,7 @@ impl Engine {
         let cached = self
             .file_traversals
             .outcome(identity)
-            .is_some_and(|outcome| outcome.optional_group_peer_failure);
+            .is_some_and(|outcome| outcome.group_peer_failure.is_optional());
         // A single double-colon peer has a branch record before its own visit.
         let declared_peer = !cached
             && self.remaking
@@ -2453,7 +2489,7 @@ impl Engine {
             && self
                 .database_branch_outcomes
                 .get(&(identity.to_vec(), 0))
-                .is_some_and(|outcome| outcome.optional_group_peer_failure);
+                .is_some_and(|outcome| outcome.group_peer_failure.is_optional());
         (cached || declared_peer) && !self.optional_remake_failures.contains_key(identity)
     }
 
@@ -4433,7 +4469,7 @@ impl Engine {
                 }
                 let deferred_peer_failure = deferred_peer_failure
                     || (pending_peer
-                        && result.optional_group_peer_failure
+                        && result.group_peer_failure.is_optional()
                         && self.cached_optional_group_peer_failure(name));
                 if result.question_outdated {
                     if !failed && !optional_remake_failed {
@@ -4453,19 +4489,24 @@ impl Engine {
                         refreshed_implicit_time.filter(|_| chain_failed && self.options.keep_going);
                     // A serial declaration may change the file after a
                     // blocked head. Other roots use their own recipe result.
-                    let refresh_timestamp =
-                        serial_declarations.is_some() || (result.ran && !result.blocked);
-                    if !result.ran
-                        && observed_peer_change.is_some()
-                        && self
-                            .database
-                            .rules
-                            .get(name)
-                            .and_then(|rule| rule.double_colon.as_ref())
-                            .is_some_and(|branches| {
-                                matches!(branches.as_slice(), [rule]
+                    let implicit_peer_changed = result
+                        .group_peer_failure
+                        .clock_changed()
+                        .filter(|_| !modes.active());
+                    let refresh_timestamp = implicit_peer_changed.is_none()
+                        && (serial_declarations.is_some() || (result.ran && !result.blocked));
+                    if implicit_peer_changed == Some(true)
+                        || (!result.ran
+                            && observed_peer_change.is_some()
+                            && self
+                                .database
+                                .rules
+                                .get(name)
+                                .and_then(|rule| rule.double_colon.as_ref())
+                                .is_some_and(|branches| {
+                                    matches!(branches.as_slice(), [rule]
                                 if rule.grouped_double_id().is_some())
-                            })
+                                }))
                     {
                         observed_failed_peer_changes.insert(name);
                     }
@@ -4831,7 +4872,7 @@ impl Engine {
                         && let Some(&(before, _)) = visited.get(name)
                         && let Some(outcome) =
                             self.file_traversals.outcome(self.aliases.resolve(name))
-                        && outcome.optional_group_peer_failure
+                        && outcome.group_peer_failure.is_optional()
                     {
                         failed = true;
                         failed_remakes.insert(name, (before, outcome.ran && !outcome.blocked));
@@ -4863,7 +4904,7 @@ impl Engine {
                             .filter(|_| {
                                 self.file_traversals
                                     .outcome(name)
-                                    .is_some_and(|outcome| outcome.optional_group_peer_failure)
+                                    .is_some_and(|outcome| outcome.group_peer_failure.is_optional())
                             })
                             .or(*before);
                         let after = self.modified(&makefile.name);
@@ -10734,7 +10775,7 @@ impl Engine {
                 .entry(target.to_vec())
                 .or_default();
         }
-        if !deferred_peer_failure || !outcome.optional_group_peer_failure || outcome.fatal {
+        if !deferred_peer_failure || !outcome.group_peer_failure.is_optional() || outcome.fatal {
             self.record_graph_failure(outcome);
         }
         outcome
@@ -13505,8 +13546,9 @@ impl Engine {
                         continue;
                     }
                     let mut completed = outcome;
-                    completed.optional_group_peer_failure |=
-                        optional_serial_failure && !owner && branches.len() == 1;
+                    if optional_serial_failure && !owner && branches.len() == 1 {
+                        completed.group_peer_failure = completed.group_peer_failure.with_optional();
+                    }
                     completed.database_result = DatabaseResult::ObservedGroup;
                     completed.time = if phony {
                         None
@@ -13605,6 +13647,21 @@ impl Engine {
             && self.assumptions.is_none()
             && !self.options.check_symlink_times
             && self.makefile_names.contains(target);
+        let track_failed_implicit_peers = self.remaking
+            && !self.parallel_makefile_remakes
+            && group.implicit
+            && self.options.keep_going
+            && self.assumptions.is_none()
+            && !MakefileModes::from_options(&self.options).active()
+            && outcome.failed
+            && !outcome.fatal
+            && !outcome.blocked
+            && outcome.ran
+            && outcome.completion == CompletionTime::Refresh
+            && self
+                .file_traversals
+                .visit(target)
+                .is_some_and(|visit| visit.parent.is_some());
         let trace_failed_read_peers = serial_explicit_remake
             && (self.optional_remake() || self.options.keep_going)
             && outcome.failed
@@ -13661,8 +13718,6 @@ impl Engine {
             completed.debug_serial_group_peer = debug_serial_group_peer
                 || (((track_read_peers && !outcome.failed) || trace_failed_read_peers)
                     && self.makefile_names.contains(&peer));
-            completed.optional_group_peer_failure =
-                self.optional_remake() && outcome.failed && !outcome.fatal;
             self.mark_remade_group_peer(&peer, phony, &mut completed);
             completed.search_after_update = false;
             completed.time = if phony {
@@ -13676,6 +13731,25 @@ impl Engine {
                 completed.completion = CompletionTime::Preserve;
                 completed.debug_time_changed |= retain_debug_time && completed.time != time;
                 completed.time = time;
+            }
+            // A failed pattern group settles this peer's physical time here.
+            // The required read reports it without refreshing over this sample.
+            completed.group_peer_failure = if track_failed_implicit_peers
+                && !phony
+                && self.makefile_names.contains(&peer)
+                && !self.file_traversals.has_outcome(&peer)
+                && let Some(Some((None, Some(loaded)))) = self.path_observations.get(&peer)
+            {
+                if completed.time.is_some_and(|time| time != *loaded) {
+                    GroupPeerFailure::RequiredClockChanged
+                } else {
+                    GroupPeerFailure::RequiredClockUnchanged
+                }
+            } else {
+                GroupPeerFailure::None
+            };
+            if self.optional_remake() && outcome.failed && !outcome.fatal {
+                completed.group_peer_failure = completed.group_peer_failure.with_optional();
             }
             if track_read_peers && !phony && self.makefile_names.contains(&peer) {
                 // A missing group member can stop peer freshness checks.

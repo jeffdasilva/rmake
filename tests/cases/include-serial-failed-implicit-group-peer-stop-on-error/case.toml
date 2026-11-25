@@ -1,0 +1,12 @@
+id = "include-serial-failed-implicit-group-peer-stop-on-error"
+requirement = "includes.remake"
+candidate = "required"
+description = "The earlier source failure stops visits without keep-going."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:0:old:Makefile worker.inc payload.mk\nREMAKE:payload.other:trigger\n"
+stderr = "make: *** [Makefile:14: payload.other] Error 1\n"
