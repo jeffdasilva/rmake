@@ -1991,8 +1991,8 @@ title = "Implicit and default recipes for synthetic double-colon entries"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 81
-fixture_count = 81
+candidate_required = 89
+fixture_count = 89
 cases = [
   "assumed-double-recipe-fresh-no-rule",
   "assumed-double-recipe-fresh-default",
@@ -2075,6 +2075,14 @@ cases = [
   "assumed-double-phony-default-completion",
   "assumed-double-phony-empty-pattern-completion",
   "assumed-double-phony-empty-pattern-physical-refresh",
+  "assumed-double-stopping-query-touch-repeated-physical",
+  "assumed-double-stopping-query-dry-touch-repeated-simulated",
+  "assumed-double-stopping-query-touch-repeated-forced",
+  "assumed-double-stopping-query-dry-touch-second-verdict",
+  "assumed-double-stopping-query-dry-touch-reverse-control",
+  "assumed-double-stopping-query-touch-current-control",
+  "assumed-double-stopping-query-first-verdict-control",
+  "assumed-double-stopping-query-touch-first-failure-control",
 ]
 
 [[requirements]]

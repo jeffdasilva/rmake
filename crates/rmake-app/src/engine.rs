@@ -11136,7 +11136,22 @@ impl Engine {
         if let Some(branches) = rule.double_colon.take() {
             let mut branches: std::collections::VecDeque<_> =
                 branches.into_iter().map(Some).enumerate().collect();
-            for _ in 0..self.new_double_colon_entry_count(target) {
+            let mut synthetic_count = self.new_double_colon_entry_count(target);
+            if synthetic_count == 1
+                && depth == 0
+                && self.remaking
+                && !self.parallel_makefile_remakes
+                && self.active_makefile_remake.is_some()
+                && self.options.question
+                && self.options.touch
+                && !self.options.keep_going
+                && let Some((_, count)) = self.assumed_new_double_colon_entries(target)
+            {
+                // A named query with touch can complete successive synthetic
+                // entries. An actual query verdict still stops the chain.
+                synthetic_count = count;
+            }
+            for _ in 0..synthetic_count {
                 branches.push_back((branches.len(), None));
             }
             self.pending_double_colon.insert(

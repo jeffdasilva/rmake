@@ -1,0 +1,10 @@
+id = "assumed-double-stopping-query-dry-touch-second-verdict"
+requirement = "options.assumed-double-recipes"
+candidate = "required"
+description = "The second branch returns an actual query verdict after the first simulates its touch."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q", "-n", "-t", "-W", "b.mk", "-W", "./b.mk", "b.mk"]
+
+[expected]
+exit_code = 1
+stdout = ":\ntouch b.mk\ntouch b.mk\n:\n"
+stderr = ""
