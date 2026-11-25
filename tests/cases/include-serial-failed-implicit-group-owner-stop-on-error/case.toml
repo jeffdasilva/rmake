@@ -1,0 +1,12 @@
+id = "include-serial-failed-implicit-group-owner-stop-on-error"
+requirement = "includes.remake"
+candidate = "required"
+description = "The failing grouped prerequisite stops source processing without keep-going."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:0:old:Makefile worker.inc payload.mk\nREMAKE:payload.mk:trigger\n"
+stderr = "make: *** [Makefile:14: payload.mk] Error 1\n"

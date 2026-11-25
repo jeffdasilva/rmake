@@ -1,0 +1,12 @@
+id = "include-serial-failed-implicit-group-owner-optional-owner"
+requirement = "includes.remake"
+candidate = "required"
+description = "An optional-only failed grouped owner cannot restart the required read pass."
+provenance = "Original rmake differential fixture; no upstream implementation or tests copied."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ:0:old:Makefile worker.inc payload.mk\nREMAKE:payload.mk:trigger\n"
+stderr = "make: *** [Makefile:14: payload.mk] Error 1\nMakefile:8: Failed to remake makefile 'worker.inc'.\n"
