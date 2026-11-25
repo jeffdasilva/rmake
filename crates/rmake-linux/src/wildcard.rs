@@ -16,7 +16,17 @@ use crate::{directory, posix};
 use rmake_core::diagnostic::FilesystemError;
 use rmake_core::variables::MAX_OUTPUT;
 
+#[cfg(all(target_arch = "x86_64", target_env = "musl"))]
+mod bundled_bracket;
+#[cfg(all(target_arch = "x86_64", target_env = "musl"))]
+use bundled_bracket::Matcher as FilenameMatcher;
+#[cfg(not(all(target_arch = "x86_64", target_env = "musl")))]
+use posix::Matcher as FilenameMatcher;
+
 const LIMIT: &[u8] = b"variable expansion resource limit exceeded";
+// The qualified musl oracle uses GNU Make's bundled glob. Its literal probes
+// keep quoting bytes; the glibc oracle uses GNU glob from the host libc.
+const BUNDLED_GLOB: bool = cfg!(all(target_arch = "x86_64", target_env = "musl"));
 
 #[derive(Clone)]
 struct Entry {
@@ -120,6 +130,9 @@ pub fn magic(pattern: &[u8]) -> bool {
 }
 
 fn scanned(text: &[u8], escapes: bool) -> bool {
+    if BUNDLED_GLOB {
+        return magic(text);
+    }
     let mut quoted = false;
     for &byte in text {
         if quoted {
@@ -145,6 +158,18 @@ fn join(directory: &[u8], name: &[u8]) -> Vec<u8> {
     }
     path.extend_from_slice(name);
     path
+}
+
+fn trailing_escape(pattern: &[u8]) -> bool {
+    pattern.iter().rev().take_while(|&&b| b == b'\\').count() % 2 == 1
+}
+
+fn unquote_separator(directory: &[u8]) -> &[u8] {
+    if !BUNDLED_GLOB && trailing_escape(directory) {
+        &directory[..directory.len() - 1]
+    } else {
+        directory
+    }
 }
 
 fn unquote(pattern: &[u8]) -> Vec<u8> {
@@ -174,6 +199,14 @@ fn exists(path: &[u8], directory: bool) -> bool {
     }
 }
 
+fn literal_exists(path: &[u8]) -> bool {
+    if BUNDLED_GLOB {
+        fs::metadata(OsStr::from_bytes(path)).is_ok()
+    } else {
+        exists(path, false)
+    }
+}
+
 fn literal(pattern: &[u8]) -> Option<Result<Vec<u8>, Vec<u8>>> {
     if !pattern.is_empty() && !pattern.ends_with(b"/") && !scanned(pattern, true) {
         let name = if pattern.starts_with(b"//") && !pattern[2..].contains(&b'/') {
@@ -188,7 +221,7 @@ fn literal(pattern: &[u8]) -> Option<Result<Vec<u8>, Vec<u8>>> {
             local = join(b".", name);
             &local
         };
-        if !exists(lookup, false) {
+        if !literal_exists(lookup) {
             return Some(Ok(Vec::new()));
         }
         if name.len().saturating_add(32) > MAX_OUTPUT {
@@ -680,26 +713,20 @@ impl<O> Wildcard<O> {
         // A directory suffix is a query for its parent with directory marking.
         // Its spelling follows the Linux glob boundary, including repeated '/'.
         if text.ends_with(b"/") && slash.is_some_and(|pos| pos > 1) {
-            let mut parent = &text[..text.len() - 1];
-            if parent.iter().rev().take_while(|&&b| b == b'\\').count() % 2 == 1 {
-                parent = &parent[..parent.len() - 1];
-            }
+            let parent = unquote_separator(&text[..text.len() - 1]);
             return self.query(parent, true, true, depth + 1);
         }
         let (parent, leaf, prefix) = match slash {
             None => (b".".as_slice(), text, false),
-            Some(pos) if pos == 0 || (pos == 1 && text[0] == b'\\') => {
+            Some(pos) if pos == 0 || (!BUNDLED_GLOB && pos == 1 && text[0] == b'\\') => {
                 (b"/".as_slice(), &text[pos + 1..], true)
             }
             Some(pos) => (&text[..pos], &text[pos + 1..], true),
         };
         let parents = if scanned(parent, false) {
-            let parent = if parent.iter().rev().take_while(|&&b| b == b'\\').count() % 2 == 1 {
-                &parent[..parent.len() - 1]
-            } else {
-                parent
-            };
-            self.query(parent, true, false, depth + 1)?
+            self.query(unquote_separator(parent), true, false, depth + 1)?
+        } else if BUNDLED_GLOB {
+            vec![parent.to_vec()]
         } else {
             vec![unquote(parent)]
         };
@@ -733,15 +760,19 @@ impl<O> Wildcard<O> {
                 Ok(())
             };
             if scanned(leaf, true) {
-                let Some(matcher) = posix::Matcher::new(leaf) else {
+                // An unmatched final escape cannot match in the bundled
+                // matcher, but glob still opens and reads this directory.
+                let rejected_escape = BUNDLED_GLOB && trailing_escape(leaf);
+                let Some(matcher) = FilenameMatcher::new(leaf) else {
                     continue;
                 };
                 let (entries, rank) = self.entries(&parent, !collation.is_bytewise())?;
                 for (index, entry) in entries.iter().enumerate() {
-                    if matcher.matches(&entry.name)
+                    if !rejected_escape
+                        && matcher.matches(&entry.name)
                         && (!directories_only
                             || entry.directory.unwrap_or_else(|| {
-                                exists(&join(&parent, entry.name.as_bytes()), true)
+                                BUNDLED_GLOB || exists(&join(&parent, entry.name.as_bytes()), true)
                             }))
                     {
                         emit(
@@ -753,7 +784,7 @@ impl<O> Wildcard<O> {
                 rank_base = rank_base
                     .checked_add(entries.len())
                     .ok_or_else(|| FilesystemError::from(LIMIT.to_vec()))?;
-            } else if exists(&join(&parent, leaf), false) {
+            } else if literal_exists(&join(&parent, leaf)) {
                 emit(leaf, 0)?;
                 rank_base = rank_base
                     .checked_add(1)

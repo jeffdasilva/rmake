@@ -4020,34 +4020,78 @@ impl Engine {
                             ))
                 });
             self.parallel_makefile_remakes = parallel_remakes && !check_primary_before_overlap;
-            let use_required_source_head = parallel_remakes
-                && self.assumptions.is_some()
-                && !modes.active()
+            let use_required_source_head =
+                parallel_remakes && self.assumptions.is_some() && !modes.active();
+            let all_required_sources = use_required_source_head
                 && read_files
                     .iter()
                     .all(|(source, skip)| *skip || !source.optional);
+            let leading_optional_source = if use_required_source_head && !all_required_sources {
+                self.unruled_leading_optional_source(&read_files)
+            } else {
+                None
+            };
+            let trailing_optional_source = if use_required_source_head
+                && !all_required_sources
+                && leading_optional_source.is_none()
+            {
+                self.unruled_trailing_optional_source(&read_files)
+            } else {
+                None
+            };
             let uses_declared_synthetic_head = |engine: &Self, source: &Makefile| {
-                use_required_source_head
-                    && !source.optional
+                !source.optional
                     && !source.missing
                     && source.location.is_some()
+                    && (all_required_sources
+                        || leading_optional_source.is_some_and(|neighbor| {
+                            engine
+                                .file_traversals
+                                .outcome(neighbor)
+                                .is_some_and(|outcome| {
+                                    // This source has settled before the required visit.
+                                    outcome.time.is_some()
+                                        && !outcome.ran
+                                        && !outcome.fatal
+                                        && outcome.terminal_verdict().is_none()
+                                })
+                        }))
                     && !engine.has_requested_goal_name(rmake_core::filenames::without_dot_prefix(
                         &source.name,
                     ))
             };
-            let source_outcome = |engine: &Self, source: &Makefile, mut outcome: Outcome| {
-                // Keep the synthetic failure for ordinary prerequisite visits.
-                // The remake pass uses the successful declared source.
-                if matches!(
-                    outcome.remake_failure,
-                    RemakeFailure::RequiredSyntheticInput | RemakeFailure::RequiredSyntheticRecipe
-                ) && uses_declared_synthetic_head(engine, source)
-                {
-                    outcome.failed = false;
-                    outcome.first_branch_verdict = None;
-                }
-                outcome
-            };
+            let source_outcome =
+                |engine: &Self,
+                 source: &Makefile,
+                 mut outcome: Outcome,
+                 trailing: Option<(&Makefile, &[u8])>| {
+                    // Keep the synthetic failure for ordinary prerequisite visits.
+                    // The remake pass uses the successful declared source.
+                    if matches!(
+                        outcome.remake_failure,
+                        RemakeFailure::RequiredSyntheticInput
+                            | RemakeFailure::RequiredSyntheticRecipe
+                    ) && (uses_declared_synthetic_head(engine, source)
+                        || (matches!(
+                            outcome.remake_failure,
+                            RemakeFailure::RequiredSyntheticInput
+                        ) && trailing.is_some_and(|(required, neighbor)| {
+                            // A synchronous no-rule result can settle before the
+                            // final unruled optional source has its own visit.
+                            std::ptr::eq(required, source)
+                                && !engine.file_traversals.has_outcome(neighbor)
+                                && !engine.pending(neighbor)
+                                && engine.unruled_remake_source(neighbor)
+                                && !engine.database.rules.contains_key(b".DEFAULT".as_slice())
+                                && fs::symlink_metadata(os(neighbor))
+                                    .is_ok_and(|file| file.is_file())
+                        })))
+                    {
+                        outcome.failed = false;
+                        outcome.first_branch_verdict = None;
+                    }
+                    outcome
+                };
             let mut loaded_prerequisite_times = HashMap::new();
             if !parallel_remakes {
                 let has_implicit_recipes = !self.database.database_implicit_rules().is_empty();
@@ -4482,7 +4526,7 @@ impl Engine {
                     build_visit,
                     track_named_source.then_some(&mut source_started_command),
                 );
-                result = source_outcome(self, makefile, result);
+                result = source_outcome(self, makefile, result, trailing_optional_source);
                 let chain_failed = result.failed;
                 let refreshed_implicit_time = loaded_implicit_time.filter(|_| {
                     !MakefileModes::from_options(&self.options).active()
@@ -5118,7 +5162,7 @@ impl Engine {
                             .outcome(self.aliases.resolve(name))
                             .copied()
                             .unwrap_or(remake.initial);
-                        let result = source_outcome(self, remake.file, result);
+                        let result = source_outcome(self, remake.file, result, None);
                         if remake.duplicate && (remake.file.optional || !result.failed) {
                             continue;
                         }
@@ -12492,6 +12536,75 @@ impl Engine {
         }
         let branches = self.database.rules.get(target)?.double_colon.as_ref()?;
         Some(branches.len())
+    }
+
+    fn unruled_leading_optional_source<'a>(
+        &self,
+        read_files: &'a [(Makefile, bool)],
+    ) -> Option<&'a [u8]> {
+        let [(primary, false), (neighbor, false), required @ ..] = read_files else {
+            return None;
+        };
+        self.unruled_optional_remake_layout(primary, neighbor, required)
+            .then_some(neighbor.name.as_slice())
+    }
+
+    fn unruled_trailing_optional_source<'a>(
+        &self,
+        read_files: &'a [(Makefile, bool)],
+    ) -> Option<(&'a Makefile, &'a [u8])> {
+        let [(primary, false), required @ .., (neighbor, false)] = read_files else {
+            return None;
+        };
+        let (source, _) = required.last()?;
+        (self.unruled_optional_remake_layout(primary, neighbor, required)
+            && !self
+                .has_requested_goal_name(rmake_core::filenames::without_dot_prefix(&source.name)))
+        .then_some((source, neighbor.name.as_slice()))
+    }
+
+    fn unruled_optional_remake_layout(
+        &self,
+        primary: &Makefile,
+        neighbor: &Makefile,
+        required: &[(Makefile, bool)],
+    ) -> bool {
+        if !(1..=2).contains(&required.len())
+            || required.iter().any(|(source, skip)| {
+                *skip || source.optional || source.missing || source.location.is_none()
+            })
+            || primary.optional
+            || primary.missing
+            || primary.location.is_some()
+            || !neighbor.optional
+            || neighbor.missing
+            || neighbor.location.is_none()
+            || !self.options.no_rules
+            || self.options.load_limit.is_some()
+            || self.options.check_symlink_times
+            || !self.options.include_directories.is_empty()
+            || !self.options.old_files.is_empty()
+            || self.options.new_files.len() != 1
+            || self.database.has_vpaths()
+            || !self.vpath_dirs.is_empty()
+            || !self.gpath_dirs.is_empty()
+            || self.database.rules.contains_key(b".DEFAULT".as_slice())
+        {
+            return false;
+        }
+        self.unruled_remake_source(&primary.name) && self.unruled_remake_source(&neighbor.name)
+    }
+
+    fn unruled_remake_source(&self, name: &[u8]) -> bool {
+        !name.contains(&b'/')
+            && !name.starts_with(b"~")
+            && !name.starts_with(b"-l")
+            && rmake_core::filenames::archive_parts(name).is_none()
+            && !self.has_requested_goal_name(name)
+            && self.assumed_time(name).is_none()
+            && !self.database.loaded_modules.contains_key(name)
+            && !self.database.rules.contains_key(name)
+            && self.database.implicit_candidates(name).is_empty()
     }
 
     fn required_synthetic_recipe(&self, target: &[u8], ordinal: Option<usize>) -> bool {
