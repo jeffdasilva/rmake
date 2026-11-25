@@ -4277,8 +4277,17 @@ impl Engine {
                         && let Some(before) = before.flatten()
                     {
                         let live_modes = MakefileModes::from_options(&self.options);
-                        let regular_visit =
-                            !modes.active() && !visit_modes.active() && !live_modes.active();
+                        // An unnamed makefile can run in ordinary mode
+                        // while the eventual goals retain nonexecuting flags.
+                        let regular_visit = !visit_modes.active()
+                            && !live_modes.active()
+                            && (!modes.active()
+                                || (!named_source
+                                    && self
+                                        .assumed_new_double_colon_entries(
+                                            self.aliases.resolve(name),
+                                        )
+                                        .is_some_and(|(_, count)| count == 1)));
                         // A named source can leave every branch current
                         // under dry-run, query or touch. A simulated
                         // declaration can propagate its assumed-new time to

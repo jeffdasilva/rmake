@@ -1,0 +1,10 @@
+id = "assumed-double-unnamed-source-clock-named-control"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "Naming the current source keeps the existing named query and touch reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-t", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

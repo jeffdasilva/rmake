@@ -1,0 +1,10 @@
+id = "assumed-double-unnamed-source-clock-query-forced-caller"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "A forced caller recipe records the restarted source pass under query."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

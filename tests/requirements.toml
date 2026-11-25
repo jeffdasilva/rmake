@@ -1826,8 +1826,8 @@ title = "Restart serial existing sources after a synthetic what-if timestamp cha
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 16
-fixture_count = 16
+candidate_required = 27
+fixture_count = 27
 cases = [
   "assumed-double-source-clock-command",
   "assumed-double-source-clock-earlier-failure",
@@ -1845,6 +1845,17 @@ cases = [
   "assumed-double-repeated-stopping-source-clock-empty-recipe",
   "assumed-double-repeated-stopping-source-clock-earlier-failure",
   "assumed-double-repeated-stopping-source-clock-missing-tail",
+  "assumed-double-unnamed-source-clock-dry",
+  "assumed-double-unnamed-source-clock-query",
+  "assumed-double-unnamed-source-clock-query-touch",
+  "assumed-double-unnamed-source-clock-query-dry-touch",
+  "assumed-double-unnamed-source-clock-dry-real-remake",
+  "assumed-double-unnamed-source-clock-query-forced-caller",
+  "assumed-double-unnamed-source-clock-named-control",
+  "assumed-double-unnamed-source-clock-unassumed-control",
+  "assumed-double-unnamed-source-clock-optional-failure-control",
+  "assumed-double-unnamed-source-clock-required-failure-control",
+  "assumed-double-unnamed-source-clock-physical-control",
 ]
 
 [[requirements]]

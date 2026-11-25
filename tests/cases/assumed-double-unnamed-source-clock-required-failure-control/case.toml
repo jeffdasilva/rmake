@@ -1,0 +1,10 @@
+id = "assumed-double-unnamed-source-clock-required-failure-control"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "A required failure returns before ordinary goals in query and dry-run mode."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 2
+stdout = ""
+stderr = "make: *** No rule to make target 'missing', needed by 'broken.inc'.\nMakefile:8: Failed to remake makefile 'broken.inc'.\n"

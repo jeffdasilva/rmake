@@ -1,0 +1,10 @@
+id = "assumed-double-unnamed-source-clock-unassumed-control"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "Without a what-if entry the ordinary caller stays current in the original pass."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "all"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

@@ -1,0 +1,10 @@
+id = "assumed-double-unnamed-source-clock-query"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "The restarted assumed source makes the ordinary caller out of date in stopping query mode."
+args = ["-rR", "--no-print-directory", "-j1", "-S", "-q", "-W", "b.mk", "all"]
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""

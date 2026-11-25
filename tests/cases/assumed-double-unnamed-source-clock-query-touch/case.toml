@@ -1,0 +1,10 @@
+id = "assumed-double-unnamed-source-clock-query-touch"
+requirement = "options.assumed-double-colon-source-clock"
+candidate = "required"
+description = "Query and touch physically update the caller after a source clock reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-t", "-W", "b.mk", "all", "check-clock"]
+
+[expected]
+exit_code = 0
+stdout = "touch all\n"
+stderr = ""
