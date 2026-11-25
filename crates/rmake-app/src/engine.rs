@@ -9340,16 +9340,26 @@ impl Engine {
             && !self.database_contexts.contains_key(to)
             && self.file_traversals.visit(to).is_none();
         // A recipe-less visit retains the destination declaration table but
-        // has no recipe locals yet. Its top-level scope can receive the source.
+        // has no recipe locals yet. Use its recorded ancestry before merging.
         let visited_declaration_only = late_goal_owners
             .is_some_and(|owners| !owners.destination_unattempted)
             && destination_has_scope
             && !self.database_contexts.contains_key(to)
-            && !self.target_contexts.contains_key(to)
+            && !self.target_contexts.contains_key(to);
+        let has_visited_parent = visited_declaration_only
             && self
                 .file_traversals
                 .visit(to)
-                .is_some_and(|visit| visit.parent.is_none());
+                .is_some_and(|visit| visit.parent.is_some());
+        let visited_context = if has_visited_parent {
+            self.with_target_read_expansion(None, |database, context| {
+                database.variables_for_visited_file(to, &context)
+            })
+        } else {
+            None
+        };
+        let visited_declaration_only =
+            visited_declaration_only && (!has_visited_parent || visited_context.is_some());
         let completed_scope_merge = !self.remaking
             && retained_ordinary
             && self
@@ -9533,8 +9543,8 @@ impl Engine {
                 from,
                 to,
                 source,
-                self.database_contexts.get(to),
-                self.target_contexts.get(to),
+                self.database_contexts.get(to).or(visited_context.as_ref()),
+                self.target_contexts.get(to).or(visited_context.as_ref()),
                 visited_declaration_only,
             )
         {

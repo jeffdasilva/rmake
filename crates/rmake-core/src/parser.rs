@@ -3815,9 +3815,25 @@ impl Database {
             return variables.active_target_read(target, declaration);
         }
 
-        // A visited file can have a parent before any recipe or secondary
-        // expansion has needed its variable table. Reading a declaration
-        // does not activate any pattern scopes along that path.
+        self.visited_file_scope(target, reads)?
+            .active_target_read(target, declaration)
+    }
+
+    /// Recover an uninitialized visited file's declaration and parent scopes
+    /// without activating its pattern declarations or evaluating a recipe.
+    pub fn variables_for_visited_file(
+        &self,
+        target: &[u8],
+        context: &ExpansionContext<'_>,
+    ) -> Option<VariableStore> {
+        self.visited_file_scope(target, context.target_reads.as_deref()?)
+    }
+
+    fn visited_file_scope(
+        &self,
+        target: &[u8],
+        reads: &dyn crate::diagnostic::TargetReadReceiver,
+    ) -> Option<VariableStore> {
         let mut path = vec![target];
         let mut parent = reads.parent(target)?;
         let mut inherited = loop {
@@ -3836,7 +3852,7 @@ impl Database {
         for name in path.into_iter().rev() {
             inherited = self.variables_for_target_prepared(name, &inherited, None);
         }
-        inherited.active_target_read(target, declaration)
+        Some(inherited)
     }
 
     fn reparented_target_read(
