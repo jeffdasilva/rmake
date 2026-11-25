@@ -328,6 +328,7 @@ enum DatabaseResult {
     Outcome,
     Simulated,
     SimulatedQuery,
+    TouchedTarget,
     // A settled touch can supply the failed-source restart verdict.
     SimulatedTouch,
     PhysicalTouch,
@@ -342,7 +343,10 @@ enum DatabaseResult {
 
 impl DatabaseResult {
     fn has_simulated_time(self) -> bool {
-        matches!(self, Self::Simulated | Self::SimulatedQuery)
+        matches!(
+            self,
+            Self::Simulated | Self::SimulatedQuery | Self::TouchedTarget
+        )
     }
 }
 
@@ -5739,11 +5743,12 @@ impl Engine {
             // A previous failure settles the invocation verdict. Later serial
             // goals can still complete, and a prerequisite can observe their
             // new timestamp when it actually consumes the file.
-            let outcome = if pending || self.defer_goal_timestamp_after_failure() {
-                outcome
-            } else {
-                self.observe_updated(&goal, outcome)
-            };
+            let outcome =
+                if pending || self.defer_goal_timestamp_after_failure(&goal, outcome.completion) {
+                    outcome
+                } else {
+                    self.observe_updated(&goal, outcome)
+                };
             let mut completed_report = None;
             if self.options.keep_going && !outcome.fatal {
                 let name = self.aliases.resolve(&goal);
@@ -10435,11 +10440,34 @@ impl Engine {
         Some((source, destination))
     }
 
-    fn defer_goal_timestamp_after_failure(&self) -> bool {
-        self.ordinary_queries.first_verdict == Some(Status::Failure)
-            && !self.remaking
-            && !self.parallel_graph()
-            && !MakefileModes::from_options(&self.options).active()
+    fn defer_goal_timestamp_after_failure(
+        &self,
+        target: &[u8],
+        completion: CompletionTime,
+    ) -> bool {
+        if self.ordinary_queries.first_verdict != Some(Status::Failure)
+            || self.remaking
+            || self.parallel_graph()
+        {
+            return false;
+        }
+        let modes = MakefileModes::from_options(&self.options);
+        if !modes.active() {
+            return true;
+        }
+        if !modes.touch || modes.dry_run || modes.question || completion != CompletionTime::Refresh
+        {
+            return false;
+        }
+        // Goal reporting can still hold the queued spelling after GPATH has
+        // adopted the rule on its canonical file.
+        let target = self.aliases.resolve(target);
+        rmake_core::filenames::archive_parts(target).is_none()
+            && self
+                .database
+                .rules
+                .get(target)
+                .is_some_and(|rule| rule.double_colon.is_none() && rule.grouped_targets().is_none())
     }
 
     fn observe_updated(&mut self, target: &[u8], mut outcome: Outcome) -> Outcome {
@@ -15538,6 +15566,17 @@ impl Engine {
                 {
                     outcome.database_result = DatabaseResult::SimulatedQuery;
                 } else if execution.touch != TouchCompletion::None
+                    && !self.remaking
+                    && !self.parallel_graph()
+                    && branch.is_none()
+                    && rule.grouped_targets().is_none()
+                    && execution.status == Status::Success
+                    && outcome.completion == CompletionTime::AssumeNew
+                {
+                    // A successful ordinary touch marks the logical file as
+                    // new even when it also set a physical timestamp.
+                    outcome.database_result = DatabaseResult::TouchedTarget;
+                } else if execution.touch != TouchCompletion::None
                     && self.remaking
                     && !self.parallel_makefile_remakes
                     && !execution.pending
@@ -15566,7 +15605,7 @@ impl Engine {
                 if !phony
                     && !execution.pending
                     && execution.status == Status::Success
-                    && self.defer_goal_timestamp_after_failure()
+                    && self.defer_goal_timestamp_after_failure(target, outcome.completion)
                 {
                     // Recipe completion invalidates the logical file time
                     // even if expansion or an optimized ':' leaves no child.
