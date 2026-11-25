@@ -927,11 +927,20 @@ impl Database {
         if destination_base.is_some_and(|base| !base.is_file_read_context(to)) {
             return None;
         }
-        let scope = self.target_scopes.get(to)?.merge_completed_file_bindings(
-            destination,
-            self.target_scopes.get(from)?,
-            source,
-        )?;
+        let source_declarations = self.target_scopes.get(from);
+        let scope = match self.target_scopes.get(to) {
+            Some(scope) => {
+                scope.merge_completed_file_bindings(destination, source_declarations?, source)?
+            }
+            None => TargetScope::merge_completed_undeclared_file_bindings(
+                to,
+                destination?,
+                destination_base?,
+                from,
+                source_declarations,
+                source,
+            )?,
+        };
         let mut saved = destination
             .cloned()
             .unwrap_or_else(|| self.variables.with_target_scopes(&[&scope]));

@@ -1,0 +1,12 @@
+id = "late-gpath-completed-undeclared-unvisited-archive-control"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Retain the existing archive adoption path for an unvisited extensionless destination."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "bundle", "move", "bundle(member)", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "make: Nothing to be done for 'src/bundle(member)'.\nraw=[||undefined]\nsearched=[inherited-source|override]\n"
+stderr = ""
