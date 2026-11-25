@@ -4258,14 +4258,22 @@ impl Engine {
                         .contains_key(name)
                         .then(|| self.modified(name))
                 };
-                let removed_named_dry_declarations = if self.job_slots() == 1
+                let unchanged_named_dry_source = if self.job_slots() == 1
                     && visit_modes.only_dry_run()
-                    && before == Some(None)
                     && !failed
                     && !optional_remake_failed
                     && !remake_question
                 {
-                    self.removed_required_dry_declaration_count(&read_files, makefile)
+                    match before {
+                        Some(None) => self
+                            .removed_required_dry_declaration_count(&read_files, makefile)
+                            .map(|declarations| (None, declarations)),
+                        // A still-present source can retain its prerequisites on reread.
+                        Some(Some(time)) if restarts == 0 => self
+                            .present_required_dry_declaration_count(&read_files, makefile, time)
+                            .map(|declarations| (Some(time), declarations)),
+                        _ => None,
+                    }
                 } else {
                     None
                 };
@@ -4803,20 +4811,21 @@ impl Engine {
                     changed |= record_change
                         && (physically_changed
                             || (result.remake_group_peer_updated && !tracked_group_change));
-                    // Compare the removed required source with its original read after
-                    // all named declarations have settled without a physical update.
+                    // Use the simulated clock of a loaded required source after
+                    // all named declarations have settled at the same physical time.
                     if !changed
                         && result.completion == CompletionTime::AssumeNew
                         && result.database_result == DatabaseResult::Simulated
                         && !result.fatal
                         && result.terminal_verdict().is_none()
                         && MakefileModes::from_options(&self.options).only_dry_run()
-                        && let Some(declarations) = removed_named_dry_declarations
+                        && let Some((physical_time, declarations)) = unchanged_named_dry_source
+                        && physical_time.is_none_or(|time| result.time == Some(time))
                         && self
                             .settled_serial_source_declarations(name, declarations)
                             .is_some_and(|(succeeded, refreshed)| succeeded && !refreshed)
                     {
-                        changed = self.modified(name).is_none();
+                        changed = self.modified(name) == physical_time;
                     }
                     let simulated_change =
                         visit_modes.dry_run && result.completion == CompletionTime::AssumeNew;
@@ -12439,6 +12448,44 @@ impl Engine {
         {
             return None;
         }
+        self.explicit_named_dry_declaration_count(name)
+    }
+
+    fn present_required_dry_declaration_count(
+        &self,
+        read_files: &[(Makefile, bool)],
+        source: &Makefile,
+        before: SystemTime,
+    ) -> Option<usize> {
+        let [(primary, false), (named, false)] = read_files else {
+            return None;
+        };
+        let name = source.name.as_slice();
+        if !std::ptr::eq(named, source)
+            || source.optional
+            || source.missing
+            || source.location.is_none()
+            || primary.optional
+            || primary.missing
+            || primary.location.is_some()
+            || self.options.goals.len() != 1
+            || self.options.check_symlink_times
+            || self.assumptions.is_some()
+            || !self.no_remake_recipe_fallback()
+            || self.database.rules.contains_key(&primary.name)
+            || self.aliases.resolve(name) != name
+            || self.file_traversals.has_outcome(name)
+            || !matches!(
+                self.path_observations.get(name),
+                Some(Some((None, Some(time)))) if *time == before
+            )
+        {
+            return None;
+        }
+        self.explicit_named_dry_declaration_count(name)
+    }
+
+    fn explicit_named_dry_declaration_count(&self, name: &[u8]) -> Option<usize> {
         let branches = self.database.rules.get(name)?.double_colon.as_deref()?;
         (branches.len() > 1
             && branches.iter().all(|rule| {

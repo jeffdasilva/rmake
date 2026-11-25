@@ -1,0 +1,10 @@
+id = "include-serial-required-named-dry-present-source-all-current"
+requirement = "includes.serial-required-named-dry-present-source"
+candidate = "required"
+description = "Two current declarations retain the first read."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 1680300000\npayload=0:original\nmake: 'b.mk' is up to date.\n"
+stderr = ""

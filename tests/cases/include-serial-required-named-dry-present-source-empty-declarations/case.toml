@@ -1,0 +1,10 @@
+id = "include-serial-required-named-dry-present-source-empty-declarations"
+requirement = "includes.serial-required-named-dry-present-source"
+candidate = "required"
+description = "Two explicit empty declarations complete in dry-run and lead to the reread."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 1680300000\npayload=0:original\nread=1 1680300000\npayload=1:original\nmake: Nothing to be done for 'b.mk'.\n"
+stderr = ""

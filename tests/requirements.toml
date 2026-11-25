@@ -3206,6 +3206,31 @@ cases = [
 ]
 
 [[requirements]]
+id = "includes.serial-required-named-dry-present-source"
+title = "Reread an unchanged required source after its named dry-run declarations settle"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/m3-m6-audit.md"
+candidate_required = 14
+fixture_count = 14
+cases = [
+  "include-serial-required-named-dry-present-source-required-reread",
+  "include-serial-required-named-dry-present-source-required-stopping",
+  "include-serial-required-named-dry-present-source-current-head",
+  "include-serial-required-named-dry-present-source-current-tail",
+  "include-serial-required-named-dry-present-source-three-declarations",
+  "include-serial-required-named-dry-present-source-empty-declarations",
+  "include-serial-required-named-dry-present-source-reread-current",
+  "include-serial-required-named-dry-present-source-optional",
+  "include-serial-required-named-dry-present-source-all-current",
+  "include-serial-required-named-dry-present-source-single-declaration",
+  "include-serial-required-named-dry-present-source-forced-head",
+  "include-serial-required-named-dry-present-source-forced-tail",
+  "include-serial-required-named-dry-present-source-forced-tail-failure",
+  "include-serial-required-named-dry-present-source-named-primary",
+]
+
+[[requirements]]
 id = "includes.serial-failed-source-restart-baseline"
 title = "Use the read timestamp after a settled failed serial refresh"
 status = "fixture-ready"

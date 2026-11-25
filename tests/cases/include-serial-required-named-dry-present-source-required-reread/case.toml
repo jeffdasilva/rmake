@@ -1,0 +1,10 @@
+id = "include-serial-required-named-dry-present-source-required-reread"
+requirement = "includes.serial-required-named-dry-present-source"
+candidate = "required"
+description = "The required named source is reread once after two simulated declarations."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 1680300000\npayload=0:original\nprintf \"branch-0:%s\\n\" \"0\" >> proof; :\nprintf \"branch-1:%s\\n\" \"0\" >> proof; :\nread=1 1680300000\npayload=1:original\nmake: Nothing to be done for 'b.mk'.\n"
+stderr = ""

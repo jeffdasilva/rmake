@@ -1,0 +1,10 @@
+id = "include-serial-required-named-dry-present-source-named-primary"
+requirement = "includes.serial-required-named-dry-present-source"
+candidate = "required"
+description = "Naming the unruled primary preserves ordinary included-source behavior."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "Makefile"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 1680300000\npayload=0:original\nmake: Nothing to be done for 'Makefile'.\n"
+stderr = ""
