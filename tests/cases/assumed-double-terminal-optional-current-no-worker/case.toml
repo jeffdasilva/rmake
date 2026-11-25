@@ -1,0 +1,10 @@
+id = "assumed-double-terminal-optional-current-no-worker"
+requirement = "options.assumed-double-colon-terminal-optional-dry"
+candidate = "required"
+description = "A current terminal optional synthetic branch supplies its saved clock with no worker."
+args = ["-rR", "--no-print-directory", "-n", "-j2", "-k", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "read=0 clock=1680300000 1680300000\nread=1 clock=1680300000 1680300000\nmake: 'b.mk' is up to date.\n"
+stderr = ""

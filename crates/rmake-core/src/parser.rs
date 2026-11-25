@@ -4481,18 +4481,21 @@ impl Database {
 
     fn retain_native_reader_error(&mut self, location: &Location, context: &ExpansionContext<'_>) {
         let evaluating = self.evaluation_depth != 0;
-        if self.native_fatal_context.is_some()
-            || (evaluating
-                && (location.file.is_null()
-                    || context.location.is_none_or(|caller| caller.file.is_null())))
-            || !context.needs_fatal_expansion_context()
-        {
+        if self.native_fatal_context.is_some() || !context.needs_fatal_expansion_context() {
             return;
         }
-        // The frame owns the location, including an included source. Named
-        // eval also owns the caller's scopes until evaluate_in returns.
+        // The frame owns its source, including physical includes and explicit
+        // native eval locations supplied from an anonymous caller.
+        let location = if !evaluating || !location.file.is_null() {
+            Some(location.clone())
+        } else if !self.evaluation_bindings.is_empty() {
+            // Anonymous eval can retain lexical bindings without a source.
+            None
+        } else {
+            return;
+        };
         let mut retained = NativeFatalContext {
-            location: Some(location.clone()),
+            location,
             ..NativeFatalContext::default()
         };
         if evaluating {
