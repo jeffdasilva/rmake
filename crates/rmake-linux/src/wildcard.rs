@@ -767,6 +767,8 @@ impl<O> Wildcard<O> {
                     continue;
                 };
                 let (entries, rank) = self.entries(&parent, !collation.is_bytewise())?;
+                #[cfg(all(target_arch = "x86_64", target_env = "musl"))]
+                let _match_locale = crate::locale::ByteMatchLocale::select();
                 for (index, entry) in entries.iter().enumerate() {
                     if !rejected_escape
                         && matcher.matches(&entry.name)
