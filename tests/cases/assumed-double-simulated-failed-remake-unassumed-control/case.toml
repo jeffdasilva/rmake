@@ -1,0 +1,10 @@
+id = "assumed-double-simulated-failed-remake-unassumed-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "The declared source clock stays physical without a what-if entry."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

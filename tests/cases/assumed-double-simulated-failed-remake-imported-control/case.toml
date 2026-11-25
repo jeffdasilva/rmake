@@ -1,0 +1,13 @@
+id = "assumed-double-simulated-failed-remake-imported-control"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "A restart counter publishes the what-if entry for ordinary goals."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "b.mk"]
+
+[environment]
+MAKE_RESTARTS = "1"
+
+[expected]
+exit_code = 0
+stdout = "printf 'synthetic=%s\\n' '1' >> proof\n"
+stderr = ""

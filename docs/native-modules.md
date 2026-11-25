@@ -123,8 +123,9 @@ module changes, a real process exec resets it. A setup return of `-1` keeps the
 module and its `.LOADED` entry while excluding it from automatic Makefile
 remaking. An explicit goal can still rebuild the module.
 
-A module is unloaded before its recipe expands. If the rebuild leaves it
-unchanged, it is reloaded without restarting. Dropping the runtime does not
+A module is unloaded before its recipe expands. After an unchanged ordinary
+remake, the module reloads without a restart. A query verdict leaves it
+unloaded for the ordinary goals. Dropping the runtime does not
 prematurely run shared-library finalizers. At process exit, the interpreter
 stays alive while libc invokes module finalizers through the request bridge.
 [Startup exit owners](native-startup-exits.md) retain the actual decoder,

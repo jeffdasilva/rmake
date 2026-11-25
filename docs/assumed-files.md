@@ -86,8 +86,11 @@ A serial source named under dry-run or query can also restart when every
 declaration and the synthetic entry stay current at the same physical
 timestamp. A simulated declaration can leave the entire chain logically
 new, preserving the synthetic entry's assumed timestamp. Multiple assumed
-entries, missing sources, parallel scheduling and changes during named
-nonexecuting modes need separate coverage.
+entries, missing sources, parallel scheduling and other changes during
+named nonexecuting modes need separate coverage. After an unrelated
+optional source fails, serial dry-run can restart when a simulated
+synthetic entry leaves its logical timestamp on the successful named
+source head. The comparison uses the source's original timestamp.
 
 ## Qualification and limits
 

@@ -1850,6 +1850,25 @@ cases = [
 ]
 
 [[requirements]]
+id = "options.assumed-double-colon-simulated-failed-remake"
+title = "Restart a named simulated what-if source after an unrelated optional failure"
+status = "fixture-ready"
+candidate_status = "implemented-slice"
+reference = "docs/assumed-files.md"
+candidate_required = 8
+fixture_count = 8
+cases = [
+  "assumed-double-simulated-failed-remake-absent",
+  "assumed-double-simulated-failed-remake-current-control",
+  "assumed-double-simulated-failed-remake-earlier",
+  "assumed-double-simulated-failed-remake-empty",
+  "assumed-double-simulated-failed-remake-imported-control",
+  "assumed-double-simulated-failed-remake-later-required",
+  "assumed-double-simulated-failed-remake-successful-control",
+  "assumed-double-simulated-failed-remake-unassumed-control",
+]
+
+[[requirements]]
 id = "options.assumed-new-restart"
 title = "Assumed-new file publication across makefile restarts"
 status = "fixture-ready"

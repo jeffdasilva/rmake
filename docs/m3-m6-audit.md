@@ -195,6 +195,8 @@ An unavailable prerequisite during a parallel remake now emits the failure
 event under basic debugging for optional sources and for required remakes with
 `-k`. The [remake debug fixtures](../tests/debug-output/remake-cache-phase.toml)
 cover missing leaves, order-only inputs, shared prerequisites and cache visits.
+The held abort fixture also checks that a required failure still drains the
+running worker without announcing another prerequisite wait.
 
 Cached prerequisite failures already reported by a required remake now retain
 their reporting state through an optional visit, as checked by the
@@ -334,6 +336,9 @@ and line/target synchronization. Further combinations remain required.
 Extend native setup, callbacks, shutdown, source restarts and standard-stream
 handling across startup phases, profiles and resource failures. Preserve
 registration, allocator and callback ownership through those combinations.
+When a remake pass returns a query verdict, unloaded modules stay closed.
+The [native lifecycle gate](native-modules.md) checks query, dry-run and
+ordinary reload behavior.
 GNU Make remains an external test reference and cannot serve as a runtime
 implementation fallback.
 

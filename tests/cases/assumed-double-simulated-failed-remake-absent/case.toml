@@ -1,0 +1,10 @@
+id = "assumed-double-simulated-failed-remake-absent"
+requirement = "options.assumed-double-colon-simulated-failed-remake"
+candidate = "required"
+description = "An absent unrelated optional source also enters the failed remake pass."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "printf 'synthetic=%s\\n' '0' >> proof\nprintf 'synthetic=%s\\n' '1' >> proof\n"
+stderr = ""

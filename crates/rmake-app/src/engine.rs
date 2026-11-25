@@ -4681,6 +4681,19 @@ impl Engine {
             changed |= grouped_changes
                 .as_ref()
                 .is_some_and(SerialGroupedRemakeChanges::changed);
+            if !changed
+                && track_assumed_remake
+                && modes.dry_run
+                && optional_remake_failed
+                && !failed
+                && !remake_question
+            {
+                changed = self.failed_remake_has_simulated_assumed_source(
+                    &read_files,
+                    &visited,
+                    named_sources.as_ref(),
+                );
+            }
             // A skipped required read suppresses an otherwise successful
             // restart. A failed remake still checks for physically updated peers.
             if changed && !remake_question && (!skipped_required_read || unsuccessful_remake) {
@@ -4698,11 +4711,17 @@ impl Engine {
                 // goal activity only for recipes started in that phase.
                 self.file_traversals.clear_recipe_activity();
             }
-            for module in crate::native::unloaded() {
-                let location = self.database.loaded_modules.get(&module).cloned();
-                if let Err(error) = self.native_module_operation(&module, location.as_ref(), true) {
-                    self.expansion_error(location.as_ref(), &error);
-                    return 2;
+            // A query verdict leaves any objects unloaded by the remake pass
+            // in that state for the ordinary goals.
+            if !remake_question {
+                for module in crate::native::unloaded() {
+                    let location = self.database.loaded_modules.get(&module).cloned();
+                    if let Err(error) =
+                        self.native_module_operation(&module, location.as_ref(), true)
+                    {
+                        self.expansion_error(location.as_ref(), &error);
+                        return 2;
+                    }
                 }
             }
             false
@@ -11007,34 +11026,81 @@ impl Engine {
         Some(branches.len())
     }
 
-    fn settled_assumed_new_makefile_clock(&self, source: &[u8]) -> bool {
+    fn settled_assumed_new_makefile_branch(&self, source: &[u8]) -> Option<(SystemTime, Outcome)> {
         let name = self.aliases.resolve(source);
-        let Some(assumed_time) = self.single_assumed_new_double_colon_time(name) else {
-            return false;
-        };
-        let Some(declarations) = self
-            .database
-            .rules
-            .get(name)
-            .and_then(|rule| rule.double_colon.as_ref())
-        else {
-            return false;
-        };
+        let assumed_time = self.single_assumed_new_double_colon_time(name)?;
+        let declarations = self.database.rules.get(name)?.double_colon.as_ref()?;
+        let branch = *self
+            .database_branch_outcomes
+            .get(&(name.to_vec(), declarations.len()))?;
+        (!branch.failed && !branch.fatal && !branch.question_outdated)
+            .then_some((assumed_time, branch))
+    }
+
+    fn settled_assumed_new_makefile_clock(&self, source: &[u8]) -> bool {
         // An existing source's synthetic entry can settle on a physical
         // timestamp even if its recipe did not need to run. Compare it
         // with that entry's own initial assumed timestamp.
-        self.database_branch_outcomes
-            .get(&(name.to_vec(), declarations.len()))
-            .is_some_and(|branch| {
-                !branch.failed
-                    && !branch.fatal
-                    && !branch.question_outdated
-                    && !matches!(
-                        branch.completion,
-                        CompletionTime::AssumeNew | CompletionTime::AssumeNewPhony
-                    )
-                    && branch.time.is_some_and(|time| time != assumed_time)
+        self.settled_assumed_new_makefile_branch(source)
+            .is_some_and(|(assumed_time, branch)| {
+                !matches!(
+                    branch.completion,
+                    CompletionTime::AssumeNew | CompletionTime::AssumeNewPhony
+                ) && branch.time.is_some_and(|time| time != assumed_time)
             })
+    }
+
+    fn failed_remake_has_simulated_assumed_source(
+        &self,
+        read_files: &[(Makefile, bool)],
+        visited: &MakefileVisits<'_>,
+        named_sources: Option<&HashSet<&[u8]>>,
+    ) -> bool {
+        let failed = read_files.iter().find_map(|(source, skip)| {
+            let name = source.name.as_slice();
+            let target = self.aliases.resolve(name);
+            (!*skip
+                && source.optional
+                && visited.contains_key(name)
+                && self.file_traversals.outcome(target).is_some_and(|outcome| {
+                    outcome.failed && !outcome.fatal && !outcome.question_outdated
+                }))
+            .then_some(target)
+        });
+        let Some(failed) = failed else {
+            return false;
+        };
+
+        // The failed remake pass compares successful source heads. A
+        // simulated synthetic entry can leave its newest time on the head
+        // even when that source's physical timestamp has not changed.
+        let succeeded = |outcome: &Outcome| outcome.terminal_verdict().is_none() && !outcome.fatal;
+        read_files.iter().any(|(source, skip)| {
+            let name = source.name.as_slice();
+            let target = self.aliases.resolve(name);
+            !*skip
+                && !source.missing
+                && target != failed
+                && self.is_makefile_goal(
+                    rmake_core::filenames::without_dot_prefix(name),
+                    named_sources,
+                )
+                && self
+                    .settled_assumed_new_makefile_branch(target)
+                    .is_some_and(|(_, branch)| {
+                        branch.database_result == DatabaseResult::Simulated
+                            && branch.completion == CompletionTime::AssumeNew
+                    })
+                && self.file_traversals.outcome(target).is_some_and(succeeded)
+                && self
+                    .database_branch_outcomes
+                    .get(&(target.to_vec(), 0))
+                    .is_some_and(succeeded)
+                && visited
+                    .get(name)
+                    .and_then(|(before, _)| *before)
+                    .is_some_and(|before| self.modified(target) == Some(before))
+        })
     }
 
     fn resume_double_colon_state(&mut self, target: &[u8], mut state: DoubleColonState) -> Outcome {
@@ -12137,10 +12203,16 @@ impl Engine {
         if waiting {
             if !state.waited_for_prerequisites || replay_debug {
                 state.waited_for_prerequisites = true;
-                crate::debug::emit(
-                    &self.output,
-                    crate::debug::Event::PrerequisitesRunning(target, debug_depth),
-                );
+                let aborted_required_remake = self.graph_abort.is_some()
+                    && self.remaking
+                    && self.parallel_makefile_remakes
+                    && !self.optional_remake();
+                if !aborted_required_remake {
+                    crate::debug::emit(
+                        &self.output,
+                        crate::debug::Event::PrerequisitesRunning(target, debug_depth),
+                    );
+                }
             }
             self.visiting.remove(target);
             let outcome = state.outcome;
