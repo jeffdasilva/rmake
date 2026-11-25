@@ -57,9 +57,9 @@ at the end of this audit.
 Extend parser and effect coverage across target, pattern, lexical and automatic
 variable scopes. Qualify deep evaluation together with includes, native callbacks,
 Guile stack and garbage-collection behavior, and stack, heap and output limits.
-Validate the required adapters beyond the current x86-64 profile. Internal
-resource guards receive ordinary compatibility review and no safety-exception
-credit by default.
+Broaden adapter coverage beyond the selected x86-64 and AArch64 glibc
+checks. Internal resource guards receive ordinary compatibility review and no
+safety-exception credit by default.
 
 Special metadata, POSIX mode, late built-in changes and child environment
 selection need broader option, extension and profile combinations. The current
@@ -403,6 +403,13 @@ continues to be required alongside application comparisons.
   [serial descriptor pressure](../tests/guile-eventfd-pressure/README.md),
   [detached parallel waits](../tests/guile-parallel-detached/README.md) and
   [parallel descriptor pressure](../tests/guile-parallel-pressure/README.md).
+
+The [native AArch64 glibc workflow](../.github/workflows/native-aarch64.yml)
+covers host metadata, jobserver behavior, native standard streams, developer
+workflows, and deep evaluation. The [dynamic musl workflow](../.github/workflows/native-musl.yml)
+covers selected optimized x86-64 cases in the C locale. Translated diagnostics
+and third-party integration still need qualification on these platform
+combinations. Guile qualification uses the separate x86-64 glibc profile.
 
 ## Integration and performance
 
