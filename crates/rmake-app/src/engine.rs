@@ -15,7 +15,7 @@ pub use startup_exit::{Failure, NativeExit};
 use crate::cli::Options;
 use crate::file_aliases::Aliases;
 use crate::makefiles::{IncludeSearch, source_open_exhausted};
-use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status};
+use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status, TouchCompletion};
 use rmake_core::diagnostic::{
     Diagnostic, ExpansionContext, IncludeError, IncludeFailure, Output, OutputReceiver, ScopeParent,
 };
@@ -327,8 +327,9 @@ enum DatabaseResult {
     Outcome,
     Simulated,
     SimulatedQuery,
-    // The settled synthetic branch supplies the failed-source restart verdict.
+    // A settled touch can supply the failed-source restart verdict.
     SimulatedTouch,
+    PhysicalTouch,
     ObservedGroup,
     ObservedDoubleColon,
     RecipeUnstarted,
@@ -4849,22 +4850,26 @@ impl Engine {
                 && !parallel_remakes
                 && restarts == 0
                 && self.assumptions.is_some()
-                && (modes.dry_run || (modes.question && !modes.touch))
+                && (modes.dry_run || modes.question)
                 && ((optional_remake_failed && !failed) || required_dry_remake_failed)
                 && !remake_question
             {
-                let simulation = if modes.touch {
-                    DatabaseResult::SimulatedTouch
+                let completion = if modes.touch {
+                    if modes.dry_run {
+                        DatabaseResult::SimulatedTouch
+                    } else {
+                        DatabaseResult::PhysicalTouch
+                    }
                 } else if modes.question {
                     DatabaseResult::SimulatedQuery
                 } else {
                     DatabaseResult::Simulated
                 };
-                changed = self.failed_remake_has_simulated_assumed_source(
+                changed = self.failed_remake_has_updated_assumed_source(
                     &read_files,
                     &visited,
                     named_sources.as_ref(),
-                    simulation,
+                    completion,
                     !required_dry_remake_failed,
                 );
             }
@@ -11251,12 +11256,12 @@ impl Engine {
             })
     }
 
-    fn failed_remake_has_simulated_assumed_source(
+    fn failed_remake_has_updated_assumed_source(
         &self,
         read_files: &[(Makefile, bool)],
         visited: &MakefileVisits<'_>,
         named_sources: Option<&HashSet<&[u8]>>,
-        simulation: DatabaseResult,
+        completion: DatabaseResult,
         failed_source_optional: bool,
     ) -> bool {
         let failed = read_files.iter().find_map(|(source, skip)| {
@@ -11276,8 +11281,8 @@ impl Engine {
         };
 
         // The failed remake pass compares successful source heads. A
-        // simulated synthetic entry can leave its newest time on the head
-        // even when that source's physical timestamp has not changed.
+        // synthetic entry can leave its newest time on the head. A settled
+        // physical touch keeps that result if a later source restores its age.
         let succeeded = |outcome: &Outcome| outcome.terminal_verdict().is_none() && !outcome.fatal;
         read_files.iter().any(|(source, skip)| {
             let name = source.name.as_slice();
@@ -11292,7 +11297,7 @@ impl Engine {
                 && self
                     .settled_assumed_new_makefile_branch(target)
                     .is_some_and(|(_, branch)| {
-                        branch.database_result == simulation
+                        branch.database_result == completion
                             && branch.completion == CompletionTime::AssumeNew
                     })
                 && self.file_traversals.outcome(target).is_some_and(succeeded)
@@ -11303,7 +11308,10 @@ impl Engine {
                 && visited
                     .get(name)
                     .and_then(|(before, _)| *before)
-                    .is_some_and(|before| self.modified(target) == Some(before))
+                    .is_some_and(|before| {
+                        completion == DatabaseResult::PhysicalTouch
+                            || self.modified(target) == Some(before)
+                    })
         })
     }
 
@@ -13161,7 +13169,7 @@ impl Engine {
                     && execution.status == Status::Success
                 {
                     outcome.database_result = DatabaseResult::SimulatedQuery;
-                } else if execution.simulated_touch
+                } else if execution.touch != TouchCompletion::None
                     && self.remaking
                     && !self.parallel_makefile_remakes
                     && !execution.pending
@@ -13176,7 +13184,11 @@ impl Engine {
                             .is_some_and(|declarations| ordinal == declarations.len())
                     })
                 {
-                    outcome.database_result = DatabaseResult::SimulatedTouch;
+                    outcome.database_result = match execution.touch {
+                        TouchCompletion::None => DatabaseResult::Outcome,
+                        TouchCompletion::Simulated => DatabaseResult::SimulatedTouch,
+                        TouchCompletion::Physical => DatabaseResult::PhysicalTouch,
+                    };
                 }
                 if rule.grouped_double_id().is_some()
                     && execution.status == Status::Fatal
@@ -14857,7 +14869,7 @@ impl Engine {
             return Execution::success(ran).with_recursion(all_recursive);
         }
         let passes = flow.completion_passes();
-        let mut simulated_touch = false;
+        let mut touch = TouchCompletion::None;
         for pass in 0..passes {
             if pass + 1 == passes
                 && let Some(buffer) = &output
@@ -14866,7 +14878,7 @@ impl Engine {
             }
             let mut touched = self.touch_target(target);
             ran |= touched.ran;
-            simulated_touch |= touched.simulated_touch;
+            touch = touched.touch;
             if matches!(touched.status, Status::Failure | Status::Fatal) {
                 // Only dispatch completion can fail before a continuation owner
                 // performs cleanup. The owner's final completion has no such step.
@@ -14878,7 +14890,7 @@ impl Engine {
             }
         }
         Execution {
-            simulated_touch,
+            touch,
             ..Execution::success(ran).with_recursion(all_recursive)
         }
     }
@@ -14890,7 +14902,7 @@ impl Engine {
         }
         if self.options.dry_run {
             return Execution {
-                simulated_touch: true,
+                touch: TouchCompletion::Simulated,
                 ..Execution::success(true)
             };
         }
@@ -14936,7 +14948,10 @@ impl Engine {
             );
             return Execution::failure(true, Cleanup::None);
         }
-        Execution::success(true)
+        Execution {
+            touch: TouchCompletion::Physical,
+            ..Execution::success(true)
+        }
     }
 
     fn archive_recipe_fatal(&self, message: &[u8]) {
