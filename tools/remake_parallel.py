@@ -281,6 +281,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += failed_required_named_dry_models(worker, markers)
     results += assumed_named_dry_run_models(worker, markers)
     results += assumed_named_double_colon_dry_models(worker, markers)
+    results += optional_assumed_dry_handoff_models(worker, markers)
     results += terminal_named_dry_clock_models(worker, markers)
     results += terminal_named_dry_tail_models(worker, markers)
     results += terminal_named_dry_failed_models(worker, markers)
@@ -1447,6 +1448,86 @@ def terminal_named_dry_forced_models(worker: bytes, markers: dict[str, bytes]) -
                             {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
         results.append(HeldModel(model, False, before_second, before_first,
                                  before_second_stdout=prefix_stdout))
+    return results
+
+
+def optional_assumed_dry_handoff_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    summary = b"make: 'b.mk' is up to date.\n"
+    error = b'make: *** [Makefile:8: left.gen] Error 3\n'
+    report = b"Makefile:3: Failed to remake makefile 'left.gen'.\n"
+    clock = b'clock-1000000000 1000000000\n'
+    refreshed = b'clock-1000000001 1000000000\n'
+    before_first = BEFORE_FIRST + clock
+    left_markers = {name: value for name, value in markers.items() if name.startswith('left.')}
+    physical_tail = b'touch -d @1000000001 left.gen'
+    marked_tail = b'printf "tail-ran\\n" >> seen'
+    results = []
+    for context, transport, head, tail, handoff in (
+        ('stale', 'pipe', 'quiet', marked_tail, True),
+        ('physical-head', 'fifo', 'include', marked_tail, True),
+        ('physical-tail', 'pipe', 'quiet', physical_tail, True),
+        ('current', 'fifo', 'quiet', marked_tail, False),
+        ('required', 'pipe', 'quiet', physical_tail, False),
+        ('worker-later', 'fifo', 'quiet', physical_tail, False),
+        ('serial', 'pipe', 'quiet', physical_tail, False),
+        ('stop', 'fifo', 'quiet', marked_tail, True),
+        ('failed-keep', 'pipe', 'fail', marked_tail, True),
+        ('failed-stop', 'fifo', 'fail', marked_tail, True),
+    ):
+        required = context == 'required'
+        stopping = context in ('stop', 'failed-stop')
+        fails = head == 'fail'
+        restart = context != 'failed-stop'
+        reads = ('include b.mk\n' if required else '-include b.mk\n')
+        if context == 'worker-later':
+            reads += 'include left.gen\n'
+        else:
+            reads = 'include left.gen\n' + reads
+        source = (
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            '$(file >>seen,clock-$(shell stat -c %Y left.gen b.mk))\n'
+            f'{reads}'
+            'include tail.inc\n'
+            'ifeq ($(MAKE_RESTARTS),)\n'
+            f'left.gen: left.seed\n\t@python3 worker.py left {head}\n'
+            f'\t@{tail.decode()}\n'
+            'else\n'
+            'left.gen: ;\n'
+            'endif\n'
+            'b.mk:: | stable ; @false\n'
+            '%.mk: b.seed ;\n'
+            'tail.inc: ;\n'
+        )
+        files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR,
+                 'left.gen': b'# already read\n', 'b.mk': b'# already read\n',
+                 'left.seed': b'new\n', 'b.seed': b'prerequisite\n', 'stable': b'present\n',
+                 'tail.inc': b'# existing ordinary source\n'}
+        times = dict.fromkeys(files, INPUT_TIME)
+        times['left.seed'] += 2_000_000_000
+        times['b.seed'] += -2_000_000_000 if context == 'current' else 2_000_000_000
+        seen = before_first + b'left\n'
+        stdout = b''
+        if fails:
+            stdout = b'left\n'
+        elif handoff:
+            stdout = tail + b'\n'
+        elif tail == marked_tail:
+            seen += b'tail-ran\n'
+        updates = left_markers.copy()
+        if head == 'include':
+            updates['left.gen'] = b'LEFT := loaded\n'
+        if restart:
+            changed = head == 'include' or (tail == physical_tail and not handoff)
+            seen += b'read-1\n' + (refreshed if changed else clock)
+            stdout += summary
+        stderr = error + (b'' if stopping else report) if fails else b''
+        args = ('-rR', '--no-print-directory', '-n', '-j1' if context == 'serial' else '-j2',
+                '-S' if stopping else '-k', f'--jobserver-style={transport}', '-W', 'b.mk', 'b.mk')
+        expected = {'exit_code': 0 if restart else 2, 'stdout_template_hex': stdout.hex(),
+                    'stderr_template_hex': stderr.hex()}
+        model = debug.Model(f'optional-assumed-dry-handoff-{context}-{transport}', files, args,
+                            {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
+        results.append(HeldModel(model, False, None, before_first=before_first))
     return results
 
 
