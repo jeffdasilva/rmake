@@ -841,6 +841,8 @@ def validate_workload(root, name, source, arguments, environment, executables):
     expected = None
     original_inputs = None
     labels = ["oracle", *executables]
+    max_files = (int(name.removeprefix("explicit-goals-")) + 16
+                 if name.startswith("explicit-goals-") else None)
     for label in labels:
         for directory in (work, scratch):
             if directory.exists():
@@ -849,7 +851,7 @@ def validate_workload(root, name, source, arguments, environment, executables):
         fixture = prepare_files(work, name)
         (work / "Makefile").write_bytes(source)
         roots = {"work": work, "tmp": scratch}
-        inputs = conformance.snapshot(roots)
+        inputs = conformance.snapshot(roots, max_files=max_files)
         if original_inputs is None:
             original_inputs = inputs
         elif inputs != original_inputs:
@@ -863,7 +865,8 @@ def validate_workload(root, name, source, arguments, environment, executables):
         if status or limit or leftovers:
             raise RuntimeError(f"benchmark validation failed: {name} ({label}), "
                                f"status={status}, limit={limit}, leftover processes={leftovers}")
-        observation = conformance.Observation(out, err, status, limit, conformance.snapshot(roots), leftovers)
+        state = conformance.snapshot(roots, max_files=max_files)
+        observation = conformance.Observation(out, err, status, limit, state, leftovers)
         if expected is not None:
             differences = conformance.differences(expected, observation)
             if differences:
