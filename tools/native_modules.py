@@ -173,6 +173,7 @@ def models() -> list[Model]:
     result.extend(raw_syntax_finalizer_models())
     result.extend(named_eval_syntax_finalizer_models())
     result.extend(anonymous_include_finalizer_models())
+    result.extend(anonymous_eval_scope_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -1471,6 +1472,71 @@ def anonymous_include_finalizer_models() -> list[Model]:
         model('after-success', foreach + b'\nelse', files=valid, marks=b'read\nchild-lexical\n'),
         model('dormant', b'$(if ,' + include + b')', files={'child.mk': child},
               status=0, marks=b'read\ngoal\n'),
+    ]
+
+
+def anonymous_eval_scope_finalizer_models() -> list[Model]:
+    head = b'.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    witness = b'$(file >>seen,body-$(.LOADED)-$(0)-$(1))\n'
+    broken = witness + b'else\n$(file >>seen,forbidden)\n'
+    valid = witness + b'PASS := done\n'
+    evaluate = b'$(eval $(file <payload.txt))'
+    callback = b'$(probe_eval_guard $(file <payload.txt))'
+    global_scope = b'scope=[||file|global||]\n'
+    local_scope = b'scope=[||automatic|lexical||]\n'
+    call_scope = b'scope=[||file|global|GO|arg]\n'
+    combined_scope = b'scope=[||automatic|lexical|GO|arg]\n'
+    module = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def foreach(expression):
+        return b'$(foreach .LOADED,lexical,' + expression + b')'
+
+    def call(expression):
+        return b'GO = ' + expression + b'\n$(call GO,arg)'
+
+    def model(name, expression, *, payload=broken, files=None, native=False,
+              message=b"extraneous 'else'", scope=global_scope, marks=b'body-global--\n', status=2):
+        loads = b'load fatal_scope.so\n' + (b'load probe_api.so\n' if native else b'')
+        fatal = b'make: *** ' + message + b'.  Stop.\n' if status else b''
+        return Model(
+            'native-anonymous-eval-scope-finalizer-' + name,
+            {'Makefile': goal, 'seen': b'anchor\n', **(files or {}),
+             **({'payload.txt': payload} if payload is not None else {})},
+            {'exit_code': status, 'stdout_hex': '',
+             'stderr_hex': (fatal + b'make: finalizer-location\n').hex()},
+            b'anchor\nread\n' + marks + scope,
+            (module, Module()) if native else (module,),
+            args=('-rR', '--no-print-directory', '-f', 'Makefile',
+                  '--eval', (loads + head + expression).decode('ascii'), 'all'),
+        )
+
+    return [
+        model('top-level', broken, payload=None),
+        model('unscoped', evaluate),
+        model('foreach', foreach(evaluate), scope=local_scope, marks=b'body-lexical--\n'),
+        model('let-shadowing', foreach(b'$(let .LOADED,inner,' + evaluate + b')'),
+              scope=b'scope=[||automatic|inner||]\n', marks=b'body-inner--\n'),
+        model('call', call(evaluate), scope=call_scope, marks=b'body-global-GO-arg\n'),
+        model('nested-eval', b'GO = ' + evaluate + b'\n' + foreach(b'$(call GO,arg)'),
+              payload=b'$(eval $(file <inner.txt))\n', files={'inner.txt': broken},
+              scope=combined_scope, marks=b'body-lexical-GO-arg\n'),
+        model('missing-endif', b'$(let .LOADED,lexical,' + evaluate + b')',
+              payload=b'ifeq (ok,ok)\n$(file >>seen,open)\n', message=b"missing 'endif'",
+              scope=local_scope, marks=b'open\n'),
+        model('static-pattern', call(evaluate), payload=b'broken: pattern: p\n',
+              message=b"target pattern contains no '%'", scope=call_scope, marks=b''),
+        model('native-fileless', call(foreach(callback)), native=True,
+              scope=combined_scope, marks=b'body-lexical-GO-arg\n'),
+        model('native-unscoped', callback, native=True),
+        model('native-success', call(foreach(callback)), native=True, payload=valid,
+              status=0, marks=b'body-lexical-GO-arg\neval-returned\ngoal\n'),
+        model('success', call(foreach(evaluate)), payload=valid,
+              status=0, marks=b'body-lexical-GO-arg\ngoal\n'),
+        model('dormant', call(foreach(b'$(if ,' + evaluate + b')')),
+              status=0, marks=b'goal\n'),
+        model('after-success', foreach(evaluate) + b'\nelse\n', payload=valid,
+              marks=b'body-lexical--\n'),
     ]
 
 

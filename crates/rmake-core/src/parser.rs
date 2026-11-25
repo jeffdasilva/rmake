@@ -4486,19 +4486,26 @@ impl Database {
         context: &ExpansionContext<'_>,
     ) {
         let evaluating = self.evaluation_depth != 0;
-        if self.native_fatal_context.is_some()
-            || (evaluating
-                && (location.file.is_null()
-                    || (evaluated_at.is_some()
-                        && context.location.is_none_or(|caller| caller.file.is_null()))))
-            || !context.needs_fatal_expansion_context()
-        {
+        if self.native_fatal_context.is_some() || !context.needs_fatal_expansion_context() {
             return;
         }
         // A physical include owns its source even inside an anonymous eval.
-        // An active eval also owns the caller's scopes until evaluate_in returns.
+        let location = if !evaluating
+            || (!location.file.is_null()
+                && (evaluated_at.is_none()
+                    || context
+                        .location
+                        .is_some_and(|caller| !caller.file.is_null())))
+        {
+            Some(location.clone())
+        } else if location.file.is_null() && !self.evaluation_bindings.is_empty() {
+            // Anonymous eval can retain lexical bindings without a source.
+            None
+        } else {
+            return;
+        };
         let mut retained = NativeFatalContext {
-            location: Some(location.clone()),
+            location,
             ..NativeFatalContext::default()
         };
         if evaluating {
