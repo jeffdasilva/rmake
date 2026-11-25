@@ -72,11 +72,26 @@ impl FileSlot {
 }
 
 #[derive(Clone)]
+struct FileLookupSnapshot {
+    next_id: NonZeroUsize,
+    changed: HashMap<Vec<u8>, Option<FileRecordId>>,
+}
+
+impl FileLookupSnapshot {
+    fn remember(&mut self, name: &[u8], owner: Option<FileRecordId>) {
+        self.changed
+            .entry(name.to_vec())
+            .or_insert(owner.filter(|id| id.0 < self.next_id));
+    }
+}
+
+#[derive(Clone)]
 pub struct FileRecords {
     database_history: Option<crate::database::History>,
     // Keeping tombstones preserves collision chains on renaming.
     slots: Vec<FileSlot>,
     next_id: NonZeroUsize,
+    lookup_snapshot: Option<FileLookupSnapshot>,
     live: usize,
     empty: usize,
     rehashed_names: HashMap<Vec<u8>, Vec<u8>>,
@@ -88,6 +103,7 @@ impl Default for FileRecords {
             database_history: None,
             slots: vec![FileSlot::Unused; 1024],
             next_id: NonZeroUsize::MIN,
+            lookup_snapshot: None,
             live: 0,
             empty: 1024,
             rehashed_names: HashMap::new(),
@@ -132,6 +148,25 @@ impl FileRecords {
         }
         let (position, found) = self.position(lookup);
         found.then(|| self.slots[position].id()).flatten()
+    }
+
+    /// Remember lookup owners at the start of a queue without probing its
+    /// names. Only keys that change during a subsequent move need records.
+    pub fn begin_lookup_snapshot(&mut self) {
+        self.lookup_snapshot = Some(FileLookupSnapshot {
+            next_id: self.next_id,
+            changed: HashMap::new(),
+        });
+    }
+
+    /// Return the snapshot owner of a moved key, if that key was occupied.
+    pub fn moved_lookup_id_at_snapshot(&self, name: &[u8]) -> Option<FileRecordId> {
+        self.lookup_snapshot
+            .as_ref()?
+            .changed
+            .get(name)
+            .copied()
+            .flatten()
     }
 
     /// GNU prerequisite binding observes the existing file first and enters
@@ -181,6 +216,13 @@ impl FileRecords {
         }
         let (position, found) = self.position_hashed(name, fingerprint);
         if !found {
+            if id.is_some()
+                && let Some(snapshot) = &mut self.lookup_snapshot
+            {
+                // A moved owner can be older than the snapshot, but its
+                // destination was vacant before this first move into it.
+                snapshot.remember(name, None);
+            }
             self.insert_at(name, position, id);
         }
     }
@@ -244,6 +286,9 @@ impl FileRecords {
                 history.record_file_remove(from);
             }
             id = self.slots[position].id();
+            if let Some(snapshot) = &mut self.lookup_snapshot {
+                snapshot.remember(from, id);
+            }
             self.slots[position] = FileSlot::Deleted;
             self.live -= 1;
         }
@@ -566,6 +611,74 @@ mod tests {
         assert_eq!(records.id(b"bundle"), Some(recreated));
         assert_eq!(records.id(b"other/long/directory/bundle"), None);
         assert_eq!(history.file_stats().filled, 1);
+    }
+
+    #[test]
+    fn lookup_snapshot_distinguishes_initially_vacant_keys_and_late_inserts() {
+        let mut records = FileRecords::default();
+        records.insert(b"original");
+        let original = records.id(b"original").unwrap();
+        records.begin_lookup_snapshot();
+
+        records.rehash(b"original", b"vacant");
+        records.rehash(b"vacant", b"searched");
+        assert_eq!(
+            records.moved_lookup_id_at_snapshot(b"original"),
+            Some(original)
+        );
+        assert_eq!(records.moved_lookup_id_at_snapshot(b"vacant"), None);
+        assert_eq!(records.id(b"searched"), Some(original));
+
+        records.insert(b"late");
+        let late = records.id(b"late").unwrap();
+        assert_ne!(late, original);
+        records.rehash(b"late", b"searched-late");
+        assert_eq!(records.moved_lookup_id_at_snapshot(b"late"), None);
+        assert_eq!(records.id(b"searched-late"), Some(late));
+    }
+
+    #[test]
+    fn lookup_snapshot_keeps_an_existing_merge_destination_owner() {
+        let mut records = FileRecords::default();
+        records.insert(b"source");
+        records.insert(b"destination");
+        let source = records.id(b"source").unwrap();
+        let destination = records.id(b"destination").unwrap();
+        records.begin_lookup_snapshot();
+
+        records.rename(b"source", b"destination");
+        assert_eq!(records.moved_lookup_id_at_snapshot(b"source"), Some(source));
+        assert_eq!(records.id(b"destination"), Some(destination));
+
+        records.rehash(b"destination", b"searched");
+        assert_eq!(
+            records.moved_lookup_id_at_snapshot(b"destination"),
+            Some(destination)
+        );
+        assert_eq!(records.id(b"searched"), Some(destination));
+    }
+
+    #[test]
+    fn lookup_snapshot_keeps_the_first_owner_across_recreated_raw_moves() {
+        let mut records = FileRecords::default();
+        records.insert(b"bundle");
+        let original = records.id(b"bundle").unwrap();
+        records.begin_lookup_snapshot();
+
+        records.rehash(b"bundle", b"first/bundle");
+        records.enter_prerequisite(b"bundle");
+        let recreated = records.id(b"bundle").unwrap();
+        assert_ne!(original, recreated);
+        records.rehash(b"bundle", b"second/bundle");
+        records.rehash(b"first/bundle", b"third/bundle");
+
+        assert_eq!(
+            records.moved_lookup_id_at_snapshot(b"bundle"),
+            Some(original)
+        );
+        assert_eq!(records.moved_lookup_id_at_snapshot(b"first/bundle"), None);
+        assert_eq!(records.id(b"second/bundle"), Some(recreated));
+        assert_eq!(records.id(b"third/bundle"), Some(original));
     }
 
     #[test]

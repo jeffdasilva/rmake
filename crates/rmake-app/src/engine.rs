@@ -5513,14 +5513,17 @@ impl Engine {
         let mut requested = Vec::new();
         let initial_goal_generation = self.filesystem.borrow().generation();
         let goal_count = goals.len();
-        let goal_records: Vec<_> = goals
-            .iter()
-            .map(|goal| self.database.file_records.id(goal))
-            .collect();
-        for (index, (goal, record)) in goals.into_iter().zip(goal_records).enumerate() {
-            let goal = record
-                .and_then(|id| self.moved_archives.get(&id))
-                .map_or(goal, |owner| owner.lookup.clone());
+        self.database.file_records.begin_lookup_snapshot();
+        for (index, goal) in goals.into_iter().enumerate() {
+            let goal = if self.moved_archives.is_empty() {
+                goal
+            } else {
+                self.database
+                    .file_records
+                    .moved_lookup_id_at_snapshot(&goal)
+                    .and_then(|id| self.moved_archives.get(&id))
+                    .map_or(goal, |owner| owner.lookup.clone())
+            };
             self.graph_epoch = self.graph_epoch.wrapping_add(1);
             let name = self.aliases.resolve(&goal);
             let already_done = (self.file_traversals.has_outcome(name)
@@ -8961,7 +8964,6 @@ impl Engine {
             self.archive_completion_times
                 .insert(to.to_vec(), completion);
         }
-        let command_goal = tentative_archive.is_some() && self.has_requested_goal_name(from);
         if let Some(owner) = tentative_archive {
             self.database.file_records.rehash(from, to);
             debug_assert_eq!(self.database.file_records.id(to), Some(owner));
@@ -9252,6 +9254,9 @@ impl Engine {
             }
             self.database_unchecked_times.borrow_mut().remove(to);
             self.database_times.borrow_mut().insert(to.to_vec(), None);
+            let command_goal = self.database.file_records.moved_lookup_id_at_snapshot(from)
+                == Some(owner)
+                && self.has_requested_goal_name(from);
             self.moved_archives.insert(
                 owner,
                 MovedArchiveRecord {
