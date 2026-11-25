@@ -261,6 +261,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += named_source_mode_models(worker, markers)
     results += assumed_current_source_models(worker, markers)
     results += assumed_late_source_write_models(worker, markers)
+    results += named_double_colon_dry_run_models(worker, markers)
     results += parallel_named_mode_models(worker, markers)
     results += primary_named_mode_models(worker, markers)
     results += primary_named_group_models(worker, markers)
@@ -930,6 +931,59 @@ def named_source_mode_models(worker: bytes, markers: dict[str, bytes]) -> list[H
                                     mtimes_ns=dict.fromkeys(files, INPUT_TIME))
                 results.append(HeldModel(model, False, None, before_first_stdout=prefix,
                                          release_order=('right', 'left')))
+    return results
+
+
+def named_double_colon_dry_run_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    results = []
+    command = b"printf 'named\\n'\n"
+    summary = b"make: 'named.gen' is up to date.\n"
+    clock = b'clock-1000000000 1000000000\n'
+    read = BEFORE_FIRST + clock
+    expanded = read + b'named-0\n'
+    left_markers = {name: value for name, value in markers.items() if name.startswith('left.')}
+    for context, transport, slots, separator, rewrite in (
+        ('held', 'pipe', 2, '::', False),
+        ('physical-tail', 'fifo', 2, '::', True),
+        ('single-colon', 'fifo', 2, ':', True),
+        ('serial', 'pipe', 1, '::', False),
+    ):
+        include_tail = ' tail.inc' if rewrite else ''
+        action = 'include' if rewrite else 'quiet'
+        source = (
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            '$(file >>seen,clock-$(shell stat -c %Y left.gen named.gen))\n'
+            f'include left.gen named.gen{include_tail}\n'
+            'ifeq ($(MAKE_RESTARTS),)\n'
+            f'left.gen: left.seed ; @python3 worker.py left {action}\n'
+            'else\n'
+            'left.gen: ;\n'
+            'endif\n'
+            f'named.gen{separator} named.seed ; '
+            "@$(file >>seen,named-$(or $(MAKE_RESTARTS),0))printf 'named\\n'\n"
+            'tail.inc: ;\n'
+        )
+        files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR,
+                 'left.gen': b'# already read\n', 'named.gen': b'# already read\n',
+                 'left.seed': b'new\n', 'named.seed': b'new\n'}
+        updates = left_markers.copy()
+        if rewrite:
+            files['tail.inc'] = b'# unchanged\n'
+            updates['left.gen'] = b'LEFT := loaded\n'
+        times = dict.fromkeys(files, INPUT_TIME)
+        times.update(dict.fromkeys(('left.seed', 'named.seed'), INPUT_TIME + 2_000_000_000))
+        parallel = slots > 1
+        seen = expanded + b'left\n' if parallel else read + b'left\nnamed-0\n'
+        if rewrite:
+            seen += b'read-1\nclock-1000000001 1000000000\nnamed-1\n'
+        stdout = command * (2 if rewrite else 1) + summary
+        expected = {'exit_code': 0, 'stdout_template_hex': stdout.hex(), 'stderr_template_hex': ''}
+        args = ('-rR', '--no-print-directory', f'-j{slots}', '-k', f'--jobserver-style={transport}',
+                '-n', 'named.gen')
+        model = debug.Model(f'named-double-colon-dry-run-{context}-{transport}', files, args,
+                            {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
+        results.append(HeldModel(model, False, None, before_first=expanded if parallel else read,
+                                 before_first_stdout=command if parallel else b''))
     return results
 
 

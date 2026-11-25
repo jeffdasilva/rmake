@@ -5518,11 +5518,20 @@ impl Engine {
         {
             return false;
         }
-        if read_files.iter().any(|(file, skip)| file.optional && !skip)
-            && !self.optional_mode_sources_settle(read_files, named_sources)
-        {
+        let has_optional_sources = read_files.iter().any(|(file, skip)| file.optional && !skip);
+        if has_optional_sources && !self.optional_mode_sources_settle(read_files, named_sources) {
             return false;
         }
+        let named_double_colon_dry_run = modes.dry_run
+            && !modes.question
+            && !modes.touch
+            && !has_optional_sources
+            && goals.len() == 1
+            && self.options.keep_going
+            && self.options.load_limit.is_none()
+            && !self.options.check_symlink_times
+            && self.assumptions.is_none()
+            && self.no_remake_recipe_fallback();
         let mut named = HashMap::new();
         let mut load_sources_without_fallback = None;
         read_files.iter().enumerate().all(|(index, (file, skip))| {
@@ -5560,7 +5569,9 @@ impl Engine {
                                         ));
                                     self.load_remakes_without_fallback(&read_files[start..])
                                 }))
-                            && self.simple_named_remake(file, name, &read_files[..index], modes)
+                            && (self.simple_named_remake(file, name, &read_files[..index], modes)
+                                || (named_double_colon_dry_run
+                                    && self.simple_named_double_colon_dry_run(file, name)))
                     }))
         })
     }
@@ -5773,6 +5784,30 @@ impl Engine {
                             })))
                     && rule.recipes.is_some()
             })
+    }
+
+    fn simple_named_double_colon_dry_run(&self, file: &Makefile, name: &[u8]) -> bool {
+        // One explicit declaration can be simulated while an earlier
+        // required include's recipe is running.
+        file.location.is_some()
+            && !file.missing
+            && !self.special(b".PHONY", name, false)
+            && !self.database.loaded_modules.contains_key(name)
+            && self
+                .database
+                .rules
+                .get(name)
+                .and_then(|rule| rule.double_colon.as_deref())
+                .is_some_and(|branches| {
+                    matches!(branches, [branch]
+                        if branch.group.is_none()
+                            && branch.secondary.is_none()
+                            && matches!(branch.dependencies.as_slice(),
+                                [dep] if !dep.order_only
+                                    && self.simple_remake_prerequisite(dep, &[]))
+                            && matches!(branch.recipes.as_deref(),
+                                Some([recipe]) if !recipe_is_recursive(recipe)))
+                })
     }
 
     fn simple_remake_prerequisite(
