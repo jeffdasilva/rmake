@@ -252,16 +252,25 @@ static SCM convert_scalar(SCM value) {
         return scalar_text(value);
     return scm_call_1(converter, value);
 }
+static SCM queue_conversion_child(SCM work, SCM child, int native_link, SCM *active_pairs) {
+    /* A live accessor can return a link that the pair itself does not contain.
+     * Only identities reached through native links prove a structural cycle. */
+    if (!native_link) {
+        work = scm_cons(scm_cons(SCM_UNDEFINED, *active_pairs), work);
+        *active_pairs = SCM_BOOL_F;
+    }
+    return scm_cons(scm_cons(SCM_BOOL_F, child), work);
+}
 static SCM object_text(SCM value) {
     if (scm_is_false(scm_call_1(conversion_is_pair, value))) {
         SCM text = convert_scalar(value);
         SCM parts = scm_is_false(text) ? SCM_EOL : scm_list_1(text);
         return scm_call_1(finish_conversion, parts);
     }
-    const SCM visit = SCM_BOOL_F;
     const SCM follow_tail = SCM_UNSPECIFIED;
     const SCM leave_pair = SCM_BOOL_T;
     const SCM first_pair = SCM_EOL;
+    const SCM restore_active_pairs = SCM_UNDEFINED;
     // The first frame retains the root predicate result. Each public datum
     // sees exactly one predicate call, including a nonpair or empty tail.
     SCM work=scm_list_1(scm_cons(first_pair,value));
@@ -278,7 +287,13 @@ static SCM object_text(SCM value) {
             // The Scheme converter can mutate this pair while visiting its car.
             // Read the live cdr now and reuse this frame for leaving the pair.
             scm_set_car_x(item, leave_pair);
-            work = scm_cons(scm_cons(visit, scm_call_1(conversion_cdr, current)), frame);
+            SCM child = scm_call_1(conversion_cdr, current);
+            int native_link = scm_is_pair(current) && scm_is_eq(child, scm_cdr(current));
+            work = queue_conversion_child(frame, child, native_link, &active_pairs);
+            continue;
+        }
+        if (scm_is_eq(phase, restore_active_pairs)) {
+            active_pairs = current;
             continue;
         }
         if ((ticks++ & 63) == 0)
@@ -289,11 +304,15 @@ static SCM object_text(SCM value) {
         }
         if(scm_is_eq(phase,first_pair)
            || scm_is_true(scm_call_1(conversion_is_pair,current))) {
-            if(scm_is_true(scm_hashq_ref(active_pairs,current,SCM_BOOL_F)))
-                scm_misc_error("guile","circular value conversion",SCM_EOL);
-            scm_hashq_set_x(active_pairs,current,SCM_BOOL_T);
+            if (scm_is_false(active_pairs))
+                active_pairs = scm_make_hash_table(scm_from_int(31));
+            else if (scm_is_true(scm_hashq_ref(active_pairs, current, SCM_BOOL_F)))
+                scm_misc_error("guile", "circular value conversion", SCM_EOL);
+            scm_hashq_set_x(active_pairs, current, SCM_BOOL_T);
             work = scm_cons(scm_cons(follow_tail, current), work);
-            work = scm_cons(scm_cons(visit, scm_call_1(conversion_car, current)), work);
+            SCM child = scm_call_1(conversion_car, current);
+            int native_link = scm_is_pair(current) && scm_is_eq(child, scm_car(current));
+            work = queue_conversion_child(work, child, native_link, &active_pairs);
         }else {
             SCM text=convert_scalar(current);
             if (scm_is_true(text))
