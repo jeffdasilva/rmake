@@ -282,10 +282,10 @@ impl Decoder {
     }
     pub(crate) fn following_definition(&self) -> bool {
         self.cursor == 1
-            && self
-                .args
-                .get(self.cursor)
-                .is_some_and(|arg| rmake_core::parser::assignment(arg).is_some())
+            && self.args.get(self.cursor).is_some_and(|arg| {
+                (self.end_options || !arg.starts_with(b"-"))
+                    && rmake_core::parser::assignment(arg).is_some()
+            })
     }
 
     pub(crate) fn new(
@@ -2419,6 +2419,24 @@ mod decoder_missing_operand_tests {
 #[cfg(test)]
 mod runtime_marker_tests {
     use super::*;
+    #[test]
+    fn owned_runtime_cursor_distinguishes_options_from_adjacent_definitions() {
+        for (flags, following_definition) in [
+            (b"FIRST=one --debug=z LAST=two".as_slice(), false),
+            (b"FIRST=one LAST=two --debug=z".as_slice(), true),
+        ] {
+            let mut decoder = Options::default()
+                .owned_flag_decoder(flags)
+                .unwrap()
+                .unwrap();
+            assert!(matches!(
+                decoder.advance::<false>().unwrap().unwrap().argument,
+                Some(Argument::Definition(0))
+            ));
+            assert_eq!(decoder.following_definition(), following_definition);
+        }
+    }
+
     #[test]
     fn runtime_suspension_keeps_end_markers_and_their_argument_positions() {
         let mut decoder = Options::default()
