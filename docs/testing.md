@@ -50,8 +50,13 @@ with GCC, binutils, Make, and dpkg installed, run
 
 ```sh
 python3 tools/rust.py bootstrap
-python3 tools/musl_smoke.py --report artifacts/native-musl/profile.json
+python3 tools/musl_smoke.py --report artifacts/native-musl/profile.json \
+  --xxhash-report artifacts/native-musl/xxhash.json
 ```
+
+The xxHash check runs the pinned project under both musl-linked Make
+executables using Ubuntu's compiler and recipe shell. The project report
+retains all build, no-op, rebuild, and executable observations.
 
 The smoke script owns its temporary build and fixture directories. Its
 report records the toolchain inputs, observed runtime libraries, and case

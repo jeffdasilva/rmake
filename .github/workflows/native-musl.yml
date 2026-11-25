@@ -34,7 +34,8 @@ jobs:
           python3 tools/rust.py bootstrap 2>&1 | tee artifacts/native-musl/rust-bootstrap.log
       - name: Check the dynamic musl profile
         run: |
-          python3 tools/musl_smoke.py --report artifacts/native-musl/profile.json 2>&1 \
+          python3 tools/musl_smoke.py --report artifacts/native-musl/profile.json \
+            --xxhash-report artifacts/native-musl/xxhash.json 2>&1 \
             | tee artifacts/native-musl/smoke.log
       - name: Retain the profile and observations
         if: always()
