@@ -5090,7 +5090,6 @@ impl Engine {
             changed |= assumed_remake_changed && !assumed_remake_blocked && !unsuccessful_remake;
             if !changed
                 && parallel_remakes
-                && (!modes.active() || assumed_double_colon_dry_run.is_some())
                 && settled_in_ordinary_mode
                 && restarts == 0
                 && self.assumptions.is_some()
@@ -5099,12 +5098,23 @@ impl Engine {
                 && !skipped_required_read
                 && !remake_question
             {
-                changed = self.settled_parallel_assumed_source_has_new_clock(
-                    &read_files,
-                    &visited,
-                    named_sources.as_ref(),
-                    !modes.active(),
-                );
+                // An unnamed dry-run pass used ordinary mode for every source.
+                let ordinary_visits = !modes.active()
+                    || (modes.only_dry_run()
+                        && read_files.iter().all(|(source, skip)| {
+                            *skip
+                                || !self.is_makefile_goal(
+                                    rmake_core::filenames::without_dot_prefix(&source.name),
+                                    named_sources.as_ref(),
+                                )
+                        }));
+                changed = (ordinary_visits || assumed_double_colon_dry_run.is_some())
+                    && self.settled_parallel_assumed_source_has_new_clock(
+                        &read_files,
+                        &visited,
+                        named_sources.as_ref(),
+                        ordinary_visits,
+                    );
             }
             changed |= grouped_changes
                 .as_ref()
@@ -12076,7 +12086,7 @@ impl Engine {
         read_files: &[(Makefile, bool)],
         visited: &MakefileVisits<'_>,
         named_sources: Option<&HashSet<&[u8]>>,
-        ordinary_mode: bool,
+        ordinary_visits: bool,
     ) -> bool {
         // A source can settle on the second visit after its order-only
         // prerequisites finish. The synthetic entry retains the visit clock
@@ -12102,14 +12112,14 @@ impl Engine {
             };
             match outcome.completion {
                 CompletionTime::Unchanged | CompletionTime::Preserve => {
-                    (ordinary_mode
+                    (ordinary_visits
                         || self.is_makefile_goal(
                             rmake_core::filenames::without_dot_prefix(name),
                             named_sources,
                         ))
                         && self.settled_assumed_new_makefile_clock(target, false, Some(before))
                 }
-                CompletionTime::Refresh if ordinary_mode => {
+                CompletionTime::Refresh if ordinary_visits => {
                     // The synthetic recipe can restore the real read time
                     // without writing the source. Its own result owns that clock.
                     self.settled_assumed_new_makefile_branches_match(

@@ -282,6 +282,7 @@ def models(*, duplicate_reads: bool = False, include_load: bool = False) -> list
     results += assumed_named_dry_run_models(worker, markers)
     results += assumed_named_double_colon_dry_models(worker, markers)
     results += optional_assumed_dry_handoff_models(worker, markers)
+    results += assumed_unnamed_dry_source_models(worker, markers)
     results += terminal_named_dry_clock_models(worker, markers)
     results += terminal_named_dry_tail_models(worker, markers)
     results += terminal_named_dry_failed_models(worker, markers)
@@ -1528,6 +1529,89 @@ def optional_assumed_dry_handoff_models(worker: bytes, markers: dict[str, bytes]
         model = debug.Model(f'optional-assumed-dry-handoff-{context}-{transport}', files, args,
                             {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
         results.append(HeldModel(model, False, None, before_first=before_first))
+    return results
+
+
+def assumed_unnamed_dry_source_models(worker: bytes, markers: dict[str, bytes]) -> list[HeldModel]:
+    same_clock = b'clock-1000000000 1000000000\n'
+    new_clock = b'clock-1000000000 1000000001\n'
+    results = []
+    for context, transport in (
+        ('current', 'pipe'),
+        ('stale-empty', 'fifo'),
+        ('stale-effect', 'pipe'),
+        ('stop', 'fifo'),
+        ('physical', 'pipe'),
+        ('unassumed', 'fifo'),
+        ('serial', 'pipe'),
+        ('required-failure', 'fifo'),
+        ('query-physical', 'fifo'),
+        ('touch-unassumed', 'pipe'),
+    ):
+        physical = context in ('physical', 'query-physical')
+        assumed = context not in ('unassumed', 'touch-unassumed')
+        fails = context == 'required-failure'
+        overlap = context != 'serial'
+        mode = {'query-physical': '-q', 'touch-unassumed': '-t'}.get(context, '-n')
+        stale = context in ('stale-empty', 'stale-effect') or physical
+        source_ran = context == 'stale-effect' or physical
+        recipe = ' @printf "source\\n" >> seen' if source_ran else ''
+        if physical:
+            recipe += ' && touch -d @1000000001 b.mk'
+        left_action = 'fail' if fails else 'quiet'
+        source = (
+            'stage := $(or $(MAKE_RESTARTS),0)\n'
+            '$(file >>seen,read-$(MAKE_RESTARTS))\n'
+            '$(file >>seen,clock-$(shell stat -c %Y left.gen b.mk))\n'
+            'include left.gen b.mk right.gen\n'
+            'ifeq ($(MAKE_RESTARTS),)\n'
+            f'left.gen: left.seed ; @python3 worker.py left {left_action}\n'
+            'right.gen: right.seed ; @python3 worker.py right quiet\n'
+            'else\n'
+            'left.gen right.gen: ;\n'
+            'endif\n'
+            'b.mk:: | stable ; @false\n'
+            f'%.mk: b.seed ;{recipe}\n'
+            'all: ; @printf "goal-%s\\n" "$(stage)" > all\n'
+        )
+        files = {'Makefile': source.encode(), 'worker.py': worker, 'seen': ANCHOR,
+                 'left.gen': b'# already read\n', 'right.gen': b'# already read\n',
+                 'b.mk': b'# already read\n', 'left.seed': b'new\n',
+                 'right.seed': b'new\n', 'b.seed': b'prerequisite\n', 'stable': b'present\n'}
+        times = dict.fromkeys(files, INPUT_TIME)
+        times.update(dict.fromkeys(('left.seed', 'right.seed'), INPUT_TIME + 2_000_000_000))
+        times['b.seed'] += 2_000_000_000 if stale else -2_000_000_000
+        before_first = BEFORE_FIRST + same_clock
+        if source_ran:
+            before_first += b'source\n'
+        before_second = before_first + b'left\n'
+        seen = before_second + b'right\n'
+        restart = assumed and not fails
+        if restart:
+            seen += b'read-1\n' + (new_clock if physical else same_clock)
+        updates = markers.copy()
+        if fails:
+            stdout = b'left\n'
+            stderr = (b'make: *** [Makefile:6: left.gen] Error 3\n'
+                      b"Makefile:4: Failed to remake makefile 'left.gen'.\n")
+        elif mode == '-q':
+            stdout = stderr = b''
+        elif mode == '-t':
+            stdout, stderr = b'touch all\n', b''
+            updates['all'] = b''
+        else:
+            stdout = f'printf "goal-%s\\n" "{int(restart)}" > all\n'.encode()
+            stderr = b''
+        args = ('-rR', '--no-print-directory', mode, '-j1' if context == 'serial' else '-j2',
+                '-S' if context == 'stop' else '-k', f'--jobserver-style={transport}')
+        if assumed:
+            args += ('-W', 'b.mk')
+        expected = {'exit_code': 2 if fails else int(mode == '-q'),
+                    'stdout_template_hex': stdout.hex(), 'stderr_template_hex': stderr.hex()}
+        model = debug.Model(f'assumed-unnamed-dry-source-{context}-{transport}', files, (*args, 'all'),
+                            {'GNUMAKEFLAGS': ''}, expected, seen, updates=updates, mtimes_ns=times)
+        results.append(HeldModel(model, overlap, before_second, before_first,
+                                 before_second_stdout=b'left\n' if fails else b''))
     return results
 
 
