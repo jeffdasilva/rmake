@@ -960,13 +960,21 @@ impl Database {
         variables: &mut VariableStore,
         status: &[u8],
     ) -> Result<(), ExpandError> {
-        let Some(target) = variables.merged_file_scope_name().map(<[u8]>::to_vec) else {
+        let target = variables.merged_file_scope_name().or_else(|| {
+            variables.declared_file_status_name().filter(|target| {
+                self.rules
+                    .get(*target)
+                    .is_some_and(|rule| rule.double_colon.is_none() && rule.group.is_none())
+                    && crate::filenames::archive_parts(target).is_none()
+            })
+        });
+        let Some(target) = target.map(<[u8]>::to_vec) else {
             return variables.define_shell_status(status);
         };
         let Some(scope) = self.target_scopes.get_mut(&target) else {
             return variables.define_shell_status(status);
         };
-        if !scope.owns_merged_file_bindings(variables) {
+        if !scope.owns_file_status_binding(variables) {
             return variables.define_shell_status(status);
         }
         scope.refresh_read_bindings(variables);

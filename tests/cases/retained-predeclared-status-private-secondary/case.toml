@@ -1,0 +1,12 @@
+id = "retained-predeclared-status-private-secondary"
+requirement = "scope.secondary-retained"
+candidate = "required"
+description = "Keep a private status in its file when secondary expansion runs a shell before visiting a child."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "status=[child||file|simple|]\n.SHELLSTATUS|\nstatus=[parent|29|override|simple|29]\nenv=[.SHELLSTATUS|29 ANCHOR_3190|before ANCHOR_4413|after]\n"
+stderr = ""

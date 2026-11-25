@@ -1,0 +1,12 @@
+id = "retained-predeclared-status-ordinary-shell-control"
+requirement = "scope.secondary-retained"
+candidate = "required"
+description = "Keep the override from a shell in the immediate right-hand side of an ordinary assignment."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "status=[parent|31|override|simple|31]\nenv=[.SHELLSTATUS|31 ANCHOR_3190|before ANCHOR_4413|after]\n"
+stderr = ""

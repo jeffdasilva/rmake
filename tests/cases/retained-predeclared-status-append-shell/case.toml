@@ -1,0 +1,12 @@
+id = "retained-predeclared-status-append-shell"
+requirement = "scope.secondary-retained"
+candidate = "required"
+description = "Append to the status installed by the shell run during expansion of the append."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "status=[parent|31 appended|override|simple|31 appended]\nenv=[.SHELLSTATUS|31 appended ANCHOR_3190|before ANCHOR_4413|after]\n"
+stderr = ""

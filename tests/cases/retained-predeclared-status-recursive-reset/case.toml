@@ -1,0 +1,12 @@
+id = "retained-predeclared-status-recursive-reset"
+requirement = "scope.secondary-retained"
+candidate = "required"
+description = "Use the simple flavor left by shell completion when appending to an originally recursive declaration."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "status=[parent|29 appended|override|simple|29 appended]\nenv=[.SHELLSTATUS|29 appended ANCHOR_3190|before ANCHOR_4413|after]\n"
+stderr = ""

@@ -1,0 +1,12 @@
+id = "retained-predeclared-status-conditional-unexport"
+requirement = "scope.secondary-retained"
+candidate = "required"
+description = "Apply unexport to the occupied status slot without evaluating the suppressed conditional."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "status=[parent|29|override|simple|29]\nenv=[ANCHOR_3190|before ANCHOR_4413|after]\n"
+stderr = ""

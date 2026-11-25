@@ -1,0 +1,12 @@
+id = "retained-predeclared-status-first-shell-in-assignment"
+requirement = "scope.secondary-retained"
+candidate = "required"
+description = "Replace the shell status written during expansion of the first named override."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "status=[parent|accepted|override|simple|accepted]\nenv=[.SHELLSTATUS|accepted ANCHOR_3190|before ANCHOR_4413|after]\n"
+stderr = ""
