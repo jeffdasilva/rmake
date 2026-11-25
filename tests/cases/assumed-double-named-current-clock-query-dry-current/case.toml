@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-query-dry-current"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "A named query and dry run rereads the successful current branch."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-n", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

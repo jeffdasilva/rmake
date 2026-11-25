@@ -1849,12 +1849,12 @@ cases = [
 
 [[requirements]]
 id = "options.assumed-double-colon-named-current-clock"
-title = "Restart after a current synthetic entry settles for a named serial query or dry run"
+title = "Restart after current synthetic entries settle for a named serial dry-run, query or touch"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/assumed-files.md"
-candidate_required = 16
-fixture_count = 16
+candidate_required = 27
+fixture_count = 27
 cases = [
   "assumed-double-named-current-clock-dry-current",
   "assumed-double-named-current-clock-dry-declared",
@@ -1872,6 +1872,17 @@ cases = [
   "assumed-double-repeated-named-dry-declared-control",
   "assumed-double-repeated-stopping-named-dry-current-clock",
   "assumed-double-repeated-stopping-named-dry-simulated-tail",
+  "assumed-double-named-current-clock-dry-touch-current",
+  "assumed-double-named-current-clock-query-dry-current",
+  "assumed-double-named-current-clock-query-dry-distinct",
+  "assumed-double-named-current-clock-query-dry-failure-control",
+  "assumed-double-named-current-clock-query-dry-simulated-control",
+  "assumed-double-named-current-clock-query-dry-touch-current",
+  "assumed-double-named-current-clock-query-dry-unnamed-control",
+  "assumed-double-named-current-clock-query-touch-current",
+  "assumed-double-named-current-clock-query-touch-stale-control",
+  "assumed-double-named-current-clock-query-touch-verdict-control",
+  "assumed-double-named-current-clock-touch-current",
 ]
 
 [[requirements]]

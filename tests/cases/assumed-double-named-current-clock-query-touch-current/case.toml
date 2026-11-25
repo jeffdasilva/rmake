@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-query-touch-current"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "An equally dated prerequisite leaves the recipe current in query with touch."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-t", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = ""
+stderr = ""

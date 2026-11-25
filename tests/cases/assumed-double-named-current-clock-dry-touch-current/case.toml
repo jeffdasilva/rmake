@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-dry-touch-current"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "Dry touch rereads the source after the current branch settles."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-n", "-t", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 0
+stdout = "make: 'b.mk' is up to date.\n"
+stderr = ""

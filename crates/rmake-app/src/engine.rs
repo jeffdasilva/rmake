@@ -3869,11 +3869,9 @@ impl Engine {
             self.remaking = true;
             self.defer_stopped_remake_load = ordinary_mode;
             let mut changed = false;
-            let named_assumed_mode = !modes.touch && modes.dry_run != modes.question;
-            let track_assumed_remake = !parallel_remakes
-                && (!modes.active() || named_assumed_mode)
-                && restarts == 0
-                && self.assumptions.is_some();
+            let repeated_named_clock_mode = !modes.touch && modes.dry_run != modes.question;
+            let track_assumed_remake =
+                !parallel_remakes && restarts == 0 && self.assumptions.is_some();
             let mut assumed_remake_changed = false;
             let mut assumed_remake_blocked = false;
             let mut grouped_changes =
@@ -4185,7 +4183,13 @@ impl Engine {
                     && !self.parallel_makefile_remakes
                     && !modes.active()
                     && self.observed_failed_duplicate_peer(name);
-                let track_named_source = track_assumed_remake && named_assumed_mode && named_source;
+                let track_named_source = track_assumed_remake
+                    && named_source
+                    && modes.active()
+                    && (repeated_named_clock_mode
+                        || self
+                            .assumed_new_double_colon_entries(self.aliases.resolve(name))
+                            .is_some_and(|(_, count)| count == 1));
                 let mut source_started_command = false;
                 let mut result = self.build_recording_initial_time(
                     name,
@@ -4239,9 +4243,10 @@ impl Engine {
                         let live_modes = MakefileModes::from_options(&self.options);
                         let regular_visit =
                             !modes.active() && !visit_modes.active() && !live_modes.active();
-                        // A named dry-run or query can leave every branch
-                        // current. A simulated declaration can propagate its
-                        // assumed-new time to the entire chain.
+                        // A named source can leave every branch current
+                        // under dry-run, query or touch. A simulated
+                        // declaration can propagate its assumed-new time to
+                        // the entire chain.
                         let current_named_source = track_named_source
                             && !source_started_command
                             && !result.ran
@@ -11156,6 +11161,7 @@ impl Engine {
                 && self.options.question
                 && self.options.touch
                 && !self.options.keep_going
+                && self.has_requested_goal_name(rmake_core::filenames::without_dot_prefix(target))
                 && let Some((_, count)) = self.assumed_new_double_colon_entries(target)
             {
                 // A named query with touch can complete successive synthetic

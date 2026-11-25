@@ -1,0 +1,10 @@
+id = "assumed-double-named-current-clock-query-touch-verdict-control"
+requirement = "options.assumed-double-colon-named-current-clock"
+candidate = "required"
+description = "A real query verdict preserves the original source pass."
+args = ["-rR", "--no-print-directory", "-j1", "-k", "-q", "-t", "-W", "b.mk", "b.mk"]
+
+[expected]
+exit_code = 1
+stdout = ""
+stderr = ""
