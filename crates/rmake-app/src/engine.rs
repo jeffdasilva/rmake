@@ -8705,6 +8705,32 @@ impl Engine {
             && !self.target_contexts.contains_key(to)
             && !self.database_contexts.contains_key(to)
             && self.file_traversals.visit(to).is_none();
+        let completed_scope_merge = !self.remaking
+            && self.database.target_scopes.contains_key(to)
+            && self.database_contexts.contains_key(from)
+            && self
+                .file_traversals
+                .outcome(from)
+                .is_some_and(|outcome| !outcome.failed)
+            && self
+                .database
+                .rules
+                .get(from)
+                .is_some_and(|rule| rule.double_colon.is_none() && rule.group.is_none())
+            && self
+                .database
+                .rules
+                .get(to)
+                .is_none_or(|rule| rule.double_colon.is_none() && rule.group.is_none())
+            && if self.file_traversals.visit(to).is_some() {
+                self.file_traversals
+                    .outcome(to)
+                    .is_some_and(|outcome| !outcome.failed && !outcome.search_after_update)
+                    && self.database_contexts.contains_key(to)
+                    && self.target_contexts.contains_key(to)
+            } else {
+                !self.database_contexts.contains_key(to) && !self.target_contexts.contains_key(to)
+            };
         let completion = self.archive_completion_times.remove(from);
         self.archive_completion_times.remove(to);
         if let Some(completion) = completion {
@@ -8842,6 +8868,19 @@ impl Engine {
                 }
                 self.database.rules.insert(to.to_vec(), source);
             }
+        }
+        if completed_scope_merge
+            && let Some(source) = self.database_contexts.get(from)
+            && let Some((saved, base)) = self.database.merge_completed_file_scope(
+                from,
+                to,
+                source,
+                self.database_contexts.get(to),
+                self.target_contexts.get(to),
+            )
+        {
+            self.database_contexts.insert(to.to_vec(), saved);
+            self.target_contexts.insert(to.to_vec(), base);
         }
         self.database
             .rename_target_scope(from, to, adopt_retained_scope);

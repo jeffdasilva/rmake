@@ -1,0 +1,12 @@
+id = "retained-file-status-later-shell"
+requirement = "scope.secondary-retained"
+candidate = "required"
+description = "Assign to an existing file-local shell status through a named eager read."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "status=[parent|accepted|override|simple|accepted]\nstatus=[parent|37|override|simple|37]\nenv=[ANCHOR_3190|before .SHELLSTATUS|37 ANCHOR_4413|after]\n"
+stderr = ""

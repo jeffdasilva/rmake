@@ -1,0 +1,12 @@
+id = "retained-file-status-active-owner"
+requirement = "scope.secondary-retained"
+candidate = "required"
+description = "Assign to an existing file-local shell status through a named eager read."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "parent", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "status=[parent|accepted|override|simple|accepted]\nstatus=[parent|accepted|override|simple|accepted]\nenv=[ANCHOR_3190|before .SHELLSTATUS|accepted ANCHOR_4413|after]\n"
+stderr = ""

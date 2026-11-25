@@ -1,0 +1,12 @@
+id = "late-gpath-merged-late-archive"
+requirement = "scope.target-eager-latest-parent"
+candidate = "required"
+description = "Retain the settled ordinary container status when archive resolution later finds its moved file."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "lib.a", "move", "lib.a(member)", "after"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "make: Nothing to be done for 'src/lib.a(member)'.\nraw=[||undefined]\nsearched=[inherited-destination|override]\n"
+stderr = ""
