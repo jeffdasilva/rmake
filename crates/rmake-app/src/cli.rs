@@ -1650,10 +1650,15 @@ fn job_count(value: Option<&[u8]>) -> Result<Option<usize>, ()> {
 }
 
 pub fn invocation_name(arg: &std::ffi::OsStr) -> Vec<u8> {
-    std::path::Path::new(arg)
-        .file_name()
-        .unwrap_or(arg)
-        .as_bytes()
+    let bytes = arg.as_bytes();
+    if bytes.is_empty() {
+        return b"make".to_vec();
+    }
+    // The final raw component may be empty or a dot.
+    bytes
+        .rsplit(|&byte| byte == b'/')
+        .next()
+        .unwrap_or(bytes)
         .to_vec()
 }
 

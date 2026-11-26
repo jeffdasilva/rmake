@@ -539,6 +539,8 @@ Physical touch opens ordinary targets for reading and writing. The locale
 checks retain the target's contents and timestamp after a denied open.
 Interrupted intermediate cleanup localizes deletion and unlink failures while
 preserving raw filename and system error bytes.
+Diagnostic prefixes use the raw final component of `argv[0]`, with `make`
+as the fallback for an empty invocation argument.
 A restart that cannot return to the original directory emits the localized
 system warning and fatal message in order. It reports a failed unlink of
 the owned stdin source before the jobserver token report and finalizers.

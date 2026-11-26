@@ -110,7 +110,7 @@ def cases(selection):
     debug_options = json.loads((DATA / "debug-options.json").read_bytes())
     suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution,
               touch_open, cleanup, wait_notice, intermediate, file_io, output_lock, debug_options)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 182, 15, 20, 14, 13, 18, 16, 15, 26, 8, 18, 12, 8, 7):
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 188, 15, 20, 14, 13, 18, 16, 15, 26, 8, 18, 12, 8, 7):
         raise h.HarnessError("unexpected NLS model inventory")
     shuffle_option = json.loads((DATA / "shuffle-option.json").read_bytes())
     if len(shuffle_option["rows"]) != 9 or shuffle_option["fixture_sha256"]:
@@ -398,7 +398,7 @@ def main(argv=None):
                 elif (access := row.get("touch_access")) is not None:
                     value, touch_record = observe_touch_access(case, reset, executable, access)
                 else:
-                    value = h.execute(case, reset, executable, observe_streams=observer)
+                    value = h.execute(case, reset, executable, observe_streams=observer, argv0=row.get("argv0"))
                 differences = h.differences(observed[0], value) if observed else []
                 if help_control is not None and index == 2:
                     differences = [field for field in differences if field != "stdout"]

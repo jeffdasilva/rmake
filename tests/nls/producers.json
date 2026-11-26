@@ -8,6 +8,162 @@
   },
   "rows": [
     {
+      "id": "nls-c-argv0-empty",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all",
+        "absent"
+      ],
+      "argv0": "",
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "MAKELEVEL": "0"
+      },
+      "files": {
+        "Makefile": "2428696e666f20636f6d6d616e643d5b24287061747375627374202428435552444952292f252c252c24284d414b455f434f4d4d414e4429295d290a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "636f6d6d616e643d5b5d0a",
+        "stderr_hex": "6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027616273656e74272e202053746f702e0a",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-fr-argv0-trailing-slash",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all",
+        "absent"
+      ],
+      "argv0": "agent/",
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "MAKELEVEL": "2"
+      },
+      "files": {
+        "Makefile": "2428696e666f20636f6d6d616e643d5b24287061747375627374202428435552444952292f252c252c24284d414b455f434f4d4d414e4429295d290a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "636f6d6d616e643d5b6167656e742f5d0a",
+        "stderr_hex": "5b325d3a202a2a2a20417563756e652072c3a8676c6520706f757220666162726971756572206c61206369626c6520c2abc2a0616273656e74c2a0c2bb2e20417272c3aa742e0a",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-fr-argv0-final-dot",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all",
+        "absent"
+      ],
+      "argv0": "agent/.",
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "MAKELEVEL": "2"
+      },
+      "files": {
+        "Makefile": "2428696e666f20636f6d6d616e643d5b24287061747375627374202428435552444952292f252c252c24284d414b455f434f4d4d414e4429295d290a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "636f6d6d616e643d5b6167656e742f2e5d0a",
+        "stderr_hex": "2e5b325d3a202a2a2a20417563756e652072c3a8676c6520706f757220666162726971756572206c61206369626c6520c2abc2a0616273656e74c2a0c2bb2e20417272c3aa742e0a",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-c-argv0-only-slashes",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all",
+        "absent"
+      ],
+      "argv0": "///",
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "MAKELEVEL": "0"
+      },
+      "files": {
+        "Makefile": "2428696e666f20636f6d6d616e643d5b24287061747375627374202428435552444952292f252c252c24284d414b455f434f4d4d414e4429295d290a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "636f6d6d616e643d5b2f2f2f5d0a",
+        "stderr_hex": "3a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027616273656e74272e202053746f702e0a",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-c-argv0-ordinary",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all",
+        "absent"
+      ],
+      "argv0": "./make",
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "MAKELEVEL": "0"
+      },
+      "files": {
+        "Makefile": "2428696e666f20636f6d6d616e643d5b24287061747375627374202428435552444952292f252c252c24284d414b455f434f4d4d414e4429295d290a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "636f6d6d616e643d5b2e2f6d616b655d0a",
+        "stderr_hex": "6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027616273656e74272e202053746f702e0a",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-fr-argv0-raw-basename",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all",
+        "absent"
+      ],
+      "argv0": "/dir//name\udcff",
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "MAKELEVEL": "2"
+      },
+      "files": {
+        "Makefile": "2428696e666f20636f6d6d616e643d5b24287061747375627374202428435552444952292f252c252c24284d414b455f434f4d4d414e4429295d290a616c6c3a3b403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "636f6d6d616e643d5b2f6469722f2f6e616d65ff5d0a",
+        "stderr_hex": "6e616d65ff5b325d3a202a2a2a20417563756e652072c3a8676c6520706f757220666162726971756572206c61206369626c6520c2abc2a0616273656e74c2a0c2bb2e20417272c3aa742e0a",
+        "seen": "anchor\n"
+      }
+    },
+    {
       "id": "nls-fr-builtin-recipe-error-serial",
       "args": [
         "--no-print-directory",
