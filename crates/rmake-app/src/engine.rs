@@ -10414,14 +10414,9 @@ impl Engine {
         let (archive, member) =
             rmake_core::filenames::archive_parts(target).expect("archive reference");
         if member.starts_with(b"(") && member.ends_with(b")") {
-            return Err(ExpandError::UnlocatedError(
-                [
-                    b"attempt to use unsupported feature: '".as_slice(),
-                    target,
-                    b"'",
-                ]
-                .concat(),
-            ));
+            return Err(ExpandError::system(Message::UnsupportedArchiveSymbol(
+                target,
+            )));
         }
         let member_time = self.name_time(member);
         let container = self
@@ -10835,14 +10830,9 @@ impl Engine {
         let (archive, member) =
             rmake_core::filenames::archive_parts(target).expect("archive reference");
         if member.starts_with(b"(") && member.ends_with(b")") {
-            return Err(ExpandError::UnlocatedError(
-                [
-                    b"attempt to use unsupported feature: '".as_slice(),
-                    target,
-                    b"'",
-                ]
-                .concat(),
-            ));
+            return Err(ExpandError::system(Message::UnsupportedArchiveSymbol(
+                target,
+            )));
         }
         if self.database.file_records.contains(archive) || self.directory_member(archive)? {
             self.database.file_records.insert(archive);

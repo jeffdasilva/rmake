@@ -441,6 +441,7 @@ impl ExpandError {
     pub fn is_unlocated(&self) -> bool {
         match self {
             Self::RenderedSystem { error, .. } => error.is_unlocated(),
+            Self::System(message) => message.id.is_unlocated(),
             _ => matches!(self, Self::UnlocatedError(_)),
         }
     }
@@ -5127,13 +5128,8 @@ impl Expansion<'_, '_> {
                             && member.starts_with(b"(")
                             && member.ends_with(b")")
                         {
-                            return Err(ExpandError::UnlocatedError(
-                                [
-                                    b"attempt to use unsupported feature: '".as_slice(),
-                                    &pattern,
-                                    b"'",
-                                ]
-                                .concat(),
+                            return Err(ExpandError::system(
+                                crate::messages::Message::UnsupportedArchiveSymbol(&pattern),
                             ));
                         }
                         let matches =

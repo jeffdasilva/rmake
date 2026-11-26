@@ -97,10 +97,11 @@ pub enum MessageId {
     LongNativeFunction,
     NativeMinimumArguments,
     NativeMaximumArguments,
+    UnsupportedArchiveSymbol,
 }
 
 impl MessageId {
-    pub const ALL: [Self; 90] = [
+    pub const ALL: [Self; 91] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -191,7 +192,12 @@ impl MessageId {
         Self::LongNativeFunction,
         Self::NativeMinimumArguments,
         Self::NativeMaximumArguments,
+        Self::UnsupportedArchiveSymbol,
     ];
+
+    pub(crate) fn is_unlocated(self) -> bool {
+        self == Self::UnsupportedArchiveSymbol
+    }
     pub fn sample(self) -> Message<'static> {
         match self {
             Self::Stop => Message::Stop,
@@ -388,6 +394,7 @@ impl MessageId {
                 count: 256,
                 name: b"function",
             },
+            Self::UnsupportedArchiveSymbol => Message::UnsupportedArchiveSymbol(b"lib.a((symbol))"),
         }
     }
     pub fn msgid(self) -> &'static CStr {
@@ -506,6 +513,7 @@ impl MessageId {
             Self::LongNativeFunction => c"Function name too long: %s",
             Self::NativeMinimumArguments => c"Invalid minimum argument count (%u) for function %s",
             Self::NativeMaximumArguments => c"Invalid maximum argument count (%u) for function %s",
+            Self::UnsupportedArchiveSymbol => c"attempt to use unsupported feature: '%s'",
         }
     }
 }
@@ -710,6 +718,7 @@ pub enum Message<'a> {
         count: u32,
         name: &'a [u8],
     },
+    UnsupportedArchiveSymbol(&'a [u8]),
 }
 impl<'a> Message<'a> {
     pub fn id(self) -> MessageId {
@@ -848,6 +857,7 @@ impl<'a> Message<'a> {
             Self::LongNativeFunction(_) => MessageId::LongNativeFunction,
             Self::NativeArgumentCount { minimum: true, .. } => MessageId::NativeMinimumArguments,
             Self::NativeArgumentCount { minimum: false, .. } => MessageId::NativeMaximumArguments,
+            Self::UnsupportedArchiveSymbol(_) => MessageId::UnsupportedArchiveSymbol,
         }
     }
     fn arguments(self) -> ([Argument<'a>; 6], usize) {
@@ -909,7 +919,8 @@ impl<'a> Message<'a> {
             | Self::EmptyLoadSymbol(name)
             | Self::MissingNativeLicense(name)
             | Self::InvalidNativeFunction(name)
-            | Self::LongNativeFunction(name) => {
+            | Self::LongNativeFunction(name)
+            | Self::UnsupportedArchiveSymbol(name) => {
                 push(Argument::Bytes(name));
             }
             Self::NativeSymbolFailure {

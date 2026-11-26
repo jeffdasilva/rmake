@@ -2202,6 +2202,156 @@
       "updates": {
         "src/parent": "72657461696e65640a"
       }
+    },
+    {
+      "id": "nls-archive-symbol-target-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "lib.a((symbol))"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a2428696e666f20706172736564290a6c69622e61282873796d626f6c29293a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "7061727365640a",
+        "stderr_hex": "6d616b653a202a2a2a2074656e7461746976652064277574696c6973657220756e6520666f6e6374696f6e6e616c6974c3a9206e6f6e20707269736520656e20636861726765c2a03a20c2abc2a06c69622e61282873796d626f6c2929c2a0c2bb2e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-archive-symbol-target-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "lib.a((symbol))"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a2428696e666f20706172736564290a6c69622e61282873796d626f6c29293a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "7061727365640a",
+        "stderr_hex": "6d616b653a202a2a2a20566572737563682c2065696e65206e6963687420756e7465727374c3bc747a74652046756e6b74696f6e616c6974c3a474207a752076657277656e64656e3a20e2809e6c69622e61282873796d626f6c2929e2809c2e20205363686c7573732e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-archive-symbol-target-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "lib.a((symbol))"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a2428696e666f20706172736564290a6c69622e61282873796d626f6c29293a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "7061727365640a",
+        "stderr_hex": "6d616b653a202a2a2a20617474656d707420746f2075736520756e737570706f7274656420666561747572653a20276c69622e61282873796d626f6c2929272e202053746f702e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-archive-symbol-reader-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a504154203d206c69622e612828656e74727929290a2428696e666f205b242877696c646361726420242850415429295d290a242866696c65203e3e7365656e2c666f7262696464656e290a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a2074656e7461746976652064277574696c6973657220756e6520666f6e6374696f6e6e616c6974c3a9206e6f6e20707269736520656e20636861726765c2a03a20c2abc2a06c69622e612828656e7472792929c2a0c2bb2e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-archive-symbol-recipe-raw-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a616c6c3a203b2040242866696c65203e3e7365656e2c657870616e6429242877696c6463617264207261772dff2e612828656e7472792dfe292929242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a20e382b5e3839de383bce38388e38195e3828ce381a6e38184e381aae38184e6a99fe883bde38292e4bdbfe3818ae38186e381a8e38197e381a6e38184e381bee381993a20277261772dff2e612828656e7472792dfe2929272e2020e4b8ade6ada22e0a",
+        "seen_hex": "616e63686f720a726561640a657870616e640a"
+      }
+    },
+    {
+      "id": "nls-archive-symbol-dormant-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "554e55534544203d20242877696c6463617264207261772dff2e612828656e7472792dfe2929290a616c6c3a203b2040242866696c65203e3e7365656e2c72756e296563686f206f6b61790a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "6f6b61790a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a72756e0a"
+      }
     }
   ]
 }
