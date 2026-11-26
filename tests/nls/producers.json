@@ -3311,6 +3311,206 @@
         "stderr_hex": "",
         "seen_hex": "616e63686f720a7265616465720a"
       }
+    },
+    {
+      "id": "nls-builtin-arity-direct-word-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a56414c5545203a3d202428776f726420242866696c65203e3e7365656e2c617267756d656e742931290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a205a752077656e696720417267756d656e7465202831292066c3bc72206469652046756e6b74696f6e20e2809e776f7264e2809c2e20205363686c7573732e0a",
+        "seen_hex": "616e63686f720a7265616465720a617267756d656e740a"
+      }
+    },
+    {
+      "id": "nls-builtin-arity-direct-word-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a56414c5545203a3d202428776f726420242866696c65203e3e7365656e2c617267756d656e742931290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20696e73756666696369656e74206e756d626572206f6620617267756d656e74732028312920746f2066756e6374696f6e2027776f7264272e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a7265616465720a617267756d656e740a"
+      }
+    },
+    {
+      "id": "nls-builtin-arity-direct-word-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a56414c5545203a3d202428776f726420242866696c65203e3e7365656e2c617267756d656e742931290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20696e73756666696369656e74206e756d626572206f6620617267756d656e74732028312920746f2066756e6374696f6e2027776f7264272e202053746f702e0a",
+        "seen_hex": "616e63686f720a7265616465720a617267756d656e740a"
+      }
+    },
+    {
+      "id": "nls-builtin-arity-direct-intcmp-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a56414c5545203a3d202428696e74636d7020242866696c65203e3e7365656e2c666f7262696464656e2931290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20e5bc95e695b0e381aee695b0283129e3818ce996a2e695b02027696e74636d702720e381abe381a8e381a3e381a6e4b88de58d81e58886e381a7e381992e2020e4b8ade6ada22e0a",
+        "seen_hex": "616e63686f720a7265616465720a"
+      }
+    },
+    {
+      "id": "nls-builtin-arity-call-wordlist-pl",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a56414c5545203a3d20242863616c6c20776f72646c6973742c242866696c65203e3e7365656e2c666972737429312c242866696c65203e3e7365656e2c7365636f6e642932290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a206e6965777973746172637a616ac4856361206c69637a626120617267756d656e74c3b3772028322920646c612066756e6b636a692027776f72646c697374272e2053746f702e0a",
+        "seen_hex": "616e63686f720a7265616465720a66697273740a7365636f6e640a"
+      }
+    },
+    {
+      "id": "nls-builtin-arity-recipe-definition-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a424144203d202428776f72646c69737420312c242866696c65203e3e7365656e2c617267756d656e742932290a616c6c3a0a0940242866696c65203e3e7365656e2c6561726c6965722d657870616e64296563686f20666f7262696464656e0a09402428424144290a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20e5bc95e695b0e381aee695b0283229e3818ce996a2e695b02027776f72646c6973742720e381abe381a8e381a3e381a6e4b88de58d81e58886e381a7e381992e2020e4b8ade6ada22e0a",
+        "seen_hex": "616e63686f720a7265616465720a6561726c6965722d657870616e640a617267756d656e740a"
+      }
+    },
+    {
+      "id": "nls-builtin-arity-nested-error-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a56414c5545203a3d202428776f72646c69737420312c242866696c65203e3e7365656e2c6e65737465642924286572726f72207261772dff29290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a207261772dff2e2020e4b8ade6ada22e0a",
+        "seen_hex": "616e63686f720a7265616465720a6e65737465640a"
+      }
+    },
+    {
+      "id": "nls-builtin-arity-valid-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a616c6c3a203b2040242866696c65203e3e7365656e2c72756e297072696e746620225b25735d5c6e2220222428776f72646c69737420312c2d302c6f6e652074776f29220a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5b5d0a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a7265616465720a72756e0a"
+      }
     }
   ]
 }

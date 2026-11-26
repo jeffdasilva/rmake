@@ -444,6 +444,8 @@ locale. It runs the startup usage and getopt models on both build profiles
 using the same locale data. It also checks selected filesystem and build
 diagnostics in C, French, German and Japanese on both builds, including raw
 paths and warning order. The reports retain the native comparisons.
+Localized built-in arity reports preserve each evaluated argument effect before
+the error and retain the original function name, argument count and location.
 The dynamic musl gate checks C.UTF-8 wildcard byte widths and a C raw-target
 diagnostic beside a user warning. Broader diagnostic producers, native and
 Guile callbacks, cache history, resource failures and musl NLS remain open. See the

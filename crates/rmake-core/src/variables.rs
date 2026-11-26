@@ -423,6 +423,10 @@ impl ExpandError {
             Self::RecursiveVariable(name) => Message::RecursiveVariable(name),
             Self::EmptyVariableName => Message::EmptyVariableName,
             Self::WordIndexZero => Message::WordIndexZero,
+            Self::InsufficientArguments { function, count } => Message::InsufficientArguments {
+                count: *count,
+                function,
+            },
             Self::UnterminatedFunction { function, close } => Message::UnterminatedFunction {
                 name: function,
                 close: *close,
@@ -541,12 +545,10 @@ impl ExpandError {
                 value,
             }),
             Self::InsufficientArguments { function, count } => {
-                let mut message =
-                    format!("insufficient number of arguments ({count}) to function '")
-                        .into_bytes();
-                message.extend_from_slice(function);
-                message.push(b'\'');
-                message.into()
+                Diagnostic::system(crate::messages::Message::InsufficientArguments {
+                    count: *count,
+                    function,
+                })
             }
             _ => self.to_string().into(),
         }
