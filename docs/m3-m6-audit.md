@@ -352,8 +352,9 @@ while an independent goal can still proceed.
 The trailing declaration can also run inline while the required worker is
 active when its completion and final physical timestamp both match the
 original timestamp.
-Two-worker optional cases and other kinds of trailing optional visits still
-need qualification.
+The selected two-worker cases retain the optional child's successful completion
+while the required child is still pending and both files keep their timestamps.
+Other completion orders and changed worker clocks still need qualification.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
