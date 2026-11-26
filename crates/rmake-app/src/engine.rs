@@ -3105,9 +3105,13 @@ impl Engine {
     }
 
     fn enter_preload_file<'a>(&mut self, name: &'a [u8]) -> &'a [u8] {
-        // An existing normalized record takes precedence over a new spelling.
+        // The selected spelling is cached before probing the normalized key.
         let lookup = rmake_core::filenames::without_dot_prefix(name);
-        if lookup.len() < name.len() && self.database.file_records.contains(lookup) {
+        if let Some(history) = self.database.database_history() {
+            history.intern(name);
+            history.record_file_lookup(lookup);
+        }
+        if self.database.file_records.contains(lookup) {
             return lookup;
         }
         self.database.file_records.insert(name);
@@ -3125,6 +3129,9 @@ impl Engine {
         // MAKEFILES uses ordinary words: no globbing or backslash filename list
         // decoding. Freeze the expanded list before any preload changes it.
         for spelling in words(&names) {
+            if let Some(history) = self.database.database_history() {
+                history.intern(spelling);
+            }
             crate::debug::reader(
                 &self.output,
                 rmake_core::diagnostic::ReaderEvent::Reading {

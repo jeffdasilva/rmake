@@ -139,6 +139,9 @@ NUL boundaries, rebinding and cancellation.
   A serial fatal dump retains the marker from the interrupted visit.
   A scoped include during a serial goal records a failed open as a missing timestamp.
   An accepted reopen clears that timestamp while preserving the update verdict.
+  Startup preloads intern each list operand and the selected read name at their
+  respective reader boundaries. The file table probes the normalized name
+  before entering the selected spelling when the probe misses.
   When default makefile discovery misses, the reader interns all three
   optional remake candidate names as it enters their file records.
   With no selected goal, the diagnostic reads the raw MAKEFILE_LIST
