@@ -19,8 +19,8 @@ use crate::reader::{
 };
 use crate::variables::{
     Assignment, ConditionalFlagBinding, DefinitionLookup, EnvironmentBinding, ExpandError, Flavor,
-    MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope, Variable, VariableStore,
-    reference_end,
+    LiteralAppendBase, MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope, Variable,
+    VariableStore, reference_end,
 };
 use std::borrow::Cow;
 use std::cell::{Cell, OnceCell};
@@ -4933,7 +4933,6 @@ impl Database {
                 Origin::File,
                 location,
                 current,
-                None,
             )?;
         }
         // A successful or optional attempt retains its file identity even
@@ -5286,6 +5285,43 @@ impl Database {
         self.native_fatal_context = Some(Box::new(retained));
     }
 
+    fn append_makefile_list_at(
+        &mut self,
+        filename: &[u8],
+        location: &Location,
+    ) -> Result<(), ExpandError> {
+        const MAKEFILE_LIST: &[u8] = b"MAKEFILE_LIST";
+        let current = if let Some(binding) = self
+            .evaluation_bindings
+            .iter()
+            .rev()
+            .find_map(|frame| frame.get(MAKEFILE_LIST))
+        {
+            Some(binding)
+        } else if let Some(scope) = self.evaluation_scope.as_mut() {
+            scope.refresh_globals(&self.variables);
+            if self.database_history.is_some() {
+                scope.database_lookup(MAKEFILE_LIST)
+            } else {
+                scope.get(MAKEFILE_LIST)
+            }
+        } else {
+            return self.variables.append_literal_at(
+                MAKEFILE_LIST,
+                filename,
+                Origin::File,
+                location,
+            );
+        };
+        self.variables.append_literal_after_lookup_at(
+            MAKEFILE_LIST,
+            filename,
+            Origin::File,
+            location,
+            LiteralAppendBase::Visible(current),
+        )
+    }
+
     fn read_frames(
         &mut self,
         reader: ParserReader<'_>,
@@ -5360,35 +5396,18 @@ impl Database {
                                 location: Some(location.clone()),
                                 read_error: None,
                             });
-                            const MAKEFILE_LIST: &[u8] = b"MAKEFILE_LIST";
-                            let lookup_scope = self
-                                .database_history
-                                .as_ref()
-                                .and(self.evaluation_scope.as_ref())
-                                .filter(|scope| {
-                                    scope.resolves_global_binding(MAKEFILE_LIST)
-                                        && !self
-                                            .evaluation_bindings
-                                            .iter()
-                                            .any(|frame| frame.contains_key(MAKEFILE_LIST))
-                                });
-                            self.variables
-                                .append_literal_from_at(
-                                    MAKEFILE_LIST,
-                                    &included.name,
-                                    Origin::File,
-                                    &Location {
-                                        file: path.as_slice().into(),
-                                        line: 1,
-                                    },
-                                    None,
-                                    lookup_scope,
-                                )
-                                .map_err(|e| ParseError {
-                                    unlocated: false,
-                                    location: location.clone(),
-                                    message: e.diagnostic(),
-                                })?;
+                            self.append_makefile_list_at(
+                                &included.name,
+                                &Location {
+                                    file: path.as_slice().into(),
+                                    line: 1,
+                                },
+                            )
+                            .map_err(|e| ParseError {
+                                unlocated: false,
+                                location: location.clone(),
+                                message: e.diagnostic(),
+                            })?;
                             self.include_depth += 1;
                             frames.push(ReadFrame::new(
                                 ParserReader::owned(included.input),

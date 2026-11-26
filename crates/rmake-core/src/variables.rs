@@ -756,6 +756,12 @@ enum StartingDirectory {
     Selected(Arc<[u8]>),
 }
 
+/// The starting value for an already-expanded metadata append.
+pub(crate) enum LiteralAppendBase<'a> {
+    StoredGlobal,
+    Visible(Option<&'a Variable>),
+}
+
 #[derive(Clone, Debug)]
 pub struct VariableStore {
     variables: Arc<Bindings>,
@@ -2271,11 +2277,6 @@ impl VariableStore {
         self.bindings_at_layer(selection.layer)?.get(selection.name)
     }
 
-    pub(crate) fn resolves_global_binding(&self, name: &[u8]) -> bool {
-        self.lookup_from(name, 0)
-            .is_some_and(|(layer, _)| self.global_layer(layer))
-    }
-
     fn global_layer(&self, layer: usize) -> bool {
         if layer == 0 {
             !self.scoped
@@ -2856,7 +2857,7 @@ impl VariableStore {
         origin: Origin,
         location: &Location,
     ) -> Result<(), ExpandError> {
-        self.append_literal_from_at(name, value, origin, location, None, None)
+        self.append_literal_from_at(name, value, origin, location, None)
     }
 
     pub(crate) fn append_literal_from_at(
@@ -2866,17 +2867,37 @@ impl VariableStore {
         origin: Origin,
         location: &Location,
         current: Option<&Variable>,
-        lookup_scope: Option<&Self>,
     ) -> Result<(), ExpandError> {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
-        lookup_scope.unwrap_or(self).record_database_lookup(name);
+        self.record_database_lookup(name);
+        let base = current.map_or(LiteralAppendBase::StoredGlobal, |binding| {
+            LiteralAppendBase::Visible(Some(binding))
+        });
+        self.append_literal_after_lookup_at(name, value, origin, location, base)
+    }
+
+    pub(crate) fn append_literal_after_lookup_at(
+        &mut self,
+        name: &[u8],
+        value: &[u8],
+        origin: Origin,
+        location: &Location,
+        base: LiteralAppendBase<'_>,
+    ) -> Result<(), ExpandError> {
+        if name.is_empty() {
+            return Err(ExpandError::EmptyVariableName);
+        }
         self.promote_environment(name, origin);
         if self.get(name).is_some_and(|old| old.origin > origin) {
             return Ok(());
         }
-        let (mut combined, flavor) = current.or_else(|| self.get(name)).map_or_else(
+        let current = match base {
+            LiteralAppendBase::StoredGlobal => self.get(name),
+            LiteralAppendBase::Visible(binding) => binding,
+        };
+        let (mut combined, flavor) = current.map_or_else(
             || (Vec::new(), Flavor::Recursive),
             |old| (old.value.clone(), old.flavor),
         );
