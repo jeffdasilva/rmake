@@ -2,9 +2,13 @@
  * Copyright 2026 Jeff DaSilva
  * Original public stdio and process-finalization witness. */
 #define _POSIX_C_SOURCE 200809L
+#include <errno.h>
 #include <fcntl.h>
+#include <libintl.h>
+#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 int plugin_is_GPL_compatible;
@@ -39,6 +43,19 @@ int native_probe_gmk_setup(void *location)
     if (getenv("NATIVE_WRITE")) {
         (void)fputs("ABCDEFGH\n", stdout);
         (void)fflush(stdout);
+    }
+    const char *encoding = getenv("PROBE_ERRNO_CODESET");
+    if (encoding) {
+        if (!bindtextdomain("libc", "./errno-catalog") ||
+            !setlocale(LC_MESSAGES, "fr_FR.UTF-8") ||
+            !bind_textdomain_codeset("libc", encoding))
+            abort();
+        /* A filename can preserve the witness under the same write limit. */
+        char witness[80];
+        int length = snprintf(witness, sizeof(witness), "errno-%s", strerror(EFBIG));
+        if (length < 0 || (size_t)length >= sizeof(witness))
+            abort();
+        mark(witness, "1\n");
     }
     return 1;
 }

@@ -542,13 +542,7 @@ impl Buffer {
                     .dump(
                         provider.as_ref(),
                         &mut |entering| self.controller.dump_frame(entering, &mut frame),
-                        &mut |operation, error| {
-                            plain(
-                                true,
-                                format!("{operation}: {}\n", crate::engine::os_error(error))
-                                    .as_bytes(),
-                            );
-                        },
+                        &mut report_spool_error,
                     )
                     .err()
             })
@@ -580,16 +574,19 @@ impl Buffer {
                 let _ = spool.dump(
                     None,
                     &mut |entering| self.controller.dump_frame(entering, &mut frame),
-                    &mut |operation, error| {
-                        plain(
-                            true,
-                            format!("{operation}: {}\n", crate::engine::os_error(error)).as_bytes(),
-                        );
-                    },
+                    &mut report_spool_error,
                 );
             }
         }
     }
+}
+
+fn report_spool_error(operation: &str, error: &io::Error) {
+    let detail = rmake_linux::filesystem::source_error_detail(error);
+    plain(
+        true,
+        &[operation.as_bytes(), b": ", &detail, b"\n"].concat(),
+    );
 }
 
 fn plain(error: bool, bytes: &[u8]) {

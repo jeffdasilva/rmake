@@ -314,6 +314,197 @@
       "stderr": "make: erreur d'écriture : stdout\n",
       "status": 1,
       "locale": "fr"
+    },
+    {
+      "id": "synchronized-errno-bytes-target-newline-latin1",
+      "mode": "stdout-append",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Otarget"
+      ],
+      "files": {
+        "Makefile": "load ./native_probe.so\n.PHONY: all\nall:; @./emit newline\n",
+        "capture": "PRE"
+      },
+      "created": {
+        "capture": "PREAB",
+        "atexit-seen": "E\n",
+        "fini-seen": "C\n",
+        "errno-fixture-FR-\udce9chec": "1\n"
+      },
+      "stdout": "",
+      "stderr_hex": "66777269746528293a20666978747572652d46522de9636865630a6d616b653a20657272657572206427c3a963726974757265c2a03a207374646f75740a",
+      "status": 1,
+      "emit": true,
+      "native": true,
+      "env": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "PROBE_ERRNO_CODESET": "ISO-8859-1"
+      },
+      "locale": "native-fr",
+      "errno_catalog_hex": "de12049500000000020000001c0000002c0000000000000000000000000000003c0000000e0000003d000000280000004c00000011000000750000000046696c6520746f6f206c6172676500436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a00666978747572652d46522dc3a96368656300"
+    },
+    {
+      "id": "synchronized-errno-bytes-line-newline-latin1",
+      "mode": "stdout-append",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Oline"
+      ],
+      "files": {
+        "Makefile": "load ./native_probe.so\n.PHONY: all\nall:; @./emit newline\n",
+        "capture": "PRE"
+      },
+      "created": {
+        "capture": "PREAB",
+        "atexit-seen": "E\n",
+        "fini-seen": "C\n",
+        "errno-fixture-FR-\udce9chec": "1\n"
+      },
+      "stdout": "",
+      "stderr_hex": "66777269746528293a20666978747572652d46522de9636865630a6d616b653a20657272657572206427c3a963726974757265c2a03a207374646f75740a",
+      "status": 1,
+      "emit": true,
+      "native": true,
+      "env": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "PROBE_ERRNO_CODESET": "ISO-8859-1"
+      },
+      "locale": "native-fr",
+      "errno_catalog_hex": "de12049500000000020000001c0000002c0000000000000000000000000000003c0000000e0000003d000000280000004c00000011000000750000000046696c6520746f6f206c6172676500436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a00666978747572652d46522dc3a96368656300"
+    },
+    {
+      "id": "synchronized-errno-bytes-target-newline-utf8",
+      "mode": "stdout-append",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Otarget"
+      ],
+      "files": {
+        "Makefile": "load ./native_probe.so\n.PHONY: all\nall:; @./emit newline\n",
+        "capture": "PRE"
+      },
+      "created": {
+        "capture": "PREAB",
+        "atexit-seen": "E\n",
+        "fini-seen": "C\n",
+        "errno-fixture-FR-\u00e9chec": "1\n"
+      },
+      "stdout": "",
+      "stderr_hex": "66777269746528293a20666978747572652d46522dc3a9636865630a6d616b653a20657272657572206427c3a963726974757265c2a03a207374646f75740a",
+      "status": 1,
+      "emit": true,
+      "native": true,
+      "env": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "PROBE_ERRNO_CODESET": "UTF-8"
+      },
+      "locale": "native-fr",
+      "errno_catalog_hex": "de12049500000000020000001c0000002c0000000000000000000000000000003c0000000e0000003d000000280000004c00000011000000750000000046696c6520746f6f206c6172676500436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a00666978747572652d46522dc3a96368656300"
+    },
+    {
+      "id": "synchronized-errno-bytes-target-newline-c",
+      "mode": "stdout-append",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Otarget"
+      ],
+      "files": {
+        "Makefile": "load ./native_probe.so\n.PHONY: all\nall:; @./emit newline\n",
+        "capture": "PRE"
+      },
+      "created": {
+        "capture": "PREAB",
+        "atexit-seen": "E\n",
+        "fini-seen": "C\n"
+      },
+      "stdout": "",
+      "stderr_hex": "66777269746528293a2046696c6520746f6f206c617267650a6d616b653a207772697465206572726f723a207374646f75740a",
+      "status": 1,
+      "emit": true,
+      "native": true,
+      "env": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      }
+    },
+    {
+      "id": "synchronized-errno-bytes-target-flush-latin1",
+      "mode": "stdout-append",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Otarget"
+      ],
+      "files": {
+        "Makefile": "load ./native_probe.so\n.PHONY: all\nall:; @./emit\n",
+        "capture": "PRE"
+      },
+      "created": {
+        "capture": "PREAB",
+        "atexit-seen": "E\n",
+        "fini-seen": "C\n",
+        "errno-fixture-FR-\udce9chec": "1\n"
+      },
+      "stdout": "",
+      "stderr_hex": "6d616b653a20657272657572206427c3a963726974757265c2a03a207374646f75740a",
+      "status": 1,
+      "emit": true,
+      "native": true,
+      "env": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "PROBE_ERRNO_CODESET": "ISO-8859-1"
+      },
+      "locale": "native-fr",
+      "errno_catalog_hex": "de12049500000000020000001c0000002c0000000000000000000000000000003c0000000e0000003d000000280000004c00000011000000750000000046696c6520746f6f206c6172676500436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a00666978747572652d46522dc3a96368656300"
+    },
+    {
+      "id": "synchronized-errno-bytes-child-only-latin1",
+      "mode": "stdout",
+      "limit": 5,
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "files": {
+        "Makefile": "load ./native_probe.so\n.PHONY: all\nall:; @./emit newline\n"
+      },
+      "created": {
+        "capture": "ABCD\n",
+        "atexit-seen": "O\n",
+        "fini-seen": "C\n",
+        "errno-fixture-FR-\udce9chec": "1\n"
+      },
+      "stdout": "",
+      "stderr_hex": "",
+      "status": 0,
+      "emit": true,
+      "native": true,
+      "env": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "PROBE_ERRNO_CODESET": "ISO-8859-1"
+      },
+      "locale": "native-fr",
+      "errno_catalog_hex": "de12049500000000020000001c0000002c0000000000000000000000000000003c0000000e0000003d000000280000004c00000011000000750000000046696c6520746f6f206c6172676500436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a00666978747572652d46522dc3a96368656300"
     }
   ]
 }
