@@ -41,6 +41,7 @@ UCONTEXT_COMMIT = '49e671dd52ff6791295d8161ad3b6da7dc5f6f9d'
 UCONTEXT_SHA256 = 'c84f57298ed4bce278c31ed8e5c0b3da6f9bd8bc45c9dfb08656fe797bdc2c47'
 UNWIND_SHA256 = '9adff5e5a4add5249918c9c759a5905f98d966b78abc943ce01efdc1a33533c4'
 ORDINARY_CASES = (
+    'diagnostic-raw-target-override-and-user-warning',
     'include-serial-forced-named-dry-cleaner-clock-retimed-present',
     'shell-status-lexical-foreach-retains-status',
     'wildcard-class', 'wildcard-invalid-class',

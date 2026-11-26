@@ -415,9 +415,9 @@ locale. It runs the startup usage and getopt models on both build profiles
 using the same locale data. It also checks selected filesystem and build
 diagnostics in C, French, German and Japanese on both builds, including raw
 paths and warning order. The reports retain the native comparisons.
-The dynamic musl gate has one C.UTF-8 wildcard byte-width case. Broader diagnostic
-producers, native and Guile callbacks, cache history, resource failures and
-musl NLS remain open. See the
+The dynamic musl gate checks C.UTF-8 wildcard byte widths and a C raw-target
+diagnostic beside a user warning. Broader diagnostic producers, native and
+Guile callbacks, cache history, resource failures and musl NLS remain open. See the
 [native AArch64](../.github/workflows/native-aarch64.yml) and
 [dynamic musl](../.github/workflows/native-musl.yml) workflows.
 
