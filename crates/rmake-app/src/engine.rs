@@ -4310,7 +4310,7 @@ impl Engine {
                                         .retained_trailing_worker_clock(request, trailing, visited)
                             }),
                         current_leading_trailing.is_some_and(|trailing| {
-                            engine.settled_trailing_optional_worker(request, trailing)
+                            engine.settled_trailing_optional_worker(request, trailing, visited)
                         }),
                     )
                 } else {
@@ -4330,8 +4330,9 @@ impl Engine {
                                             trailing,
                                             visited,
                                             request.same_clock_inline_optional_settled,
-                                        ) || engine
-                                            .settled_trailing_optional_worker(request, trailing)
+                                        ) || engine.settled_trailing_optional_worker(
+                                            request, trailing, visited,
+                                        )
                                     })
                             })
                     });
@@ -4358,7 +4359,7 @@ impl Engine {
                                             explicit_refresh
                                                 && (request.optional_visit_settled
                                                     || engine.settled_trailing_optional_worker(
-                                                        request, trailing,
+                                                        request, trailing, visited,
                                                     )
                                                     || visited
                                                         .get(trailing.neighbor)
@@ -13781,6 +13782,7 @@ impl Engine {
         &self,
         request: &PendingMakefileRemake<'_>,
         trailing: &TrailingOptionalRemake<'_>,
+        visited: &MakefileVisits<'_>,
     ) -> bool {
         let (Some(worker), Some(cached)) = (
             &request.trailing_optional_worker,
@@ -13791,21 +13793,32 @@ impl Engine {
         if !self.options.keep_going {
             return false;
         }
-        let (clock, settled) = match worker.result.get() {
-            Some(TrailingOptionalWorkerResult::Completed(clock)) => (
+        let Some(result) = worker.result.get() else {
+            return false;
+        };
+        let (clock, settled) = match result {
+            TrailingOptionalWorkerResult::Completed(clock) => (
                 clock,
                 Self::same_clock_optional_remake_outcome(Some(clock), cached),
             ),
-            Some(TrailingOptionalWorkerResult::Failed(clock)) => (
+            TrailingOptionalWorkerResult::Failed(clock) => (
                 clock,
                 self.cached_failed_optional_remake_at_clock(trailing.neighbor, clock, cached),
             ),
-            None => return false,
         };
+        if !settled {
+            return false;
+        }
+        let current_clock = Self::regular_remake_clock(trailing.neighbor);
+        // A later restoration leaves the optional recipe's failure in place.
         // The source pass still decides reread from its own visit and clock.
-        // Use this child result only while its observed timestamp is current.
-        settled
-            && Self::regular_remake_clock(trailing.neighbor) == Some(clock)
+        (current_clock == Some(clock)
+            || (matches!(result, TrailingOptionalWorkerResult::Failed(_))
+                && worker.only_synthetic_tail_remains
+                && !worker.required_failure_settled.get()
+                && visited
+                    .get(trailing.neighbor)
+                    .is_some_and(|(before, _)| before.is_some() && *before == current_clock)))
             && Self::regular_remake_clock(&worker.required) == Some(worker.required_before)
     }
 

@@ -403,6 +403,9 @@ The ordinary reread also covers an earlier unruled optional source that stayed
 current. The corresponding assumed refresh retains the tagged missing-rule
 failure for dependents and can reread after the required worker restores the
 optional file's timestamp.
+When the trailing worker fails and its timestamp is restored, its cached
+failure remains available to ordinary dependents. The required synthetic
+failure still reports its missing rule and independent goals can proceed.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
