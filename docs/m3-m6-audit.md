@@ -40,6 +40,9 @@ at the end of this audit.
   The database records one lookup per post-read flag source with warnings enabled.
   An unchanged `MAKEFLAGS` replay also records its encoded command-line eval
   reference when present.
+  The startup preload list uses one expansion of `MAKEFILES` after command-line
+  eval. An absent binding can warn at that point, while a defined empty binding
+  leaves the preload list empty.
 - [Output validation and mutex failures](output-validation-order.md) and the
   [startup output-lock gate](../tests/startup-output-mutex/README.md). Completed
   definitions and output remain observable when later validation or opening fails.

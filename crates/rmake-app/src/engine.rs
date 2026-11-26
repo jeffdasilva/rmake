@@ -3106,14 +3106,6 @@ impl Engine {
     }
 
     fn read_startup_makefiles(&mut self) -> Result<(), ()> {
-        if self
-            .database
-            .variables
-            .database_lookup(b"MAKEFILES")
-            .is_none_or(|value| value.raw_value().is_empty())
-        {
-            return Ok(());
-        }
         let names = match self.expand_global(b"$(MAKEFILES)", None) {
             Ok(names) => names,
             Err(error) => {
