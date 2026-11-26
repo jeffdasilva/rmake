@@ -90,6 +90,8 @@ NUL boundaries, rebinding and cancellation.
   A command-line or environment-override binding in a separate caller can
   replace the selected ordinary named file binding in place. The destination
   keeps its definition location and export policy.
+  When the named conditional selects the global binding, the same
+  transfer updates that global slot for subsequent readers.
   Standalone export and unexport lists record the visible-scope lookup for
   each name before updating its policy or creating an empty global binding.
   A list lookup refreshes the global .VARIABLES cache when that special

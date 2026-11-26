@@ -707,6 +707,27 @@ impl Bindings {
         self.order.remove(name);
         value
     }
+    fn transfer_command_value(bindings: &mut Arc<Self>, name: &[u8], value: Variable) -> bool {
+        let Some(old) = bindings.get(name) else {
+            return false;
+        };
+        if old.origin == Origin::Override
+            || (old.value == value.value
+                && old.origin == value.origin
+                && old.flavor == value.flavor
+                && !old.scope.append_outer)
+        {
+            return false;
+        }
+        // The destination retains its definition location and binding policy.
+        let target = Arc::make_mut(bindings).get_mut(name).unwrap();
+        target.value = value.value;
+        target.origin = value.origin;
+        target.flavor = value.flavor;
+        target.scope.append_outer = false;
+        true
+    }
+
     fn cached_variable_names(&self) -> Option<Vec<u8>> {
         self.names_cache.get().map(|cache| {
             cache
@@ -884,6 +905,10 @@ impl VariableStore {
                 )
             })
             .cloned())
+    }
+
+    pub(crate) fn transfer_global_command_value(&mut self, name: &[u8], value: Variable) {
+        Bindings::transfer_command_value(&mut self.variables, name, value);
     }
 
     pub fn database_stats(&self) -> Option<crate::database::HashStats> {
@@ -3642,24 +3667,7 @@ impl TargetScope {
     }
 
     pub(crate) fn transfer_target_command_value(&mut self, name: &[u8], value: Variable) -> bool {
-        let Some(old) = self.variables.get(name) else {
-            return false;
-        };
-        if old.origin == Origin::Override
-            || (old.value == value.value
-                && old.origin == value.origin
-                && old.flavor == value.flavor
-                && !old.scope.append_outer)
-        {
-            return false;
-        }
-        // The destination retains its definition location and binding policy.
-        let target = Arc::make_mut(&mut self.variables).get_mut(name).unwrap();
-        target.value = value.value;
-        target.origin = value.origin;
-        target.flavor = value.flavor;
-        target.scope.append_outer = false;
-        true
+        Bindings::transfer_command_value(&mut self.variables, name, value)
     }
 
     pub(crate) fn retain_read_bindings(&mut self, scope: &VariableStore) {
