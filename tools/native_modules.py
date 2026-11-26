@@ -164,6 +164,7 @@ def models() -> list[Model]:
     result.extend(retained_double_branch_models())
     result.extend(finalizer_shell_models())
     result.extend(fatal_scope_models())
+    result.extend(word_zero_finalizer_models())
     result.extend(reader_syntax_finalizer_models())
     result.extend(flag_finalizer_models())
     result.extend(fast_sync_finalizer_models())
@@ -917,6 +918,69 @@ def fatal_scope_models() -> list[Model]:
               b'make: *** [Makefile:6: all] Error 13\nmake' + finalizer, global_scope),
         model('success', header + recipe + b'$(foreach .LOADED,local,$(file >>seen,body)):' + tail,
               b'make' + finalizer, b'body\n' + global_scope, status=0),
+    ]
+
+
+def word_zero_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    recipe = b'.PHONY: all dep\nall: .LOADED := target\nall: dep\n\t@'
+    tail = b':\ndep:;@:\n'
+    operand = b'$(file >>seen,operand-$(.LOADED)-$@-$<)'
+    zero = b'$(word 0,' + operand + b'alpha)'
+    valid = zero.replace(b'word 0,', b'word 1,')
+    error = b"first argument to 'word' function must be greater than 0"
+    global_scope = b'scope=[||file|global||]\n'
+    lexical_scope = b'scope=[||automatic|lexical||]\n'
+    target_scope = b'scope=[all|dep|file|target||]\n'
+    target_lexical = b'scope=[all|dep|automatic|lexical||]\n'
+    global_operand = b'operand-global--\n'
+    lexical_operand = b'operand-lexical--\n'
+    target_operand = b'operand-target-all-dep\n'
+    target_lexical_operand = b'operand-lexical-all-dep\n'
+    finalizer = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def callback(expression):
+        return b'$(probe_expand_guard ' + expression.replace(b'$', b'$$') + b')'
+
+    def model(name, text, *, failure=error, location=b'Makefile:4', final_location=None,
+              seen=global_operand + global_scope, args=(), files=None, api=False, stdout=b''):
+        stderr = (location + b': *** ' + failure + b'.  Stop.\n') if failure else b''
+        stderr += (final_location or (location if failure else b'make')) + b': finalizer-location\n'
+        return Model(
+            'native-word-zero-finalizer-' + name,
+            {'Makefile': text, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': 2 if failure else 0, 'stdout_hex': stdout.hex(), 'stderr_hex': stderr.hex()},
+            b'anchor\nread\n' + seen,
+            (finalizer, Module()) if api else (finalizer,),
+            args=('-rR', '--no-print-directory', '-j1', *args, 'all'),
+        )
+
+    return [
+        model('reader', head + zero + b'\n' + goal),
+        model('call', head + zero.replace(b'$(word 0,', b'$(call word,0,') + b'\n' + goal),
+        model('negative', head + zero.replace(b'word 0', b'word -1') + b'\n' + goal),
+        model('include', head + b'include child.mk\n' + goal, location=b'child.mk:2',
+              files={'child.mk': b'# physical include\n' + zero + b'\n'}),
+        model('named-let', head + b'$(let .LOADED,lexical,' + zero + b')\n' + goal,
+              seen=lexical_operand + lexical_scope),
+        model('anonymous-foreach', goal, location=b'make', seen=lexical_operand + lexical_scope,
+              args=('--eval', (head + b'$(foreach .LOADED,lexical,' + zero + b')').decode('ascii'))),
+        model('recipe-let', head + recipe + b'$(let .LOADED,lexical,' + zero + b')' + tail,
+              location=b'Makefile:7', seen=target_lexical_operand + target_lexical),
+        model('recipe-binding', head + b'BAD = ' + zero + b'\n' + recipe + b'$(BAD)' + tail,
+              location=b'Makefile:4', final_location=b'Makefile:8', seen=target_operand + target_scope),
+        model('recipe-native-expand', b'load probe_api.so\n' + head + recipe + callback(zero) + tail,
+              location=b'Makefile:8', seen=target_operand + target_scope, api=True),
+        model('recipe-native-expand-success', b'load probe_api.so\n' + head + recipe
+              + b'$(info VALUE=[' + callback(valid) + b'])' + tail,
+              failure=b'', seen=target_operand + b'expand-returned\n' + global_scope,
+              api=True, stdout=b'VALUE=[alpha]\n'),
+        model('nested-user-error', head + recipe + zero.replace(operand, operand + b'$(error nested)') + tail,
+              failure=b'nested', location=b'Makefile:7', seen=target_operand + target_scope),
+        model('dormant', head + b'$(if ,' + zero + b')\n' + goal, failure=b'', seen=b'goal\n' + global_scope),
+        model('lexical-success', head + b'VALUE:=$(let .LOADED,lexical,' + valid + b')\n' + goal,
+              failure=b'', seen=lexical_operand + b'goal\n' + global_scope),
     ]
 
 
