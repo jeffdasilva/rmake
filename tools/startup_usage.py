@@ -23,6 +23,9 @@ SHORT = b'{argv}: invalid option -- \'z\'\n'
 LONG = b"{argv}: unrecognized option '--absent'\n"
 JOBS = b"make: the '-j' option requires a positive integer argument\n"
 USAGE = b'Usage: make [options] [target] ...\nOptions:\n'
+OUTPUT_MODE = b'--output-sync=unsupported'
+OUTPUT_MODE_ERROR = b"make: *** unknown output-sync type 'unsupported'.  Stop.\n"
+FR_OUTPUT_MODE_ERROR = "make: *** type de output-sync «\u00a0unsupported\u00a0» inconnu. Arrêt.\n".encode()
 
 
 @dataclass(frozen=True)
@@ -64,8 +67,18 @@ def models():
     yield Model('zero-jobs', (b'-j0',), JOBS)
     yield Model('empty-long-jobs', (b'--jobs=',), JOBS)
     yield Model('empty-separated-jobs', (b'-j', b''), JOBS)
-    yield Model('unknown-output-sync', (b'-Ounsupported',),
-                b"make: *** unknown output-sync type 'unsupported'.  Stop.\n", usage=False)
+    yield Model('unknown-output-sync', (b'-Ounsupported',), OUTPUT_MODE_ERROR, usage=False)
+    yield Model('output-mode-error-version-before', (b'--version', CLI, OUTPUT_MODE),
+                OUTPUT_MODE_ERROR, usage=False, version=True, seen=b'cli-effect\n')
+    yield Model('fr-output-mode-error-version-after', (OUTPUT_MODE, CLI, b'--version'),
+                FR_OUTPUT_MODE_ERROR, usage=False, version=True, seen=b'cli-effect\n', french=True)
+    yield Model('output-mode-error-without-version', (OUTPUT_MODE, CLI),
+                OUTPUT_MODE_ERROR, usage=False, seen=b'cli-effect\n')
+    yield Model('output-mode-error-overridden-before-version',
+                (OUTPUT_MODE, b'--output-sync=none', b'--version', CLI),
+                status=0, usage=False, version=True, seen=b'cli-effect\n')
+    yield Model('inherited-output-mode-error-before-explicit-version', (b'--version', CLI),
+                OUTPUT_MODE_ERROR, makeflags=OUTPUT_MODE, usage=False)
     yield Model('unknown-debug', (b'--debug=unknown',),
                 b"make: *** unknown debug level specification 'unknown'.  Stop.\n", usage=False)
     yield Model('invalid-then-assignment', (b'-z', CLI), SHORT, seen=b'cli-effect\n')
@@ -113,18 +126,25 @@ def observe(model, binary, invoke, reset, locale, engine):
     }
     if model.french:
         env |= locale['environment'] | {'LC_ALL': 'fr_FR.UTF-8'}
-    out, err, status, limit, children = h.capture([str(invoke), '-rR', '--no-print-directory', *model.args],
-                                                  work, env, 10)
     expected_out = b'opened\ngoal|' + model.goal + b'\n' if model.goal else b''
     if model.version:
-        lines = out.split(b'\n')
+        banner_env = env | {'MAKEFLAGS': b'', 'GNUMAKEFLAGS': b''}
+        banner, banner_error, banner_status, banner_limit, banner_children = h.capture(
+            [str(invoke), '--version'], work, banner_env, 10)
+        lines = banner.split(b'\n')
         if engine == 'candidate':
-            stdout_ok = len(lines) == 6 and lines[0].startswith(b'rmake ') and lines[1].startswith(
-                b'GNU Make 4.4.1 compatibility target ') and lines[-2:] == [b'', b'']
+            banner_ok = len(lines) == 5 and lines[0].startswith(b'rmake ') and lines[1].startswith(
+                b'GNU Make 4.4.1 compatibility target ')
         else:
-            stdout_ok = lines[0] == b'GNU Make 4.4.1' and lines[-2:] == [b'', b'']
-    else:
-        stdout_ok = out == expected_out
+            banner_ok = lines[0] == b'GNU Make 4.4.1'
+        if (not banner_ok or lines[-1] or not lines[-2] or banner_error
+                or (banner_status, banner_limit, banner_children) != (0, None, False)
+                or h.snapshot(roots) != before):
+            raise h.HarnessError('invalid isolated version banner')
+        expected_out = banner + (b'\n' if model.usage else b'')
+    out, err, status, limit, children = h.capture([str(invoke), '-rR', '--no-print-directory', *model.args],
+                                                  work, env, 10)
+    stdout_ok = out == expected_out
     expected_err = model.errors.replace(b'{argv}', os.fsencode(invoke))
     if model.usage:
         if model.french:

@@ -465,7 +465,10 @@ impl Plan {
                 error.version = options.version;
                 error
             })?;
-            output_mode(options.output_sync.as_deref())?;
+            output_mode(options.output_sync.as_deref()).map_err(|mut error| {
+                error.version = options.version;
+                error
+            })?;
             if let Some(authentication) = &options.sync_mutex {
                 state.complete_mutex(authentication).map_err(|mut error| {
                     error.version = options.version;
