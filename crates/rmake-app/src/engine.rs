@@ -37,7 +37,7 @@ use std::io::{self, Write};
 use std::num::{NonZeroU64, NonZeroUsize};
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::os::unix::process::{CommandExt, ExitStatusExt};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -17335,7 +17335,8 @@ impl Engine {
             debug_job: _,
         } = state;
         let variables = &mut variables;
-        let mut command_attempted = false;
+        let mut previous_executable = None;
+        let mut failed_executable_attempt = false;
         while let Some((index, bytes, recipe)) = expanded.pop_front() {
             self.observe_interrupt();
             if self.interrupt.is_some() {
@@ -17462,7 +17463,8 @@ impl Engine {
                 }
                 // Once a command has started, stopping on a later ordinary
                 // line gives a mixed recipe the simulated completion time.
-                let simulated_completion_time = command_attempted
+                let simulated_completion_time = (previous_executable.is_some()
+                    || failed_executable_attempt)
                     && !phony
                     && !parallel
                     && !self.remaking
@@ -17875,7 +17877,7 @@ impl Engine {
                 self.stderr(&[program.as_slice(), b": ", os_error(error).as_bytes()].concat());
             }
             self.output.select(None);
-            if let Ok(child) = &process {
+            if let Ok((child, _)) = &process {
                 if owner.debug_job.is_none() {
                     owner.debug_job = crate::debug::Jobs::record(target, self.output.debug_mask());
                 }
@@ -17909,7 +17911,7 @@ impl Engine {
                         phony,
                         stdin_owner,
                         waiting_load: false,
-                        child: process.ok(),
+                        child: process.ok().map(|(child, _)| child),
                         signal_cleaned: false,
                         continuation: RecipeState {
                             branch,
@@ -17929,10 +17931,17 @@ impl Engine {
                 self.observe_interrupt();
                 return Execution::pending();
             }
-            command_attempted |= process.is_ok() || executable_launch_failed;
+            failed_executable_attempt |= executable_launch_failed;
             let result = match process {
-                Ok(mut child) => self
-                    .wait_serial_child(&mut child, target, before, phony, owner.debug_job.as_ref())
+                Ok((mut child, path)) => {
+                    previous_executable = Some(path);
+                    self.wait_serial_child(
+                        &mut child,
+                        target,
+                        before,
+                        phony,
+                        owner.debug_job.as_ref(),
+                    )
                     .map(|wait| {
                         signal_cleaned = wait.cleaned;
                         #[cfg(feature = "guile")]
@@ -17940,7 +17949,8 @@ impl Engine {
                             interpreter_failed = wait.interpreter_failed;
                         }
                         wait.status
-                    }),
+                    })
+                }
                 Err(error) => Err(error),
             };
             self.output
@@ -18011,13 +18021,32 @@ impl Engine {
                         .map_or_else(|| signal_status(status), |code| format!("Error {code}")),
                 ),
                 Err(err) => {
-                    let text = err.to_string();
-                    let suffix = err
-                        .raw_os_error()
-                        .map(|code| format!(" (os error {code})"))
-                        .unwrap_or_default();
-                    let message = text.strip_suffix(&suffix).unwrap_or(&text);
-                    self.stderr(&[program.as_slice(), b": ", message.as_bytes()].concat());
+                    self.stderr(&[program.as_slice(), b": ", os_error(&err).as_bytes()].concat());
+                    // GNU rechecks the last successfully spawned command
+                    // when the next executable lookup fails.
+                    if executable_launch_failed
+                        && err.kind() == io::ErrorKind::NotFound
+                        && !parallel
+                        && !ignore
+                        && !self.remaking
+                        && remake.is_none()
+                        && branch.is_none()
+                        && !MakefileModes::from_options(&self.options).active()
+                        && self.output.mode() != crate::output::Mode::Recurse
+                        && !self.running_groups.contains_key(target)
+                        && rmake_core::filenames::archive_parts(target).is_none()
+                        && let Some(path) = previous_executable.as_ref()
+                        && let Err(error) = std::fs::metadata(path)
+                    {
+                        self.stderr(
+                            &[
+                                path.as_os_str().as_bytes(),
+                                b": ",
+                                os_error(&error).as_bytes(),
+                            ]
+                            .concat(),
+                        );
+                    }
                     Some("Error 127".to_owned())
                 }
             };
@@ -18348,11 +18377,11 @@ fn signal_status(status: std::process::ExitStatus) -> String {
 /// Select the first executable non-directory in the child's PATH before
 /// spawning it. An exec failure for that file is a launch failure, even when
 /// the same program name is executable in a later PATH directory.
-fn recipe_program(program: &[u8], template: &Command) -> io::Result<std::path::PathBuf> {
+fn recipe_program(program: &[u8], template: &Command) -> io::Result<PathBuf> {
     use rmake_linux::process::executable;
 
     if program.contains(&b'/') {
-        let path = std::path::PathBuf::from(os(program));
+        let path = PathBuf::from(os(program));
         executable(&path)?;
         return Ok(path);
     }
@@ -18390,7 +18419,7 @@ fn launch_child<T>(
     order: &[Vec<u8>],
     original_shell: Option<&[u8]>,
     run: impl FnMut(Command, &rmake_linux::environment::Image, &[u8]) -> io::Result<T>,
-) -> io::Result<T> {
+) -> io::Result<(T, PathBuf)> {
     let environment =
         rmake_linux::environment::Image::from_command(template, order, original_shell)?;
     launch_child_with_environment(program, template, &environment, run)
@@ -18401,7 +18430,7 @@ pub(crate) fn launch_child_with_environment<T>(
     template: &Command,
     environment: &rmake_linux::environment::Image,
     mut run: impl FnMut(Command, &rmake_linux::environment::Image, &[u8]) -> io::Result<T>,
-) -> io::Result<T> {
+) -> io::Result<(T, PathBuf)> {
     let path = recipe_program(program, template)?;
     let mut command = Command::new(&path);
     command.arg0(os(program)).args(template.get_args());
@@ -18411,12 +18440,13 @@ pub(crate) fn launch_child_with_environment<T>(
             // Interpret the selected file through /bin/sh with its original
             // arguments and environment.
             let mut shell = Command::new("/bin/sh");
-            shell.arg(path).args(template.get_args());
+            shell.arg(&path).args(template.get_args());
             rmake_linux::signals::configure_child(&mut shell);
             run(shell, environment, b"/bin/sh")
         }
         result => result,
     }
+    .map(|child| (child, path))
 }
 
 #[cfg(feature = "test-support")]
