@@ -75,7 +75,10 @@ NUL boundaries, rebinding and cancellation.
   rule evaluates its simple suffix before origin precedence preserves the
   automatic value. This also applies to explicit single-colon groups without
   filename aliases when the named peer has its own automatic binding. The
-  database models check suffix effects and lookup counts.
+  database models check suffix effects and lookup counts. A first named or
+  pattern append checks the binding's own table before storing its deferred
+  suffix. Expanding an inherited append in a recipe or environment starts
+  a fresh lookup and records the logical tables visited as it finds each part.
 - [Variable metadata](variable-metadata.md), [POSIX mode](posix-mode.md),
   [late built-in disabling](late-builtins.md) and
   [byte-preserving child environments](environment-vectors.md).

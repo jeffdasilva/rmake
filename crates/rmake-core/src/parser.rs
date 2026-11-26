@@ -18,8 +18,8 @@ use crate::reader::{
     strip_comment, strip_recipe_continuation_prefix,
 };
 use crate::variables::{
-    Assignment, ConditionalFlagBinding, ExpandError, Flavor, MAX_OUTPUT, Origin, Pattern,
-    PatternVariable, TargetScope, VariableStore, reference_end,
+    Assignment, ConditionalFlagBinding, DefinitionLookup, ExpandError, Flavor, MAX_OUTPUT, Origin,
+    Pattern, PatternVariable, TargetScope, VariableStore, reference_end,
 };
 use std::borrow::Cow;
 use std::cell::{Cell, OnceCell};
@@ -3307,7 +3307,7 @@ impl Database {
                 definition,
                 context.reborrow(),
                 append_base.as_ref(),
-                lookup_scope.as_ref(),
+                DefinitionLookup::Visible(lookup_scope.as_ref()),
                 |variables, bytes, shell, context| {
                     std::mem::swap(variables, &mut self.variables);
                     let result = if shell {
@@ -4056,7 +4056,7 @@ impl Database {
                     Some(location),
                     context,
                     None,
-                    None,
+                    DefinitionLookup::Target,
                     |read, bytes, shell, context| {
                         if shell {
                             crate::variables::shell_scoped_database(database, read, bytes, context)
