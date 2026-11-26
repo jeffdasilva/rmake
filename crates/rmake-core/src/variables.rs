@@ -2271,6 +2271,11 @@ impl VariableStore {
         self.bindings_at_layer(selection.layer)?.get(selection.name)
     }
 
+    pub(crate) fn resolves_global_binding(&self, name: &[u8]) -> bool {
+        self.lookup_from(name, 0)
+            .is_some_and(|(layer, _)| self.global_layer(layer))
+    }
+
     fn global_layer(&self, layer: usize) -> bool {
         if layer == 0 {
             !self.scoped
@@ -2851,7 +2856,7 @@ impl VariableStore {
         origin: Origin,
         location: &Location,
     ) -> Result<(), ExpandError> {
-        self.append_literal_from_at(name, value, origin, location, None)
+        self.append_literal_from_at(name, value, origin, location, None, None)
     }
 
     pub(crate) fn append_literal_from_at(
@@ -2861,11 +2866,12 @@ impl VariableStore {
         origin: Origin,
         location: &Location,
         current: Option<&Variable>,
+        lookup_scope: Option<&Self>,
     ) -> Result<(), ExpandError> {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
-        self.record_database_lookup(name);
+        lookup_scope.unwrap_or(self).record_database_lookup(name);
         self.promote_environment(name, origin);
         if self.get(name).is_some_and(|old| old.origin > origin) {
             return Ok(());

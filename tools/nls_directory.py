@@ -3,9 +3,11 @@
 # Copyright 2026 Jeff DaSilva
 """Exact GNU2 comparison of localized directory framing and cwd failures."""
 import argparse
+from dataclasses import replace
 import json
 import os
 from pathlib import Path
+import re
 import sys
 import tempfile
 
@@ -17,17 +19,7 @@ import oracle as reference
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "tests/nls"
-ENOENT_WITNESS = """
-import ctypes
-import errno
-import locale
-import os
-locale.setlocale(locale.LC_ALL, "")
-function = ctypes.CDLL(None).strerror
-function.argtypes = [ctypes.c_int]
-function.restype = ctypes.c_char_p
-os.write(1, function(errno.ENOENT))
-"""
+COPIED_STDIN = "@COPIED_STDIN@"
 
 
 def observe(case, runtime, binary, launcher):
@@ -36,11 +28,13 @@ def observe(case, runtime, binary, launcher):
     h.reset_workspace(case, runtime, binary)
     executable = str(runtime / "bin/make")
     cwd = runtime / "work"
-    if launcher == "entry":
+    if launcher in ("entry", "entry-stdin"):
         # Keep the disposable entry inside the observed workspace while -C uses its sibling.
         cwd = cwd / "entry"
         cwd.mkdir(mode=0o755)
         command = [executable, *case.args]
+        if launcher == "entry-stdin":
+            command = ["/bin/sh", "-c", 'exec "$@" < ../build/stdin-input.mk', "stdin-launcher", *command]
     else:
         command = [sys.executable, str(DATA / "deleted_cwd.py"), launcher,
                    str(cwd), executable, *case.args]
@@ -51,15 +45,15 @@ def observe(case, runtime, binary, launcher):
     return h.Observation(out, err, status, limit, files, leftovers)
 
 
-def errno_witness(root, environment):
+def errno_witness(root, environment, name):
     # Query the OS diagnostic independently, with the same locale inputs.
     # The Make template, prefix, spacing, newline and stream remain literal.
     out, err, status, limit, leftovers = h.capture(
-        [sys.executable, "-c", ENOENT_WITNESS], root,
+        [sys.executable, "-c", nls.OS_WITNESS, name], root,
         h.clean_environment(root, environment), 5,
     )
     if status or err or limit or leftovers or not out or b"\n" in out:
-        raise h.HarnessError("could not witness host libc ENOENT diagnostic")
+        raise h.HarnessError("could not witness host libc cwd or unlink diagnostic")
     return out
 
 
@@ -67,20 +61,21 @@ def load_rows(selection):
     data = json.loads((DATA / "directory.json").read_bytes())
     rows = data["rows"]
     names = {row["id"] for row in rows}
-    if len(rows) != 26 or len(names) != 26:
+    if len(rows) != 35 or len(names) != 35:
         raise h.HarnessError("unexpected NLS directory inventory")
     if set(selection) - names:
         raise h.HarnessError("unknown exact NLS directory ID")
     fixtures = data["fixture_sha256"]
-    if set(fixtures) != {"nls_control.c", "deleted_cwd.py"}:
+    if set(fixtures) != {"nls_control.c", "deleted_cwd.py", "native/fatal_scope.c"}:
         raise h.HarnessError("unexpected NLS directory fixture inventory")
     for name, expected in fixtures.items():
-        if h.sha256_file(DATA / name) != expected:
+        source = DATA.parent / name if name == "native/fatal_scope.c" else DATA / name
+        if h.sha256_file(source) != expected:
             raise h.HarnessError("NLS directory fixture identity differs: " + name)
     for row in rows:
-        if any(module["source"] != "nls_control.c" for module in row["modules"]):
+        if any(module["source"] not in {"nls_control.c", "native/fatal_scope.c"} for module in row["modules"]):
             raise h.HarnessError("NLS directory model uses unpinned source")
-        if row["launch"] not in (None, "initial", "after-C", "entry"):
+        if row["launch"] not in (None, "initial", "after-C", "entry", "entry-stdin"):
             raise h.HarnessError("unknown NLS directory launch")
     return data, [row for row in rows if not selection or row["id"] in selection]
 
@@ -88,21 +83,58 @@ def load_rows(selection):
 def make_model(row, root, locale):
     environment = {**row["environment"], **locale["environment"]}
     expected = dict(row["expected"])
-    errno_bytes = None
+    errors = {}
     stderr = bytes.fromhex(expected["stderr_template_hex"])
-    errno_slots = stderr.count(b"@ENOENT@")
-    if row["launch"] in ("initial", "after-C") or errno_slots:
-        if errno_slots != 1:
-            raise h.HarnessError("cwd failure model must declare exactly one errno slot")
-        errno_bytes = errno_witness(root, environment)
-        expected["stderr_template_hex"] = stderr.replace(b"@ENOENT@", errno_bytes).hex()
+    for name in ("ENOENT", "EISDIR"):
+        slot = f"@{name}@".encode()
+        count = stderr.count(slot)
+        if count != 0 or (name == "ENOENT" and row["launch"] in ("initial", "after-C")):
+            if count != 1:
+                raise h.HarnessError("cwd or unlink failure must declare exactly one slot per errno")
+            errors[name] = errno_witness(root, environment, name)
+            stderr = stderr.replace(slot, errors[name])
+    expected["stderr_template_hex"] = stderr.hex()
     model = directory.Model(
         row["id"], {name: bytes.fromhex(value) for name, value in row["files"].items()},
         tuple(row["args"]), environment, expected, bytes.fromhex(expected["seen_template_hex"]),
-        modules=tuple(directory.Module(**item) for item in row["modules"]),
+        modules=tuple(directory.Module(
+            "nls/nls_control.c" if item["source"] == "nls_control.c" else item["source"], item["filename"],
+        ) for item in row["modules"]),
         updates={name: bytes.fromhex(value) for name, value in row.get("expected_file_updates", {}).items()},
     )
-    return model, errno_bytes
+    return model, errors
+
+
+def expected_restart_source(filesystem, path, kind):
+    if path == COPIED_STDIN:
+        if kind != "directory":
+            raise h.HarnessError("copied stdin witness must retain its replacement directory")
+        key = "tmp/" + COPIED_STDIN
+    else:
+        key = "work/" + str(directory.safe_relative(path))
+        if filesystem.get(key, {}).get("type") != "file":
+            raise h.HarnessError("restart source must name an input file")
+    if kind == "directory":
+        filesystem[key] = {"type": "directory", "mode": 0o755}
+    elif kind == "absent":
+        del filesystem[key]
+    else:
+        raise h.HarnessError("unknown restart source effect")
+
+
+def identify_copied_stdin(value, runtime):
+    # Read the single retained directory name from the filesystem, never from stderr.
+    sampled = directory.evidence(value)
+    sources = [key for key, item in value.filesystem.items()
+               if re.fullmatch(r"tmp/Gm[A-Za-z0-9]{6}", key) and item["type"] == "directory"]
+    if len(sources) != 1:
+        return value, sampled
+    key = sources[0]
+    path = os.fsencode(runtime / key)
+    sampled["source_path_hex"] = path.hex()
+    filesystem = dict(value.filesystem)
+    filesystem["tmp/" + COPIED_STDIN] = filesystem.pop(key)
+    return replace(value, filesystem=filesystem, stderr=value.stderr.replace(path, COPIED_STDIN.encode())), sampled
 
 
 def main(argv=None):
@@ -117,7 +149,7 @@ def main(argv=None):
     oracle, oracle_profile, catalog, locale = nls.prepare_reference(
         args.oracle, data["reference_catalog_sha256"], args.locale_root,
     )
-    directory.SOURCES = DATA
+    directory.SOURCES = DATA.parent
     candidate = args.candidate.resolve() if args.candidate else None
     report = {"classification": data["classification"], "models_sha256": h.sha256_file(DATA / "directory.json"),
               "driver_sha256": h.sha256_file(Path(__file__)), "locale_profile": locale,
@@ -136,10 +168,18 @@ def main(argv=None):
         runtime.mkdir()
         report["runtime_path"] = str(runtime)
         for row in rows:
-            model, errno_bytes = make_model(row, root, locale)
+            model, errors = make_model(row, root, locale)
             case, compilation, filesystem = directory.prepare(model, root / model.id, runtime, "/usr/bin/cc")
+            source_effect = row.get("source_after_restart")
+            if source_effect:
+                path, kind = source_effect
+                expected_restart_source(filesystem, path, kind)
             record = {"id": model.id, "model": row, "compilation": compilation, "expected_filesystem": filesystem,
-                      "enoent_hex": None if errno_bytes is None else errno_bytes.hex(), "observations": []}
+                      "enoent_hex": errors["ENOENT"].hex() if "ENOENT" in errors else None, "observations": []}
+            if "EISDIR" in errors:
+                record["eisdir_hex"] = errors["EISDIR"].hex()
+            if source_effect and path == COPIED_STDIN:
+                record["copied_stdin_observations"] = []
             report["records"].append(record)
             binaries = [oracle, oracle]
             if candidate:
@@ -152,6 +192,10 @@ def main(argv=None):
                 publish()
                 if value.limit or value.leftover_processes or value.returncode < 0:
                     raise h.HarnessError("new NLS directory bound or signal retained; stop without replay")
+                if source_effect and path == COPIED_STDIN:
+                    value, sampled = identify_copied_stdin(value, runtime)
+                    record["copied_stdin_observations"].append(sampled)
+                    observed[-1] = value
             record.update(directory.assess(model, case, runtime, filesystem, observed, [{} for _ in observed]))
             print(("PASS " if record["passed"] else "FAIL ") + model.id, flush=True)
             publish()

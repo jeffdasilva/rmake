@@ -4933,6 +4933,7 @@ impl Database {
                 Origin::File,
                 location,
                 current,
+                None,
             )?;
         }
         // A successful or optional attempt retains its file identity even
@@ -5359,15 +5360,29 @@ impl Database {
                                 location: Some(location.clone()),
                                 read_error: None,
                             });
+                            const MAKEFILE_LIST: &[u8] = b"MAKEFILE_LIST";
+                            let lookup_scope = self
+                                .database_history
+                                .as_ref()
+                                .and(self.evaluation_scope.as_ref())
+                                .filter(|scope| {
+                                    scope.resolves_global_binding(MAKEFILE_LIST)
+                                        && !self
+                                            .evaluation_bindings
+                                            .iter()
+                                            .any(|frame| frame.contains_key(MAKEFILE_LIST))
+                                });
                             self.variables
-                                .append_literal_at(
-                                    b"MAKEFILE_LIST",
+                                .append_literal_from_at(
+                                    MAKEFILE_LIST,
                                     &included.name,
                                     Origin::File,
                                     &Location {
                                         file: path.as_slice().into(),
                                         line: 1,
                                     },
+                                    None,
+                                    lookup_scope,
                                 )
                                 .map_err(|e| ParseError {
                                     unlocated: false,

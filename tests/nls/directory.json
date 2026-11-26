@@ -1,10 +1,11 @@
 {
-  "classification": "Original GNU2 directory localization models. Path slots come from the fresh workspace. The explicit ENOENT slot comes from an independent public libc call using the verified locale and original environment.",
+  "classification": "Original GNU2 directory localization models. Path slots come from the fresh workspace. Explicit errno slots come from an independent public libc call using the verified locale and original environment.",
   "original_models_sha256": "6281bc03103a311c5d968b610d9481cb0db599cea025fdae3fc85981f5aeea80",
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
   "fixture_sha256": {
     "nls_control.c": "11bfb337c609581d2a01736461a9814c100f6fb980903eaeeaba4b6de28a238e",
-    "deleted_cwd.py": "4e00366df1d0b63b08de660c5f2c8e0e30ce13ac2bf3d5a301608000b156cfbf"
+    "deleted_cwd.py": "4e00366df1d0b63b08de660c5f2c8e0e30ce13ac2bf3d5a301608000b156cfbf",
+    "native/fatal_scope.c": "c767af0adba20f45d65eb2778b4c0703a7e62970bbc06041ea9cffddab7b9740"
   },
   "rows": [
     {
@@ -720,6 +721,394 @@
         "stderr_template_hex": "",
         "seen_template_hex": "6f776e6564207365656e0a726561643a0a"
       }
+    },
+    {
+      "id": "nls-directory-restart-stdin-adopted-blocked-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build",
+        "--temp-stdin=owned.mk",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "launch": "entry",
+      "modules": [
+        {
+          "source": "native/fatal_scope.c",
+          "filename": "build/fatal_scope.so"
+        }
+      ],
+      "files": {
+        "seen": "616e63686f720a",
+        "build/seen": "616e63686f720a",
+        "build/owned.mk": "6c6f616420666174616c5f73636f70652e736f0a2e4c4f41444544203a3d20676c6f62616c0a4f524947494e414c203a3d2024286669727374776f72642024284d414b4546494c455f4c49535429290a242866696c65203e3e7365656e2c726561643a24284d414b455f524553544152545329290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a696e636c7564652067656e6572617465642e6d6b0a67656e6572617465642e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472793b20726d202d2d202224284f524947494e414c29223b206d6b646972202d2d202224284f524947494e414c29223b207072696e7466202225735c6e222022232067656e65726174656422203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "52454255494c443d5b5d0a",
+        "stderr_template_hex": "6d616b653a2063686469723a2040454e4f454e54400a6d616b653a202a2a2a20436f756c646e2774206368616e6765206261636b20746f206f726967696e616c206469726563746f72792e202053746f702e0a6d616b653a20756e6c696e6b202874656d706f726172792066696c65293a206f776e65642e6d6b3a2040454953444952400a6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
+        "seen_template_hex": "616e63686f720a"
+      },
+      "expected_file_updates": {
+        "build/seen": "616e63686f720a726561643a0a73636f70653d5b7c7c66696c657c676c6f62616c7c7c5d0a",
+        "build/generated.mk": "232067656e6572617465640a"
+      },
+      "source_after_restart": [
+        "build/owned.mk",
+        "directory"
+      ]
+    },
+    {
+      "id": "nls-directory-restart-stdin-adopted-blocked-raw-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build",
+        "--temp-stdin=owned_\udcff.mk",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "launch": "entry",
+      "modules": [
+        {
+          "source": "native/fatal_scope.c",
+          "filename": "build/fatal_scope.so"
+        }
+      ],
+      "files": {
+        "seen": "616e63686f720a",
+        "build/seen": "616e63686f720a",
+        "build/owned_\udcff.mk": "6c6f616420666174616c5f73636f70652e736f0a2e4c4f41444544203a3d20676c6f62616c0a4f524947494e414c203a3d2024286669727374776f72642024284d414b4546494c455f4c49535429290a242866696c65203e3e7365656e2c726561643a24284d414b455f524553544152545329290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a696e636c7564652067656e6572617465642e6d6b0a67656e6572617465642e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472793b20726d202d2d202224284f524947494e414c29223b206d6b646972202d2d202224284f524947494e414c29223b207072696e7466202225735c6e222022232067656e65726174656422203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "52454255494c443d5b5d0a",
+        "stderr_template_hex": "6d616b653a206368646972203a2040454e4f454e54400a6d616b653a202a2a2a20436f756c646e2774206368616e6765206261636b20746f206f726967696e616c206469726563746f72792e20417272c3aa742e0a6d616b653a20756e6c696e6b2028666963686965722074656d706f726169726529c2a03ac2a06f776e65645fff2e6d6b203a2040454953444952400a6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
+        "seen_template_hex": "616e63686f720a"
+      },
+      "expected_file_updates": {
+        "build/seen": "616e63686f720a726561643a0a73636f70653d5b7c7c66696c657c676c6f62616c7c7c5d0a",
+        "build/generated.mk": "232067656e6572617465640a"
+      },
+      "source_after_restart": [
+        "build/owned_\udcff.mk",
+        "directory"
+      ]
+    },
+    {
+      "id": "nls-directory-restart-stdin-adopted-clean-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build",
+        "--temp-stdin=owned.mk",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "launch": "entry",
+      "modules": [
+        {
+          "source": "native/fatal_scope.c",
+          "filename": "build/fatal_scope.so"
+        }
+      ],
+      "files": {
+        "seen": "616e63686f720a",
+        "build/seen": "616e63686f720a",
+        "build/owned.mk": "6c6f616420666174616c5f73636f70652e736f0a2e4c4f41444544203a3d20676c6f62616c0a4f524947494e414c203a3d2024286669727374776f72642024284d414b4546494c455f4c49535429290a242866696c65203e3e7365656e2c726561643a24284d414b455f524553544152545329290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a696e636c7564652067656e6572617465642e6d6b0a67656e6572617465642e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472793b207072696e7466202225735c6e222022232067656e65726174656422203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "52454255494c443d5b5d0a",
+        "stderr_template_hex": "6d616b653a2063686469723a2040454e4f454e54400a6d616b653a202a2a2a20436f756c646e2774206368616e6765206261636b20746f206f726967696e616c206469726563746f72792e202053746f702e0a6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
+        "seen_template_hex": "616e63686f720a"
+      },
+      "expected_file_updates": {
+        "build/seen": "616e63686f720a726561643a0a73636f70653d5b7c7c66696c657c676c6f62616c7c7c5d0a",
+        "build/generated.mk": "232067656e6572617465640a"
+      },
+      "source_after_restart": [
+        "build/owned.mk",
+        "absent"
+      ]
+    },
+    {
+      "id": "nls-directory-restart-stdin-adopted-already-absent-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build",
+        "--temp-stdin=owned.mk",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "launch": "entry",
+      "modules": [
+        {
+          "source": "native/fatal_scope.c",
+          "filename": "build/fatal_scope.so"
+        }
+      ],
+      "files": {
+        "seen": "616e63686f720a",
+        "build/seen": "616e63686f720a",
+        "build/owned.mk": "6c6f616420666174616c5f73636f70652e736f0a2e4c4f41444544203a3d20676c6f62616c0a4f524947494e414c203a3d2024286669727374776f72642024284d414b4546494c455f4c49535429290a242866696c65203e3e7365656e2c726561643a24284d414b455f524553544152545329290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a696e636c7564652067656e6572617465642e6d6b0a67656e6572617465642e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472793b20726d202d2d202224284f524947494e414c29223b207072696e7466202225735c6e222022232067656e65726174656422203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "52454255494c443d5b5d0a",
+        "stderr_template_hex": "6d616b653a206368646972203a2040454e4f454e54400a6d616b653a202a2a2a20436f756c646e2774206368616e6765206261636b20746f206f726967696e616c206469726563746f72792e20417272c3aa742e0a6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
+        "seen_template_hex": "616e63686f720a"
+      },
+      "expected_file_updates": {
+        "build/seen": "616e63686f720a726561643a0a73636f70653d5b7c7c66696c657c676c6f62616c7c7c5d0a",
+        "build/generated.mk": "232067656e6572617465640a"
+      },
+      "source_after_restart": [
+        "build/owned.mk",
+        "absent"
+      ]
+    },
+    {
+      "id": "nls-directory-restart-stdin-named-directory-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build",
+        "-f",
+        "owned.mk",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "launch": "entry",
+      "modules": [
+        {
+          "source": "native/fatal_scope.c",
+          "filename": "build/fatal_scope.so"
+        }
+      ],
+      "files": {
+        "seen": "616e63686f720a",
+        "build/seen": "616e63686f720a",
+        "build/owned.mk": "6c6f616420666174616c5f73636f70652e736f0a2e4c4f41444544203a3d20676c6f62616c0a4f524947494e414c203a3d2024286669727374776f72642024284d414b4546494c455f4c49535429290a242866696c65203e3e7365656e2c726561643a24284d414b455f524553544152545329290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a696e636c7564652067656e6572617465642e6d6b0a67656e6572617465642e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472793b20726d202d2d202224284f524947494e414c29223b206d6b646972202d2d202224284f524947494e414c29223b207072696e7466202225735c6e222022232067656e65726174656422203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "52454255494c443d5b5d0a",
+        "stderr_template_hex": "6d616b653a206368646972203a2040454e4f454e54400a6d616b653a202a2a2a20436f756c646e2774206368616e6765206261636b20746f206f726967696e616c206469726563746f72792e20417272c3aa742e0a6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
+        "seen_template_hex": "616e63686f720a"
+      },
+      "expected_file_updates": {
+        "build/seen": "616e63686f720a726561643a0a73636f70653d5b7c7c66696c657c676c6f62616c7c7c5d0a",
+        "build/generated.mk": "232067656e6572617465640a"
+      },
+      "source_after_restart": [
+        "build/owned.mk",
+        "directory"
+      ]
+    },
+    {
+      "id": "nls-directory-restart-stdin-copied-blocked-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build",
+        "-f",
+        "-",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "launch": "entry-stdin",
+      "modules": [
+        {
+          "source": "native/fatal_scope.c",
+          "filename": "build/fatal_scope.so"
+        }
+      ],
+      "files": {
+        "seen": "616e63686f720a",
+        "build/seen": "616e63686f720a",
+        "build/stdin-input.mk": "6c6f616420666174616c5f73636f70652e736f0a2e4c4f41444544203a3d20676c6f62616c0a4f524947494e414c203a3d2024286669727374776f72642024284d414b4546494c455f4c49535429290a242866696c65203e3e7365656e2c726561643a24284d414b455f524553544152545329290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a696e636c7564652067656e6572617465642e6d6b0a67656e6572617465642e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472793b20726d202d2d202224284f524947494e414c29223b206d6b646972202d2d202224284f524947494e414c29223b207072696e7466202225735c6e222022232067656e65726174656422203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "52454255494c443d5b5d0a",
+        "stderr_template_hex": "6d616b653a206368646972203a2040454e4f454e54400a6d616b653a202a2a2a20436f756c646e2774206368616e6765206261636b20746f206f726967696e616c206469726563746f72792e20417272c3aa742e0a6d616b653a20756e6c696e6b2028666963686965722074656d706f726169726529c2a03ac2a040434f504945445f535444494e40203a2040454953444952400a6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
+        "seen_template_hex": "616e63686f720a"
+      },
+      "expected_file_updates": {
+        "build/seen": "616e63686f720a726561643a0a73636f70653d5b7c7c66696c657c676c6f62616c7c7c5d0a",
+        "build/generated.mk": "232067656e6572617465640a"
+      },
+      "source_after_restart": [
+        "@COPIED_STDIN@",
+        "directory"
+      ]
+    },
+    {
+      "id": "nls-directory-restart-stdin-copied-clean-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build",
+        "-f",
+        "-",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "launch": "entry-stdin",
+      "modules": [
+        {
+          "source": "native/fatal_scope.c",
+          "filename": "build/fatal_scope.so"
+        }
+      ],
+      "files": {
+        "seen": "616e63686f720a",
+        "build/seen": "616e63686f720a",
+        "build/stdin-input.mk": "6c6f616420666174616c5f73636f70652e736f0a2e4c4f41444544203a3d20676c6f62616c0a4f524947494e414c203a3d2024286669727374776f72642024284d414b4546494c455f4c49535429290a242866696c65203e3e7365656e2c726561643a24284d414b455f524553544152545329290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a696e636c7564652067656e6572617465642e6d6b0a67656e6572617465642e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472793b207072696e7466202225735c6e222022232067656e65726174656422203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "52454255494c443d5b5d0a",
+        "stderr_template_hex": "6d616b653a2063686469723a2040454e4f454e54400a6d616b653a202a2a2a20436f756c646e2774206368616e6765206261636b20746f206f726967696e616c206469726563746f72792e202053746f702e0a6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
+        "seen_template_hex": "616e63686f720a"
+      },
+      "expected_file_updates": {
+        "build/seen": "616e63686f720a726561643a0a73636f70653d5b7c7c66696c657c676c6f62616c7c7c5d0a",
+        "build/generated.mk": "232067656e6572617465640a"
+      }
+    },
+    {
+      "id": "nls-directory-restart-stdin-fifo-adopted-blocked-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo",
+        "-C",
+        "../build",
+        "--temp-stdin=owned.mk",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "launch": "entry",
+      "modules": [
+        {
+          "source": "native/fatal_scope.c",
+          "filename": "build/fatal_scope.so"
+        }
+      ],
+      "files": {
+        "seen": "616e63686f720a",
+        "build/seen": "616e63686f720a",
+        "build/owned.mk": "6c6f616420666174616c5f73636f70652e736f0a2e4c4f41444544203a3d20676c6f62616c0a4f524947494e414c203a3d2024286669727374776f72642024284d414b4546494c455f4c49535429290a242866696c65203e3e7365656e2c726561643a24284d414b455f524553544152545329290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a696e636c7564652067656e6572617465642e6d6b0a67656e6572617465642e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472793b20726d202d2d202224284f524947494e414c29223b206d6b646972202d2d202224284f524947494e414c29223b207072696e7466202225735c6e222022232067656e65726174656422203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "52454255494c443d5b5d0a",
+        "stderr_template_hex": "6d616b653a2063686469723a2040454e4f454e54400a6d616b653a202a2a2a20436f756c646e2774206368616e6765206261636b20746f206f726967696e616c206469726563746f72792e202053746f702e0a6d616b653a20756e6c696e6b202874656d706f726172792066696c65293a206f776e65642e6d6b3a2040454953444952400a6d616b653a20494e5445524e414c3a2045786974696e6720776974682031206a6f6273657276657220746f6b656e7320617661696c61626c653b2073686f756c642062652032210a6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
+        "seen_template_hex": "616e63686f720a"
+      },
+      "expected_file_updates": {
+        "build/seen": "616e63686f720a726561643a0a73636f70653d5b7c7c66696c657c676c6f62616c7c7c5d0a",
+        "build/generated.mk": "232067656e6572617465640a"
+      },
+      "source_after_restart": [
+        "build/owned.mk",
+        "directory"
+      ]
+    },
+    {
+      "id": "nls-directory-restart-stdin-pipe-adopted-blocked-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "-C",
+        "../build",
+        "--temp-stdin=owned.mk",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "launch": "entry",
+      "modules": [
+        {
+          "source": "native/fatal_scope.c",
+          "filename": "build/fatal_scope.so"
+        }
+      ],
+      "files": {
+        "seen": "616e63686f720a",
+        "build/seen": "616e63686f720a",
+        "build/owned.mk": "6c6f616420666174616c5f73636f70652e736f0a2e4c4f41444544203a3d20676c6f62616c0a4f524947494e414c203a3d2024286669727374776f72642024284d414b4546494c455f4c49535429290a242866696c65203e3e7365656e2c726561643a24284d414b455f524553544152545329290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e7365656e2c676f616c293a0a696e636c7564652067656e6572617465642e6d6b0a67656e6572617465642e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472793b20726d202d2d202224284f524947494e414c29223b206d6b646972202d2d202224284f524947494e414c29223b207072696e7466202225735c6e222022232067656e65726174656422203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "52454255494c443d5b5d0a",
+        "stderr_template_hex": "6d616b653a2063686469723a2040454e4f454e54400a6d616b653a202a2a2a20436f756c646e2774206368616e6765206261636b20746f206f726967696e616c206469726563746f72792e202053746f702e0a6d616b653a20756e6c696e6b202874656d706f726172792066696c65293a206f776e65642e6d6b3a2040454953444952400a6d616b653a20494e5445524e414c3a2045786974696e6720776974682031206a6f6273657276657220746f6b656e7320617661696c61626c653b2073686f756c642062652032210a6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
+        "seen_template_hex": "616e63686f720a"
+      },
+      "expected_file_updates": {
+        "build/seen": "616e63686f720a726561643a0a73636f70653d5b7c7c66696c657c676c6f62616c7c7c5d0a",
+        "build/generated.mk": "232067656e6572617465640a"
+      },
+      "source_after_restart": [
+        "build/owned.mk",
+        "directory"
+      ]
     }
   ]
 }
