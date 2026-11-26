@@ -9781,16 +9781,11 @@ impl Engine {
                 {
                     let location = source_commands.recipe_location.as_ref();
                     let first = if let Some(location) = location {
-                        [
-                            b"Recipe was specified for file '".as_slice(),
-                            from,
-                            b"' at ",
-                            location.file.as_ref(),
-                            b":",
-                            location.line.to_string().as_bytes(),
-                            b",",
-                        ]
-                        .concat()
+                        crate::messages::system(Message::AliasedRecipeSource {
+                            path: from,
+                            source_file: location.file.as_ref(),
+                            line: location.line,
+                        })
                     } else {
                         [
                             b"Recipe for file '".as_slice(),
@@ -9801,22 +9796,8 @@ impl Engine {
                     };
                     for message in [
                         first,
-                        [
-                            b"but '".as_slice(),
-                            from,
-                            b"' is now considered the same file as '",
-                            to,
-                            b"'.",
-                        ]
-                        .concat(),
-                        [
-                            b"Recipe for '".as_slice(),
-                            from,
-                            b"' will be ignored in favor of the one for '",
-                            to,
-                            b"'.",
-                        ]
-                        .concat(),
+                        crate::messages::system(Message::AliasedRecipeSameFile { from, to }),
+                        crate::messages::system(Message::AliasedRecipeIgnored { from, to }),
                     ] {
                         emit_output(
                             &self.output,

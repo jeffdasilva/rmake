@@ -75,6 +75,9 @@ pub enum MessageId {
     PatternPeerNotUpdated,
     SuffixRulePrerequisites,
     InvalidLibraryPattern,
+    AliasedRecipeSource,
+    AliasedRecipeSameFile,
+    AliasedRecipeIgnored,
     MissingTargetPattern,
     MultipleTargetPatterns,
     TargetPatternWithoutPercent,
@@ -97,7 +100,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 87] = [
+    pub const ALL: [Self; 90] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -166,6 +169,9 @@ impl MessageId {
         Self::PatternPeerNotUpdated,
         Self::SuffixRulePrerequisites,
         Self::InvalidLibraryPattern,
+        Self::AliasedRecipeSource,
+        Self::AliasedRecipeSameFile,
+        Self::AliasedRecipeIgnored,
         Self::MissingTargetPattern,
         Self::MultipleTargetPatterns,
         Self::TargetPatternWithoutPercent,
@@ -338,6 +344,19 @@ impl MessageId {
             Self::PatternPeerNotUpdated => Message::PatternPeerNotUpdated(b"peer"),
             Self::SuffixRulePrerequisites => Message::SuffixRulePrerequisites,
             Self::InvalidLibraryPattern => Message::InvalidLibraryPattern(b"plain"),
+            Self::AliasedRecipeSource => Message::AliasedRecipeSource {
+                path: b"file",
+                source_file: b"Makefile",
+                line: 7,
+            },
+            Self::AliasedRecipeSameFile => Message::AliasedRecipeSameFile {
+                from: b"file",
+                to: b"src/file",
+            },
+            Self::AliasedRecipeIgnored => Message::AliasedRecipeIgnored {
+                from: b"file",
+                to: b"src/file",
+            },
             Self::MissingTargetPattern => Message::MissingTargetPattern,
             Self::MultipleTargetPatterns => Message::MultipleTargetPatterns,
             Self::TargetPatternWithoutPercent => Message::TargetPatternWithoutPercent,
@@ -463,6 +482,11 @@ impl MessageId {
                 c"warning: ignoring prerequisites on suffix rule definition"
             }
             Self::InvalidLibraryPattern => c".LIBPATTERNS element '%s' is not a pattern",
+            Self::AliasedRecipeSource => c"Recipe was specified for file '%s' at %s:%lu,",
+            Self::AliasedRecipeSameFile => c"but '%s' is now considered the same file as '%s'.",
+            Self::AliasedRecipeIgnored => {
+                c"Recipe for '%s' will be ignored in favor of the one for '%s'."
+            }
             Self::MissingTargetPattern => c"missing target pattern",
             Self::MultipleTargetPatterns => c"multiple target patterns",
             Self::TargetPatternWithoutPercent => c"target pattern contains no '%%'",
@@ -650,6 +674,19 @@ pub enum Message<'a> {
     MultipleTargetPatterns,
     TargetPatternWithoutPercent,
     InvalidLibraryPattern(&'a [u8]),
+    AliasedRecipeSource {
+        path: &'a [u8],
+        source_file: &'a [u8],
+        line: usize,
+    },
+    AliasedRecipeSameFile {
+        from: &'a [u8],
+        to: &'a [u8],
+    },
+    AliasedRecipeIgnored {
+        from: &'a [u8],
+        to: &'a [u8],
+    },
     DirectiveTail(&'a [u8]),
     DefineTail,
     EndefTail,
@@ -789,6 +826,9 @@ impl<'a> Message<'a> {
             Self::PatternPeerNotUpdated(_) => MessageId::PatternPeerNotUpdated,
             Self::SuffixRulePrerequisites => MessageId::SuffixRulePrerequisites,
             Self::InvalidLibraryPattern(_) => MessageId::InvalidLibraryPattern,
+            Self::AliasedRecipeSource { .. } => MessageId::AliasedRecipeSource,
+            Self::AliasedRecipeSameFile { .. } => MessageId::AliasedRecipeSameFile,
+            Self::AliasedRecipeIgnored { .. } => MessageId::AliasedRecipeIgnored,
             Self::MissingTargetPattern => MessageId::MissingTargetPattern,
             Self::MultipleTargetPatterns => MessageId::MultipleTargetPatterns,
             Self::TargetPatternWithoutPercent => MessageId::TargetPatternWithoutPercent,
@@ -918,6 +958,19 @@ impl<'a> Message<'a> {
                 push(Argument::Bytes(action));
                 push(Argument::Bytes(path));
                 push(Argument::Bytes(detail));
+            }
+            Self::AliasedRecipeSource {
+                path,
+                source_file,
+                line,
+            } => {
+                push(Argument::Bytes(path));
+                push(Argument::Bytes(source_file));
+                push(Argument::Unsigned(line as u64));
+            }
+            Self::AliasedRecipeSameFile { from, to } | Self::AliasedRecipeIgnored { from, to } => {
+                push(Argument::Bytes(from));
+                push(Argument::Bytes(to));
             }
             Self::SourceError { path, detail } => {
                 push(Argument::Bytes(path));
