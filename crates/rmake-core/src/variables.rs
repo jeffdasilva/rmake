@@ -4816,9 +4816,18 @@ impl Expansion<'_, '_> {
                 if self.lexical_environment_binding(&name).is_some() {
                     Some((name, None))
                 } else {
-                    snapshot
-                        .lookup_from_visible(&name, 0, local_private)
-                        .map(|(layer, _)| (name, Some(layer)))
+                    snapshot.lookup_from_visible(&name, 0, local_private).map(
+                        |(layer, variable)| {
+                            // Resolve inherited policy before any export can run effects.
+                            snapshot.resolve_selected_export_policy(
+                                &name,
+                                layer,
+                                variable,
+                                local_private,
+                            );
+                            (name, Some(layer))
+                        },
+                    )
                 }
             })
             .collect();
@@ -4853,8 +4862,8 @@ impl Expansion<'_, '_> {
             if name == b"SHELL" && variable.export_policy().is_none() {
                 continue;
             }
-            let export = current
-                .resolve_selected_export_policy(&name, layer, variable, local_private)
+            let export = variable
+                .export_policy()
                 .unwrap_or_else(|| Self::shell_export_default(&name, variable.origin, export_all));
             if !export {
                 environment.push((name, EnvironmentValue::Remove));
