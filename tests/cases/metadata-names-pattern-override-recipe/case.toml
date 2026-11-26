@@ -1,0 +1,12 @@
+id = "metadata-names-pattern-override-recipe"
+requirement = "variables.metadata"
+candidate = "required"
+description = "An inactive simple pattern override leaves the stored names value for recipe export."
+provenance = "Original fixtures and stream/status anchors checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "72657461696e65640a"
+stderr_hex = ""

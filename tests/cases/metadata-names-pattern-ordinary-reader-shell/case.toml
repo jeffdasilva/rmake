@@ -1,0 +1,12 @@
+id = "metadata-names-pattern-ordinary-reader-shell"
+requirement = "variables.metadata"
+candidate = "required"
+description = "An ordinary inactive pattern declaration refreshes the visible names during its priority lookup."
+provenance = "Original fixtures and stream/status anchors checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "726566726573683d5b46524553485d0a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "metadata-names-pattern-override-active-recipe"
+requirement = "variables.metadata"
+candidate = "required"
+description = "An active pattern override supplies its selected binding to the recipe environment."
+provenance = "Original fixtures and stream/status anchors checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7061747465726e0a"
+stderr_hex = ""
