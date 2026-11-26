@@ -14676,11 +14676,11 @@ impl Engine {
             || job.ignore
             || job.phony
             || !job.continuation.expanded.is_empty()
-            || !job
+            || job
                 .continuation
                 .remake
                 .as_ref()
-                .is_some_and(|remake| !remake.optional)
+                .is_none_or(|remake| remake.optional)
             || job.before != Some(before)
             || Self::regular_remake_clock(name) != Some(before)
         {
