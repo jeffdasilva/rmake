@@ -47954,6 +47954,658 @@
         }
       ],
       "trusted_trace_sha256": "6d3c7feec06bd6940286157939f95aec652a95f87ee3ccf1043a8b860c4ec220"
+    },
+    "database-phase-phony-policy-command-goal": {
+      "template_sha256": "2baba137c170dffacccb6e991184dc5e966ae07c50c2ce9dc66d9a1d287d43f8",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616273656e74"
+            ],
+            [
+              "add",
+              "616273656e74"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "616273656e74"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "aac8e6b02cff0ee8453f212ecf2fa6497d46c60949e4be050883545a1deea4e6"
+    },
+    "database-phase-phony-policy-unvisited": {
+      "template_sha256": "81cda6dcd44c7333fad6204053c7f760c9f23f91d4c193395e0a9836fd8e72fd",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "616273656e74"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "5b37d5a1f360a3e2c89dd7321541c35fa6cfd17fe1cdc42e8c9e7b486aff1017"
+    },
+    "database-phase-phony-policy-reader-fatal": {
+      "template_sha256": "2494cded50d13e88237201746106fdd360cbc1c0b4adc9c351e5230d185d81ec",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "616273656e74"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "6166746572"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "c42c20f0b3dc84006a105151332f7c0c90849b29ce8998455949547d33e43347"
+    },
+    "database-phase-phony-policy-setup-fatal": {
+      "template_sha256": "7f3fd6c39210800eb84da00c0d554156296da0c6dd286addb277e20e22b7107f",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "616273656e74"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "6166746572"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "c42c20f0b3dc84006a105151332f7c0c90849b29ce8998455949547d33e43347"
+    },
+    "database-phase-phony-policy-optional-missing-source": {
+      "template_sha256": "2a997fa7cb244512fcbca6280dcd1d74d9389262a37118e2796ac0bcf3b7aaa0",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "d52a7d901735bed31a7a95f06c0eeae03598b82c618110f2e6dca9f44e864d34"
+    },
+    "database-phase-phony-policy-optional-source": {
+      "template_sha256": "10674861540c695b162eaf986c10b9e44044d3fdd0905ffa740aa2e69e2a58ae",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "c9c4daae12615c914e4fae8035072f7f42f86785b9a38775e003cb9612f19505"
     }
   }
 }

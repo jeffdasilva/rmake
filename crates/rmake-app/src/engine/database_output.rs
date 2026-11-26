@@ -111,7 +111,8 @@ impl Engine {
 
     /// Acquiring the post-read special-file policy is one semantic lookup
     /// phase, independent of later cached flag tests during graph traversal.
-    pub(super) fn record_database_file_policy(&self) {
+    pub(super) fn record_database_file_policy(&mut self) {
+        self.database_file_policy_prepared = true;
         if let Some(history) = self.database.database_history() {
             for name in [
                 b".PRECIOUS".as_slice(),
@@ -353,7 +354,9 @@ impl Engine {
                 .and_then(|record| record.dependencies.as_deref());
         }
         view.double_colon |= branch.is_some();
-        view.phony = self.special(b".PHONY", name, false);
+        // Post-read policy classifies each phony prerequisite as a target.
+        view.phony = self.database_file_policy_prepared && self.special(b".PHONY", name, false);
+        view.is_target |= view.phony;
         view.precious = self.special_for_rule(b".PRECIOUS", name);
         view.command_line = is_head
             && self

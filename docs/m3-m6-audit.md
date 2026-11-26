@@ -144,6 +144,8 @@ NUL boundaries, rebinding and cancellation.
   child’s local timestamp while retaining its failed update.
   A retained VPATH alias samples its existing canonical physical file.
   Borrowing a .DEFAULT recipe preserves the file’s target classification.
+  The post-read file policy marks .PHONY prerequisites as targets before
+  visits begin, including when a later setup diagnostic stops traversal.
 - [Eval allocation investigation](eval-allocation-profiles.md) retains experiments
   rejected after elapsed-time regressions and the selected runtime controls.
 
