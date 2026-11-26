@@ -607,7 +607,7 @@ struct PendingMakefileRemake<'a> {
     active: bool,
     initial: Outcome,
     trace_synthetic_reap: bool,
-    inline_optional_settled: bool,
+    optional_visit_settled: bool,
     trailing_prerequisite_child: Option<Box<RemakePrerequisiteChild<'a>>>,
     trailing_prerequisite_changed: bool,
 }
@@ -4121,6 +4121,14 @@ impl Engine {
             } else {
                 None
             };
+            let failed_leading_optional = if use_required_source_head
+                && !all_required_sources
+                && leading_optional_source.is_none()
+            {
+                self.failed_leading_optional_remake(&read_files)
+            } else {
+                None
+            };
             let trailing_optional_source = if use_required_source_head
                 && !all_required_sources
                 && leading_optional_source.is_none()
@@ -4162,7 +4170,20 @@ impl Engine {
                         RemakeFailure::RequiredDeclaredTailRecipe
                     ) && !outcome.fatal
                         && !outcome.question_outdated;
+                    let explicit_refresh = outcome.ran
+                        && outcome.completion == CompletionTime::Refresh
+                        && !outcome.fatal
+                        && !outcome.blocked;
+                    let missing_after_leading_failure = explicit_refresh
+                        && matches!(
+                            outcome.remake_failure,
+                            RemakeFailure::RequiredSyntheticInput
+                        )
+                        && prior_visits.is_some_and(|(_, settled)| settled)
+                        && failed_leading_optional
+                            .is_some_and(|(required, _)| std::ptr::eq(required, source));
                     if declared_tail_failed
+                        || missing_after_leading_failure
                         || (matches!(
                             outcome.remake_failure,
                             RemakeFailure::RequiredSyntheticInput
@@ -4175,17 +4196,14 @@ impl Engine {
                                         // the optional visit settles.
                                         RemakeFailure::RequiredSyntheticRecipe => true,
                                         RemakeFailure::RequiredSyntheticInput => {
-                                            if let Some((visited, inline_optional_settled)) =
+                                            if let Some((visited, optional_visit_settled)) =
                                                 prior_visits
                                             {
                                                 // A real explicit recipe can finish
                                                 // after the optional source settles,
                                                 // then discover the missing rule.
-                                                outcome.ran
-                                                && outcome.completion == CompletionTime::Refresh
-                                                && !outcome.fatal
-                                                && !outcome.blocked
-                                                && (inline_optional_settled
+                                                explicit_refresh
+                                                && (optional_visit_settled
                                                     || visited
                                                         .get(trailing.neighbor)
                                                         .zip(
@@ -4356,7 +4374,7 @@ impl Engine {
                                     active: true,
                                     initial: Outcome::default(),
                                     trace_synthetic_reap: false,
-                                    inline_optional_settled: false,
+                                    optional_visit_settled: false,
                                     trailing_prerequisite_child: None,
                                     trailing_prerequisite_changed: false,
                                 });
@@ -4979,6 +4997,16 @@ impl Engine {
                     {
                         self.qualify_synthetic_recipe_after_optional_read(&trailing.required.name);
                     }
+                    let optional_visit_settled =
+                        failed_leading_optional.is_some_and(|(required, optional)| {
+                            std::ptr::eq(required, makefile)
+                                && self.pending_explicit_remake_recipe(name)
+                                && visited.get(optional.name.as_slice()).is_some_and(
+                                    |(before, _)| {
+                                        self.settled_leading_optional_failure(optional, *before)
+                                    },
+                                )
+                        });
                     pending.push(PendingMakefileRemake {
                         modes: visit_modes,
                         file: makefile,
@@ -4987,7 +5015,7 @@ impl Engine {
                         active: true,
                         initial: result,
                         trace_synthetic_reap,
-                        inline_optional_settled: false,
+                        optional_visit_settled,
                         trailing_prerequisite_child: None,
                         trailing_prerequisite_changed: false,
                     });
@@ -5015,7 +5043,7 @@ impl Engine {
                     {
                         // Keep the inline receipt while the direct explicit
                         // worker is alive. The later missing rule has no job.
-                        request.inline_optional_settled = true;
+                        request.optional_visit_settled = true;
                     }
                 }
                 let deferred_peer_failure = deferred_peer_failure
@@ -5412,7 +5440,7 @@ impl Engine {
                             self,
                             remake.file,
                             result,
-                            Some((&visited, remake.inline_optional_settled)),
+                            Some((&visited, remake.optional_visit_settled)),
                         );
                         if remake.duplicate && (remake.file.optional || !result.failed) {
                             continue;
@@ -13219,6 +13247,49 @@ impl Engine {
         .then_some(neighbor.name.as_slice())
     }
 
+    fn failed_leading_optional_remake<'a>(
+        &self,
+        read_files: &'a [(Makefile, bool)],
+    ) -> Option<(&'a Makefile, &'a Makefile)> {
+        let [(primary, false), (optional, false), (required, false)] = read_files else {
+            return None;
+        };
+        (self.optional_remake_layout(primary, optional, &read_files[2..])
+            && !self
+                .has_requested_goal_name(rmake_core::filenames::without_dot_prefix(&required.name)))
+        .then_some((required, optional))
+    }
+
+    fn settled_leading_optional_failure(
+        &self,
+        optional: &Makefile,
+        before: Option<SystemTime>,
+    ) -> bool {
+        let name = optional.name.as_slice();
+        if self.pending(name) {
+            return false;
+        }
+        let Some(result) = self.file_traversals.outcome(name).copied() else {
+            return false;
+        };
+        if !result.failed || result.fatal || result.question_outdated || result.ran {
+            return false;
+        }
+        if optional.missing {
+            return matches!(
+                optional.read_error.as_ref(),
+                Some(IncludeError::Errno(error))
+                    if io::Error::from_raw_os_error(*error).kind() == io::ErrorKind::NotFound
+            ) && self.settled_missing_optional_remake(name, before, result);
+        }
+        result.blocked
+            && before.is_some()
+            && result.time == before
+            && self.declared_optional_remake_source(name)
+            && fs::symlink_metadata(os(name))
+                .is_ok_and(|file| file.is_file() && file.modified().ok() == before)
+    }
+
     fn initial_synthetic_remake_trace_source<'a>(
         &self,
         read_files: &'a [(Makefile, bool)],
@@ -13413,22 +13484,31 @@ impl Engine {
                             && !MakefileModes::from_options(&self.options).active()))
             }
             TrailingOptionalKind::Missing => {
-                // The optional file settled as a direct missing-rule visit.
-                // Keep that failure available to ordinary prerequisites.
-                before.is_none()
-                    && result.time.is_none()
-                    && result.failed
-                    && !result.ran
-                    && !result.blocked
-                    && self
-                        .missing_rule_parents
-                        .get(name)
-                        .is_some_and(Option::is_none)
-                    && self.unruled_remake_source(name)
-                    && fs::symlink_metadata(os(name))
-                        .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
+                self.settled_missing_optional_remake(name, before, result)
             }
         }
+    }
+
+    fn settled_missing_optional_remake(
+        &self,
+        name: &[u8],
+        before: Option<SystemTime>,
+        result: Outcome,
+    ) -> bool {
+        // The optional file settled as a direct missing-rule visit.
+        // Keep that failure available to ordinary prerequisites.
+        before.is_none()
+            && result.time.is_none()
+            && result.failed
+            && !result.ran
+            && !result.blocked
+            && self
+                .missing_rule_parents
+                .get(name)
+                .is_some_and(Option::is_none)
+            && self.unruled_remake_source(name)
+            && fs::symlink_metadata(os(name))
+                .is_err_and(|error| error.kind() == io::ErrorKind::NotFound)
     }
 
     fn active_trailing_optional_remake(&self, trailing: &TrailingOptionalRemake<'_>) -> bool {
@@ -17312,6 +17392,7 @@ impl Engine {
             if crate::recipe_flow::optimized_noop(&invocation) {
                 continue;
             }
+            let direct = matches!(invocation, crate::process::Invocation::Direct { .. });
             let (program, arguments) = match invocation {
                 crate::process::Invocation::Direct { program, args }
                 | crate::process::Invocation::Shell { program, args } => (program, args),
@@ -17623,6 +17704,14 @@ impl Engine {
                 },
             );
             self.retain_database_context(target, branch, variables);
+            let executable_launch_failed = process.as_ref().is_err_and(|error| {
+                matches!(
+                    error.kind(),
+                    io::ErrorKind::NotFound
+                        | io::ErrorKind::PermissionDenied
+                        | io::ErrorKind::NotADirectory
+                )
+            });
             // An ordinary parallel executable lookup failure still occupies its
             // recipe's graph frame until the next dispatch or goal sweep.
             // This first attempt can coexist with registered ordinary workers.
@@ -17633,14 +17722,7 @@ impl Engine {
                 && !flow.retained_owner()
                 && !flow.failed_launch()
                 && !(self.options.dry_run || self.options.question || self.options.touch)
-                && process.as_ref().is_err_and(|error| {
-                    matches!(
-                        error.kind(),
-                        io::ErrorKind::NotFound
-                            | io::ErrorKind::PermissionDenied
-                            | io::ErrorKind::NotADirectory
-                    )
-                })
+                && executable_launch_failed
                 && self
                     .parallel_jobs
                     .values()
@@ -17820,6 +17902,25 @@ impl Engine {
                     let mut execution = Execution::failure(ran, failure_cleanup)
                         .with_recursion(!flow.has_ordinary());
                     execution.launch_failed = !launched;
+                    if executable_launch_failed
+                        && direct
+                        && !parallel
+                        && !self.remaking
+                        && remake.is_none()
+                        && branch.is_none()
+                        && !MakefileModes::from_options(&self.options).active()
+                        && !self.running_groups.contains_key(target)
+                        && rmake_core::filenames::archive_parts(target).is_none()
+                    {
+                        self.record_delete_on_error_lookup();
+                        if !phony {
+                            // A failed executable launch completes the attempt
+                            // without leaving a child that can clean up targets.
+                            self.database_unchecked_times
+                                .borrow_mut()
+                                .insert(target.to_vec());
+                        }
+                    }
                     return execution;
                 }
             }
@@ -17936,6 +18037,14 @@ impl Engine {
         self.fatal_with_owner(None, message, true);
     }
 
+    fn record_delete_on_error_lookup(&self) {
+        if !self.database_delete_policy.replace(true)
+            && let Some(history) = self.database.database_history()
+        {
+            history.record_file_lookup(b".DELETE_ON_ERROR");
+        }
+    }
+
     fn cleanup_target(
         &self,
         target: &[u8],
@@ -17943,11 +18052,8 @@ impl Engine {
         phony: bool,
         cleanup: Cleanup,
     ) -> bool {
-        if matches!(cleanup, Cleanup::ChangedOnError | Cleanup::ChangedOnSignal)
-            && !self.database_delete_policy.replace(true)
-            && let Some(history) = self.database.database_history()
-        {
-            history.record_file_lookup(b".DELETE_ON_ERROR");
+        if matches!(cleanup, Cleanup::ChangedOnError | Cleanup::ChangedOnSignal) {
+            self.record_delete_on_error_lookup();
         }
 
         if self.cleanup_one(target, before, phony, cleanup, None) {

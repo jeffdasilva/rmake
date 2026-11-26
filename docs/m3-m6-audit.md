@@ -179,8 +179,11 @@ covers mixed required and optional failure policies.
 - With `-p`, the tested ordinary serial ungrouped single-colon recipes for
   non-archive files retain expansion effects, including `.SHELLSTATUS`. The
   database reports an unattempted file when line expansion fails before dispatch.
-  Archive and remake paths, missing executable timestamps and variable lookups,
-  and wider scheduler combinations still need qualification. [Database phase models](../tests/database-output/phases.json)
+  The tested unignored serial direct-launch errors record the first cleanup-policy
+  lookup in the file table and invalidate the displayed nonphony timestamp.
+  Cleanup after a real child error follows the existing policy. Archive and remake
+  paths and wider scheduler combinations still need qualification.
+  [Database phase models](../tests/database-output/phases.json)
 - [Old and what-if file records](assumed-files.md) cover logical ages, physical
   timestamp witnesses, recursion, VPATH and Makefile remakes.
 - [Shuffle traversal](shuffle.md) covers ordinary, grouped and double-colon rules,
@@ -327,8 +330,10 @@ synthetic declaration can propagate the logical clock. A delayed missing
 synthetic rule retains its diagnostic while the successful read head allows
 independent goals to proceed after a passive optional visit or a verified
 inline optional refresh while the explicit worker is live. The actual failures
-remain visible to ordinary dependents. The two-worker optional cases and
-combinations with earlier optional failures still need qualification.
+remain visible to ordinary dependents. The held earlier-only cases cover an
+absent optional source and a declared optional with a missing prerequisite.
+Two-worker optional cases and combinations of earlier failures with a
+trailing optional visit still need qualification.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
