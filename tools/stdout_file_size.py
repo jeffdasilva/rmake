@@ -30,10 +30,12 @@ def execute(model, inputs, runtime, binaries, emit, native, locale):
     fixture.mkdir()
     for name, contents in model['files'].items():
         (fixture / name).write_text(contents)
-    if 'errno_catalog_hex' in model:
-        catalog = fixture / 'errno-catalog/fr/LC_MESSAGES/libc.mo'
-        catalog.parent.mkdir(parents=True)
-        catalog.write_bytes(bytes.fromhex(model['errno_catalog_hex']))
+    for field, path in (('errno_catalog_hex', 'errno-catalog/fr/LC_MESSAGES/libc.mo'),
+                        ('make_catalog_hex', 'make-catalog/fr/LC_MESSAGES/make.mo')):
+        if field in model:
+            catalog = fixture / path
+            catalog.parent.mkdir(parents=True)
+            catalog.write_bytes(bytes.fromhex(model[field]))
     shutil.copyfile(FIXTURES / 'launch.py', fixture / 'launch.py')
     if model.get('emit'):
         shutil.copy2(emit, fixture / 'emit')

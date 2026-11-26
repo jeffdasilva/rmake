@@ -27,6 +27,8 @@ static void before_close(void)
 {
     mark("atexit-seen", fcntl(STDOUT_FILENO, F_GETFD) >= 0
         ? (ferror(stdout) ? "E\n" : "O\n") : "C\n");
+    if (getenv("PROBE_BUFFERED_AT_EXIT"))
+        (void)fputs("ABCDEFGH", stdout);
 }
 
 __attribute__((destructor))
@@ -38,6 +40,10 @@ static void after_close(void)
 int native_probe_gmk_setup(void *location)
 {
     (void)location;
+    if (getenv("PROBE_STDOUT_CATALOG") &&
+        (!bindtextdomain("make", "./make-catalog") ||
+         !setlocale(LC_MESSAGES, "fr_FR.UTF-8")))
+        abort();
     if (atexit(before_close))
         return 0;
     if (getenv("NATIVE_WRITE")) {
