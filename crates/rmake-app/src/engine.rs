@@ -13890,10 +13890,6 @@ impl Engine {
                 && std::ptr::eq(request.file, trailing.required)
         }) && let Some(worker) = request.trailing_optional_worker.as_deref()
             && worker.no_required_tail_remains
-            && matches!(
-                worker.result.get(),
-                Some(TrailingOptionalWorkerResult::Completed(_))
-            )
             && let Some(mut outcome) = self.file_traversals.outcome(name).copied()
             && outcome.ran_refresh()
             && outcome.goal_verdict().is_none()

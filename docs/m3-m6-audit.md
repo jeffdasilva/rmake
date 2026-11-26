@@ -444,7 +444,10 @@ When both actual workers fail, the same observed restoration can produce
 a reread in current and sole layouts. Ordinary dependents still see the
 appropriate cached failures when the original pass proceeds. A failed
 optional worker can also restore the successful required worker’s clock
-and leave a reread pending in current and sole layouts.
+and leave a reread pending in current and sole layouts. When a blocked or
+absent earlier read keeps the original pass, ordinary freshness can use
+the restored required clock while dependents still receive the optional
+file’s recorded failure.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
