@@ -1974,14 +1974,16 @@ impl Engine {
                 history.intern(directory.as_os_str().as_bytes());
             }
             retain!(std::env::set_current_dir(directory).map_err(|error| {
-                StartupError::from(Diagnostic::from(
-                    [
-                        directory.as_os_str().as_bytes(),
-                        b": ",
-                        os_error(&error).as_bytes(),
-                    ]
-                    .concat(),
-                ))
+                let detail = error
+                    .raw_os_error()
+                    .and_then(rmake_linux::messages::errno_detail)
+                    .unwrap_or_else(|| os_error(&error).into_bytes());
+                StartupError::from(Diagnostic::from(crate::messages::system(
+                    Message::SourceError {
+                        path: directory.as_os_str().as_bytes(),
+                        detail: &detail,
+                    },
+                )))
                 .with_program(&program)
             }));
         }
