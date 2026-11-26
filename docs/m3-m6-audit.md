@@ -472,6 +472,8 @@ startup, using the recorded temporary name, retained bytes, and file mode.
 Recipe cleanup uses the localized unlink report when an owned changed
 target cannot be removed. The NLS checks cover raw paths and retain the
 recipe diagnostic, deletion announcement, and filesystem outcome in order.
+A restart that cannot return to the original directory emits the localized
+system warning and fatal message in order, with existing token cleanup.
 The dynamic musl gate checks C.UTF-8 wildcard byte widths and a C raw-target
 diagnostic beside a user warning. Broader diagnostic producers, native and
 Guile callbacks, cache history, resource failures and musl NLS remain open. See the

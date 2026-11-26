@@ -113,10 +113,11 @@ pub enum MessageId {
     GroupRecipeRequired,
     InsufficientArguments,
     StdinTemporaryWrite,
+    RestartOriginalDirectory,
 }
 
 impl MessageId {
-    pub const ALL: [Self; 106] = [
+    pub const ALL: [Self; 107] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -223,6 +224,7 @@ impl MessageId {
         Self::GroupRecipeRequired,
         Self::InsufficientArguments,
         Self::StdinTemporaryWrite,
+        Self::RestartOriginalDirectory,
     ];
 
     pub(crate) fn is_unlocated(self) -> bool {
@@ -473,6 +475,7 @@ impl MessageId {
                 path: b"Gm123456",
                 detail: b"File too large",
             },
+            Self::RestartOriginalDirectory => Message::RestartOriginalDirectory,
         }
     }
     pub fn msgid(self) -> &'static CStr {
@@ -619,6 +622,7 @@ impl MessageId {
                 c"insufficient number of arguments (%u) to function '%s'"
             }
             Self::StdinTemporaryWrite => c"fwrite: temporary file %s: %s",
+            Self::RestartOriginalDirectory => c"Couldn't change back to original directory",
         }
     }
 }
@@ -840,6 +844,7 @@ pub enum Message<'a> {
         path: &'a [u8],
         detail: &'a [u8],
     },
+    RestartOriginalDirectory,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1000,6 +1005,7 @@ impl<'a> Message<'a> {
             Self::GroupRecipeRequired => MessageId::GroupRecipeRequired,
             Self::InsufficientArguments { .. } => MessageId::InsufficientArguments,
             Self::StdinTemporaryWrite { .. } => MessageId::StdinTemporaryWrite,
+            Self::RestartOriginalDirectory => MessageId::RestartOriginalDirectory,
             Self::InvalidWordIndex { operand, problem } => match (operand, problem) {
                 (WordIndexOperand::WordFirst, WordIndexProblem::Invalid(_)) => {
                     MessageId::WordFirstInvalid
@@ -1070,7 +1076,8 @@ impl<'a> Message<'a> {
             | Self::EmptyNativeFunction
             | Self::WordIndexZero
             | Self::PrerequisitesInRecipe
-            | Self::GroupRecipeRequired => {}
+            | Self::GroupRecipeRequired
+            | Self::RestartOriginalDirectory => {}
             Self::RecursiveVariable(name)
             | Self::DuplicateRecipe { target: name, .. }
             | Self::OverrideGroupMembership(name)

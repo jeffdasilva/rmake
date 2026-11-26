@@ -1,5 +1,5 @@
 {
-  "classification": "Original17 GNU2 directory localization models. Path slots come from the fresh workspace. The explicit ENOENT slot comes from an independent public libc call using the verified locale and original environment.",
+  "classification": "Original GNU2 directory localization models. Path slots come from the fresh workspace. The explicit ENOENT slot comes from an independent public libc call using the verified locale and original environment.",
   "original_models_sha256": "6281bc03103a311c5d968b610d9481cb0db599cea025fdae3fc85981f5aeea80",
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
   "fixture_sha256": {
@@ -453,6 +453,272 @@
         "stdout_template_hex": "73746172742064657074683d3920706174683d40574f524b402070726f6772616d3d6d616b650a5245414445520a6d616b655b395d3a204e6f7468696e6720746f20626520646f6e6520666f722027616c6c272e0a656e6420706174683d40574f524b402070726f6772616d3d6d616b652064657074683d390a",
         "stderr_template_hex": "",
         "seen_template_hex": "616e63686f720a524541440a"
+      }
+    },
+    {
+      "id": "nls-directory-restart-cannot-restore-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "launch": "entry",
+      "modules": [],
+      "files": {
+        "seen": "6f776e6564207365656e0a",
+        "build/Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e74662022474f414c3d5b25735d5c6e22202224284d414b455f524553544152545329220a242866696c65203e3e2e2e2f7365656e2c726561643a24284d414b455f524553544152545329290a696e636c75646520667261676d656e742e6d6b0a667261676d656e742e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472793b207072696e7466202225735c6e222022232067656e65726174656420696e636c75646522203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "52454255494c443d5b5d0a",
+        "stderr_template_hex": "6d616b653a2063686469723a2040454e4f454e54400a6d616b653a202a2a2a20436f756c646e2774206368616e6765206261636b20746f206f726967696e616c206469726563746f72792e202053746f702e0a",
+        "seen_template_hex": "6f776e6564207365656e0a726561643a0a"
+      },
+      "expected_file_updates": {
+        "build/fragment.mk": "232067656e65726174656420696e636c7564650a"
+      }
+    },
+    {
+      "id": "nls-directory-restart-cannot-restore-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "launch": "entry",
+      "modules": [],
+      "files": {
+        "seen": "6f776e6564207365656e0a",
+        "build/Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e74662022474f414c3d5b25735d5c6e22202224284d414b455f524553544152545329220a242866696c65203e3e2e2e2f7365656e2c726561643a24284d414b455f524553544152545329290a696e636c75646520667261676d656e742e6d6b0a667261676d656e742e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472793b207072696e7466202225735c6e222022232067656e65726174656420696e636c75646522203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "52454255494c443d5b5d0a",
+        "stderr_template_hex": "6d616b653a206368646972203a2040454e4f454e54400a6d616b653a202a2a2a20436f756c646e2774206368616e6765206261636b20746f206f726967696e616c206469726563746f72792e20417272c3aa742e0a",
+        "seen_template_hex": "6f776e6564207365656e0a726561643a0a"
+      },
+      "expected_file_updates": {
+        "build/fragment.mk": "232067656e65726174656420696e636c7564650a"
+      }
+    },
+    {
+      "id": "nls-directory-restart-cannot-restore-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "launch": "entry",
+      "modules": [],
+      "files": {
+        "seen": "6f776e6564207365656e0a",
+        "build/Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e74662022474f414c3d5b25735d5c6e22202224284d414b455f524553544152545329220a242866696c65203e3e2e2e2f7365656e2c726561643a24284d414b455f524553544152545329290a696e636c75646520667261676d656e742e6d6b0a667261676d656e742e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472793b207072696e7466202225735c6e222022232067656e65726174656420696e636c75646522203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "52454255494c443d5b5d0a",
+        "stderr_template_hex": "6d616b653a2063686469723a2040454e4f454e54400a6d616b653a202a2a2a204b6f6e6e7465206e6963687420696e20646173207572737072c3bc6e676c69636865205665727a656963686e6973207765636873656c6e2e20205363686c7573732e0a",
+        "seen_template_hex": "6f776e6564207365656e0a726561643a0a"
+      },
+      "expected_file_updates": {
+        "build/fragment.mk": "232067656e65726174656420696e636c7564650a"
+      }
+    },
+    {
+      "id": "nls-directory-restart-cannot-restore-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "launch": "entry",
+      "modules": [],
+      "files": {
+        "seen": "6f776e6564207365656e0a",
+        "build/Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e74662022474f414c3d5b25735d5c6e22202224284d414b455f524553544152545329220a242866696c65203e3e2e2e2f7365656e2c726561643a24284d414b455f524553544152545329290a696e636c75646520667261676d656e742e6d6b0a667261676d656e742e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472793b207072696e7466202225735c6e222022232067656e65726174656420696e636c75646522203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "52454255494c443d5b5d0a",
+        "stderr_template_hex": "6d616b653a2063686469723a2040454e4f454e54400a6d616b653a202a2a2a20e58583e381aee38387e382a3e383ace382afe38388e383aae381abe688bbe3828ce381bee3819be38293e381a7e38197e3819f2e2020e4b8ade6ada22e0a",
+        "seen_template_hex": "6f776e6564207365656e0a726561643a0a"
+      },
+      "expected_file_updates": {
+        "build/fragment.mk": "232067656e65726174656420696e636c7564650a"
+      }
+    },
+    {
+      "id": "nls-directory-restart-cannot-restore-pl",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "launch": "entry",
+      "modules": [],
+      "files": {
+        "seen": "6f776e6564207365656e0a",
+        "build/Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e74662022474f414c3d5b25735d5c6e22202224284d414b455f524553544152545329220a242866696c65203e3e2e2e2f7365656e2c726561643a24284d414b455f524553544152545329290a696e636c75646520667261676d656e742e6d6b0a667261676d656e742e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472793b207072696e7466202225735c6e222022232067656e65726174656420696e636c75646522203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "52454255494c443d5b5d0a",
+        "stderr_template_hex": "6d616b653a2063686469723a2040454e4f454e54400a6d616b653a202a2a2a204e69656d6fc5bc6c69777920706f7772c3b37420646f206b6174616c6f67752073746172746f7765676f2e2053746f702e0a",
+        "seen_template_hex": "6f776e6564207365656e0a726561643a0a"
+      },
+      "expected_file_updates": {
+        "build/fragment.mk": "232067656e65726174656420696e636c7564650a"
+      }
+    },
+    {
+      "id": "nls-directory-restart-restored-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "launch": "entry",
+      "modules": [],
+      "files": {
+        "seen": "6f776e6564207365656e0a",
+        "build/Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e74662022474f414c3d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472790a242866696c65203e3e2e2e2f7365656e2c726561643a24284d414b455f524553544152545329290a696e636c75646520667261676d656e742e6d6b0a667261676d656e742e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b207072696e7466202225735c6e222022232067656e65726174656420696e636c75646522203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "52454255494c443d5b5d0a474f414c3d5b315d0a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "6f776e6564207365656e0a726561643a0a726561643a310a"
+      },
+      "expected_file_updates": {
+        "build/fragment.mk": "232067656e65726174656420696e636c7564650a"
+      }
+    },
+    {
+      "id": "nls-directory-restart-restored-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "launch": "entry",
+      "modules": [],
+      "files": {
+        "seen": "6f776e6564207365656e0a",
+        "build/Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e74662022474f414c3d5b25735d5c6e22202224284d414b455f524553544152545329223b20726d646972202e2e2f656e7472790a242866696c65203e3e2e2e2f7365656e2c726561643a24284d414b455f524553544152545329290a696e636c75646520667261676d656e742e6d6b0a667261676d656e742e6d6b3a0a09407072696e7466202252454255494c443d5b25735d5c6e22202224284d414b455f524553544152545329223b207072696e7466202225735c6e222022232067656e65726174656420696e636c75646522203e20222440220a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "52454255494c443d5b5d0a474f414c3d5b315d0a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "6f776e6564207365656e0a726561643a0a726561643a310a"
+      },
+      "expected_file_updates": {
+        "build/fragment.mk": "232067656e65726174656420696e636c7564650a"
+      }
+    },
+    {
+      "id": "nls-directory-restart-without-restart-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "launch": "entry",
+      "modules": [],
+      "files": {
+        "seen": "6f776e6564207365656e0a",
+        "build/Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e74662022474f414c3d5b25735d5c6e22202224284d414b455f524553544152545329220a72656d6f7665203a3d2024287368656c6c20726d646972202e2e2f656e747279290a242866696c65203e3e2e2e2f7365656e2c726561643a24284d414b455f524553544152545329290a696e636c75646520667261676d656e742e6d6b0a",
+        "build/fragment.mk": "23207072656578697374696e6720696e636c7564650a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "474f414c3d5b5d0a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "6f776e6564207365656e0a726561643a0a"
+      }
+    },
+    {
+      "id": "nls-directory-restart-without-restart-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "../build"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "launch": "entry",
+      "modules": [],
+      "files": {
+        "seen": "6f776e6564207365656e0a",
+        "build/Makefile": "2e50484f4e593a20616c6c0a616c6c3a203b20407072696e74662022474f414c3d5b25735d5c6e22202224284d414b455f524553544152545329220a72656d6f7665203a3d2024287368656c6c20726d646972202e2e2f656e747279290a242866696c65203e3e2e2e2f7365656e2c726561643a24284d414b455f524553544152545329290a696e636c75646520667261676d656e742e6d6b0a",
+        "build/fragment.mk": "23207072656578697374696e6720696e636c7564650a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "474f414c3d5b5d0a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "6f776e6564207365656e0a726561643a0a"
       }
     }
   ]

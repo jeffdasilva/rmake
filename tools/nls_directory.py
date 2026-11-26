@@ -35,10 +35,17 @@ def observe(case, runtime, binary, launcher):
         return h.execute(case, runtime, binary)
     h.reset_workspace(case, runtime, binary)
     executable = str(runtime / "bin/make")
-    command = [sys.executable, str(DATA / "deleted_cwd.py"), launcher,
-               str(runtime / "work"), executable, *case.args]
+    cwd = runtime / "work"
+    if launcher == "entry":
+        # Keep the disposable entry inside the observed workspace while -C uses its sibling.
+        cwd = cwd / "entry"
+        cwd.mkdir(mode=0o755)
+        command = [executable, *case.args]
+    else:
+        command = [sys.executable, str(DATA / "deleted_cwd.py"), launcher,
+                   str(cwd), executable, *case.args]
     out, err, status, limit, leftovers = h.capture(
-        command, runtime / "work", h.clean_environment(runtime, case.environment), case.timeout,
+        command, cwd, h.clean_environment(runtime, case.environment), case.timeout,
     )
     files = h.snapshot({name: runtime / name for name in ("work", "home", "tmp")})
     return h.Observation(out, err, status, limit, files, leftovers)
@@ -60,7 +67,7 @@ def load_rows(selection):
     data = json.loads((DATA / "directory.json").read_bytes())
     rows = data["rows"]
     names = {row["id"] for row in rows}
-    if len(rows) != 17 or len(names) != 17:
+    if len(rows) != 26 or len(names) != 26:
         raise h.HarnessError("unexpected NLS directory inventory")
     if set(selection) - names:
         raise h.HarnessError("unknown exact NLS directory ID")
@@ -73,7 +80,7 @@ def load_rows(selection):
     for row in rows:
         if any(module["source"] != "nls_control.c" for module in row["modules"]):
             raise h.HarnessError("NLS directory model uses unpinned source")
-        if row["launch"] not in (None, "initial", "after-C"):
+        if row["launch"] not in (None, "initial", "after-C", "entry"):
             raise h.HarnessError("unknown NLS directory launch")
     return data, [row for row in rows if not selection or row["id"] in selection]
 
@@ -82,16 +89,18 @@ def make_model(row, root, locale):
     environment = {**row["environment"], **locale["environment"]}
     expected = dict(row["expected"])
     errno_bytes = None
-    if row["launch"] is not None:
-        stderr = bytes.fromhex(expected["stderr_template_hex"])
-        if stderr.count(b"@ENOENT@") != 1:
-            raise h.HarnessError("deleted-cwd model must declare exactly one errno slot")
+    stderr = bytes.fromhex(expected["stderr_template_hex"])
+    errno_slots = stderr.count(b"@ENOENT@")
+    if row["launch"] in ("initial", "after-C") or errno_slots:
+        if errno_slots != 1:
+            raise h.HarnessError("cwd failure model must declare exactly one errno slot")
         errno_bytes = errno_witness(root, environment)
         expected["stderr_template_hex"] = stderr.replace(b"@ENOENT@", errno_bytes).hex()
     model = directory.Model(
         row["id"], {name: bytes.fromhex(value) for name, value in row["files"].items()},
         tuple(row["args"]), environment, expected, bytes.fromhex(expected["seen_template_hex"]),
         modules=tuple(directory.Module(**item) for item in row["modules"]),
+        updates={name: bytes.fromhex(value) for name, value in row.get("expected_file_updates", {}).items()},
     )
     return model, errno_bytes
 

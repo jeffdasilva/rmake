@@ -3312,11 +3312,12 @@ impl Engine {
                 match std::env::set_current_dir(directory) {
                     Ok(()) => true,
                     Err(error) => {
-                        self.stderr(
-                            [b"chdir: ".as_slice(), os_error(&error).as_bytes()]
-                                .concat()
-                                .as_slice(),
-                        );
+                        let detail = rmake_linux::filesystem::source_error_detail(&error);
+                        self.stderr(&crate::messages::system(Message::OsError {
+                            action: b"chdir",
+                            path: b"",
+                            detail: &detail,
+                        }));
                         false
                     }
                 }
@@ -3324,7 +3325,7 @@ impl Engine {
                 false
             };
             if !restored {
-                self.fatal(None, b"Couldn't change back to original directory");
+                self.fatal_system(Message::RestartOriginalDirectory);
                 if let Some(slots) = retired_slots {
                     self.stderr(format!("INTERNAL: Exiting with 1 jobserver tokens available; should be {slots}!").as_bytes());
                 }
