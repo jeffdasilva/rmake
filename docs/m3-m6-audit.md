@@ -46,6 +46,9 @@ at the end of this audit.
   Startup include options cache each accepted operand after filename preparation.
   Search construction records each existing directory in scan order and preserves
   its cache event even when a later `-I-` clears it from the search list.
+  Live `MAKEFLAGS` and post-read flag decoders cache each accepted include
+  operand at its argument boundary, preserving the events completed before a
+  later assignment or terminal option error.
 - [Output validation and mutex failures](output-validation-order.md) and the
   [startup output-lock gate](../tests/startup-output-mutex/README.md). Completed
   definitions and output remain observable when later validation or opening fails.

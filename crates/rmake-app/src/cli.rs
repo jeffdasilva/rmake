@@ -1070,16 +1070,25 @@ impl Options {
     }
 
     pub(crate) fn may_need_owned_flag_decoder(value: &[u8]) -> bool {
-        value.contains(&b'~') || Self::may_contain_debug_option(value)
+        value.contains(&b'~')
+            || Self::may_contain_include_option(value)
+            || Self::may_contain_debug_option(value)
+    }
+
+    fn may_contain_include_option(value: &[u8]) -> bool {
+        // Short -I may be grouped or be the undashed first word. A long
+        // spelling can be abbreviated or contain backslash quoting.
+        value.contains(&b'I') || Self::may_contain_long_option(value, b'i')
     }
 
     fn may_contain_debug_option(value: &[u8]) -> bool {
         // A unique long-option prefix can select --debug. The flag tokenizer
         // accepts a backslash before each byte of the spelling. Only an
         // attached operand can select an invalid debug level.
-        if !value.contains(&b'=') {
-            return false;
-        }
+        value.contains(&b'=') && Self::may_contain_long_option(value, b'd')
+    }
+
+    fn may_contain_long_option(value: &[u8], initial: u8) -> bool {
         value.iter().enumerate().any(|(index, &byte)| {
             if byte != b'-' {
                 return false;
@@ -1089,34 +1098,42 @@ impl Options {
             let Some(rest) = rest.strip_prefix(b"-") else {
                 return false;
             };
-            rest.strip_prefix(b"\\").unwrap_or(rest).starts_with(b"d")
+            rest.strip_prefix(b"\\").unwrap_or(rest).first() == Some(&initial)
         })
     }
 
-    /// Select a stream that expands an include operand or has to report an
-    /// invalid debug request after processing its variable definitions.
+    /// Select a stream whose include operands or terminal debug error must
+    /// follow the same cursor as its variable definitions.
     pub(crate) fn owned_flag_decoder(&self, value: &[u8]) -> Result<Option<Decoder>, String> {
         let stored_tilde = self
             .include_directories
             .iter()
             .any(|path| path.as_os_str().as_bytes().starts_with(b"~"));
         let may_expand_include = stored_tilde || value.contains(&b'~');
-        if !may_expand_include && !Self::may_contain_debug_option(value) {
+        if !stored_tilde && !Self::may_need_owned_flag_decoder(value) {
             return Ok(None);
         }
         let mut incoming = Vec::new();
         Self::append_expanded_flags(&mut incoming, value);
-        let inspected = match Self::parse_mode::<false>(incoming.clone()) {
-            Ok(inspected) => inspected,
+        let mut include = false;
+        let inspected = match Self::parse_with::<false, String>(
+            incoming.clone(),
+            Self::default(),
+            0,
+            false,
+            &mut |_, argument| {
+                include |= matches!(argument, Argument::Include(_));
+                Ok(())
+            },
+        ) {
+            Ok(inspected) => Some(inspected),
+            Err(_) if include => None,
             Err(error) if may_expand_include => return Err(error),
             Err(_) => return Ok(None),
         };
         if !stored_tilde
-            && !inspected.debug.has_invalid_request()
-            && !inspected
-                .include_directories
-                .iter()
-                .any(|path| path.as_os_str().as_bytes().starts_with(b"~"))
+            && !include
+            && !inspected.is_some_and(|options| options.debug.has_invalid_request())
         {
             return Ok(None);
         }
@@ -2424,6 +2441,29 @@ mod decoder_missing_operand_tests {
 #[cfg(test)]
 mod runtime_marker_tests {
     use super::*;
+
+    #[test]
+    fn runtime_include_ownership_requires_a_decoded_operand() {
+        let options = Options::default();
+        for flags in [
+            b"-I literal".as_slice(),
+            b"kIliteral",
+            b"--incl=literal",
+            b"\\-\\-\\include-dir=literal",
+        ] {
+            assert!(Options::may_need_owned_flag_decoder(flags));
+            assert!(options.owned_flag_decoder(flags).unwrap().is_some());
+        }
+        for flags in [
+            b"X=--include-dir=literal".as_slice(),
+            b"-- --include-dir=literal",
+            b"-f --include-dir=literal",
+            b"--include-dir=",
+        ] {
+            assert!(options.owned_flag_decoder(flags).unwrap().is_none());
+        }
+    }
+
     #[test]
     fn owned_runtime_cursor_distinguishes_options_from_adjacent_definitions() {
         for (flags, following_definition) in [

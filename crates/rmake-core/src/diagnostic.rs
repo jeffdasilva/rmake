@@ -913,6 +913,9 @@ impl<'a> ExpansionContext<'a> {
                     }
                     FlagAction::Filename(raw) => {
                         let value = self.flag_filename(database, &raw)?;
+                        if let Some(history) = database.database_history() {
+                            history.intern(&value);
+                        }
                         decoder
                             .filename(value)
                             .map_err(ExpandError::UnlocatedError)?;
@@ -940,10 +943,13 @@ impl<'a> ExpansionContext<'a> {
         database: &mut crate::parser::Database,
         raw: &[u8],
     ) -> Result<Vec<u8>, crate::variables::ExpandError> {
-        let mut expanded = self.flag_tilde(database, raw)?;
-        let prefix = expanded.len() - crate::filenames::without_dot_prefix(&expanded).len();
-        expanded.drain(..prefix);
-        Ok(expanded)
+        let expanded = self.flag_tilde(database, raw)?;
+        let normalized = crate::filenames::without_dot_prefix(&expanded);
+        if normalized.len() == expanded.len() {
+            Ok(expanded)
+        } else {
+            Ok(normalized.to_vec())
+        }
     }
 
     fn flag_tilde(
