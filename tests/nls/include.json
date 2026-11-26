@@ -3,7 +3,7 @@
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
   "fixture_sha256": {
     "nls_control.c": "11bfb337c609581d2a01736461a9814c100f6fb980903eaeeaba4b6de28a238e",
-    "include_errno.c": "29a1e79ddccc68f548649ab7225f9a0702730970f742054ec093c65c2e562942"
+    "include_errno.c": "3514cc4475387d74a3df9eedc13ce8f1cfcc9e77dd6fb4b0b8c24bd182d31939"
   },
   "rows": [
     {

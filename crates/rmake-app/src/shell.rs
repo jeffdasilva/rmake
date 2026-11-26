@@ -170,17 +170,8 @@ fn launch_failure(
     program: &[u8],
     error: &std::io::Error,
 ) -> ShellResult {
-    output.write_parts(
-        true,
-        &[
-            program_name,
-            b": ",
-            program,
-            b": ",
-            crate::engine::os_error(error).as_bytes(),
-            b"\n",
-        ],
-    );
+    let detail = rmake_linux::filesystem::source_error_detail(error);
+    output.write_parts(true, &[program_name, b": ", program, b": ", &detail, b"\n"]);
     ShellResult {
         stdout: Vec::new(),
         status: Some(127),
