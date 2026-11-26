@@ -605,6 +605,7 @@ struct PendingMakefileRemake<'a> {
     duplicate: bool,
     active: bool,
     initial: Outcome,
+    trace_synthetic_reap: bool,
     trailing_prerequisite_child: Option<Box<RemakePrerequisiteChild<'a>>>,
     trailing_prerequisite_changed: bool,
 }
@@ -3249,6 +3250,8 @@ impl Engine {
         self.print_database();
         let plan = self.initial_plan.take().expect("initial invocation");
         let retired_slots = self.jobserver.as_ref().and_then(Jobserver::owned_slots);
+        self.job_debug
+            .drain(self.output.debug_mask(), retired_slots);
         let inherited_jobserver = self
             .jobserver
             .as_ref()
@@ -4321,6 +4324,7 @@ impl Engine {
                                     duplicate: true,
                                     active: true,
                                     initial: Outcome::default(),
+                                    trace_synthetic_reap: false,
                                     trailing_prerequisite_child: None,
                                     trailing_prerequisite_changed: false,
                                 });
@@ -4918,16 +4922,21 @@ impl Engine {
                     break;
                 }
                 if self.parallel_makefile_remakes && self.pending(name) {
-                    if context.trace_initial_synthetic
-                        && self.debug_was_considered(name)
-                        && self.parallel_jobs.primary.get(name).is_some_and(|job| {
-                            job.child.is_some() && job.continuation.branch == Some(1)
-                        })
-                    {
+                    let held_synthetic =
+                        if context.trace_initial_synthetic && self.debug_was_considered(name) {
+                            self.parallel_jobs.primary.get(name).filter(|job| {
+                                job.child.is_some() && job.continuation.branch == Some(1)
+                            })
+                        } else {
+                            None
+                        };
+                    if held_synthetic.is_some() {
                         // A second source entry sees the considered head
                         // while the actual synthetic command is pending.
                         crate::debug::emit(&self.output, crate::debug::Event::Pruning(name, 1));
                     }
+                    let trace_synthetic_reap = held_synthetic
+                        .is_some_and(|job| !job.recursive && job.continuation.expanded.is_empty());
                     if let Some(trailing) = &trailing_optional_source
                         && name == trailing.neighbor
                         && self.options.keep_going
@@ -4945,6 +4954,7 @@ impl Engine {
                         duplicate: false,
                         active: true,
                         initial: result,
+                        trace_synthetic_reap,
                         trailing_prerequisite_child: None,
                         trailing_prerequisite_changed: false,
                     });
@@ -8195,6 +8205,19 @@ impl Engine {
                     .outcome(self.aliases.resolve(name))
                     .copied()
                     .unwrap_or(request.initial);
+                if request.trace_synthetic_reap
+                    && needs_visit
+                    && !request.active
+                    && self.graph_abort.is_none()
+                    && !outcome.fatal
+                    && !outcome.question_outdated
+                    && (!outcome.failed || self.options.keep_going)
+                {
+                    // The completed child reopens both source entries for
+                    // their cached checks, then the repeated head prunes.
+                    self.debug_completed_double_colon_declarations(name, 0..2, 1);
+                    crate::debug::emit(&self.output, crate::debug::Event::Pruning(name, 1));
+                }
                 if request.active
                     && let Some(child) = &request.trailing_prerequisite_child
                     && !self.pending(child.name)
@@ -9370,27 +9393,29 @@ impl Engine {
             && !self.target_contexts.contains_key(to)
             && !self.database_contexts.contains_key(to)
             && self.file_traversals.visit(to).is_none();
-        // A recipe-less visit retains the destination declaration table but
-        // has no recipe locals yet. Use its recorded ancestry before merging.
-        let visited_declaration_only = late_goal_owners
+        // A recipe-less visit has no saved locals yet. Reconstruct its own
+        // ancestry before merging or adopting the source file table.
+        let uninitialized_visited_destination = late_goal_owners
             .is_some_and(|owners| !owners.destination_unattempted)
-            && destination_has_scope
             && !self.database_contexts.contains_key(to)
             && !self.target_contexts.contains_key(to);
-        let has_visited_parent = visited_declaration_only
-            && self
-                .file_traversals
-                .visit(to)
-                .is_some_and(|visit| visit.parent.is_some());
-        let visited_context = if has_visited_parent {
+        let needs_visited_context = uninitialized_visited_destination
+            && (!destination_has_scope
+                || self
+                    .file_traversals
+                    .visit(to)
+                    .is_some_and(|visit| visit.parent.is_some()));
+        let visited_context = if needs_visited_context {
             self.with_target_read_expansion(None, |database, context| {
                 database.variables_for_visited_file(to, &context)
             })
         } else {
             None
         };
-        let visited_declaration_only =
-            visited_declaration_only && (!has_visited_parent || visited_context.is_some());
+        let uninitialized_visited_destination = uninitialized_visited_destination
+            && (!needs_visited_context || visited_context.is_some());
+        let uninitialized_named_destination = destination_has_scope
+            && late_goal_owners.is_some_and(|owners| owners.destination_unattempted);
         let completed_scope_merge = !self.remaking
             && retained_ordinary
             && self
@@ -9411,7 +9436,7 @@ impl Engine {
                 self.file_traversals
                     .outcome(to)
                     .is_some_and(|outcome| !outcome.failed && !outcome.search_after_update)
-                    && (visited_declaration_only
+                    && (uninitialized_visited_destination
                         || (self.database_contexts.contains_key(to)
                             && self.target_contexts.contains_key(to)
                             && (destination_has_scope
@@ -9576,7 +9601,7 @@ impl Engine {
                 source,
                 self.database_contexts.get(to).or(visited_context.as_ref()),
                 self.target_contexts.get(to).or(visited_context.as_ref()),
-                visited_declaration_only,
+                uninitialized_visited_destination || uninitialized_named_destination,
             )
         {
             self.database_contexts.insert(to.to_vec(), saved);
@@ -13675,15 +13700,56 @@ impl Engine {
                         target,
                         false,
                         |assumed_time, branch| {
-                            branch.completion == CompletionTime::Refresh
-                                && branch.time == Some(before)
+                            branch.time == Some(before)
                                 && before != assumed_time
+                                && (branch.completion == CompletionTime::Refresh
+                                    || (!branch.ran
+                                        && !branch.blocked
+                                        && branch.completion == CompletionTime::Unchanged
+                                        && !MakefileModes::from_options(&self.options).active()
+                                        && self.successful_explicit_source_refresh(target, before)))
                         },
                     )
                 }
                 _ => false,
             }
         })
+    }
+
+    fn successful_explicit_source_refresh(&self, target: &[u8], before: SystemTime) -> bool {
+        let Some(declarations) = self
+            .database
+            .rules
+            .get(target)
+            .and_then(|rule| rule.double_colon.as_ref())
+        else {
+            return false;
+        };
+        // A completed explicit recipe can refresh the shared clock before
+        // the current synthetic declaration propagates it to the chain.
+        let mut key = (target.to_vec(), 0);
+        let mut refreshed = false;
+        for (ordinal, rule) in declarations.iter().enumerate() {
+            if rule.recipes.is_none()
+                || rule.implicit_pattern.is_some()
+                || rule.default_recipe
+                || rule.grouped_targets().is_some()
+            {
+                return false;
+            }
+            key.1 = ordinal;
+            let Some(branch) = self.database_branch_outcomes.get(&key) else {
+                return false;
+            };
+            if branch.fatal || branch.blocked || branch.terminal_verdict().is_some() {
+                return false;
+            }
+            refreshed |= branch.ran
+                && branch.completion == CompletionTime::Refresh
+                && branch.database_result == DatabaseResult::Outcome
+                && branch.time == Some(before);
+        }
+        refreshed
     }
 
     fn settled_grouped_double_peer_time(&self, name: &[u8]) -> Option<SystemTime> {

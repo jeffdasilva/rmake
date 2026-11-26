@@ -194,6 +194,17 @@ impl Engine {
                 }
             } else {
                 let mut snapshot = self.database_file(name, head, None)?;
+                if snapshot.view.updated
+                    && matches!(
+                        self.merged_goal_reports.get(&entry.id),
+                        Some(MergedGoalReport::UnattemptedDestination)
+                    )
+                {
+                    // Rehash copied the completed source's updated flag and
+                    // locals, leaving the destination's result and stem intact.
+                    snapshot.view.stem = None;
+                    snapshot.view.status = FileStatus::Unattempted;
+                }
                 if let Some(owner) = moved {
                     snapshot.view.name = entry.logical_name;
                     snapshot.view.command_line = owner.command_goal;
