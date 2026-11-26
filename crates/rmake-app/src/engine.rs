@@ -629,7 +629,7 @@ struct PendingMakefileRemake<'a> {
     same_clock_inline_optional_settled: bool,
     required_worker_pair: Option<Box<RequiredRemakeWorkerPair<'a>>>,
     trailing_optional_worker: Option<Rc<TrailingOptionalWorker>>,
-    trailing_prerequisite_child: Option<Box<RemakePrerequisiteChild<'a>>>,
+    trailing_prerequisite_child: Option<Box<RemakeChild<'a>>>,
     trailing_prerequisite_changed: bool,
 }
 
@@ -642,6 +642,7 @@ struct RequiredRemakeWorkerPair<'a> {
     second_identity: u64,
     second_before: SystemTime,
     second_failure: Option<Rc<Cell<Option<SystemTime>>>>,
+    third: Option<RemakeChild<'a>>,
 }
 
 struct TrailingOptionalWorker {
@@ -677,7 +678,7 @@ struct InlineOptionalRemakeClock<'a> {
     changed_on_visit: bool,
 }
 
-struct RemakePrerequisiteChild<'a> {
+struct RemakeChild<'a> {
     name: &'a [u8],
     identity: u64,
     before: SystemTime,
@@ -8846,7 +8847,7 @@ impl Engine {
                     && clock != pair.first_before
                     && Self::regular_remake_clock(name) == Some(clock)
                     && self.parallel_jobs.get(name, pair.first_identity).is_none()
-                    && self.parallel_jobs.len() == 1
+                    && self.required_remake_pair_has_expected_workers(pair)
                     && self
                         .parallel_jobs
                         .get(pair.second, pair.second_identity)
@@ -14663,17 +14664,18 @@ impl Engine {
             (primary, false),
             (first_source, false),
             (second_source, false),
+            trailing_sources @ ..,
         ] = read_files
         else {
             return None;
         };
-        let [first, second] = requests else {
+        let [first, second, trailing_requests @ ..] = requests else {
             return None;
         };
         if !self.parallel_makefile_remakes
             || self.options.always
             || self.assumptions.is_some()
-            || self.parallel_jobs.len() != 2
+            || self.parallel_jobs.len() != requests.len()
             || !self.unruled_remake_source(&primary.name)
             || !std::ptr::eq(first.file, first_source)
             || !std::ptr::eq(second.file, second_source)
@@ -14684,6 +14686,22 @@ impl Engine {
             self.held_direct_required_remake_job(first, visited)?;
         let (second_identity, second_before, second_branch) =
             self.held_direct_required_remake_job(second, visited)?;
+        let third = match (trailing_sources, trailing_requests) {
+            ([], []) => None,
+            ([(source, false)], [request]) if std::ptr::eq(request.file, source) => {
+                let (identity, before, branch) =
+                    self.held_direct_required_remake_job(request, visited)?;
+                if branch.is_some() {
+                    return None;
+                }
+                Some(RemakeChild {
+                    name: &request.file.name,
+                    identity,
+                    before,
+                })
+            }
+            _ => return None,
+        };
         second_branch.is_none().then(|| {
             Box::new(RequiredRemakeWorkerPair {
                 first_identity,
@@ -14694,6 +14712,7 @@ impl Engine {
                 second_identity,
                 second_before,
                 second_failure: None,
+                third,
             })
         })
     }
@@ -14754,6 +14773,38 @@ impl Engine {
         direct.then_some((job.identity, before, branch))
     }
 
+    fn required_remake_pair_has_expected_workers(
+        &self,
+        pair: &RequiredRemakeWorkerPair<'_>,
+    ) -> bool {
+        match &pair.third {
+            Some(third)
+                if self
+                    .parallel_jobs
+                    .get(third.name, third.identity)
+                    .is_some_and(|job| job.child.is_some()) =>
+            {
+                self.parallel_jobs.len() == 2
+            }
+            Some(third) => {
+                self.parallel_jobs.len() == 1 && self.unchanged_required_remake_worker(third)
+            }
+            None => self.parallel_jobs.len() == 1,
+        }
+    }
+
+    fn unchanged_required_remake_worker(&self, worker: &RemakeChild<'_>) -> bool {
+        Self::regular_remake_clock(worker.name) == Some(worker.before)
+            && self
+                .file_traversals
+                .outcome(worker.name)
+                .is_some_and(|outcome| {
+                    outcome.ran_refresh()
+                        && outcome.goal_verdict().is_none()
+                        && outcome.time == Some(worker.before)
+                })
+    }
+
     fn required_remake_pair_first_reap(
         &self,
         name: &[u8],
@@ -14798,6 +14849,10 @@ impl Engine {
             && self.parallel_jobs.is_empty()
             && Self::regular_remake_clock(first) == Some(pair.first_before)
             && Self::regular_remake_clock(pair.second) == Some(pair.second_before)
+            && pair
+                .third
+                .as_ref()
+                .is_none_or(|third| self.unchanged_required_remake_worker(third))
             && self
                 .file_traversals
                 .outcome(pair.second)
@@ -14885,7 +14940,7 @@ impl Engine {
         &self,
         trailing: &TrailingOptionalRemake<'a>,
         earlier_sources: &[(Makefile, bool)],
-    ) -> Option<Box<RemakePrerequisiteChild<'a>>> {
+    ) -> Option<Box<RemakeChild<'a>>> {
         if trailing.kind != TrailingOptionalKind::Declared || self.parallel_jobs.len() != 1 {
             return None;
         }
@@ -14908,7 +14963,7 @@ impl Engine {
                 !*skip && !file.optional && file.location.is_some() && file.name == owner.target
             }))
         .then(|| {
-            Box::new(RemakePrerequisiteChild {
+            Box::new(RemakeChild {
                 name,
                 identity: job.identity,
                 before,
