@@ -361,6 +361,9 @@ The selected two-worker cases retain the optional child's successful completion
 while the required child is still pending and both files keep their timestamps.
 This also covers the three-source layout with a single trailing optional worker
 and an explicit required refresh before the later missing synthetic rule.
+The required synthetic failure can also settle before the optional worker
+finishes. Both worker orders preserve the optional failure for ordinary
+dependents when the worker exits unsuccessfully and both timestamps stay fixed.
 For the qualified inline refresh without a relevant time assumption, a trailing
 file changed and then restored by the required worker uses its final timestamp
 for the restart decision and ordinary goal visits.
