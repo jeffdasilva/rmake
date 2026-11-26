@@ -3580,19 +3580,35 @@ impl Database {
             };
             let rhs = assignment.spec.value;
             let kind = assignment.spec.kind;
-            let scope = if name == b".SHELLSTATUS"
-                && scope.get(&name).is_none()
-                && (declaration.head.is_some()
-                    || self
-                        .rules
-                        .get(target)
-                        .is_some_and(|rule| rule.double_colon.is_none() && rule.group.is_none()))
-            {
+            let plain_file = || {
+                self.rules
+                    .get(target)
+                    .is_some_and(|rule| rule.double_colon.is_none() && rule.group.is_none())
+            };
+            let writes_file_binding = match name.as_slice() {
+                b".SHELLSTATUS" => {
+                    scope.get(&name).is_none() && (declaration.head.is_some() || plain_file())
+                }
+                b"@" | b"%" | b"*" | b"<" | b"^" | b"+" | b"?" | b"|" => {
+                    kind == Assignment::Append
+                        && declaration.head.is_none()
+                        && self
+                            .evaluation_scope
+                            .as_ref()
+                            .and_then(|caller| caller.get(&name))
+                            .is_some_and(|binding| binding.origin() == Origin::Automatic)
+                        && plain_file()
+                        && crate::filenames::archive_parts(target).is_none()
+                }
+                _ => false,
+            };
+            let scope = if writes_file_binding {
                 let mut declarations = scope.context(&self.variables);
                 let assigned = self
-                    .assign_existing_file_status(
+                    .assign_existing_file_binding(
                         declaration,
                         &mut declarations,
+                        &name,
                         &assignment,
                         location,
                         context.at(Some(location)),
@@ -3604,6 +3620,17 @@ impl Database {
                 if assigned {
                     scope.retain_read_bindings(&declarations);
                     self.publish_target_scope(declaration, &name);
+                    if name != b".SHELLSTATUS"
+                        && !self
+                            .evaluation_bindings
+                            .iter()
+                            .any(|frame| frame.contains_key(&name))
+                        && let Some(caller) = &self.evaluation_scope
+                    {
+                        // The caller's equally named automatic binding also
+                        // participates in the origin lookup after assignment.
+                        caller.record_database_lookup(&name);
+                    }
                     continue;
                 }
                 scope
@@ -3982,29 +4009,34 @@ impl Database {
         }
     }
 
-    fn assign_existing_file_status(
+    fn assign_existing_file_binding(
         &mut self,
         declaration: TargetDeclaration<'_>,
         declarations: &mut VariableStore,
+        name: &[u8],
         assignment: &TargetAssignment<'_>,
         location: &Location,
         context: ExpansionContext<'_>,
     ) -> Result<bool, ExpandError> {
-        let name = b".SHELLSTATUS";
         self.with_target_read(
             declaration.name,
             declarations,
             context,
             |database, read, context| {
+                let owns_binding = read.local_binding_slot(name).is_some_and(|(_, binding)| {
+                    if name == b".SHELLSTATUS" {
+                        binding.origin() >= Origin::Override
+                    } else {
+                        binding.origin() == Origin::Automatic && binding.flavor() == Flavor::Simple
+                    }
+                });
                 if (declaration.head.is_none() && !read.is_file_read_context(declaration.name))
-                    || read
-                        .local_shell_status()
-                        .is_none_or(|status| status.origin() < Origin::Override)
+                    || !owns_binding
                 {
                     return Ok(false);
                 }
-                // This status already occupies a slot in the file's logical
-                // local table. Resolve the new assignment against that binding.
+                // The runtime binding already occupies a slot in the file's
+                // logical table. Resolve the assignment against its flavor and origin.
                 read.define_with_using(
                     name,
                     assignment.spec.value,
@@ -6204,13 +6236,7 @@ impl Database {
                 if grouped && !double_colon && rule.group.is_some() {
                     declaration.group_warnings.push((
                         declaration.recipes[0].location.clone(),
-                        [
-                            b"warning: overriding group membership for target '".as_slice(),
-                            target,
-                            b"'",
-                        ]
-                        .concat()
-                        .into(),
+                        Diagnostic::system(Message::OverrideGroupMembership(target)),
                     ));
                 }
                 let group = rule.group.get_or_insert_with(Default::default);

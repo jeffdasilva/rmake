@@ -106,6 +106,27 @@ jobs:
               --locale-root .tools/locale-data-arm64 \
               --report "artifacts/locales/aarch64-getopt-$kind.json"
           done
+      - name: Check localized build diagnostics
+        timeout-minutes: 3
+        run: |
+          set -- \
+            --case nls-stat-repair-loop-c \
+            --case nls-stat-repair-loop-fr \
+            --case nls-stat-long-raw-fr \
+            --case nls-stat-quiet-notdir-fr \
+            --case nls-group-peer-stops-de \
+            --case nls-group-peer-parallel-stops-ja \
+            --case nls-suffix-prerequisites-inline-de \
+            --case nls-suffix-prerequisites-secondary-ja \
+            --case nls-library-pattern-multiple-raw-fr \
+            --case nls-library-pattern-single-ja \
+            --case nls-group-membership-raw-fr \
+            --case nls-group-membership-overlap-ja
+          for kind in debug release; do
+            python3 tools/nls_diagnostics.py "$@" --candidate "target/$kind/rmake" \
+              --locale-root .tools/locale-data-arm64 \
+              --report "artifacts/locales/aarch64-build-diagnostics-$kind.json"
+          done
       - name: Check the pinned xxHash project
         timeout-minutes: 5
         run: |

@@ -1,5 +1,5 @@
 {
-  "classification": "Catalog producer models, including startup directory changes, target stat diagnostics and grouped recipe warnings. Input LOCPATH is supplied by the verified locale profile.",
+  "classification": "Catalog producer models, including startup directory changes, target stat diagnostics, grouped rules, suffix rules and library patterns. Input LOCPATH is supplied by the verified locale profile.",
   "original_models_sha256": "78853414ec1b9e0bec84ad5fb9d9868efe94f6c01d67e39f1c7039e51a1db646",
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
   "fixture_sha256": {
@@ -892,6 +892,376 @@
         "stdout": "dispatch\nordinary\n",
         "stderr": "",
         "seen": "anchor\nreader\ndispatch\nordinary\n"
+      }
+    },
+    {
+      "id": "nls-suffix-prerequisites-inline-de",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "2e53554646495845533a202e737263202e646573740a616c6c3a20782e646573740a2e7372632e646573743a20616273656e743b40242866696c65203e3e7365656e2c636f6e766572746564296563686f207375666669780a242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a",
+        "seen": "616e63686f720a",
+        "x.src": "646174610a"
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout": "read-ready\nMakefile:3: Warnung: Voraussetzungen der Suffixregel-Definition werden ignoriert\nsuffix\n",
+        "stderr": "",
+        "seen": "anchor\nreader\nconverted\n"
+      }
+    },
+    {
+      "id": "nls-suffix-prerequisites-secondary-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "2e53554646495845533a0a2e53554646495845533a202e78202e79202e610a2e5345434f4e44455850414e53494f4e3a0a65787472613d65787472610a2e782e793a202424286578747261290a0940242866696c65203e3e7365656e2c636f6e766572746564297072696e746620636f6e7665727465645c6e0a65787472613a203b2040747275650a616c6c3a206f75742e790a242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a",
+        "seen": "616e63686f720a",
+        "out.x": "696e7075740a"
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout": "read-ready\nMakefile:6: \u8b66\u544a: \u62e1\u5f35\u5b50\u30eb\u30fc\u30eb\u5b9a\u7fa9\u306e\u5fc5\u8981\u6761\u4ef6\u3092\u7121\u8996\u3057\u3066\u3044\u307e\u3059\nconvertedn",
+        "stderr": "",
+        "seen": "anchor\nreader\nconverted\n"
+      }
+    },
+    {
+      "id": "nls-suffix-prerequisites-inline-c",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "2e53554646495845533a202e737263202e646573740a616c6c3a20782e646573740a2e7372632e646573743a20616273656e743b40242866696c65203e3e7365656e2c636f6e766572746564296563686f207375666669780a242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a",
+        "seen": "616e63686f720a",
+        "x.src": "646174610a"
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout": "read-ready\nMakefile:3: warning: ignoring prerequisites on suffix rule definition\nsuffix\n",
+        "stderr": "",
+        "seen": "anchor\nreader\nconverted\n"
+      }
+    },
+    {
+      "id": "nls-suffix-prerequisites-inline-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "2e53554646495845533a202e737263202e646573740a616c6c3a20782e646573740a2e7372632e646573743a20616273656e743b40242866696c65203e3e7365656e2c636f6e766572746564296563686f207375666669780a242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a",
+        "seen": "616e63686f720a",
+        "x.src": "646174610a"
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout": "read-ready\nMakefile:3: warning: ignoring prerequisites on suffix rule definition\nsuffix\n",
+        "stderr": "",
+        "seen": "anchor\nreader\nconverted\n"
+      }
+    },
+    {
+      "id": "nls-suffix-prerequisites-posix-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "2e504f5349583a0a2e53554646495845533a0a2e53554646495845533a202e78202e79202e610a65787472613d65787472610a2e782e793a2065787472610a0940242866696c65203e3e7365656e2c636f6e766572746564297072696e746620636f6e7665727465645c6e0a65787472613a203b2040747275650a616c6c3a206f75742e790a242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a",
+        "seen": "616e63686f720a",
+        "out.x": "696e7075740a"
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 2,
+        "stdout": "read-ready\nmake: *** Keine Regel vorhanden, um das Ziel \u201eout.y\u201c, ben\u00f6tigt von \u201eall\u201c, zu erstellen.  Schluss.\n",
+        "stderr": "",
+        "seen": "anchor\nreader\n"
+      }
+    },
+    {
+      "id": "nls-suffix-prerequisites-absent-prerequisite-list-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "2e53554646495845533a0a2e53554646495845533a202e78202e79202e610a65787472613d65787472610a2e782e793a200a0940242866696c65203e3e7365656e2c636f6e766572746564297072696e746620636f6e7665727465645c6e0a65787472613a203b2040747275650a616c6c3a206f75742e790a242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a",
+        "seen": "616e63686f720a",
+        "out.x": "696e7075740a"
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout": "read-ready\nconvertedn",
+        "stderr": "",
+        "seen": "anchor\nreader\nconverted\n"
+      }
+    },
+    {
+      "id": "nls-library-pattern-multiple-raw-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        ".LIBPATTERNS=first raw-\udcff lib%.a quiet-after"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a2e4c49425041545445524e53203d20706c61696e206c6962252e610a616c6c3a202d6c64656d6f0a0940242866696c65203e3e7365656e2c726563697065297072696e7466202773656c65637465643d5b25735d5c6e272027243c270a",
+        "seen": "616e63686f720a",
+        "libdemo.a": "6f726967696e616c206c69627261727920696e7075740a"
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "726561642d72656164790a6d616b653a206c27c3a96cc3a96d656e7420c2abc2a06669727374c2a0c2bb206465202e4c49425041545445524e53206e276573742070617320756e206d6f7469660a6d616b653a206c27c3a96cc3a96d656e7420c2abc2a07261772dffc2a0c2bb206465202e4c49425041545445524e53206e276573742070617320756e206d6f7469660a73656c65637465643d5b6c696264656d6f2e615d0a",
+        "stderr": "",
+        "seen": "anchor\nreader\nrecipe\n"
+      }
+    },
+    {
+      "id": "nls-library-pattern-multiple-raw-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        ".LIBPATTERNS=first raw-\udcff lib%.a quiet-after"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a2e4c49425041545445524e53203d20706c61696e206c6962252e610a616c6c3a202d6c64656d6f0a0940242866696c65203e3e7365656e2c726563697065297072696e7466202773656c65637465643d5b25735d5c6e272027243c270a",
+        "seen": "616e63686f720a",
+        "libdemo.a": "6f726967696e616c206c69627261727920696e7075740a"
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "726561642d72656164790a6d616b653a202e4c49425041545445524e5320656c656d656e742027666972737427206973206e6f742061207061747465726e0a6d616b653a202e4c49425041545445524e5320656c656d656e7420277261772dff27206973206e6f742061207061747465726e0a73656c65637465643d5b6c696264656d6f2e615d0a",
+        "stderr": "",
+        "seen": "anchor\nreader\nrecipe\n"
+      }
+    },
+    {
+      "id": "nls-library-pattern-single-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a2e4c49425041545445524e53203d20706c61696e206c6962252e610a616c6c3a202d6c64656d6f0a0940242866696c65203e3e7365656e2c726563697065297072696e7466202773656c65637465643d5b25735d5c6e272027243c270a",
+        "seen": "616e63686f720a",
+        "libdemo.a": "6f726967696e616c206c69627261727920696e7075740a"
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "726561642d72656164790a6d616b653a202e4c49425041545445524e5320e8a681e7b4a02027706c61696e2720e3818ce38391e382bfe383bce383b3e381a7e381afe38182e3828ae381bee3819be382930a73656c65637465643d5b6c696264656d6f2e615d0a",
+        "stderr": "",
+        "seen": "anchor\nreader\nrecipe\n"
+      }
+    },
+    {
+      "id": "nls-library-pattern-after-found-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        ".LIBPATTERNS=lib%.a quiet-after"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a2e4c49425041545445524e53203d20706c61696e206c6962252e610a616c6c3a202d6c64656d6f0a0940242866696c65203e3e7365656e2c726563697065297072696e7466202773656c65637465643d5b25735d5c6e272027243c270a",
+        "seen": "616e63686f720a",
+        "libdemo.a": "6f726967696e616c206c69627261727920696e7075740a"
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "726561642d72656164790a73656c65637465643d5b6c696264656d6f2e615d0a",
+        "stderr": "",
+        "seen": "anchor\nreader\nrecipe\n"
+      }
+    },
+    {
+      "id": "nls-group-membership-raw-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "616c6c3a207261772dff206220630a7261772dff206220263a3b40242866696c65203e3e7365656e2c6669727374296563686f2066697273743b746f756368207261772dff20620a7261772dff206320263a3b40242866696c65203e3e7365656e2c7365636f6e64296563686f207365636f6e643b746f756368207261772dff20630a242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "output": "merged",
+      "updates": {
+        "raw-\udcff": "",
+        "b": "",
+        "c": ""
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "4d616b6566696c653a333a206176657274697373656d656e74c2a03a207375726368617267656d656e74206465206c61207265636574746520706f7572206c61206369626c6520c2abc2a07261772dffc2a0c2bb0a4d616b6566696c653a323a206176657274697373656d656e74c2a03a20616e6369656e6e6520726563657474652069676e6f72c3a96520706f7572206c61206369626c6520c2abc2a07261772dffc2a0c2bb0a4d616b6566696c653a333a206176657274697373656d656e74c2a03a207375726368617267656d656e74206465732067726f75706573206427617070617274656e616e636520706f7572206c61206369626c6520c2abc2a07261772dffc2a0c2bb0a726561642d72656164790a7365636f6e640a66697273740a",
+        "stderr": "",
+        "seen_hex": "616e63686f720a7265616465720a7365636f6e640a66697273740a"
+      }
+    },
+    {
+      "id": "nls-group-membership-overlap-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "616c6c3a2061206220630a61206220263a3b40242866696c65203e3e7365656e2c6669727374296563686f2066697273743b746f756368206120620a612062206320263a3b40242866696c65203e3e7365656e2c7365636f6e64296563686f207365636f6e643b746f7563682061206220630a242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "output": "merged",
+      "updates": {
+        "a": "",
+        "b": "",
+        "c": ""
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "4d616b6566696c653a333a20e8ada6e5918a3a20e382bfe383bce382b2e38383e383882027612720e381aee3819fe38281e381aee383ace382b7e38394e38292e7bdaee3818de68f9be38188e381bee381990a4d616b6566696c653a323a20e8ada6e5918a3a20e382bfe383bce382b2e38383e383882027612720e381aee3819fe38281e381aee58fa4e38184e383ace382b7e38394e381afe784a1e8a696e38195e3828ce381bee381990a4d616b6566696c653a333a20e8ada6e5918a3a20e382bfe383bce382b2e38383e383882027622720e381aee3819fe38281e381aee383ace382b7e38394e38292e7bdaee3818de68f9be38188e381bee381990a4d616b6566696c653a323a20e8ada6e5918a3a20e382bfe383bce382b2e38383e383882027622720e381aee3819fe38281e381aee58fa4e38184e383ace382b7e38394e381afe784a1e8a696e38195e3828ce381bee381990a4d616b6566696c653a333a20e8ada6e5918a3a20e382bfe383bce382b2e38383e383882027622720e381aee382b0e383abe383bce38397e383a1e383b3e38390e383bce382b7e38383e38397e38292e4b88ae69bb8e3818de38197e381bee381990a4d616b6566696c653a333a20e8ada6e5918a3a20e382bfe383bce382b2e38383e383882027612720e381aee382b0e383abe383bce38397e383a1e383b3e38390e383bce382b7e38383e38397e38292e4b88ae69bb8e3818de38197e381bee381990a726561642d72656164790a7365636f6e640a",
+        "stderr": "",
+        "seen_hex": "616e63686f720a7265616465720a7365636f6e640a"
+      }
+    },
+    {
+      "id": "nls-group-membership-overlap-c",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "616c6c3a2061206220630a61206220263a3b40242866696c65203e3e7365656e2c6669727374296563686f2066697273743b746f756368206120620a612062206320263a3b40242866696c65203e3e7365656e2c7365636f6e64296563686f207365636f6e643b746f7563682061206220630a242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "output": "merged",
+      "updates": {
+        "a": "",
+        "b": "",
+        "c": ""
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "4d616b6566696c653a333a207761726e696e673a206f766572726964696e672072656369706520666f7220746172676574202761270a4d616b6566696c653a323a207761726e696e673a2069676e6f72696e67206f6c642072656369706520666f7220746172676574202761270a4d616b6566696c653a333a207761726e696e673a206f766572726964696e672072656369706520666f7220746172676574202762270a4d616b6566696c653a323a207761726e696e673a2069676e6f72696e67206f6c642072656369706520666f7220746172676574202762270a4d616b6566696c653a333a207761726e696e673a206f766572726964696e672067726f7570206d656d6265727368697020666f7220746172676574202762270a4d616b6566696c653a333a207761726e696e673a206f766572726964696e672067726f7570206d656d6265727368697020666f7220746172676574202761270a726561642d72656164790a7365636f6e640a",
+        "stderr": "",
+        "seen_hex": "616e63686f720a7265616465720a7365636f6e640a"
+      }
+    },
+    {
+      "id": "nls-group-membership-independent-de",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "616c6c3a206120620a61206220263a3b40242866696c65203e3e7365656e2c6669727374296563686f2066697273743b746f756368206120620a613a3b40242866696c65203e3e7365656e2c696e646570656e64656e74296563686f20696e646570656e64656e743b746f75636820610a242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "output": "merged",
+      "updates": {
+        "a": ""
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "4d616b6566696c653a333a205761726e756e673a204461732052657a6570742066c3bc7220646173205a69656c20e2809e61e2809c207769726420c3bc62657273636872696562656e0a4d616b6566696c653a323a205761726e756e673a2044617320616c74652052657a6570742066c3bc7220646173205a69656c20e2809e61e2809c20776972642069676e6f72696572740a726561642d72656164790a696e646570656e64656e740a",
+        "stderr": "",
+        "seen_hex": "616e63686f720a7265616465720a696e646570656e64656e740a"
       }
     }
   ]

@@ -71,6 +71,9 @@ NUL boundaries, rebinding and cancellation.
 - [Target scopes](target-scopes.md), [pattern scopes](pattern-scopes.md) and
   [conditional delimiters](conditional-whitespace.md). The target gate includes
   recipe-time `eval` in the active file scope, nested declarations and shell status.
+  A named append to an existing file-local automatic in an ordinary ungrouped
+  rule evaluates its simple suffix before origin precedence preserves the
+  automatic value. The database models check the suffix effect and lookup counts.
 - [Variable metadata](variable-metadata.md), [POSIX mode](posix-mode.md),
   [late built-in disabling](late-builtins.md) and
   [byte-preserving child environments](environment-vectors.md).
@@ -352,8 +355,14 @@ while an independent goal can still proceed.
 The trailing declaration can also run inline while the required worker is
 active when its completion and final physical timestamp both match the
 original timestamp.
-Two-worker optional cases and other kinds of trailing optional visits still
-need qualification.
+The selected two-worker cases retain the optional child's successful completion
+while the required child is still pending and both files keep their timestamps.
+This also covers the three-source layout with a single trailing optional worker
+and an explicit required refresh before the later missing synthetic rule.
+For the qualified inline refresh without a relevant time assumption, a trailing
+file changed and then restored by the required worker uses its final timestamp
+for the restart decision and ordinary goal visits.
+Other completion orders and changed worker clocks still need qualification.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
@@ -386,7 +395,9 @@ forced recipe's physical timestamp after an earlier failure.
 The native AArch64 glibc gate covers three C and C.UTF-8 locale cases and the
 startup debug-option and directory-error diagnostics in C and a pinned French
 locale. It runs the startup usage and getopt models on both build profiles
-using the same locale data. The reports retain the native comparisons.
+using the same locale data. It also checks selected filesystem and build
+diagnostics in C, French, German and Japanese on both builds, including raw
+paths and warning order. The reports retain the native comparisons.
 The dynamic musl gate has one C.UTF-8 wildcard byte-width case. Broader diagnostic
 producers, native and Guile callbacks, cache history, resource failures and
 musl NLS remain open. See the

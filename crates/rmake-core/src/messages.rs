@@ -41,6 +41,7 @@ pub enum MessageId {
     RecursiveVariable,
     OverrideRecipe,
     IgnoreOldRecipe,
+    OverrideGroupMembership,
     EnterDirectory,
     LeaveDirectory,
     EnterUnknownDirectory,
@@ -64,6 +65,8 @@ pub enum MessageId {
     SecondaryTargetConflict,
     CircularDependency,
     PatternPeerNotUpdated,
+    SuffixRulePrerequisites,
+    InvalidLibraryPattern,
     MissingTargetPattern,
     MultipleTargetPatterns,
     TargetPatternWithoutPercent,
@@ -86,7 +89,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 76] = [
+    pub const ALL: [Self; 79] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -121,6 +124,7 @@ impl MessageId {
         Self::RecursiveVariable,
         Self::OverrideRecipe,
         Self::IgnoreOldRecipe,
+        Self::OverrideGroupMembership,
         Self::EnterDirectory,
         Self::LeaveDirectory,
         Self::EnterUnknownDirectory,
@@ -144,6 +148,8 @@ impl MessageId {
         Self::SecondaryTargetConflict,
         Self::CircularDependency,
         Self::PatternPeerNotUpdated,
+        Self::SuffixRulePrerequisites,
+        Self::InvalidLibraryPattern,
         Self::MissingTargetPattern,
         Self::MultipleTargetPatterns,
         Self::TargetPatternWithoutPercent,
@@ -230,6 +236,7 @@ impl MessageId {
                 ignoring_previous: self == Self::IgnoreOldRecipe,
                 target: b"target",
             },
+            Self::OverrideGroupMembership => Message::OverrideGroupMembership(b"target"),
             Self::EnterDirectory
             | Self::LeaveDirectory
             | Self::EnterUnknownDirectory
@@ -298,6 +305,8 @@ impl MessageId {
                 prerequisite: b"input",
             },
             Self::PatternPeerNotUpdated => Message::PatternPeerNotUpdated(b"peer"),
+            Self::SuffixRulePrerequisites => Message::SuffixRulePrerequisites,
+            Self::InvalidLibraryPattern => Message::InvalidLibraryPattern(b"plain"),
             Self::MissingTargetPattern => Message::MissingTargetPattern,
             Self::MultipleTargetPatterns => Message::MultipleTargetPatterns,
             Self::TargetPatternWithoutPercent => Message::TargetPatternWithoutPercent,
@@ -377,6 +386,9 @@ impl MessageId {
             Self::RecursiveVariable => c"Recursive variable '%s' references itself (eventually)",
             Self::OverrideRecipe => c"warning: overriding recipe for target '%s'",
             Self::IgnoreOldRecipe => c"warning: ignoring old recipe for target '%s'",
+            Self::OverrideGroupMembership => {
+                c"warning: overriding group membership for target '%s'"
+            }
             Self::EnterDirectory => c"%s: Entering directory '%s'\n",
             Self::LeaveDirectory => c"%s: Leaving directory '%s'\n",
             Self::EnterUnknownDirectory => c"%s: Entering an unknown directory\n",
@@ -408,6 +420,10 @@ impl MessageId {
             Self::PatternPeerNotUpdated => {
                 c"warning: pattern recipe did not update peer target '%s'."
             }
+            Self::SuffixRulePrerequisites => {
+                c"warning: ignoring prerequisites on suffix rule definition"
+            }
+            Self::InvalidLibraryPattern => c".LIBPATTERNS element '%s' is not a pattern",
             Self::MissingTargetPattern => c"missing target pattern",
             Self::MultipleTargetPatterns => c"multiple target patterns",
             Self::TargetPatternWithoutPercent => c"target pattern contains no '%%'",
@@ -538,6 +554,7 @@ pub enum Message<'a> {
         ignoring_previous: bool,
         target: &'a [u8],
     },
+    OverrideGroupMembership(&'a [u8]),
     Directory {
         entering: bool,
         program: &'a [u8],
@@ -574,9 +591,11 @@ pub enum Message<'a> {
         prerequisite: &'a [u8],
     },
     PatternPeerNotUpdated(&'a [u8]),
+    SuffixRulePrerequisites,
     MissingTargetPattern,
     MultipleTargetPatterns,
     TargetPatternWithoutPercent,
+    InvalidLibraryPattern(&'a [u8]),
     DirectiveTail(&'a [u8]),
     DefineTail,
     EndefTail,
@@ -668,6 +687,7 @@ impl<'a> Message<'a> {
                 ignoring_previous: true,
                 ..
             } => MessageId::IgnoreOldRecipe,
+            Self::OverrideGroupMembership(_) => MessageId::OverrideGroupMembership,
             Self::Directory {
                 entering,
                 depth,
@@ -703,6 +723,8 @@ impl<'a> Message<'a> {
             }
             Self::CircularDependency { .. } => MessageId::CircularDependency,
             Self::PatternPeerNotUpdated(_) => MessageId::PatternPeerNotUpdated,
+            Self::SuffixRulePrerequisites => MessageId::SuffixRulePrerequisites,
+            Self::InvalidLibraryPattern(_) => MessageId::InvalidLibraryPattern,
             Self::MissingTargetPattern => MessageId::MissingTargetPattern,
             Self::MultipleTargetPatterns => MessageId::MultipleTargetPatterns,
             Self::TargetPatternWithoutPercent => MessageId::TargetPatternWithoutPercent,
@@ -750,6 +772,7 @@ impl<'a> Message<'a> {
             | Self::WaitForJobs
             | Self::ClockSkew
             | Self::IntermediatePolicyConflict
+            | Self::SuffixRulePrerequisites
             | Self::MissingTargetPattern
             | Self::MultipleTargetPatterns
             | Self::TargetPatternWithoutPercent
@@ -761,11 +784,13 @@ impl<'a> Message<'a> {
             | Self::EmptyNativeFunction => {}
             Self::RecursiveVariable(name)
             | Self::DuplicateRecipe { target: name, .. }
+            | Self::OverrideGroupMembership(name)
             | Self::IntermediateTargetConflict { target: name, .. }
             | Self::NothingToBeDone(name)
             | Self::UpToDate(name)
             | Self::LowResolutionTime(name)
             | Self::PatternPeerNotUpdated(name)
+            | Self::InvalidLibraryPattern(name)
             | Self::DirectiveTail(name)
             | Self::ExtraneousConditional(name)
             | Self::InvalidFileOperation(name)
@@ -1384,11 +1409,13 @@ mod user_error_boundary {
 #[derive(Clone, Copy, Debug)]
 pub enum WarningMessage<'a> {
     UndefinedVariable(&'a [u8]),
+    SuffixRulePrerequisites,
 }
 impl<'a> WarningMessage<'a> {
     pub fn message(self) -> Message<'a> {
         match self {
             Self::UndefinedVariable(name) => Message::UndefinedVariable(name),
+            Self::SuffixRulePrerequisites => Message::SuffixRulePrerequisites,
         }
     }
     pub fn english(self) -> Vec<u8> {
