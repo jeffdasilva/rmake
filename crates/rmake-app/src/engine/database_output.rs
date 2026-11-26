@@ -451,7 +451,9 @@ impl Engine {
         let unchecked = matches!(peer_time, Some(GroupPeerTime::Unchecked))
             || (!matches!(
                 database_result,
-                DatabaseResult::ObservedGroup | DatabaseResult::ObservedDoubleColon
+                DatabaseResult::ObservedGroup
+                    | DatabaseResult::ObservedDoubleColon
+                    | DatabaseResult::SimulatedRecipeFailure
             ) && self.database_unchecked_times.borrow().contains(name));
         let timestamp = if unchecked {
             None
