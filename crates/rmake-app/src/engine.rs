@@ -16738,17 +16738,13 @@ impl Engine {
                 }
             }
             if warn_missing && completed.time.is_none() {
+                let message = crate::messages::system(Message::PatternPeerNotUpdated(&peer));
                 emit_output(
                     &self.output,
                     &self.program,
                     Output::Warning {
                         location: group.location.as_ref(),
-                        message: &[
-                            b"warning: pattern recipe did not update peer target '".as_slice(),
-                            &peer,
-                            b"'.",
-                        ]
-                        .concat(),
+                        message: &message,
                     },
                 );
             }

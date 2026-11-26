@@ -1,5 +1,5 @@
 {
-  "classification": "Catalog producer models, including startup directory changes and target stat diagnostics. Input LOCPATH is supplied by the verified locale profile.",
+  "classification": "Catalog producer models, including startup directory changes, target stat diagnostics and grouped recipe warnings. Input LOCPATH is supplied by the verified locale profile.",
   "original_models_sha256": "78853414ec1b9e0bec84ad5fb9d9868efe94f6c01d67e39f1c7039e51a1db646",
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
   "fixture_sha256": {
@@ -668,6 +668,230 @@
         "stdout_hex": "",
         "stderr_hex": "6d616b653a202a2a2a2020417563756e652072c3a8676c6520706f757220666162726971756572206c61206369626c6520c2abc2a0706c61696e2f6368696c64c2a0c2bb2c206ec3a9636573736169726520706f757220c2abc2a06f7574c2a0c2bb2e20417272c3aa742e0a",
         "seen_hex": "616e63686f720a7265616465720a"
+      }
+    },
+    {
+      "id": "nls-group-peer-stops-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "report"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a207265706f72740a7265706f72743a20636174616c6f672e667261676d656e740a0940242866696c65203e3e7365656e2c6f7264696e617279297072696e746620226f7264696e6172795c6e220a252e667261676d656e7420252e6d657461646174613a0a0940242866696c65203e3e7365656e2c646973706174636829746f75636820222440220a09407072696e7466202264697370617463685c6e220a09406578697420390a242866696c65203e3e7365656e2c726561646572290a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {
+        "catalog.fragment": ""
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 2,
+        "stdout": "dispatch\nmake: *** [Makefile:7: catalog.fragment] Fehler 9\nMakefile:7: Warnung: Das Musterrezept hat das Peer-Ziel \u201ecatalog.metadata\u201c nicht aktualisiert.\n",
+        "stderr": "",
+        "seen": "anchor\nreader\ndispatch\n"
+      }
+    },
+    {
+      "id": "nls-group-peer-parallel-stops-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "report"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a207265706f72740a7265706f72743a20636174616c6f672e667261676d656e740a0940242866696c65203e3e7365656e2c6f7264696e617279297072696e746620226f7264696e6172795c6e220a252e667261676d656e7420252e6d657461646174613a0a0940242866696c65203e3e7365656e2c646973706174636829746f75636820222440220a09407072696e7466202264697370617463685c6e220a09406578697420390a242866696c65203e3e7365656e2c726561646572290a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {
+        "catalog.fragment": ""
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 2,
+        "stdout": "dispatch\nmake: *** [Makefile:7: catalog.fragment] \u30a8\u30e9\u30fc 9\nMakefile:7: \u8b66\u544a: \u30d1\u30bf\u30fc\u30f3\u30ec\u30b7\u30d4\u306f\u30d4\u30a2\u30bf\u30fc\u30b2\u30c3\u30c8 'catalog.metadata' \u3092\u66f4\u65b0\u3057\u307e\u305b\u3093\u3002\n",
+        "stderr": "",
+        "seen": "anchor\nreader\ndispatch\n"
+      }
+    },
+    {
+      "id": "nls-group-peer-ignored-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "report"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a207265706f72740a7265706f72743a20636174616c6f672e667261676d656e740a0940242866696c65203e3e7365656e2c6f7264696e617279297072696e746620226f7264696e6172795c6e220a252e667261676d656e7420252e6d657461646174613a0a0940242866696c65203e3e7365656e2c646973706174636829746f75636820222440220a09407072696e7466202264697370617463685c6e220a092d406578697420390a242866696c65203e3e7365656e2c726561646572290a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {
+        "catalog.fragment": ""
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout": "dispatch\nmake: [Makefile:7: catalog.fragment] \u30a8\u30e9\u30fc 9 (\u7121\u8996\u3055\u308c\u307e\u3057\u305f)\nMakefile:5: \u8b66\u544a: \u30d1\u30bf\u30fc\u30f3\u30ec\u30b7\u30d4\u306f\u30d4\u30a2\u30bf\u30fc\u30b2\u30c3\u30c8 'catalog.metadata' \u3092\u66f4\u65b0\u3057\u307e\u305b\u3093\u3002\nordinary\n",
+        "stderr": "",
+        "seen": "anchor\nreader\ndispatch\nordinary\n"
+      }
+    },
+    {
+      "id": "nls-group-peer-success-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "report"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a207265706f72740a7265706f72743a20636174616c6f672e667261676d656e740a0940242866696c65203e3e7365656e2c6f7264696e617279297072696e746620226f7264696e6172795c6e220a252e667261676d656e7420252e6d657461646174613a0a0940242866696c65203e3e7365656e2c646973706174636829746f75636820222440220a09407072696e7466202264697370617463685c6e220a09403a0a242866696c65203e3e7365656e2c726561646572290a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {
+        "catalog.fragment": ""
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout": "dispatch\nMakefile:5: Warnung: Das Musterrezept hat das Peer-Ziel \u201ecatalog.metadata\u201c nicht aktualisiert.\nordinary\n",
+        "stderr": "",
+        "seen": "anchor\nreader\ndispatch\nordinary\n"
+      }
+    },
+    {
+      "id": "nls-group-peer-success-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "report"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a207265706f72740a7265706f72743a20636174616c6f672e667261676d656e740a0940242866696c65203e3e7365656e2c6f7264696e617279297072696e746620226f7264696e6172795c6e220a252e667261676d656e7420252e6d657461646174613a0a0940242866696c65203e3e7365656e2c646973706174636829746f75636820222440220a09407072696e7466202264697370617463685c6e220a09403a0a242866696c65203e3e7365656e2c726561646572290a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {
+        "catalog.fragment": ""
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout": "dispatch\nMakefile:5: warning: pattern recipe did not update peer target 'catalog.metadata'.\nordinary\n",
+        "stderr": "",
+        "seen": "anchor\nreader\ndispatch\nordinary\n"
+      }
+    },
+    {
+      "id": "nls-group-peer-success-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "report"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a207265706f72740a7265706f72743a20636174616c6f672e667261676d656e740a0940242866696c65203e3e7365656e2c6f7264696e617279297072696e746620226f7264696e6172795c6e220a252e667261676d656e7420252e6d657461646174613a0a0940242866696c65203e3e7365656e2c646973706174636829746f75636820222440220a09407072696e7466202264697370617463685c6e220a09403a0a242866696c65203e3e7365656e2c726561646572290a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {
+        "catalog.fragment": ""
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout": "dispatch\nMakefile:5: warning: pattern recipe did not update peer target 'catalog.metadata'.\nordinary\n",
+        "stderr": "",
+        "seen": "anchor\nreader\ndispatch\nordinary\n"
+      }
+    },
+    {
+      "id": "nls-group-peer-unmodified-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "report"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a207265706f72740a7265706f72743a20636174616c6f672e667261676d656e740a0940242866696c65203e3e7365656e2c6f7264696e617279297072696e746620226f7264696e6172795c6e220a252e667261676d656e7420252e6d657461646174613a0a0940242866696c65203e3e7365656e2c6469737061746368293a0a09407072696e7466202264697370617463685c6e220a09406578697420390a242866696c65203e3e7365656e2c726561646572290a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {},
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 2,
+        "stdout": "dispatch\nmake: *** [Makefile:7: catalog.fragment] Fehler 9\n",
+        "stderr": "",
+        "seen": "anchor\nreader\ndispatch\n"
+      }
+    },
+    {
+      "id": "nls-group-peer-both-updated-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "report"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "2e50484f4e593a207265706f72740a7265706f72743a20636174616c6f672e667261676d656e740a0940242866696c65203e3e7365656e2c6f7264696e617279297072696e746620226f7264696e6172795c6e220a252e667261676d656e7420252e6d657461646174613a0a0940242866696c65203e3e7365656e2c646973706174636829746f756368202224402220636174616c6f672e6d657461646174610a09407072696e7466202264697370617463685c6e220a09403a0a242866696c65203e3e7365656e2c726561646572290a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {
+        "catalog.fragment": "",
+        "catalog.metadata": ""
+      },
+      "modules": [],
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout": "dispatch\nordinary\n",
+        "stderr": "",
+        "seen": "anchor\nreader\ndispatch\nordinary\n"
       }
     }
   ]
