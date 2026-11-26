@@ -535,6 +535,8 @@ Built-in recipe failures report the translated location label for numeric
 exit and signal statuses, including ignored errors and parallel output.
 Physical touch opens ordinary targets for reading and writing. The locale
 checks retain the target's contents and timestamp after a denied open.
+Interrupted intermediate cleanup localizes deletion and unlink failures while
+preserving raw filename and system error bytes.
 A restart that cannot return to the original directory emits the localized
 system warning and fatal message in order. It reports a failed unlink of
 the owned stdin source before the jobserver token report and finalizers.

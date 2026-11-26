@@ -9,6 +9,7 @@ import json
 import os
 from dataclasses import replace
 from pathlib import Path
+import signal
 import stat
 import sys
 import tempfile
@@ -83,9 +84,10 @@ def os_detail_witness(case, runtime, fact, kind):
     expected = dict(case.expected)
     stream = "stdout_hex" if case.output == "merged" else "stderr_hex"
     text = bytes.fromhex(expected[stream])
-    if text.count(b"@OS_DETAIL@") != 1:
-        raise h.HarnessError("expected one exact independent errno slot")
-    expected[stream] = text.replace(b"@OS_DETAIL@", out).hex()
+    marker = b"@SIGNAL_DETAIL@" if kind == "signal" else b"@OS_DETAIL@"
+    if text.count(marker) != 1:
+        raise h.HarnessError(f"expected one exact independent {kind} slot")
+    expected[stream] = text.replace(marker, out).hex()
     return replace(case, expected=expected), out
 
 
@@ -108,7 +110,7 @@ def cases(selection):
     debug_options = json.loads((DATA / "debug-options.json").read_bytes())
     suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution,
               touch_open, cleanup, wait_notice, intermediate, file_io, output_lock, debug_options)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 182, 15, 20, 14, 13, 18, 16, 15, 26, 8, 12, 12, 8, 7):
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 182, 15, 20, 14, 13, 18, 16, 15, 26, 8, 18, 12, 8, 7):
         raise h.HarnessError("unexpected NLS model inventory")
     shuffle_option = json.loads((DATA / "shuffle-option.json").read_bytes())
     if len(shuffle_option["rows"]) != 9 or shuffle_option["fixture_sha256"]:
@@ -203,6 +205,33 @@ def observe_touch_access(case, runtime, executable, access):
                 "observed_touch_mtime_ns": exact_time,
                 "touch_access_matches": mode == access["mode"] and mtime_matches}
     return h.Observation(out, err, status, limit, files, leftovers), evidence
+
+
+def interrupt_intermediate(case, runtime, executable, name, retains_directory):
+    work = runtime / "work"
+    marker = work / "ready"
+    target = work / native.safe_relative(name)
+    generated = work / "saved" if retains_directory else target
+    delivered = False
+
+    def observe(pid, _stdout):
+        nonlocal delivered
+        if delivered or not marker.is_file() or marker.read_bytes() != b"ready\n":
+            return
+        if ((retains_directory and not target.is_dir())
+                or not generated.is_file() or generated.read_bytes() != b"generated\n"):
+            raise h.HarnessError("interrupted fixture did not create its intermediate")
+        descriptor = os.pidfd_open(pid)
+        try:
+            signal.pidfd_send_signal(descriptor, signal.SIGTERM)
+            delivered = True
+        finally:
+            os.close(descriptor)
+
+    value = h.execute(case, runtime, executable, observe=observe)
+    if not delivered:
+        raise h.HarnessError("interrupted fixture did not reach controlled signal delivery")
+    return value
 
 
 def loader_witness(case, runtime, kind):
@@ -362,10 +391,14 @@ def main(argv=None):
                     control_record["control_help_stdout_hex"] = help_output.stdout.hex()
                     expected_case = replace(case, expected={**case.expected, "stdout_hex": help_output.stdout.hex()})
                 touch_record = {}
-                if (access := row.get("touch_access")) is None:
-                    value = h.execute(case, reset, executable, observe_streams=observer)
-                else:
+                intermediate = row.get("interrupt_intermediate")
+                if intermediate is not None:
+                    retains_directory = intermediate in row.get("created_directories", [])
+                    value = interrupt_intermediate(case, reset, executable, intermediate, retains_directory)
+                elif (access := row.get("touch_access")) is not None:
                     value, touch_record = observe_touch_access(case, reset, executable, access)
+                else:
+                    value = h.execute(case, reset, executable, observe_streams=observer)
                 differences = h.differences(observed[0], value) if observed else []
                 if help_control is not None and index == 2:
                     differences = [field for field in differences if field != "stdout"]
@@ -376,7 +409,8 @@ def main(argv=None):
                                                    observed_mtimes_ns=timestamps, timestamps_match=timestamps == expected_mtimes,
                                                    errors=h.expectation_errors(expected_case, value), filesystem_matches=value.filesystem == expected_files,
                                                    differences=differences, **control_record, **touch_record))
-                if value.limit or value.leftover_processes or value.returncode < 0:
+                controlled_signal = intermediate is not None and value.returncode == -signal.SIGTERM
+                if value.limit or value.leftover_processes or (value.returncode < 0 and not controlled_signal):
                     record["zero_credit"] = True
                     publish()
                     raise h.HarnessError("new NLS bound/signal retained; stop without replay")

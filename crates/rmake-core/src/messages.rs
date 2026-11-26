@@ -23,6 +23,7 @@ pub enum MessageId {
     RecipeError,
     BuiltinRecipe,
     DeleteTarget,
+    DeleteIntermediate,
     DeletePeer,
     RetainArchiveMember,
     RetainPeerArchiveMember,
@@ -119,7 +120,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 109] = [
+    pub const ALL: [Self; 110] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -136,6 +137,7 @@ impl MessageId {
         Self::RecipeError,
         Self::BuiltinRecipe,
         Self::DeleteTarget,
+        Self::DeleteIntermediate,
         Self::DeletePeer,
         Self::RetainArchiveMember,
         Self::RetainPeerArchiveMember,
@@ -270,6 +272,7 @@ impl MessageId {
                 suffix: b"",
             },
             Self::BuiltinRecipe => Message::BuiltinRecipe,
+            Self::DeleteIntermediate => Message::DeleteIntermediate(b"target"),
             Self::DeleteTarget
             | Self::DeletePeer
             | Self::RetainArchiveMember
@@ -510,6 +513,7 @@ impl MessageId {
             Self::RecipeError => c"%s[%s: %s] Error %d%s%s",
             Self::BuiltinRecipe => c"<builtin>",
             Self::DeleteTarget => c"*** Deleting file '%s'",
+            Self::DeleteIntermediate => c"*** Deleting intermediate file '%s'",
             Self::DeletePeer => c"*** [%s] Deleting file '%s'",
             Self::RetainArchiveMember => c"*** Archive member '%s' may be bogus; not deleted",
             Self::RetainPeerArchiveMember => {
@@ -719,6 +723,7 @@ pub enum Message<'a> {
         suffix: &'a [u8],
     },
     BuiltinRecipe,
+    DeleteIntermediate(&'a [u8]),
     RecipeCleanup {
         target: &'a [u8],
         owner: Option<&'a [u8]>,
@@ -907,6 +912,7 @@ impl<'a> Message<'a> {
             Self::TargetNotRemade(_) => MessageId::TargetNotRemade,
             Self::RecipeError { .. } => MessageId::RecipeError,
             Self::BuiltinRecipe => MessageId::BuiltinRecipe,
+            Self::DeleteIntermediate(_) => MessageId::DeleteIntermediate,
             Self::RecipeCleanup { owner, archive, .. } => match (owner.is_some(), archive) {
                 (false, false) => MessageId::DeleteTarget,
                 (true, false) => MessageId::DeletePeer,
@@ -1223,7 +1229,9 @@ impl<'a> Message<'a> {
                 }
                 push(Argument::Bytes(suffix));
             }
-            Self::TargetNotRemade(target) => push(Argument::Bytes(target)),
+            Self::TargetNotRemade(target) | Self::DeleteIntermediate(target) => {
+                push(Argument::Bytes(target));
+            }
             Self::RecipeCleanup { target, owner, .. } => {
                 if let Some(owner) = owner {
                     push(Argument::Bytes(owner));
