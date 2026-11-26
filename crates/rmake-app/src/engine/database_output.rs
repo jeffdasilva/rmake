@@ -337,6 +337,14 @@ impl Engine {
             }
         });
         let mut view = FileView::unchecked(name, rule);
+        if branch.is_none()
+            && rule.is_some_and(|rule| rule.default_recipe)
+            && rmake_core::filenames::archive_parts(name).is_none()
+            && !self.aliases.contains_source_or_destination(name)
+        {
+            // Borrowing .DEFAULT's commands does not declare this file.
+            view.is_target = false;
+        }
         if rule.is_some_and(|rule| rule.secondary.is_some())
             && let Some(captured) = &self.database_expanded_prerequisites
         {
