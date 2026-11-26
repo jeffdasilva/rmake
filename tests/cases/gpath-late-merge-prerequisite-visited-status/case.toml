@@ -1,0 +1,12 @@
+id = "gpath-late-merge-prerequisite-visited-status"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "The queued source is reported when the canonical file was first visited as a prerequisite."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "visit", "hide", "parent", "after", "parent"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "initial-goals=[visit hide parent after parent]\nbuild=[parent|input]\nlate-goals=[visit hide parent after parent]\nmake: 'src/parent' is up to date.\n"
+stderr = ""

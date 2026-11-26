@@ -1,0 +1,12 @@
+id = "gpath-late-merge-visited-destination-status"
+requirement = "resolution.gpath"
+candidate = "required"
+description = "A previously visited canonical goal keeps its successful summary after the source merges."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture."
+args = ["-rR", "--no-print-directory", "-j1", "src/parent", "hide", "parent", "after", "src/parent"]
+timeout_seconds = 4
+
+[expected]
+exit_code = 0
+stdout = "initial-goals=[src/parent hide parent after src/parent]\nmake: Nothing to be done for 'src/parent'.\nbuild=[parent|input]\nlate-goals=[src/parent hide parent after src/parent]\nmake: 'src/parent' is up to date.\n"
+stderr = ""

@@ -315,15 +315,25 @@ def execute_model(model: Model, case: h.Case, runtime: Path, binary: Path) -> h.
             return
         prefix, marker = sequence[released]
         expected_started = sequence[released:released + 1] if model.sequential_workers else sequence[released:]
-        if marker not in stdout or not all((work / (name + 'started')).is_file() for name, _ in expected_started):
+        if marker not in stdout:
             return
+        for name, _ in expected_started:
+            started = work / (name + 'started')
+            if not started.is_file():
+                return
+            content = started.read_bytes()
+            if content != b'started\n':
+                # Some worker recipes create the file before writing the marker.
+                if b'started\n'.startswith(content):
+                    return
+                raise h.HarnessError('worker was not held at the declared boundary')
         if model.sequential_workers and any(
             (work / (name + 'started')).is_file() for name, _ in sequence[released + 1:]
         ):
             raise h.HarnessError('sequential worker started before its predecessor was released')
         if released and not (work / (sequence[released - 1][0] + 'done')).is_file():
             return
-        if (work / (prefix + 'started')).read_bytes() != b'started\n' or (work / (prefix + 'done')).exists():
+        if (work / (prefix + 'done')).exists():
             raise h.HarnessError('worker was not held at the declared boundary')
         temporary = work / (prefix + 'release.tmp')
         temporary.write_bytes(b'yes\n')

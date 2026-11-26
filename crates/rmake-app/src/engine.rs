@@ -337,6 +337,8 @@ enum DatabaseResult {
     RecipeUnstarted,
     // A completed archive container merged into an unattempted file record.
     MergedArchiveContainer,
+    // A completed ordinary source whose visited destination kept its file stem.
+    MergedVisitedFile,
     // A stopping missing-rule diagnostic precedes update completion.
     UnfinishedMissingRule,
 }
@@ -365,6 +367,7 @@ enum RemakeFailure {
     DirectExplicitGroupOwner,
     RequiredSyntheticInput,
     RequiredSyntheticRecipe,
+    RequiredDeclaredTailRecipe,
     Optional,
     RequiredClockUnchanged,
     RequiredClockChanged,
@@ -524,6 +527,7 @@ struct MakefileRemake {
     optional: bool,
     retain_failure: bool,
     use_declared_synthetic_head: bool,
+    use_declared_tail_head: bool,
     stopped: Option<Rc<Cell<bool>>>,
     open_error: Option<SharedIncludeError>,
 }
@@ -1035,6 +1039,13 @@ struct MovedArchiveRecord {
 enum MergedGoalReport {
     CompletedSource(Vec<u8>),
     UnattemptedDestination,
+}
+
+#[derive(Clone, Copy)]
+struct MergedGoalOwners {
+    source: FileRecordId,
+    destination: FileRecordId,
+    destination_unattempted: bool,
 }
 
 struct TargetReads<'a> {
@@ -4122,9 +4133,12 @@ impl Engine {
                                   source: &Makefile,
                                   mut outcome: Outcome,
                                   initial_visit: bool| {
-                // Keep the synthetic failure for ordinary prerequisite visits.
-                // The remake pass uses the successful declared source.
+                // Keep each branch failure for ordinary prerequisite visits.
+                // The remake pass uses the original successful source head.
                 if matches!(
+                    outcome.remake_failure,
+                    RemakeFailure::RequiredDeclaredTailRecipe
+                ) || (matches!(
                     outcome.remake_failure,
                     RemakeFailure::RequiredSyntheticInput | RemakeFailure::RequiredSyntheticRecipe
                 ) && (uses_declared_synthetic_head(engine, source)
@@ -4151,7 +4165,7 @@ impl Engine {
                                 }
                                 _ => false,
                             }
-                    }))
+                    })))
                 {
                     outcome.failed = false;
                     outcome.first_branch_verdict = None;
@@ -4266,6 +4280,7 @@ impl Engine {
                             use_declared_synthetic_head: uses_declared_synthetic_head(
                                 self, makefile,
                             ),
+                            use_declared_tail_head: false,
                             stopped: None,
                             // The diagnostic uses the first read's saved error,
                             // selected by the current occurrence's policy.
@@ -4372,7 +4387,21 @@ impl Engine {
                                 .outcome(self.aliases.resolve(name))
                                 .copied()
                                 .unwrap_or_default();
+                            // A settled duplicate already prunes its first
+                            // entry. Its remaining declarations revisit the
+                            // same considered chain head.
+                            let before = first.get().0;
+                            let extra_prunes = before.is_some()
+                                && before == cached.time
+                                && !cached.failed
+                                && !cached.ran
+                                && cached.completion == CompletionTime::Unchanged
+                                && self.debug_was_considered(name)
+                                && self.parallel_remake_debug_declarations(name);
                             self.debug_cached_prerequisite_visit(name, 1, cached);
+                            if extra_prunes {
+                                self.debug_double_colon_goal_prunes(name, cached);
+                            }
                         }
                         if makefile.optional
                             && visit_modes.touch
@@ -4385,6 +4414,13 @@ impl Engine {
                         continue;
                     }
                 };
+                let trace_parallel_declarations = self.parallel_remake_debug_declarations(name)
+                    && !makefile.missing
+                    && !self.pending(name)
+                    && self
+                        .file_traversals
+                        .outcome(name)
+                        .is_none_or(|outcome| !outcome.failed && self.debug_was_considered(name));
                 let optional = makefile.optional;
                 let may_replay = optional && required_names.contains(name);
                 let deferred_peer_failure = !optional
@@ -4532,6 +4568,10 @@ impl Engine {
                     optional,
                     retain_failure: optional,
                     use_declared_synthetic_head: uses_declared_synthetic_head(self, makefile),
+                    use_declared_tail_head: self.parallel_makefile_remakes
+                        && !modes.active()
+                        && !optional
+                        && !makefile.missing,
                     stopped: (optional && self.parallel_makefile_remakes)
                         .then(|| Rc::new(Cell::new(false))),
                     open_error: if optional {
@@ -4828,12 +4868,20 @@ impl Engine {
                 // after a failed declaration and report the prune.
                 let settled_chain = !result.failed
                     || (!optional && self.options.keep_going && serial_declarations.is_some());
-                if !self.parallel_makefile_remakes
-                    && settled_chain
-                    && (!optional || before == result.time)
-                    && !(optional
-                        && serial_declarations.is_some()
-                        && result.remake_group_peer_updated)
+                let settled_parallel_declarations = trace_parallel_declarations
+                    && before.is_some()
+                    && before == result.time
+                    && !result.ran
+                    && result.completion == CompletionTime::Unchanged
+                    && (!result.failed || !optional)
+                    && !self.pending(name);
+                if settled_parallel_declarations
+                    || (!self.parallel_makefile_remakes
+                        && settled_chain
+                        && (!optional || before == result.time)
+                        && !(optional
+                            && serial_declarations.is_some()
+                            && result.remake_group_peer_updated))
                 {
                     self.debug_double_colon_goal_prunes(name, result);
                 }
@@ -7052,6 +7100,33 @@ impl Engine {
         );
     }
 
+    fn parallel_remake_debug_declarations(&self, name: &[u8]) -> bool {
+        use crate::debug::Mask;
+
+        let debug = self.output.debug_mask();
+        self.parallel_makefile_remakes
+            && debug.has(Mask::VERBOSE)
+            && debug.has(Mask::MAKEFILES)
+            && !MakefileModes::from_options(&self.options).active()
+            && self.assumptions.is_none()
+            && self.makefile_names.contains(name)
+            && self.aliases.resolve(name) == name
+            && !self.resolved_names.contains_key(name)
+            && self
+                .database
+                .rules
+                .get(name)
+                .and_then(|rule| rule.double_colon.as_ref())
+                .is_some_and(|branches| {
+                    branches.len() > 1
+                        && branches.iter().all(|branch| {
+                            branch.recipes.is_some()
+                                && branch.grouped_targets().is_none()
+                                && branch.implicit_pattern.is_none()
+                        })
+                })
+    }
+
     fn debug_double_colon_goal_prunes(&self, goal: &[u8], outcome: Outcome) {
         use crate::debug::{Event, Mask, emit};
 
@@ -8909,15 +8984,20 @@ impl Engine {
             outcome.completion = CompletionTime::ArchiveUnknown;
         }
         let optional_failure = self.optional_remake() && !outcome.fatal;
-        let failed_synthetic_recipe = launched
+        let failed_source_recipe = launched
             && command_failed
             && error_code.is_some()
             && !job.recursive
             && !pending
             && !outcome.fatal
-            && !outcome.blocked
-            && self.required_synthetic_recipe(target.as_slice(), recipe_branch);
-        if failed_synthetic_recipe {
+            && !outcome.blocked;
+        if failed_source_recipe
+            && self.required_declared_tail_recipe(target.as_slice(), recipe_branch)
+        {
+            outcome.remake_failure = RemakeFailure::RequiredDeclaredTailRecipe;
+        } else if failed_source_recipe
+            && self.required_synthetic_recipe(target.as_slice(), recipe_branch)
+        {
             // The child error is reported and cached. The source pass uses the
             // declared result, so this child does not fail unrelated goals.
             outcome.remake_failure = RemakeFailure::RequiredSyntheticRecipe;
@@ -9041,10 +9121,11 @@ impl Engine {
                     } else {
                         None
                     };
-                let merged_owners =
-                    settled_container.and_then(|_| self.late_goal_merge_owners(archive, path));
+                let merged_owners = settled_container
+                    .and_then(|_| self.late_goal_merge_owners(archive, path))
+                    .filter(|owners| owners.destination_unattempted);
                 let retained_owner = if self.database.file_records.contains(path) {
-                    merged_owners.map(|(_, destination)| destination)
+                    merged_owners.map(|owners| owners.destination)
                 } else {
                     settled_container
                 };
@@ -9064,9 +9145,9 @@ impl Engine {
                     // Both kinds of permanent rename retain the update and
                     // the observation of the searched container.
                     outcome.time = location.container_time;
-                    if let Some((source, destination)) = merged_owners {
+                    if let Some(owners) = merged_owners {
                         outcome.database_result = DatabaseResult::MergedArchiveContainer;
-                        self.record_merged_goal_reports(source, destination, path);
+                        self.record_merged_goal_reports(owners, path);
                     }
                     self.file_traversals.set_outcome(path, outcome);
                     self.archive_vpath_reads
@@ -9099,7 +9180,7 @@ impl Engine {
                             history.intern(path);
                             history.intern(&name);
                         }
-                        self.relocate_search_record(archive, path, Some(owner))?;
+                        self.relocate_search_record(archive, path, Some(owner), None)?;
                     } else {
                         self.database.file_records.rehash(archive, path);
                     }
@@ -9182,7 +9263,7 @@ impl Engine {
     }
 
     fn rename_search_record(&mut self, from: &[u8], to: &[u8]) -> Result<(), ()> {
-        self.relocate_search_record(from, to, None)
+        self.relocate_search_record(from, to, None, None)
     }
 
     fn relocate_search_record(
@@ -9190,6 +9271,7 @@ impl Engine {
         from: &[u8],
         to: &[u8],
         tentative_archive: Option<FileRecordId>,
+        late_goal_owners: Option<MergedGoalOwners>,
     ) -> Result<(), ()> {
         if from == to {
             return Ok(());
@@ -9253,6 +9335,17 @@ impl Engine {
             && !self.target_contexts.contains_key(to)
             && !self.database_contexts.contains_key(to)
             && self.file_traversals.visit(to).is_none();
+        // A recipe-less visit retains the destination declaration table but
+        // has no recipe locals yet. Its top-level scope can receive the source.
+        let visited_declaration_only = late_goal_owners
+            .is_some_and(|owners| !owners.destination_unattempted)
+            && destination_has_scope
+            && !self.database_contexts.contains_key(to)
+            && !self.target_contexts.contains_key(to)
+            && self
+                .file_traversals
+                .visit(to)
+                .is_some_and(|visit| visit.parent.is_none());
         let completed_scope_merge = !self.remaking
             && retained_ordinary
             && self
@@ -9273,11 +9366,12 @@ impl Engine {
                 self.file_traversals
                     .outcome(to)
                     .is_some_and(|outcome| !outcome.failed && !outcome.search_after_update)
-                    && self.database_contexts.contains_key(to)
-                    && self.target_contexts.contains_key(to)
-                    && (destination_has_scope
-                        || (rmake_core::filenames::archive_parts(from).is_none()
-                            && rmake_core::filenames::archive_parts(to).is_none()))
+                    && (visited_declaration_only
+                        || (self.database_contexts.contains_key(to)
+                            && self.target_contexts.contains_key(to)
+                            && (destination_has_scope
+                                || (rmake_core::filenames::archive_parts(from).is_none()
+                                    && rmake_core::filenames::archive_parts(to).is_none()))))
             } else {
                 destination_has_scope
                     && !self.database_contexts.contains_key(to)
@@ -9437,6 +9531,7 @@ impl Engine {
                 source,
                 self.database_contexts.get(to),
                 self.target_contexts.get(to),
+                visited_declaration_only,
             )
         {
             self.database_contexts.insert(to.to_vec(), saved);
@@ -10386,23 +10481,18 @@ impl Engine {
         self.merged_goal_reports.get(&owner)
     }
 
-    fn record_merged_goal_reports(
-        &mut self,
-        source: FileRecordId,
-        destination: FileRecordId,
-        name: &[u8],
-    ) {
-        self.merged_goal_reports
-            .insert(source, MergedGoalReport::CompletedSource(name.to_vec()));
-        self.merged_goal_reports
-            .insert(destination, MergedGoalReport::UnattemptedDestination);
+    fn record_merged_goal_reports(&mut self, owners: MergedGoalOwners, name: &[u8]) {
+        self.merged_goal_reports.insert(
+            owners.source,
+            MergedGoalReport::CompletedSource(name.to_vec()),
+        );
+        if owners.destination_unattempted {
+            self.merged_goal_reports
+                .insert(owners.destination, MergedGoalReport::UnattemptedDestination);
+        }
     }
 
-    fn late_goal_merge_owners(
-        &self,
-        from: &[u8],
-        to: &[u8],
-    ) -> Option<(FileRecordId, FileRecordId)> {
+    fn late_goal_merge_owners(&self, from: &[u8], to: &[u8]) -> Option<MergedGoalOwners> {
         // A prior terminal verdict can stop GNU's completion-time search
         // without stopping subsequent goals under keep-going.
         if self.remaking
@@ -10412,8 +10502,6 @@ impl Engine {
             || self.aliases.contains(to)
             || rmake_core::filenames::archive_parts(from).is_some()
             || rmake_core::filenames::archive_parts(to).is_some()
-            || self.file_traversals.visit(to).is_some()
-            || self.file_traversals.has_outcome(to)
             || self.database.rules.get(to).is_some_and(|rule| {
                 !rule.record_only || rule.double_colon.is_some() || rule.group.is_some()
             })
@@ -10426,6 +10514,25 @@ impl Engine {
         {
             return None;
         }
+        let visited = self.file_traversals.visit(to).is_some();
+        let outcome = self.file_traversals.outcome(to);
+        let destination_unattempted = !visited && outcome.is_none();
+        if !destination_unattempted
+            && (!visited
+                || rule.double_colon.is_some()
+                || MakefileModes::from_options(&self.options).active()
+                || self.assumed_time(to).is_some()
+                || !outcome.is_some_and(|result| {
+                    !result.failed
+                        && !result.question_outdated
+                        && !result.ran
+                        && result.completion == CompletionTime::Unchanged
+                        && result.database_result == DatabaseResult::Outcome
+                        && result.time.is_some()
+                }))
+        {
+            return None;
+        }
         let source = self.database.file_records.id(from)?;
         let destination = self.database.file_records.id(to)?;
         if source == destination
@@ -10434,10 +10541,14 @@ impl Engine {
         {
             return None;
         }
-        // The completed source retains its status and adopts the new name.
-        // The existing destination inherits the updated flag and keeps its
-        // own unattempted status. Queued operands still refer to either ID.
-        Some((source, destination))
+        // The queued source keeps its success and adopts the new name. The
+        // destination keeps its own update result, including an earlier
+        // successful visit of an existing file without a recipe.
+        Some(MergedGoalOwners {
+            source,
+            destination,
+            destination_unattempted,
+        })
     }
 
     fn defer_goal_timestamp_after_failure(
@@ -10508,13 +10619,19 @@ impl Engine {
                     && (self.gpath_match(target, &name) || self.other_file_record(&name, target))
                 {
                     let owners = self.late_goal_merge_owners(target, &name);
-                    if self.rename_search_record(target, &name).is_err() {
+                    if self
+                        .relocate_search_record(target, &name, None, owners)
+                        .is_err()
+                    {
                         outcome.failed = true;
                         outcome.fatal = true;
-                    } else if let Some((source, destination)) = owners
+                    } else if let Some(owners) = owners
                         && !self.database.has_detached_file_head(&name)
                     {
-                        self.record_merged_goal_reports(source, destination, &name);
+                        if !owners.destination_unattempted {
+                            outcome.database_result = DatabaseResult::MergedVisitedFile;
+                        }
+                        self.record_merged_goal_reports(owners, &name);
                     }
                     self.file_traversals.set_outcome(&name, outcome);
                     if self.database.has_detached_file_head(&name) {
@@ -13215,6 +13332,41 @@ impl Engine {
         false
     }
 
+    fn required_declared_tail_recipe(&self, target: &[u8], ordinal: Option<usize>) -> bool {
+        let Some(ordinal) = ordinal.filter(|&ordinal| ordinal != 0) else {
+            return false;
+        };
+        self.options.keep_going
+            && !MakefileModes::from_options(&self.options).active()
+            && !self.running_groups.contains_key(target)
+            && self.pending_double_colon.get(target).is_some_and(|state| {
+                state.depth == 0
+                    && state.active == Some(ordinal)
+                    && state.before.is_some()
+                    && !state.phony
+                    && state.branches.is_empty()
+                    && state
+                        .remake
+                        .as_ref()
+                        .is_some_and(|context| context.use_declared_tail_head)
+                    && state.combined.time == state.before
+                    && !state.combined.ran
+                    && !state.combined.fatal
+                    && state.combined.terminal_verdict().is_none()
+            })
+            && self.database.rules.get(target).is_some_and(|rule| {
+                rule.double_colon.as_ref().is_some_and(|branches| {
+                    branches.len() == ordinal + 1
+                        && branches.iter().all(|branch| {
+                            branch.grouped_targets().is_none()
+                                && branch.implicit_pattern.is_none()
+                                && !branch.default_recipe
+                                && branch.recipes.is_some()
+                        })
+                })
+            })
+    }
+
     fn required_synthetic_recipe(&self, target: &[u8], ordinal: Option<usize>) -> bool {
         let Some(ordinal) = ordinal else {
             return false;
@@ -13669,6 +13821,12 @@ impl Engine {
     }
 
     fn resume_double_colon_state(&mut self, target: &[u8], mut state: DoubleColonState) -> Outcome {
+        let fresh_parallel_remake_source = state.last_epoch.is_none()
+            && state.before.is_some()
+            && !state.phony
+            && self.remaking
+            && self.active_makefile_remake.is_some()
+            && self.parallel_remake_debug_declarations(target);
         state.last_epoch = Some(self.graph_epoch);
         let mut replay_cached_after_recipe = false;
         let serial_remake_root = self.remaking
@@ -13738,6 +13896,7 @@ impl Engine {
                 if matches!(
                     result.remake_failure,
                     RemakeFailure::RequiredSyntheticRecipe
+                        | RemakeFailure::RequiredDeclaredTailRecipe
                 ) {
                     state.combined.remake_failure = result.remake_failure;
                 }
@@ -14009,7 +14168,7 @@ impl Engine {
             }
             if ordinal != 0
                 && declared
-                && (!self.remaking || serial_remake_root)
+                && (!self.remaking || serial_remake_root || fresh_parallel_remake_source)
                 && assumed_time.is_none()
             {
                 let depth = state.depth + usize::from(self.remaking);
@@ -17807,6 +17966,7 @@ mod tests {
             optional: true,
             retain_failure: true,
             use_declared_synthetic_head: false,
+            use_declared_tail_head: false,
             stopped: None,
             open_error: None,
         });

@@ -480,6 +480,10 @@ impl Engine {
             view.intermediate = true;
         }
         if let Some(outcome) = outcome {
+            if outcome.database_result == DatabaseResult::MergedVisitedFile {
+                // The destination's own stem is separate from imported $*.
+                view.stem = None;
+            }
             view.updated = outcome.database_result != DatabaseResult::UnfinishedMissingRule;
             view.status = if !view.updated {
                 FileStatus::Unattempted

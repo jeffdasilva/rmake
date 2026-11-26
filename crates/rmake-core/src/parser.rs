@@ -1072,6 +1072,7 @@ impl Database {
         source: &VariableStore,
         destination: Option<&VariableStore>,
         destination_base: Option<&VariableStore>,
+        visited_declaration_only: bool,
     ) -> Option<(VariableStore, VariableStore)> {
         if destination_base.is_some_and(|base| !base.is_file_read_context(to)) {
             return None;
@@ -1079,7 +1080,15 @@ impl Database {
         let source_declarations = self.target_scopes.get(from);
         let scope = match self.target_scopes.get(to) {
             Some(scope) => {
-                scope.merge_completed_file_bindings(destination, source_declarations?, source)?
+                if source_declarations.is_none() && !visited_declaration_only {
+                    return None;
+                }
+                scope.merge_completed_file_bindings(
+                    destination,
+                    from,
+                    source_declarations,
+                    source,
+                )?
             }
             None => TargetScope::merge_completed_undeclared_file_bindings(
                 to,
