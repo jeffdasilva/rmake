@@ -55285,6 +55285,490 @@
         }
       ],
       "trusted_trace_sha256": "069bd2f89544aef3671844b68e1d9c642d5c20f0d11e18f2daae3ce67d17f4d8"
+    },
+    "database-phase-assumed-publication-old-retained-repeat": {
+      "template_sha256": "f9cc0366b40043859433d759d27e3c9f20677c6b416976b6efa36ed952145aef",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "62"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "62"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "62"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "4211658731ea9b11cda6e58ac62c2227e7db1fccf48b5be58c08e543cb15f354"
+    },
+    "database-phase-assumed-publication-new-retained-repeat": {
+      "template_sha256": "841772265a7d1999147098ed638009da94be9daec78faba14c2a7b460fd8ceb0",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "62"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "62"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "62"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "4211658731ea9b11cda6e58ac62c2227e7db1fccf48b5be58c08e543cb15f354"
+    },
+    "database-phase-assumed-publication-old-and-new-same": {
+      "template_sha256": "21f8a4fec5a903ab8dbcffdd1be89012e8b820baec52812ec20ed1c7a6db8209",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "62"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "62"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "62"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "4211658731ea9b11cda6e58ac62c2227e7db1fccf48b5be58c08e543cb15f354"
+    },
+    "database-phase-assumed-publication-distinct-control": {
+      "template_sha256": "ad8e3381d839bb638774019e9a3fa0a360a911a4fbacf271659bd080f23a2b90",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "62"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "62"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "62"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "62"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "732ee8670e09131a4de24d8cf7e3aad59b0ff0a4838766619dd8274417c09988"
     }
   }
 }

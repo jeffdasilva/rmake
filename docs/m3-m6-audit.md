@@ -49,6 +49,8 @@ at the end of this audit.
   earlier source record.
   Repeated assumed-old operands check prepared names before expanding HOME
   or recording another filename lookup.
+  The initial file-table publication records each retained old operand and
+  then each active new operand, even when the name shares an age record.
   Startup include options cache each accepted operand after filename preparation.
   Search construction records each existing directory in scan order and preserves
   its cache event even when a later `-I-` clears it from the search list.

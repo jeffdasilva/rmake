@@ -3946,7 +3946,7 @@ impl Engine {
                 .map(|file| file.name.clone())
                 .collect();
             if let Some(files) = &mut self.assumptions {
-                files.bind(&mut self.database, restarts == 0);
+                files.bind(&mut self.database, &self.options, restarts == 0);
             }
             self.output.select(None);
             if let Some(buffer) = self.reader_output.take() {
