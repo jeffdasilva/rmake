@@ -221,13 +221,9 @@ impl State {
             .include_directories
             .iter()
             .any(|name| name.as_os_str().as_bytes().starts_with(b"~"));
-        let search = mode.and_then(|mode| {
+        if let Some(mode) = mode {
             self.output.set_mode(mode);
-            (!effectful_search).then(|| IncludeSearch::new(&updated.include_directories))
-        });
-        let include_dirs = search.as_ref().map_or_else(Vec::new, |search| {
-            search.directories().map(<[u8]>::to_vec).collect()
-        });
+        }
         let result = rmake_core::diagnostic::MakeflagsResult {
             eval_reference: !updated.evals.is_empty(),
             // Finalization selects current flags after nested metadata effects.
@@ -235,33 +231,16 @@ impl State {
             value: Vec::new(),
             origin: origin(updated.environment_override),
             environment_override: updated.environment_override,
-            include_dirs,
-            prepare_includes: (effectful_search && mode.is_some()).then(|| {
+            include_dirs: Vec::new(),
+            prepare_includes: mode.map(|_| {
                 Box::new(SearchPreparation::new(
                     self.options.clone(),
                     self.includes.clone(),
                     self.remaking.get(),
+                    effectful_search,
                 )) as Box<dyn rmake_core::diagnostic::IncludePreparation>
             }),
-            publish_includes: if let Some(search) = search {
-                Some(Box::new({
-                    let includes = self.includes.clone();
-                    let options = self.options.clone();
-                    let remaking = self.remaking.get();
-                    move || {
-                        includes.replace(search);
-                        let options = options.borrow();
-                        rmake_core::diagnostic::MakeflagsMetadata {
-                            eval_reference: !options.evals.is_empty(),
-                            value: options.recursive_flags_for_phase(true, remaking),
-                            origin: origin(options.environment_override),
-                            environment_override: options.environment_override,
-                        }
-                    }
-                }))
-            } else {
-                None
-            },
+            publish_includes: None,
             assignments,
             warning_positions,
             notices,
@@ -337,6 +316,7 @@ struct SearchPreparation {
     options: std::rc::Rc<RefCell<Options>>,
     includes: std::rc::Rc<RefCell<IncludeSearch>>,
     remaking: bool,
+    effectful: bool,
     cursor: usize,
     reset: bool,
     builder: crate::makefiles::IncludeSearchBuilder,
@@ -347,11 +327,13 @@ impl SearchPreparation {
         options: std::rc::Rc<RefCell<Options>>,
         includes: std::rc::Rc<RefCell<IncludeSearch>>,
         remaking: bool,
+        effectful: bool,
     ) -> Self {
         Self {
             options,
             includes,
             remaking,
+            effectful,
             cursor: 0,
             reset: false,
             builder: Default::default(),
@@ -360,7 +342,15 @@ impl SearchPreparation {
 }
 
 impl rmake_core::diagnostic::IncludePreparation for SearchPreparation {
+    fn record_directory_history(&mut self, history: &rmake_core::database::History) -> bool {
+        self.builder = crate::makefiles::IncludeSearchBuilder::with_history(Some(history));
+        true
+    }
+
     fn next(&mut self) -> Option<Vec<u8>> {
+        if !self.effectful {
+            return None;
+        }
         let value = self
             .options
             .borrow()
@@ -380,7 +370,13 @@ impl rmake_core::diagnostic::IncludePreparation for SearchPreparation {
             self.builder.push_resolved(&value);
         }
     }
-    fn finish(self: Box<Self>) -> rmake_core::diagnostic::PreparedIncludes {
+    fn finish(mut self: Box<Self>) -> rmake_core::diagnostic::PreparedIncludes {
+        if !self.effectful {
+            // Literal operands do not need to pass through the evaluator.
+            for value in &self.options.borrow().include_directories {
+                self.builder.push(value.as_os_str().as_bytes());
+            }
+        }
         let search = self.builder.finish();
         let directories = search.directories().map(<[u8]>::to_vec).collect();
         let options = self.options;
@@ -561,31 +557,16 @@ impl rmake_core::diagnostic::FlagDecoder for OwnedFlagDecoder {
         };
         if !passive {
             output.set_mode(mode);
-            if current
+            let effectful_search = current
                 .include_directories
                 .iter()
-                .any(|name| name.as_os_str().as_bytes().starts_with(b"~"))
-            {
-                result.prepare_includes = Some(Box::new(SearchPreparation::new(
-                    options.clone(),
-                    includes,
-                    remaking,
-                )));
-                return Ok(result);
-            }
-            let search = IncludeSearch::new(&current.include_directories);
-            result.include_dirs = search.directories().map(<[u8]>::to_vec).collect();
-            let captured = options.clone();
-            result.publish_includes = Some(Box::new(move || {
-                includes.replace(search);
-                let options = captured.borrow();
-                rmake_core::diagnostic::MakeflagsMetadata {
-                    eval_reference: !options.evals.is_empty(),
-                    value: options.recursive_flags_for_phase(true, remaking),
-                    origin: origin(options.environment_override),
-                    environment_override: options.environment_override,
-                }
-            }));
+                .any(|name| name.as_os_str().as_bytes().starts_with(b"~"));
+            result.prepare_includes = Some(Box::new(SearchPreparation::new(
+                options.clone(),
+                includes,
+                remaking,
+                effectful_search,
+            )));
         }
         Ok(result)
     }
@@ -1223,6 +1204,12 @@ mod remake_mode_tests {
         )
     }
 
+    fn publish_direct_search(result: rmake_core::diagnostic::MakeflagsResult) -> Vec<u8> {
+        let mut search = result.prepare_includes.unwrap();
+        assert!(search.next().is_none());
+        (search.finish().publish)().value
+    }
+
     #[test]
     fn live_flags_start_from_visit_modes_and_preserve_explicit_changes() {
         let original = Options {
@@ -1242,10 +1229,7 @@ mod remake_mode_tests {
                 origin: Origin::File,
             })
             .unwrap();
-        assert_eq!(
-            result.publish_includes.unwrap()().value,
-            b" --no-print-directory"
-        );
+        assert_eq!(publish_direct_search(result), b" --no-print-directory");
         let current = state.take().unwrap();
         assert!(!current.question && !current.touch && !current.dry_run);
         assert_eq!(current.files, original.files);
@@ -1257,10 +1241,7 @@ mod remake_mode_tests {
                 origin: Origin::File,
             })
             .unwrap();
-        assert_eq!(
-            result.publish_includes.unwrap()().value,
-            b" --no-print-directory"
-        );
+        assert_eq!(publish_direct_search(result), b" --no-print-directory");
         let current = state.take().unwrap();
         assert!(current.question && current.touch && current.dry_run);
         assert!(original.question && original.touch && !original.dry_run);
@@ -1273,10 +1254,7 @@ mod remake_mode_tests {
                 origin: Origin::File,
             })
             .unwrap();
-        assert_eq!(
-            result.publish_includes.unwrap()().value,
-            b"qt --no-print-directory"
-        );
+        assert_eq!(publish_direct_search(result), b"qt --no-print-directory");
     }
 
     #[test]
@@ -1337,7 +1315,7 @@ mod remake_mode_tests {
         }
         let result = decoder.finish().unwrap();
         assert_eq!(result.value, b" -Iresolved/inc");
-        assert_eq!(result.publish_includes.unwrap()().value, b" -Iresolved/inc");
+        assert_eq!(publish_direct_search(result), b" -Iresolved/inc");
         let current = state.take().unwrap();
         assert!(current.question && !current.touch);
         assert_eq!(current.files, original.files);

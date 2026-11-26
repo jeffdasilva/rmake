@@ -49,6 +49,8 @@ at the end of this audit.
   Live `MAKEFLAGS` and post-read flag decoders cache each accepted include
   operand at its argument boundary, preserving the events completed before a
   later assignment or terminal option error.
+  Active include search rebuilds cache each successful directory scan before
+  any later reset or HOME failure. Passive decoding leaves the search intact.
 - [Output validation and mutex failures](output-validation-order.md) and the
   [startup output-lock gate](../tests/startup-output-mutex/README.md). Completed
   definitions and output remain observable when later validation or opening fails.

@@ -83,10 +83,6 @@ pub struct IncludeSearch {
 }
 
 impl IncludeSearch {
-    pub fn new(arguments: &[PathBuf]) -> Self {
-        Self::new_with_history(arguments, None)
-    }
-
     pub fn new_with_history(arguments: &[PathBuf], history: Option<&History>) -> Self {
         let mut builder = IncludeSearchBuilder::with_history(history);
         for argument in arguments {
