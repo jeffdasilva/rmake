@@ -256,6 +256,82 @@
       "status": 0,
       "observer": "pool-path=absent\n",
       "wire": true
+    },
+    {
+      "id": "owned-fifo-recursive-source-open-errno-fatal-latin1",
+      "limit": 5,
+      "mode": "owned",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@./wire outer\n\t+@GNUMAKEFLAGS='$$(eval load ./include_errno.so)$$(nls_errno_fr )' $(MAKE) -f child.mk all; result=$$?; /usr/bin/rm -f .pool-identity; exit $$result\n",
+        "child.mk": "all:\n\t@./wire inner\n",
+        "seen": "anchor\n",
+        "plain": "ordinary\n"
+      },
+      "created": {},
+      "stdout": "outer level=1 fifo=0600 tokens=1 inherited=0\n",
+      "status": 2,
+      "observer": "pool-path=absent\n",
+      "wire": true,
+      "errno_locale": "latin1",
+      "seen_hex": "616e63686f720a6f726967696e616c3d666978747572652d46522de970756973e90a756e72656c617465643d4e6f742061206469726563746f72790a",
+      "stderr_hex": "6d616b655b315d3a202a2a2a20666978747572652d46522de970756973e92e202053746f702e0a6d616b653a202a2a2a205b4d616b6566696c653a333a20616c6c5d204572726f7220320a"
+    },
+    {
+      "id": "owned-fifo-recursive-source-open-errno-fatal-utf8",
+      "limit": 5,
+      "mode": "owned",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@./wire outer\n\t+@GNUMAKEFLAGS='$$(eval load ./include_errno.so)$$(nls_errno_fr )' $(MAKE) -f child.mk all; result=$$?; /usr/bin/rm -f .pool-identity; exit $$result\n",
+        "child.mk": "all:\n\t@./wire inner\n",
+        "seen": "anchor\n",
+        "plain": "ordinary\n"
+      },
+      "created": {},
+      "stdout": "outer level=1 fifo=0600 tokens=1 inherited=0\n",
+      "status": 2,
+      "observer": "pool-path=absent\n",
+      "wire": true,
+      "errno_locale": "utf8",
+      "seen_hex": "616e63686f720a6f726967696e616c3d666978747572652d46522dc3a970756973c3a90a756e72656c617465643d4e6f742061206469726563746f72790a",
+      "stderr_hex": "6d616b655b315d3a202a2a2a20666978747572652d46522dc3a970756973c3a92e202053746f702e0a6d616b653a202a2a2a205b4d616b6566696c653a333a20616c6c5d204572726f7220320a"
+    },
+    {
+      "id": "owned-fifo-recursive-source-open-errno-accepted-latin1",
+      "limit": 6,
+      "mode": "owned",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo"
+      ],
+      "files": {
+        "Makefile": "all:\n\t@./wire outer\n\t+@GNUMAKEFLAGS='$$(eval load ./include_errno.so)$$(nls_errno_fr )' $(MAKE) -f child.mk all\n",
+        "child.mk": "all:\n\t@./wire inner\n",
+        "seen": "anchor\n",
+        "plain": "ordinary\n"
+      },
+      "created": {},
+      "stdout": "outer level=1 fifo=0600 tokens=1 inherited=0\ninner level=2 fifo=0600 tokens=1 inherited=0\n",
+      "status": 0,
+      "observer": "pool-path=absent\n",
+      "wire": true,
+      "errno_locale": "latin1",
+      "seen_hex": "616e63686f720a6f726967696e616c3d666978747572652d46522de970756973e90a756e72656c617465643d4e6f742061206469726563746f72790a",
+      "stderr_hex": ""
     }
-  ]
+  ],
+  "errno_catalog_hex": "de12049500000000020000001c0000002c0000000000000000000000000000003c000000130000003d0000002800000051000000130000007a00000000546f6f206d616e79206f70656e2066696c657300436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a00666978747572652d46522dc3a970756973c3a900"
 }

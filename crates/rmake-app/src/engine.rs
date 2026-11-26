@@ -3618,7 +3618,8 @@ impl Engine {
                             return 2;
                         }
                         if source_open_exhausted(&err) {
-                            self.fatal(None, os_error(&err).as_bytes());
+                            let detail = rmake_linux::filesystem::source_error_detail(&err);
+                            self.fatal(None, &detail);
                             return 2;
                         }
                         let detail = rmake_linux::filesystem::source_error_detail(&err);

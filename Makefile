@@ -699,7 +699,7 @@ test-resource-fd-fifo-failure-release: release oracle-verify
 	$(PYTHON) tools/resource_fd_fifo_failure.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/resource-fd-fifo/failure-optimized.json
 
 test-resource-fd-fifo: build oracle-verify
-	$(PYTHON) tools/resource_fd_fifo.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report artifacts/resource-fd-fifo/development.json $(if $(RESOURCE_FD_FIFO_CASE),--case "$(RESOURCE_FD_FIFO_CASE)")
+	$(PYTHON) tools/resource_fd_fifo.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/resource-fd-fifo/development.json $(if $(RESOURCE_FD_FIFO_CASE),--case "$(RESOURCE_FD_FIFO_CASE)")
 
 test-resource-fd-parallel: build oracle-verify
 	$(PYTHON) tools/resource_fd_parallel.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --report "$(RESOURCE_FD_PARALLEL_REPORT)" $(if $(RESOURCE_FD_PARALLEL_CASE),--case "$(RESOURCE_FD_PARALLEL_CASE)")
