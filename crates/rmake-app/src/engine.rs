@@ -633,6 +633,18 @@ struct TrailingOptionalWorker {
     completed: Cell<bool>,
 }
 
+impl PendingMakefileRemake<'_> {
+    fn trailing_worker_completed_at_same_clock(&self) -> bool {
+        self.trailing_optional_worker
+            .as_ref()
+            .is_some_and(|worker| {
+                worker.completed.get()
+                    && Engine::regular_remake_clock(&worker.required)
+                        == Some(worker.required_before)
+            })
+    }
+}
+
 struct InlineOptionalRemakeClock<'a> {
     required: &'a [u8],
     source: &'a [u8],
@@ -4235,19 +4247,12 @@ impl Engine {
                             && failed_leading_optional.is_some_and(|leading| {
                                 std::ptr::eq(leading.required, source)
                                     && leading.trailing.as_ref().is_none_or(|trailing| {
-                                        engine.settled_trailing_after_leading_failure(
+                                        engine.settled_trailing_optional_visit(
                                             trailing,
                                             visited,
                                             request.same_clock_inline_optional_settled
                                                 || request
-                                                    .trailing_optional_worker
-                                                    .as_ref()
-                                                    .is_some_and(|worker| {
-                                                        worker.completed.get()
-                                                            && Self::regular_remake_clock(
-                                                                &source.name,
-                                                            ) == Some(worker.required_before)
-                                                    }),
+                                                    .trailing_worker_completed_at_same_clock(),
                                         )
                                     })
                             })
@@ -4272,6 +4277,11 @@ impl Engine {
                                             // then discover the missing rule.
                                             explicit_refresh
                                                 && (request.optional_visit_settled
+                                                    || (request
+                                                        .trailing_worker_completed_at_same_clock()
+                                                        && engine.settled_trailing_optional_visit(
+                                                            trailing, visited, true,
+                                                        ))
                                                     || visited
                                                         .get(trailing.neighbor)
                                                         .zip(
@@ -5076,7 +5086,12 @@ impl Engine {
                     {
                         self.qualify_synthetic_recipe_after_optional_read(&trailing.required.name);
                     }
-                    if let Some(trailing) = mixed_trailing_source
+                    let trailing_worker_source = mixed_trailing_source.or_else(|| {
+                        trailing_optional_source
+                            .as_ref()
+                            .filter(|_| read_files.len() == 3)
+                    });
+                    if let Some(trailing) = trailing_worker_source
                         && name == trailing.neighbor
                         && self.options.keep_going
                         && !visit_modes.active()
@@ -5086,7 +5101,8 @@ impl Engine {
                         && let Some(before) = before
                         && let Some(request) = pending.iter_mut().find(|request| {
                             !request.duplicate
-                                && request.optional_visit_settled
+                                && (mixed_trailing_source.is_none()
+                                    || request.optional_visit_settled)
                                 && std::ptr::eq(request.file, trailing.required)
                         })
                     {
@@ -13536,7 +13552,7 @@ impl Engine {
             && result.completion == CompletionTime::Refresh
     }
 
-    fn settled_trailing_after_leading_failure(
+    fn settled_trailing_optional_visit(
         &self,
         trailing: &TrailingOptionalRemake<'_>,
         visited: &MakefileVisits<'_>,
