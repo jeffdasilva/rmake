@@ -86,8 +86,8 @@ pub fn run(
         Ok(pipe) => pipe,
         Err(error) => {
             drop(spool);
-            let detail = crate::engine::os_error(&error);
-            let message = [b"pipe: ", detail.as_bytes()].concat();
+            let detail = rmake_linux::filesystem::source_error_detail(&error);
+            let message = [b"pipe: ".as_slice(), &detail].concat();
             crate::engine::emit_output(
                 output,
                 program_name,

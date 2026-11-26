@@ -31,7 +31,11 @@ static char *remake_locale(const char *name, unsigned int count, char **args) {
     FILE *seen = fopen("seen", "a");
     if (!seen)
         abort();
+#ifdef NLS_ERRNO_EMFILE
+    fprintf(seen, "original=%s\n", strerror(EMFILE));
+#else
     fprintf(seen, "original=%s\n", strerror(ENOENT));
+#endif
     fprintf(seen, "unrelated=%s\n", strerror(unrelated_error));
     if (fclose(seen))
         abort();
