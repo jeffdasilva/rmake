@@ -17008,15 +17008,20 @@ impl Engine {
         let alias = self.aliases.contains_source_or_destination(dependency);
         let time = if !alias && self.vpath_dirs.is_empty() && !self.database.has_vpaths() {
             self.name_time(name)
-        } else if alias
-            && self.gpath_dirs.is_empty()
-            && !self.options.check_symlink_times
-            && let Some(time) = modified(name)
-        {
-            // The retained VPATH name still exists, so its own timestamp
-            // answers the query without a new search or file rename.
-            self.retain_database_time(name, Some(time));
-            Some(time)
+        } else if alias && self.gpath_dirs.is_empty() && !self.options.check_symlink_times {
+            if self.vpath_dirs.is_empty()
+                && !name.starts_with(b"-l")
+                && rmake_core::filenames::archive_parts(name).is_none()
+                && self.database.vpath_directories(name).next().is_none()
+            {
+                // With no applicable search group, a missing local time is final.
+                self.name_time(name)
+            } else if let Some(time) = modified(name) {
+                self.retain_database_time(name, Some(time));
+                Some(time)
+            } else {
+                return child;
+            }
         } else {
             return child;
         };

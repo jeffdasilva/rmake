@@ -143,6 +143,9 @@ NUL boundaries, rebinding and cancellation.
   An ordinary serial keep-going prerequisite consumer samples the failed
   child’s local timestamp while retaining its failed update.
   A retained VPATH alias samples its existing canonical physical file.
+  When no VPATH search group applies to the resolved spelling, the first
+  prerequisite observation records a missing timestamp on the same failed
+  file record.
   Borrowing a .DEFAULT recipe preserves the file’s target classification.
   The post-read file policy marks .PHONY prerequisites as targets before
   visits begin, including when a later setup diagnostic stops traversal.
