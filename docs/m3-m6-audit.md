@@ -85,8 +85,9 @@ NUL boundaries, rebinding and cancellation.
   A suppressed named conditional read from global scope retains the file's
   variable table and records the caller lookup if the selected origin permits it.
   An ordinary active recipe eval probes the named file's visible variable
-  chain before applying qualifiers. The caller's later lookup sees those
-  qualifiers and can stop at a lexical binding.
+  chain before applying qualifiers. It publishes updated privacy before the
+  caller's origin lookup, including when the caller inherits that named file.
+  A lexical binding can stop the caller lookup.
   A command-line or environment-override binding in a separate caller can
   replace the selected ordinary named file binding in place. The destination
   keeps its definition location and export policy.
@@ -441,7 +442,12 @@ before restoration. The held reread cases retain the actual recipe
 failure and any matching assumed branch diagnostic in order.
 When both actual workers fail, the same observed restoration can produce
 a reread in current and sole layouts. Ordinary dependents still see the
-appropriate cached failures when the original pass proceeds.
+appropriate cached failures when the original pass proceeds. A failed
+optional worker can also restore the successful required worker’s clock
+and leave a reread pending in current and sole layouts. When a blocked or
+absent earlier read keeps the original pass, ordinary freshness can use
+the restored required clock while dependents still receive the optional
+file’s recorded failure.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
@@ -558,7 +564,9 @@ and active lexical scope. A fatal zero or negative index in the word
 function keeps the diagnostic definition location and gives finalizers
 the active caller’s location and scope. Built-in arity failures preserve
 the same distinction after eager and call arguments have expanded, or
-before a direct lazy call expands any argument.
+before a direct lazy call expands any argument. A registered native
+function’s minimum-arity error also retains the caller, preserving its
+existing eager, raw, or call argument behavior.
 GNU Make remains an external test reference and cannot serve as a runtime
 implementation fallback.
 

@@ -9642,14 +9642,9 @@ impl Engine {
                         .get(&worker.required, worker.required_identity)
                         .is_some_and(|required| required.child.is_some())
                     || (worker.no_required_tail_remains
+                        && worker.required_reap.get().is_some()
                         && job.before == Some(clock)
-                        && match worker.required_reap.get() {
-                            Some(_) if !report_error => true,
-                            Some(RequiredRemakeWorkerReap::FailedDeclaredTail { .. }) => {
-                                failed_source_recipe && optional_failure
-                            }
-                            _ => false,
-                        }))
+                        && (!report_error || (failed_source_recipe && optional_failure))))
                 && Self::regular_remake_clock(&target) == Some(clock)
             {
                 if !report_error && Self::same_clock_optional_remake_outcome(Some(clock), cached) {
@@ -13895,10 +13890,6 @@ impl Engine {
                 && std::ptr::eq(request.file, trailing.required)
         }) && let Some(worker) = request.trailing_optional_worker.as_deref()
             && worker.no_required_tail_remains
-            && matches!(
-                worker.result.get(),
-                Some(TrailingOptionalWorkerResult::Completed(_))
-            )
             && let Some(mut outcome) = self.file_traversals.outcome(name).copied()
             && outcome.ran_refresh()
             && outcome.goal_verdict().is_none()

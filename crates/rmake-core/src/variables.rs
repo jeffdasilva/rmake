@@ -5161,6 +5161,7 @@ impl Expansion<'_, '_> {
             return Err(ExpandError::Cancelled);
         }
         if args.len() < usize::from(function.minimum) {
+            self.retain_native_fatal_expansion();
             return Err(ExpandError::InsufficientArguments {
                 function: name.to_vec(),
                 count: args.len(),

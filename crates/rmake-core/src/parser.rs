@@ -3881,10 +3881,10 @@ impl Database {
                 )
             };
             let lookup_origin = result.map_err(parse_error)?;
+            self.publish_target_scope(declaration, &name);
             if transfer_command.is_none() {
                 self.record_active_named_conditional_caller(&name, active_conditional);
             }
-            self.publish_target_scope(declaration, &name);
             if (lookup_origin || transfer_command.is_some())
                 && !self
                     .evaluation_bindings
