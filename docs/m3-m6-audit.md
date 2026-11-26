@@ -179,8 +179,14 @@ covers mixed required and optional failure policies.
 - With `-p`, the tested ordinary serial ungrouped single-colon recipes for
   non-archive files retain expansion effects, including `.SHELLSTATUS`. The
   database reports an unattempted file when line expansion fails before dispatch.
-  The tested unignored serial direct-launch errors record the first cleanup-policy
-  lookup in the file table and invalidate the displayed nonphony timestamp.
+  The tested unignored serial launch errors record the first cleanup-policy
+  lookup in the file table and invalidate the displayed nonphony timestamp
+  when a direct executable or the configured recipe shell fails to start.
+  This covers fully forced recipes under `-n`, `-q`, and `-t`. Mixed forced
+  and ordinary recipes still differ in their simulated timestamps after a
+  failed launch.
+  GNU also checks a prior executable's path during a later launch failure and
+  can emit an additional diagnostic. That diagnostic remains open.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)
@@ -332,8 +338,10 @@ independent goals to proceed after a passive optional visit or a verified
 inline optional refresh while the explicit worker is live. The actual failures
 remain visible to ordinary dependents. The held earlier-only cases cover an
 absent optional source and a declared optional with a missing prerequisite.
-Two-worker optional cases and combinations of earlier failures with a
-trailing optional visit still need qualification.
+An earlier failure can also coexist with a trailing read of an unruled source
+that has settled at its original clock before the required worker is reaped.
+Two-worker optional cases and other kinds of trailing optional visits still
+need qualification.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 

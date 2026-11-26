@@ -508,6 +508,12 @@ struct RequestedGoal {
 type SharedIncludeError = Rc<Cell<Option<PendingIncludeError>>>;
 type MakefileVisits<'a> = HashMap<&'a [u8], (Option<SystemTime>, Option<SharedIncludeError>)>;
 
+struct FailedLeadingOptionalRemake<'a> {
+    required: &'a Makefile,
+    neighbor: &'a Makefile,
+    trailing_current: Option<TrailingOptionalRemake<'a>>,
+}
+
 struct TrailingOptionalRemake<'a> {
     required: &'a Makefile,
     neighbor: &'a [u8],
@@ -4179,9 +4185,19 @@ impl Engine {
                             outcome.remake_failure,
                             RemakeFailure::RequiredSyntheticInput
                         )
-                        && prior_visits.is_some_and(|(_, settled)| settled)
-                        && failed_leading_optional
-                            .is_some_and(|(required, _)| std::ptr::eq(required, source));
+                        && prior_visits.is_some_and(|(visited, settled)| {
+                            settled
+                                && failed_leading_optional.as_ref().is_some_and(|leading| {
+                                    std::ptr::eq(leading.required, source)
+                                        && leading.trailing_current.as_ref().is_none_or(
+                                            |trailing| {
+                                                engine.settled_current_trailing_optional_remake(
+                                                    trailing, visited,
+                                                )
+                                            },
+                                        )
+                                })
+                        });
                     if declared_tail_failed
                         || missing_after_leading_failure
                         || (matches!(
@@ -4998,12 +5014,15 @@ impl Engine {
                         self.qualify_synthetic_recipe_after_optional_read(&trailing.required.name);
                     }
                     let optional_visit_settled =
-                        failed_leading_optional.is_some_and(|(required, optional)| {
-                            std::ptr::eq(required, makefile)
+                        failed_leading_optional.as_ref().is_some_and(|leading| {
+                            std::ptr::eq(leading.required, makefile)
                                 && self.pending_explicit_remake_recipe(name)
-                                && visited.get(optional.name.as_slice()).is_some_and(
+                                && visited.get(leading.neighbor.name.as_slice()).is_some_and(
                                     |(before, _)| {
-                                        self.settled_leading_optional_failure(optional, *before)
+                                        self.settled_leading_optional_failure(
+                                            leading.neighbor,
+                                            *before,
+                                        )
                                     },
                                 )
                         });
@@ -13250,14 +13269,60 @@ impl Engine {
     fn failed_leading_optional_remake<'a>(
         &self,
         read_files: &'a [(Makefile, bool)],
-    ) -> Option<(&'a Makefile, &'a Makefile)> {
-        let [(primary, false), (optional, false), (required, false)] = read_files else {
+    ) -> Option<FailedLeadingOptionalRemake<'a>> {
+        let [
+            (primary, false),
+            (neighbor, false),
+            (required, false),
+            trailing @ ..,
+        ] = read_files
+        else {
             return None;
         };
-        (self.optional_remake_layout(primary, optional, &read_files[2..])
-            && !self
-                .has_requested_goal_name(rmake_core::filenames::without_dot_prefix(&required.name)))
-        .then_some((required, optional))
+        if !self.optional_remake_layout(primary, neighbor, &read_files[2..3])
+            || self
+                .has_requested_goal_name(rmake_core::filenames::without_dot_prefix(&required.name))
+        {
+            return None;
+        }
+        let trailing_current = match trailing {
+            [] => None,
+            [(trailing, false)]
+                if trailing.optional
+                    && !trailing.missing
+                    && trailing.location.is_some()
+                    && self.unruled_remake_source(&trailing.name) =>
+            {
+                Some(TrailingOptionalRemake {
+                    required,
+                    neighbor: &trailing.name,
+                    kind: TrailingOptionalKind::Unruled,
+                })
+            }
+            _ => return None,
+        };
+        Some(FailedLeadingOptionalRemake {
+            required,
+            neighbor,
+            trailing_current,
+        })
+    }
+
+    fn settled_current_trailing_optional_remake(
+        &self,
+        trailing: &TrailingOptionalRemake<'_>,
+        visited: &MakefileVisits<'_>,
+    ) -> bool {
+        let name = trailing.neighbor;
+        self.options.keep_going
+            && visited
+                .get(name)
+                .zip(self.file_traversals.outcome(name))
+                .is_some_and(|((before, _), result)| {
+                    self.settled_trailing_optional_remake(trailing, *before, *result, false)
+                        && fs::symlink_metadata(os(name))
+                            .is_ok_and(|file| file.is_file() && file.modified().ok() == *before)
+                })
     }
 
     fn settled_leading_optional_failure(
@@ -17392,7 +17457,6 @@ impl Engine {
             if crate::recipe_flow::optimized_noop(&invocation) {
                 continue;
             }
-            let direct = matches!(invocation, crate::process::Invocation::Direct { .. });
             let (program, arguments) = match invocation {
                 crate::process::Invocation::Direct { program, args }
                 | crate::process::Invocation::Shell { program, args } => (program, args),
@@ -17903,12 +17967,12 @@ impl Engine {
                         .with_recursion(!flow.has_ordinary());
                     execution.launch_failed = !launched;
                     if executable_launch_failed
-                        && direct
                         && !parallel
                         && !self.remaking
                         && remake.is_none()
                         && branch.is_none()
-                        && !MakefileModes::from_options(&self.options).active()
+                        && (execution.all_recursive
+                            || !MakefileModes::from_options(&self.options).active())
                         && !self.running_groups.contains_key(target)
                         && rmake_core::filenames::archive_parts(target).is_none()
                     {

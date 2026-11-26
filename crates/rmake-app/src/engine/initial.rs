@@ -327,6 +327,7 @@ impl Plan {
         let decoded = (|| -> Result<_, InvocationError> {
             let mut prefix_count = 0;
             let mut parsed_prefix = Options::default();
+            let mut inherited_mode = crate::output::Mode::None;
             for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
                 if name == b"GNUMAKEFLAGS"
                     && state.database.variables.database_lookup(name).is_none()
@@ -375,8 +376,13 @@ impl Plan {
                     parsed_prefix
                         .decode_debug()
                         .map_err(|error| StartupError::from(Diagnostic::from(error)))?;
+                    inherited_mode = output_mode(parsed_prefix.output_sync.as_deref()).map_err(
+                        |mut error| {
+                            error.version = parsed_prefix.version;
+                            error
+                        },
+                    )?;
                     if let Some(authentication) = &parsed_prefix.sync_mutex {
-                        output_mode(parsed_prefix.output_sync.as_deref())?;
                         state.complete_mutex(authentication)?;
                     }
                     prefix_count += count;
@@ -404,7 +410,6 @@ impl Plan {
             }
             // Initial inherited expansion precedes synchronization; explicit CLI
             // effects use the inherited mode until the whole explicit stream ends.
-            let inherited_mode = output_mode(parsed_prefix.output_sync.as_deref())?;
             state.output.set_mode(inherited_mode);
             let reader_output = inherited_mode
                 .root_buffered()
@@ -465,7 +470,10 @@ impl Plan {
                 error.version = options.version;
                 error
             })?;
-            output_mode(options.output_sync.as_deref())?;
+            output_mode(options.output_sync.as_deref()).map_err(|mut error| {
+                error.version = options.version;
+                error
+            })?;
             if let Some(authentication) = &options.sync_mutex {
                 state.complete_mutex(authentication).map_err(|mut error| {
                     error.version = options.version;
