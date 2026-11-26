@@ -75,10 +75,11 @@ def errno_witness(case, runtime, fact):
     if status or err or limit or leftovers or not out or b"\n" in out:
         raise h.HarnessError("could not witness public libc errno text")
     expected = dict(case.expected)
-    stderr = bytes.fromhex(expected["stderr_hex"])
-    if stderr.count(b"@OS_DETAIL@") != 1:
+    stream = "stdout_hex" if case.output == "merged" else "stderr_hex"
+    text = bytes.fromhex(expected[stream])
+    if text.count(b"@OS_DETAIL@") != 1:
         raise h.HarnessError("expected one exact independent errno slot")
-    expected["stderr_hex"] = stderr.replace(b"@OS_DETAIL@", out).hex()
+    expected[stream] = text.replace(b"@OS_DETAIL@", out).hex()
     return replace(case, expected=expected), out
 
 
@@ -101,7 +102,7 @@ def cases(selection):
     debug_options = json.loads((DATA / "debug-options.json").read_bytes())
     suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution,
               touch_open, cleanup, wait_notice, intermediate, file_io, output_lock, debug_options)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 115, 15, 20, 14, 13, 18, 16, 12, 12, 8, 12, 12, 8, 7):
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 141, 15, 20, 14, 13, 18, 16, 12, 12, 8, 12, 12, 8, 7):
         raise h.HarnessError("unexpected NLS model inventory")
     shuffle_option = json.loads((DATA / "shuffle-option.json").read_bytes())
     if len(shuffle_option["rows"]) != 9 or shuffle_option["fixture_sha256"]:
@@ -286,21 +287,46 @@ def main(argv=None):
                     content=base64.b64encode(value).decode(), size=len(value),
                     sha256=hashlib.sha256(value).hexdigest(),
                 )
+            for name in row.get("directory_replacements", []):
+                path = "work/" + str(native.safe_relative(name))
+                if expected_files.get(path, {}).get("type") != "file":
+                    raise h.HarnessError("expected a regular file replaced by a directory")
+                expected_files[path] = {"type": "directory", "mode": 0o755}
             record.update(compilation=compilation, expected_filesystem=expected_files, environment=case.environment)
             expected_mtimes = row.get("expected_mtimes_ns", {})
             timestamp_paths = {name: reset / "work" / native.safe_relative(name) for name in expected_mtimes}
             observed = []
             observer = release_on_wait_notice(reset) if row.get("held_wait") else None
-            for executable in [oracle, oracle, *([args.candidate] if args.candidate else [])]:
+            help_control = None
+            if row.get("owned_stdin_help_control"):
+                control_args = tuple(arg for arg in case.args if not arg.startswith("--temp-stdin="))
+                if (case.output != "separate" or control_args[-1:] != ("--help",)
+                        or len(case.args) != len(control_args) + 1):
+                    raise h.HarnessError("stdin cleanup help control requires exactly one adopted source")
+                help_control = replace(case, args=control_args)
+            for index, executable in enumerate([oracle, oracle, *([args.candidate] if args.candidate else [])]):
+                expected_case = case
+                control_record = {}
+                if help_control is not None:
+                    # Each engine retains its complete branded help text.
+                    help_output = h.execute(help_control, reset, executable)
+                    if (not help_output.stdout or help_output.stderr or help_output.returncode != 0
+                            or help_output.limit or help_output.leftover_processes
+                            or help_output.filesystem != expected_files):
+                        raise h.HarnessError("isolated help output did not satisfy its control")
+                    control_record["control_help_stdout_hex"] = help_output.stdout.hex()
+                    expected_case = replace(case, expected={**case.expected, "stdout_hex": help_output.stdout.hex()})
                 value = h.execute(case, reset, executable, observe_streams=observer)
                 differences = h.differences(observed[0], value) if observed else []
+                if help_control is not None and index == 2:
+                    differences = [field for field in differences if field != "stdout"]
                 observed.append(value)
                 timestamps = {name: path.stat().st_mtime_ns if path.exists() else None
                               for name, path in timestamp_paths.items()}
                 record["observations"].append(dict(h.observation_json(value), stdout_hex=value.stdout.hex(), stderr_hex=value.stderr.hex(),
                                                    observed_mtimes_ns=timestamps, timestamps_match=timestamps == expected_mtimes,
-                                                   errors=h.expectation_errors(case, value), filesystem_matches=value.filesystem == expected_files,
-                                                   differences=differences))
+                                                   errors=h.expectation_errors(expected_case, value), filesystem_matches=value.filesystem == expected_files,
+                                                   differences=differences, **control_record))
                 if value.limit or value.leftover_processes or value.returncode < 0:
                     record["zero_credit"] = True
                     publish()

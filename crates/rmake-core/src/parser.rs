@@ -19,7 +19,7 @@ use crate::reader::{
 };
 use crate::variables::{
     Assignment, ConditionalFlagBinding, DefinitionLookup, ExpandError, Flavor, MAX_OUTPUT, Origin,
-    Pattern, PatternVariable, TargetScope, VariableStore, reference_end,
+    Pattern, PatternVariable, TargetScope, Variable, VariableStore, reference_end,
 };
 use std::borrow::Cow;
 use std::cell::{Cell, OnceCell};
@@ -305,11 +305,11 @@ impl RuleDeclaration {
             && self.recipes.is_empty()
             && !self.targets.is_empty()
         {
-            return Err(ParseError {
-                unlocated: false,
-                location: self.location.clone().expect("group header location"),
-                message: "grouped targets must provide a recipe".into(),
-            });
+            return Err(ParseError::system(
+                self.location.clone().expect("group header location"),
+                Message::GroupRecipeRequired,
+                context,
+            ));
         }
         if self.cancel_default
             && !self.recipe_started
@@ -2777,6 +2777,11 @@ pub struct AssignmentSpec<'a> {
     pub kind: Assignment,
 }
 
+enum ConditionalCommandDestination {
+    Target,
+    Global,
+}
+
 struct TargetAssignment<'a> {
     spec: AssignmentSpec<'a>,
     origin: Origin,
@@ -3677,12 +3682,59 @@ impl Database {
             } else {
                 scope
             };
+            let mut active_conditional = None;
+            let mut transfer_command = None;
             let scope = if kind == Assignment::Conditional
                 && (self.evaluation_scope.is_some()
                     || self.target_read.is_some()
                     || context.target_reads.is_some())
             {
                 let declarations = scope.context(&self.variables);
+                let caller = self.evaluation_scope.as_ref();
+                let target_destination = caller
+                    .filter(|caller| {
+                        !caller.is_file_read_context(target)
+                            && caller.file_scope_history(target).is_none()
+                    })
+                    .and_then(|_| {
+                        declarations
+                            .local_binding_slot(&name)
+                            .map(|(_, value)| value)
+                    });
+                let global_destination = caller
+                    .and_then(|caller| caller.local_binding(&name))
+                    .and_then(|_| {
+                        self.variables
+                            .local_binding_slot(&name)
+                            .map(|(_, value)| value)
+                    });
+                let record_other = caller.is_some_and(|caller| {
+                    target_destination.is_some()
+                        || caller.is_file_read_context(target)
+                        || caller.get(&name).is_none_or(|value| {
+                            !matches!(
+                                value.origin(),
+                                Origin::CommandLine | Origin::EnvironmentOverride
+                            )
+                        })
+                });
+                let record_active = self.target_read.is_none()
+                    && declaration.head.is_none()
+                    && !matches!(
+                        name.as_slice(),
+                        b"MAKEFLAGS" | b".SHELLSTATUS" | b".VARIABLES"
+                    )
+                    && self
+                        .rules
+                        .get(target)
+                        .is_none_or(|rule| rule.double_colon.is_none() && rule.group.is_none())
+                    && caller.is_some_and(|caller| {
+                        caller
+                            .ordinary_file_locals_identity()
+                            .is_some_and(|identity| {
+                                !self.detached_history_owners.contains_key(&identity)
+                            })
+                    });
                 if let Some((owner, mut read)) = self.existing_target_read(
                     target,
                     &declarations,
@@ -3690,21 +3742,73 @@ impl Database {
                     context,
                 ) {
                     self.refresh_target_read(&owner, &mut read, &declarations);
+                    let inherited_owner = if record_active {
+                        read.inherited_target_binding(&name)
+                            .filter(|(target, binding)| {
+                                self.rules.get(*target).is_some_and(|rule| {
+                                    rule.double_colon.is_none() && rule.group.is_none()
+                                }) && self.named_target_declaration(target).head.is_none()
+                                    && self
+                                        .target_scopes
+                                        .get(*target)
+                                        .and_then(|scope| scope.get(&name))
+                                        .is_some_and(|declared| std::ptr::eq(declared, *binding))
+                            })
+                            .map(|(target, _)| target)
+                    } else {
+                        None
+                    };
+                    if record_active {
+                        (active_conditional, transfer_command) =
+                            Self::record_active_named_conditional(
+                                &read,
+                                &name,
+                                target_destination,
+                                global_destination,
+                                record_other || inherited_owner.is_some(),
+                            );
+                    }
                     if read.qualify_ancestor_or_pattern(
                         &name,
                         assignment.private,
                         assignment.export,
                     ) {
+                        if let Some(owner) = inherited_owner {
+                            self.transfer_inherited_conditional_command_value(
+                                owner,
+                                &name,
+                                active_conditional,
+                            )
+                            .map_err(parse_error)?;
+                        } else {
+                            self.record_active_named_conditional_caller(&name, active_conditional);
+                        }
                         self.publish_target_scope(declaration, &name);
                         continue;
                     }
+                } else if record_active {
+                    (active_conditional, transfer_command) = Self::record_active_named_conditional(
+                        &declarations,
+                        &name,
+                        target_destination,
+                        global_destination,
+                        record_other,
+                    );
                 }
-                declaration
+                let scope = declaration
                     .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
-                    .expect("target declaration")
+                    .expect("target declaration");
+                if active_conditional.is_some() {
+                    scope.retain_read_bindings(&declarations);
+                }
+                scope
             } else {
                 scope
             };
+            let global_caller = self.evaluation_scope.is_none()
+                && self.evaluation_bindings.is_empty()
+                && self.target_read.is_none()
+                && context.target_reads.is_none();
             let immediate = matches!(kind, Assignment::Simple | Assignment::ImmediateRecursive)
                 || (kind == Assignment::Append
                     && scope
@@ -3723,6 +3827,7 @@ impl Database {
                     assignment.export,
                     Some(location),
                     context.at(Some(location)),
+                    global_caller,
                     |globals, scope, bytes, shell, context| {
                         std::mem::swap(globals, &mut self.variables);
                         let result = self.expand_target_read(target, scope, bytes, shell, context);
@@ -3748,12 +3853,16 @@ impl Database {
                     assignment.export,
                     Some(location),
                     context.at(Some(location)),
+                    global_caller,
                     |_, scope, bytes, _, context| scope.expand_mut_with(bytes, context),
                 )
             };
             let lookup_origin = result.map_err(parse_error)?;
+            if transfer_command.is_none() {
+                self.record_active_named_conditional_caller(&name, active_conditional);
+            }
             self.publish_target_scope(declaration, &name);
-            if lookup_origin
+            if (lookup_origin || transfer_command.is_some())
                 && !self
                     .evaluation_bindings
                     .iter()
@@ -3765,15 +3874,109 @@ impl Database {
                     .unwrap_or(&self.variables)
                     .target_command_value(&name)
                     .map_err(parse_error)?
-                && declaration
-                    .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
-                    .expect("target declaration")
-                    .adopt_target_command_value(&name, value)
             {
-                self.publish_target_scope(declaration, &name);
+                if matches!(
+                    transfer_command,
+                    Some(ConditionalCommandDestination::Global)
+                ) {
+                    self.variables.transfer_global_command_value(&name, value);
+                } else {
+                    let scope = declaration
+                        .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
+                        .expect("target declaration");
+                    let updated = if transfer_command.is_some() {
+                        scope.transfer_target_command_value(&name, value)
+                    } else {
+                        scope.adopt_target_command_value(&name, value)
+                    };
+                    if updated {
+                        self.publish_target_scope(declaration, &name);
+                    }
+                }
             }
         }
         Ok(has_targets)
+    }
+
+    fn record_active_named_conditional(
+        read: &VariableStore,
+        name: &[u8],
+        target_destination: Option<&Variable>,
+        global_destination: Option<&Variable>,
+        record_other: bool,
+    ) -> (Option<Origin>, Option<ConditionalCommandDestination>) {
+        let Some(selected) = read.get(name) else {
+            return (None, None);
+        };
+        let origin = selected.origin();
+        let selected_global =
+            global_destination.is_some_and(|binding| std::ptr::eq(binding, selected));
+        if origin == Origin::Automatic || !(record_other || selected_global) {
+            return (None, None);
+        }
+        read.record_database_lookup(name);
+        let transfer = if origin == Origin::Override {
+            None
+        } else if selected_global {
+            Some(ConditionalCommandDestination::Global)
+        } else if target_destination.is_some_and(|binding| std::ptr::eq(binding, selected)) {
+            Some(ConditionalCommandDestination::Target)
+        } else {
+            None
+        };
+        (Some(origin), transfer)
+    }
+
+    fn record_active_named_conditional_caller(&self, name: &[u8], selected: Option<Origin>) {
+        if selected.is_some_and(|origin| origin != Origin::Override)
+            && !self
+                .evaluation_bindings
+                .iter()
+                .rev()
+                .any(|frame| frame.contains_key(name))
+            && let Some(caller) = &self.evaluation_scope
+        {
+            // Qualifiers have already been applied to the selected binding.
+            caller.record_database_lookup(name);
+        }
+    }
+
+    fn transfer_inherited_conditional_command_value(
+        &mut self,
+        owner: &[u8],
+        name: &[u8],
+        selected: Option<Origin>,
+    ) -> Result<(), ExpandError> {
+        if selected.is_some_and(|origin| origin != Origin::Override)
+            && !self
+                .evaluation_bindings
+                .iter()
+                .rev()
+                .any(|frame| frame.contains_key(name))
+            && let Some(caller) = &self.evaluation_scope
+        {
+            let scope = self
+                .target_scopes
+                .get_mut(owner)
+                .expect("inherited declaration");
+            let same_binding = caller
+                .get(name)
+                .zip(scope.get(name))
+                .is_some_and(|(source, destination)| std::ptr::eq(source, destination));
+            if let Some(value) = caller.target_command_value(name)?
+                && !same_binding
+                && scope.transfer_target_command_value(name, value)
+            {
+                self.publish_target_scope(
+                    TargetDeclaration {
+                        name: owner,
+                        head: None,
+                    },
+                    name,
+                );
+            }
+        }
+        Ok(())
     }
 
     fn replay_named_flags(
@@ -6187,13 +6390,7 @@ impl Database {
                         &mut self.warnings,
                         context,
                         location.clone(),
-                        [
-                            b"target '".as_slice(),
-                            target,
-                            b"' doesn't match the target pattern",
-                        ]
-                        .concat()
-                        .into(),
+                        Diagnostic::system(Message::StaticTargetMismatch(target)),
                     );
                     unmatched = true;
                 }

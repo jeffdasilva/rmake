@@ -109,10 +109,13 @@ pub enum MessageId {
     WordlistSecondEmpty,
     WordlistSecondOutOfRange,
     PrerequisitesInRecipe,
+    StaticTargetMismatch,
+    GroupRecipeRequired,
+    InsufficientArguments,
 }
 
 impl MessageId {
-    pub const ALL: [Self; 102] = [
+    pub const ALL: [Self; 105] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -215,6 +218,9 @@ impl MessageId {
         Self::WordlistSecondEmpty,
         Self::WordlistSecondOutOfRange,
         Self::PrerequisitesInRecipe,
+        Self::StaticTargetMismatch,
+        Self::GroupRecipeRequired,
+        Self::InsufficientArguments,
     ];
 
     pub(crate) fn is_unlocated(self) -> bool {
@@ -455,6 +461,12 @@ impl MessageId {
                 problem: WordIndexProblem::OutOfRange(b"9223372036854775808"),
             },
             Self::PrerequisitesInRecipe => Message::PrerequisitesInRecipe,
+            Self::StaticTargetMismatch => Message::StaticTargetMismatch(b"odd"),
+            Self::GroupRecipeRequired => Message::GroupRecipeRequired,
+            Self::InsufficientArguments => Message::InsufficientArguments {
+                count: 1,
+                function: b"word",
+            },
         }
     }
     pub fn msgid(self) -> &'static CStr {
@@ -595,6 +607,11 @@ impl MessageId {
                 c"invalid second argument to 'wordlist' function: '%s' out of range"
             }
             Self::PrerequisitesInRecipe => c"prerequisites cannot be defined in recipes",
+            Self::StaticTargetMismatch => c"target '%s' doesn't match the target pattern",
+            Self::GroupRecipeRequired => c"grouped targets must provide a recipe",
+            Self::InsufficientArguments => {
+                c"insufficient number of arguments (%u) to function '%s'"
+            }
         }
     }
 }
@@ -806,6 +823,12 @@ pub enum Message<'a> {
         problem: WordIndexProblem<'a>,
     },
     PrerequisitesInRecipe,
+    StaticTargetMismatch(&'a [u8]),
+    GroupRecipeRequired,
+    InsufficientArguments {
+        count: usize,
+        function: &'a [u8],
+    },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -962,6 +985,9 @@ impl<'a> Message<'a> {
             Self::UnsupportedArchiveSymbol(_) => MessageId::UnsupportedArchiveSymbol,
             Self::WordIndexZero => MessageId::WordIndexZero,
             Self::PrerequisitesInRecipe => MessageId::PrerequisitesInRecipe,
+            Self::StaticTargetMismatch(_) => MessageId::StaticTargetMismatch,
+            Self::GroupRecipeRequired => MessageId::GroupRecipeRequired,
+            Self::InsufficientArguments { .. } => MessageId::InsufficientArguments,
             Self::InvalidWordIndex { operand, problem } => match (operand, problem) {
                 (WordIndexOperand::WordFirst, WordIndexProblem::Invalid(_)) => {
                     MessageId::WordFirstInvalid
@@ -1031,7 +1057,8 @@ impl<'a> Message<'a> {
             | Self::ExtraFileArgument
             | Self::EmptyNativeFunction
             | Self::WordIndexZero
-            | Self::PrerequisitesInRecipe => {}
+            | Self::PrerequisitesInRecipe
+            | Self::GroupRecipeRequired => {}
             Self::RecursiveVariable(name)
             | Self::DuplicateRecipe { target: name, .. }
             | Self::OverrideGroupMembership(name)
@@ -1053,7 +1080,8 @@ impl<'a> Message<'a> {
             | Self::MissingNativeLicense(name)
             | Self::InvalidNativeFunction(name)
             | Self::LongNativeFunction(name)
-            | Self::UnsupportedArchiveSymbol(name) => {
+            | Self::UnsupportedArchiveSymbol(name)
+            | Self::StaticTargetMismatch(name) => {
                 push(Argument::Bytes(name));
             }
             Self::NativeSymbolFailure {
@@ -1068,6 +1096,10 @@ impl<'a> Message<'a> {
             Self::NativeArgumentCount { count, name, .. } => {
                 push(Argument::Unsigned(u64::from(count)));
                 push(Argument::Bytes(name));
+            }
+            Self::InsufficientArguments { count, function } => {
+                push(Argument::Unsigned(count as u64));
+                push(Argument::Bytes(function));
             }
             Self::FutureFileTime { name, seconds } => {
                 push(Argument::Bytes(name));

@@ -423,6 +423,10 @@ impl ExpandError {
             Self::RecursiveVariable(name) => Message::RecursiveVariable(name),
             Self::EmptyVariableName => Message::EmptyVariableName,
             Self::WordIndexZero => Message::WordIndexZero,
+            Self::InsufficientArguments { function, count } => Message::InsufficientArguments {
+                count: *count,
+                function,
+            },
             Self::UnterminatedFunction { function, close } => Message::UnterminatedFunction {
                 name: function,
                 close: *close,
@@ -541,12 +545,10 @@ impl ExpandError {
                 value,
             }),
             Self::InsufficientArguments { function, count } => {
-                let mut message =
-                    format!("insufficient number of arguments ({count}) to function '")
-                        .into_bytes();
-                message.extend_from_slice(function);
-                message.push(b'\'');
-                message.into()
+                Diagnostic::system(crate::messages::Message::InsufficientArguments {
+                    count: *count,
+                    function,
+                })
             }
             _ => self.to_string().into(),
         }
@@ -705,6 +707,27 @@ impl Bindings {
         self.order.remove(name);
         value
     }
+    fn transfer_command_value(bindings: &mut Arc<Self>, name: &[u8], value: Variable) -> bool {
+        let Some(old) = bindings.get(name) else {
+            return false;
+        };
+        if old.origin == Origin::Override
+            || (old.value == value.value
+                && old.origin == value.origin
+                && old.flavor == value.flavor
+                && !old.scope.append_outer)
+        {
+            return false;
+        }
+        // The destination retains its definition location and binding policy.
+        let target = Arc::make_mut(bindings).get_mut(name).unwrap();
+        target.value = value.value;
+        target.origin = value.origin;
+        target.flavor = value.flavor;
+        target.scope.append_outer = false;
+        true
+    }
+
     fn cached_variable_names(&self) -> Option<Vec<u8>> {
         self.names_cache.get().map(|cache| {
             cache
@@ -882,6 +905,10 @@ impl VariableStore {
                 )
             })
             .cloned())
+    }
+
+    pub(crate) fn transfer_global_command_value(&mut self, name: &[u8], value: Variable) {
+        Bindings::transfer_command_value(&mut self.variables, name, value);
     }
 
     pub fn database_stats(&self) -> Option<crate::database::HashStats> {
@@ -1441,6 +1468,15 @@ impl VariableStore {
         }
         self.qualify_selected_binding(index, name, variable, private, export);
         true
+    }
+
+    pub(crate) fn inherited_target_binding(&self, name: &[u8]) -> Option<(&[u8], &Variable)> {
+        let (index, binding) = self.lookup_from(name, 0)?;
+        let layer = self.layers.get(index.checked_sub(1)?)?;
+        if !layer.inherited || layer.pattern || layer.file_locals || layer.global {
+            return None;
+        }
+        Some((layer.target.as_deref()?, binding))
     }
 
     pub(crate) fn qualify_ancestor_or_pattern(
@@ -2099,6 +2135,16 @@ impl VariableStore {
         let mut read = self.clone();
         read.replace_target_read_declarations(declaration);
         Some(read)
+    }
+
+    pub(crate) fn ordinary_file_locals_identity(&self) -> Option<usize> {
+        if !self.file_locals || self.double_colon_ordinal != 0 {
+            return None;
+        }
+        self.variables
+            .database_history
+            .as_ref()
+            .map(TableHistory::identity)
     }
 
     pub(crate) fn file_read_table_identity(&self) -> Option<usize> {
@@ -3528,6 +3574,7 @@ impl TargetScope {
             export,
             definition,
             context,
+            true,
             |_, store, bytes, shell, context| {
                 if shell {
                     store.shell_with(bytes, context)
@@ -3554,6 +3601,7 @@ impl TargetScope {
         export: Option<bool>,
         definition: Option<&Location>,
         context: ExpansionContext<'_>,
+        global_caller: bool,
         mut expand: impl FnMut(
             &mut VariableStore,
             &mut VariableStore,
@@ -3573,7 +3621,14 @@ impl TargetScope {
         {
             globals.variable_names(true)?;
         }
-        if assignment == Assignment::Conditional && scope.get(name).is_some() {
+        if assignment == Assignment::Conditional
+            && let Some(selected) = scope.get(name)
+        {
+            let origin = selected.origin;
+            if global_caller {
+                scope.record_database_lookup(name);
+                self.variables = scope.variables;
+            }
             // GNU's suppressed conditional returns the existing binding itself.
             // Qualifiers can consequently mutate even global binding metadata.
             let variable = if self.variables.contains_key(name) {
@@ -3583,6 +3638,9 @@ impl TargetScope {
             };
             if let Some(variable) = variable {
                 variable.scope.set_target_qualifiers(private, export);
+            }
+            if global_caller && origin != Origin::Override {
+                globals.record_database_lookup(name);
             }
             return Ok(false);
         }
@@ -3614,13 +3672,11 @@ impl TargetScope {
         if value.origin <= old.origin {
             return false;
         }
-        // The destination retains its definition location and binding policy.
-        let target = Arc::make_mut(&mut self.variables).get_mut(name).unwrap();
-        target.value = value.value;
-        target.origin = value.origin;
-        target.flavor = value.flavor;
-        target.scope.append_outer = false;
-        true
+        self.transfer_target_command_value(name, value)
+    }
+
+    pub(crate) fn transfer_target_command_value(&mut self, name: &[u8], value: Variable) -> bool {
+        Bindings::transfer_command_value(&mut self.variables, name, value)
     }
 
     pub(crate) fn retain_read_bindings(&mut self, scope: &VariableStore) {
