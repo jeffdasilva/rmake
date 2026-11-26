@@ -140,6 +140,8 @@ NUL boundaries, rebinding and cancellation.
   The active ordinary prerequisite chain retains that state in a dump.
   A launched child retains its completed failure while its waiting ordinary
   ancestors remain unupdated when traversal stops.
+  An ordinary serial keep-going prerequisite consumer samples the failed
+  child’s local timestamp while retaining its failed update.
 - [Eval allocation investigation](eval-allocation-profiles.md) retains experiments
   rejected after elapsed-time regressions and the selected runtime controls.
 
