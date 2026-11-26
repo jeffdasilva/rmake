@@ -1,0 +1,12 @@
+id = "startup-temp-stdin-ordinary-named-repeat-control"
+requirement = "startup.temporary-stdin-arguments"
+candidate = "required"
+description = "A regular named file operand still repeats an already stored filename."
+provenance = "Original temporary-file fixtures and stream/status anchors checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "--temp-stdin=first.mk", "-f", "first.mk", "-f", "plain.mk", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "726561643d66697273740a726561643d66697273740a726561643d706c61696e0a72656d61696e3d5b7365636f6e642e6d6b2074686972642e6d6b5d0a"
+stderr_hex = ""

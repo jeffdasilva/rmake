@@ -565,6 +565,17 @@ impl Decoder {
                                 pause!(Some(Argument::Directory(index)));
                             } else {
                                 if name == b"--temp-stdin" {
+                                    // Earlier file operands have already been prepared.
+                                    // Compare their bytes before adopting temporary ownership.
+                                    if STARTUP
+                                        && result.files.iter().any(|previous| {
+                                            previous.as_os_str().as_bytes()
+                                                == path.as_os_str().as_bytes()
+                                        })
+                                    {
+                                        i += 1;
+                                        continue;
+                                    }
                                     result.temp_stdin_file = Some(result.files.len());
                                 }
                                 let span = (track_jobs

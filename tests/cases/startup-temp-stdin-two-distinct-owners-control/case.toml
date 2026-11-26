@@ -1,0 +1,12 @@
+id = "startup-temp-stdin-two-distinct-owners-control"
+requirement = "startup.temporary-stdin-arguments"
+candidate = "required"
+description = "A second distinct temporary name after index zero keeps the existing ownership transition."
+provenance = "Original temporary-file fixtures and stream/status anchors checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "--temp-stdin=first.mk", "--temp-stdin=second.mk", "-f", "plain.mk", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "726561643d66697273740a726561643d7365636f6e640a726561643d706c61696e0a72656d61696e3d5b66697273742e6d6b2074686972642e6d6b5d0a"
+stderr_hex = ""

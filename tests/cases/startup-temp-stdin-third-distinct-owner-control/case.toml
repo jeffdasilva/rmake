@@ -1,0 +1,12 @@
+id = "startup-temp-stdin-third-distinct-owner-control"
+requirement = "startup.temporary-stdin-arguments"
+candidate = "required"
+description = "A third distinct temporary filename still reports the multiple-ownership diagnostic."
+provenance = "Original temporary-file fixtures and stream/status anchors checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "--temp-stdin=first.mk", "--temp-stdin=second.mk", "--temp-stdin=third.mk", "-f", "plain.mk", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a20494e5445524e414c3a206d756c7469706c65202d2d74656d702d737464696e206f7074696f6e732070726f7669646564212e202053746f702e0a"

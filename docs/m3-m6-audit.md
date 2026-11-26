@@ -43,6 +43,8 @@ at the end of this audit.
   The startup preload list uses one expansion of `MAKEFILES` after command-line
   eval. An absent binding can warn at that point, while a defined empty binding
   leaves the preload list empty.
+  An exact duplicate temporary stdin operand leaves ownership with the
+  earlier source record.
   Startup include options cache each accepted operand after filename preparation.
   Search construction records each existing directory in scan order and preserves
   its cache event even when a later `-I-` clears it from the search list.
