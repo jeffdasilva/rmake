@@ -354,11 +354,10 @@ impl Engine {
                 .iter()
                 .any(|goal| self.resolved_name_ref(goal) == self.resolved_name_ref(name));
         view.dont_care = self
-            .database
-            .makefiles
+            .database_fatal_optional_visits
+            .borrow()
             .iter()
-            .any(|file| file.name == name && file.optional)
-            && !self.database_remake_started.contains(name);
+            .any(|owner| owner == name);
         view.builtin = self
             .database
             .database_history()
@@ -1021,35 +1020,70 @@ mod tests {
     }
 
     #[test]
-    fn optional_reader_status_retires_only_after_the_actual_remake_phase() {
+    fn optional_file_marker_belongs_to_the_captured_update_visit() {
         let mut engine = engine();
+        let source = b"optional-source";
+        let leaf = b"optional-active";
+        let settled = b"optional-settled";
         engine.database.makefiles.push(Makefile {
-            name: b"missing.mk".to_vec(),
+            name: source.to_vec(),
             optional: true,
             missing: true,
             location: None,
             read_error: None,
         });
         assert!(
-            engine
-                .database_file(b"missing.mk", None, None)
+            !engine
+                .database_file(source, None, None)
                 .unwrap()
                 .view
                 .dont_care
         );
         engine
-            .database_remake_started
-            .insert(b"missing.mk".to_vec());
-        engine.file_traversals.set_outcome(
-            b"missing.mk",
-            Outcome {
-                failed: true,
-                ..Outcome::default()
-            },
+            .database
+            .read(
+                b".PHONY: optional-source optional-active optional-settled\n\
+                  optional-source: optional-settled optional-active\n\
+                  optional-settled: ;\noptional-active: ; @$(error active optional leaf)\n",
+                b"Makefile",
+            )
+            .unwrap();
+        engine.output.set_database_requested(true);
+        engine.remaking = true;
+        let outcome = engine.with_makefile_remake(
+            Some(MakefileRemake {
+                optional: true,
+                retain_failure: true,
+                use_declared_synthetic_head: false,
+                use_declared_tail_head: false,
+                trace_initial_synthetic: false,
+                stopped: None,
+                open_error: None,
+            }),
+            |engine| engine.build(source, None, 0),
         );
-        let snapshot = engine.database_file(b"missing.mk", None, None).unwrap();
-        assert!(!snapshot.view.dont_care);
-        assert!(snapshot.view.updated);
-        assert!(matches!(snapshot.view.status, FileStatus::Failed));
+        assert!(outcome.fatal);
+        assert!(engine.database_optional_visits.is_empty());
+        assert!(
+            engine
+                .database_file(source, None, None)
+                .unwrap()
+                .view
+                .dont_care
+        );
+        assert!(
+            engine
+                .database_file(leaf, None, None)
+                .unwrap()
+                .view
+                .dont_care
+        );
+        assert!(
+            !engine
+                .database_file(settled, None, None)
+                .unwrap()
+                .view
+                .dont_care
+        );
     }
 }

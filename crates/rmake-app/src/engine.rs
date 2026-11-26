@@ -1692,7 +1692,8 @@ pub struct Engine {
     database_delete_policy: Cell<bool>,
     database_times: RefCell<HashMap<Vec<u8>, Option<SystemTime>>>,
     database_secondary: HashSet<Vec<u8>>,
-    database_remake_started: HashSet<Vec<u8>>,
+    database_optional_visits: Vec<Vec<u8>>,
+    database_fatal_optional_visits: RefCell<Vec<Vec<u8>>>,
     program: Vec<u8>,
     makelevel: u32,
     inherited_exports: HashSet<Vec<u8>>,
@@ -2291,7 +2292,8 @@ impl Engine {
             database_delete_policy: Cell::new(false),
             database_times: RefCell::new(HashMap::new()),
             database_secondary: HashSet::new(),
-            database_remake_started: HashSet::new(),
+            database_optional_visits: Vec::new(),
+            database_fatal_optional_visits: RefCell::new(Vec::new()),
             program,
             makelevel,
             inherited_exports,
@@ -2934,6 +2936,12 @@ impl Engine {
             return;
         }
         let mut shutdown = self.shutdown.get();
+        if shutdown == Shutdown::Running && !self.database_optional_visits.is_empty() {
+            // The database is printed after the serial update stack unwinds.
+            self.database_fatal_optional_visits
+                .borrow_mut()
+                .clone_from(&self.database_optional_visits);
+        }
         let wait = shutdown.report(owner);
         self.shutdown.set(shutdown);
         if let Some(location) = location.filter(|location| !location.file.is_null()) {
@@ -4506,7 +4514,6 @@ impl Engine {
                 .map(|(file, _)| file.name.as_slice())
                 .collect();
             for (source_index, (makefile, skip)) in read_files.iter().enumerate() {
-                self.database_remake_started.insert(makefile.name.clone());
                 if *skip {
                     if !makefile.optional
                         && let Some(detail) = &makefile.read_error
@@ -10266,7 +10273,6 @@ impl Engine {
             &mut self.database_implicit,
             &mut self.terminal_prerequisites,
             &mut self.database_secondary,
-            &mut self.database_remake_started,
             &mut self.ignored_vpath,
         ] {
             if flags.remove(from) {
@@ -13072,6 +13078,14 @@ impl Engine {
         // load check, even if that check starts this goal's queued recipe.
         let commands_before = self.commands_started;
         let mut reused_failed_outcome = false;
+        let mark_optional_visit = self.remaking
+            && !self.parallel_makefile_remakes
+            && self.optional_remake()
+            && self.output.database_requested();
+        if mark_optional_visit {
+            // Leaf updates and early expansion can bypass the cycle detection set.
+            self.database_optional_visits.push(target.to_vec());
+        }
         let mut outcome = if archive_error {
             Outcome {
                 failed: true,
@@ -13107,6 +13121,9 @@ impl Engine {
         {
             outcome.failed = true;
             outcome.fatal = true;
+        }
+        if mark_optional_visit {
+            self.database_optional_visits.pop();
         }
         if self.optional_remake()
             && !reused_failed_outcome
