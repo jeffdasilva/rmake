@@ -212,6 +212,8 @@ Named sources must retain the selected operand while startup effects replay.
   [raw restart environments](../tests/restart-environment/README.md),
   [inherited pipe restarts](../tests/restart-pipe/README.md) and
   [native standard-stream restarts](../tests/native-restart-stdio/README.md).
+  An inherited closed stdin stays closed across reader, recipe, and restart
+  execs. An explicitly selected child input can occupy that descriptor.
 
 ## Rules and target state
 

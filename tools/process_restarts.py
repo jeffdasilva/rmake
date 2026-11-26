@@ -18,7 +18,9 @@ import oracle
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / 'tests/process-restarts'
-IDS = ('process-restart-tempdir', 'process-restart-constructor', 'process-restart-replaced-image')
+IDS = ('process-restart-tempdir', 'process-restart-constructor', 'process-restart-replaced-image',
+       'process-restart-closed-stdin', 'process-restart-closed-stdin-parallel',
+       'process-restart-inherited-stdin', 'process-restart-redirected-stdin')
 
 
 def models():
@@ -26,7 +28,7 @@ def models():
     if value.get('schema_version') != 1 or tuple(row['id'] for row in value['models']) != IDS:
         raise h.HarnessError('invalid process restart inventory')
     hashes = value['fixture_sha256']
-    if set(hashes) != {'entry.c', 'replace.py', 'replacement.sh'}:
+    if set(hashes) != {'entry.c', 'replace.py', 'replacement.sh', 'startup_stdin.py'}:
         raise h.HarnessError('invalid process restart fixture inventory')
     for name, digest in hashes.items():
         if Path(name).name != name or h.sha256_file(FIXTURES / name) != digest:
@@ -55,12 +57,15 @@ def prepare(model, path, compiler):
         shutil.copy2(FIXTURES / 'replacement.sh', path / 'replacement.sh')
         (path / 'replacement.sh').chmod(0o755)
         shutil.copy2(FIXTURES / 'replace.py', path / 'replace.py')
+    elif model['kind'] == 'startup-stdin':
+        shutil.copy2(FIXTURES / 'startup_stdin.py', path / 'startup_stdin.py')
+        (path / 'input').write_bytes(b'inherited input\n')
     else:
         raise h.HarnessError('unknown process restart model kind')
     for entry in path.iterdir():
         os.utime(entry, ns=(1_600_000_000_123_456_789,) * 2)
     return h.Case(path, model['id'], 'restart.process-image', 'required',
-                  ('-rR', '--no-print-directory'), 6.0, {}, {}), compilation
+                  ('-rR', '--no-print-directory', *model.get('args', ())), 6.0, {}, {}), compilation
 
 
 def expected(model, runtime):
@@ -111,8 +116,11 @@ def run(selected, reference, candidate, compiler, directory):
             if model['kind'] == 'constructor':
                 env['LD_PRELOAD'] = str(runtime / 'work/entry.so')
             roots, filesystem, stderr = expected(model, runtime)
-            out, err, status, bound, left = h.capture([str(runtime / 'bin/make'), *case.args],
-                runtime / 'work', h.clean_environment(runtime, env), case.timeout)
+            command = [str(runtime / 'bin/make'), *case.args]
+            if model['kind'] == 'startup-stdin':
+                command[:0] = ['/usr/bin/python3', 'startup_stdin.py', model['stdin']]
+            out, err, status, bound, left = h.capture(
+                command, runtime / 'work', h.clean_environment(runtime, env), case.timeout)
             observed = h.Observation(out, err, status, bound, h.snapshot(roots), left)
             errors = assess(observed, filesystem, stderr)
             executions.append({'binary': str(binary), 'stdout_hex': out.hex(), 'stderr_hex': err.hex(),
@@ -158,7 +166,8 @@ def main(argv=None):
         report['oracle_profile_id'] = profile['profile_id']
         report['source_hashes'] = {str(path.relative_to(ROOT)): h.sha256_file(path) for path in
             [Path(__file__).resolve(), FIXTURES / 'models.json', FIXTURES / 'entry.c',
-             FIXTURES / 'replacement.sh', FIXTURES / 'replace.py', ROOT / 'tools/conformance.py']}
+             FIXTURES / 'replacement.sh', FIXTURES / 'replace.py', FIXTURES / 'startup_stdin.py',
+             ROOT / 'tools/conformance.py']}
         status = 0 if report['passed'] else 1
     except (h.HarnessError, oracle.OracleError, OSError, ValueError, subprocess.SubprocessError, KeyError, TypeError) as error:
         report.update(error=str(error), passed=False)
