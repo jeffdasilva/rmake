@@ -893,11 +893,11 @@ pub(crate) fn emit_output(
 }
 
 fn emit_getcwd_error(output: &crate::output::Controller, program: &[u8], error: &io::Error) {
-    let detail = os_error(error);
+    let detail = rmake_linux::filesystem::source_error_detail(error);
     let message = crate::messages::system(Message::OsError {
         action: b"getcwd",
         path: b"",
-        detail: detail.as_bytes(),
+        detail: &detail,
     });
     emit_output(
         output,

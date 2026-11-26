@@ -61,19 +61,20 @@ def load_rows(selection):
     data = json.loads((DATA / "directory.json").read_bytes())
     rows = data["rows"]
     names = {row["id"] for row in rows}
-    if len(rows) != 35 or len(names) != 35:
+    if len(rows) != 43 or len(names) != 43:
         raise h.HarnessError("unexpected NLS directory inventory")
     if set(selection) - names:
         raise h.HarnessError("unknown exact NLS directory ID")
     fixtures = data["fixture_sha256"]
-    if set(fixtures) != {"nls_control.c", "deleted_cwd.py", "native/fatal_scope.c"}:
+    if set(fixtures) != {"nls_control.c", "deleted_cwd.py", "native/fatal_scope.c", "include_errno.c"}:
         raise h.HarnessError("unexpected NLS directory fixture inventory")
     for name, expected in fixtures.items():
         source = DATA.parent / name if name == "native/fatal_scope.c" else DATA / name
         if h.sha256_file(source) != expected:
             raise h.HarnessError("NLS directory fixture identity differs: " + name)
+    module_sources = fixtures.keys() - {"deleted_cwd.py"}
     for row in rows:
-        if any(module["source"] not in {"nls_control.c", "native/fatal_scope.c"} for module in row["modules"]):
+        if any(module["source"] not in module_sources for module in row["modules"]):
             raise h.HarnessError("NLS directory model uses unpinned source")
         if row["launch"] not in (None, "initial", "after-C", "entry", "entry-stdin"):
             raise h.HarnessError("unknown NLS directory launch")
@@ -85,10 +86,13 @@ def make_model(row, root, locale):
     expected = dict(row["expected"])
     errors = {}
     stderr = bytes.fromhex(expected["stderr_template_hex"])
+    # The loaded callback witnesses the exact errno bytes in the ordered seen file.
+    callback_errno = any(item["source"] == "include_errno.c" for item in row["modules"])
+    cwd_failure = row["launch"] == "initial" or (row["launch"] == "after-C" and not callback_errno)
     for name in ("ENOENT", "EISDIR"):
         slot = f"@{name}@".encode()
         count = stderr.count(slot)
-        if count != 0 or (name == "ENOENT" and row["launch"] in ("initial", "after-C")):
+        if count != 0 or (name == "ENOENT" and cwd_failure):
             if count != 1:
                 raise h.HarnessError("cwd or unlink failure must declare exactly one slot per errno")
             errors[name] = errno_witness(root, environment, name)
@@ -98,7 +102,8 @@ def make_model(row, root, locale):
         row["id"], {name: bytes.fromhex(value) for name, value in row["files"].items()},
         tuple(row["args"]), environment, expected, bytes.fromhex(expected["seen_template_hex"]),
         modules=tuple(directory.Module(
-            "nls/nls_control.c" if item["source"] == "nls_control.c" else item["source"], item["filename"],
+            item["source"] if "/" in item["source"] else "nls/" + item["source"],
+            item["filename"], tuple(item.get("defines", ())),
         ) for item in row["modules"]),
         updates={name: bytes.fromhex(value) for name, value in row.get("expected_file_updates", {}).items()},
     )

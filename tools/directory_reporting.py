@@ -27,6 +27,7 @@ TOKENS = (b'@WORK@', b'@HOME@', b'@TMP@', b'@HELP@', b'@VERSION@')
 class Module:
     source: str
     filename: str
+    defines: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -95,7 +96,8 @@ def prepare(model: Model, directory: Path, runtime: Path, compiler: str | None) 
         copied.chmod(0o644)
         target = directory / safe_relative(module.filename)
         target.parent.mkdir(parents=True, exist_ok=True, mode=0o755)
-        command = [compiler, '-std=c11', '-Wall', '-Wextra', '-Werror', '-fPIC', '-shared', str(copied), '-o', str(target)]
+        command = [compiler, '-std=c11', '-Wall', '-Wextra', '-Werror', '-fPIC', '-shared',
+                   *('-D' + define for define in module.defines), str(copied), '-o', str(target)]
         out, err, status, limit, leftovers = h.capture(command, directory,
             {'PATH': '/usr/bin:/bin', 'LC_ALL': 'C', 'LANG': 'C', 'TZ': 'UTC'}, 15)
         record = {'command': command, 'source': module.source, 'source_sha256': h.sha256_file(source),

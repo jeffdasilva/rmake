@@ -20,7 +20,9 @@ static char *remake_locale(const char *name, unsigned int count, char **args) {
     if (access("plain/child", F_OK) != -1)
         abort();
     int unrelated_error = errno;
-    if (!bindtextdomain("libc", "./errno-catalog") || !setlocale(LC_MESSAGES, "fr_FR.UTF-8"))
+    const char *catalog = getenv("PROBE_ERRNO_CATALOG");
+    if (!bindtextdomain("libc", catalog ? catalog : "./errno-catalog") ||
+        !setlocale(LC_MESSAGES, "fr_FR.UTF-8"))
         abort();
 #ifdef NLS_ERRNO_LATIN1
     if (!bind_textdomain_codeset("libc", "ISO-8859-1"))
