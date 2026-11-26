@@ -103,6 +103,8 @@ NUL boundaries, rebinding and cancellation.
   A recipe or shell environment keeps the binding selected for each name
   during assembly. Later export expansion sees changes to that binding and
   reads its dependencies in the live scope.
+  Recipe and shell environments copy inherited export policy during assembly.
+  Changes to the selected binding itself are visible at emission.
   Standalone export and unexport lists record the visible-scope lookup for
   each name before updating its policy or creating an empty global binding.
   A list lookup refreshes the global .VARIABLES cache when that special
@@ -437,6 +439,9 @@ and the set of newer prerequisites in the original pass.
 A genuine declared required failure can also expose a rewritten clock
 before restoration. The held reread cases retain the actual recipe
 failure and any matching assumed branch diagnostic in order.
+When both actual workers fail, the same observed restoration can produce
+a reread in current and sole layouts. Ordinary dependents still see the
+appropriate cached failures when the original pass proceeds.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
@@ -485,8 +490,9 @@ target cannot be removed. The NLS checks cover raw paths and retain the
 recipe diagnostic, deletion announcement, and filesystem outcome in order.
 A restart that cannot return to the original directory emits the localized
 system warning and fatal message in order, with existing token cleanup.
-The dynamic musl gate checks C.UTF-8 wildcard byte widths and a C raw-target
-diagnostic beside a user warning. Broader diagnostic producers, native and
+The dynamic musl gate checks C.UTF-8 wildcard byte widths, a C raw-target
+diagnostic beside a user warning, and ordinary inherited, private, and
+pattern export scopes. Broader diagnostic producers, native and
 Guile callbacks, cache history, resource failures and musl NLS remain open. See the
 [native AArch64](../.github/workflows/native-aarch64.yml) and
 [dynamic musl](../.github/workflows/native-musl.yml) workflows.
@@ -550,7 +556,9 @@ ordinary reload behavior. Terminal load diagnostics in the reader keep
 their original error text and give existing finalizers the selected file
 and active lexical scope. A fatal zero or negative index in the word
 function keeps the diagnostic definition location and gives finalizers
-the active caller’s location and scope.
+the active caller’s location and scope. Built-in arity failures preserve
+the same distinction after eager and call arguments have expanded, or
+before a direct lazy call expands any argument.
 GNU Make remains an external test reference and cannot serve as a runtime
 implementation fallback.
 

@@ -2271,14 +2271,6 @@ impl VariableStore {
         self.bindings_at_layer(selection.layer)?.get(selection.name)
     }
 
-    pub fn resolve_environment_export_policy(
-        &self,
-        selection: EnvironmentBinding<'_>,
-        variable: &Variable,
-    ) -> Option<bool> {
-        self.resolve_selected_export_policy(selection.name, selection.layer, variable, true)
-    }
-
     fn global_layer(&self, layer: usize) -> bool {
         if layer == 0 {
             !self.scoped
@@ -4816,9 +4808,18 @@ impl Expansion<'_, '_> {
                 if self.lexical_environment_binding(&name).is_some() {
                     Some((name, None))
                 } else {
-                    snapshot
-                        .lookup_from_visible(&name, 0, local_private)
-                        .map(|(layer, _)| (name, Some(layer)))
+                    snapshot.lookup_from_visible(&name, 0, local_private).map(
+                        |(layer, variable)| {
+                            // Resolve inherited policy before any export can run effects.
+                            snapshot.resolve_selected_export_policy(
+                                &name,
+                                layer,
+                                variable,
+                                local_private,
+                            );
+                            (name, Some(layer))
+                        },
+                    )
                 }
             })
             .collect();
@@ -4853,8 +4854,8 @@ impl Expansion<'_, '_> {
             if name == b"SHELL" && variable.export_policy().is_none() {
                 continue;
             }
-            let export = current
-                .resolve_selected_export_policy(&name, layer, variable, local_private)
+            let export = variable
+                .export_policy()
                 .unwrap_or_else(|| Self::shell_export_default(&name, variable.origin, export_all));
             if !export {
                 environment.push((name, EnvironmentValue::Remove));
@@ -5186,11 +5187,19 @@ impl Expansion<'_, '_> {
         }
     }
 
+    fn too_few_builtin_arguments(&mut self, function: &[u8], count: usize) -> ExpandError {
+        self.retain_native_fatal_expansion();
+        ExpandError::InsufficientArguments {
+            function: function.to_vec(),
+            count,
+        }
+    }
+
     fn eager_builtin(&mut self, name: &[u8], args: &[Vec<u8>]) -> Result<Vec<u8>, ExpandError> {
         if let Some((minimum, _)) = arity(name)
             && args.len() < minimum
         {
-            return Err(too_few_arguments(name, args.len()));
+            return Err(self.too_few_builtin_arguments(name, args.len()));
         }
         let first = args.first().map(Vec::as_slice).unwrap_or_default();
         match name {
@@ -5573,13 +5582,6 @@ pub(crate) fn evaluation_error(error: crate::parser::ParseError) -> ExpandError 
         }
     };
     original.preserve_frozen(diagnostic)
-}
-
-fn too_few_arguments(function: &[u8], count: usize) -> ExpandError {
-    ExpandError::InsufficientArguments {
-        function: function.to_vec(),
-        count,
-    }
 }
 
 struct Decimal<'a> {
