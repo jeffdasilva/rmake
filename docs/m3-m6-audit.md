@@ -495,7 +495,8 @@ Recipe cleanup uses the localized unlink report when an owned changed
 target cannot be removed. The NLS checks cover raw paths and retain the
 recipe diagnostic, deletion announcement, and filesystem outcome in order.
 A restart that cannot return to the original directory emits the localized
-system warning and fatal message in order, with existing token cleanup.
+system warning and fatal message in order. It reports a failed unlink of
+the owned stdin source before the jobserver token report and finalizers.
 The dynamic musl gate checks C.UTF-8 wildcard byte widths, a C raw-target
 diagnostic beside a user warning, and ordinary inherited, private, and
 pattern export scopes. Broader diagnostic producers, native and

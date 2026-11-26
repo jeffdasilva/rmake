@@ -3346,6 +3346,11 @@ impl Engine {
             };
             if !restored {
                 self.fatal_system(Message::RestartOriginalDirectory);
+                crate::stdin_source::unlink(
+                    plan.stdin_source.as_ref(),
+                    &self.output,
+                    &self.program,
+                );
                 if let Some(slots) = retired_slots {
                     self.stderr(format!("INTERNAL: Exiting with 1 jobserver tokens available; should be {slots}!").as_bytes());
                 }
