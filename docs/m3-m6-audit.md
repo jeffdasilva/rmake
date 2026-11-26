@@ -522,6 +522,8 @@ startup, using the recorded temporary name, retained bytes, and file mode.
 Recipe cleanup uses the localized unlink report when an owned changed
 target cannot be removed. The NLS checks cover raw paths and retain the
 recipe diagnostic, deletion announcement, and filesystem outcome in order.
+Built-in recipe failures report the translated location label for numeric
+exit and signal statuses, including ignored errors and parallel output.
 A restart that cannot return to the original directory emits the localized
 system warning and fatal message in order. It reports a failed unlink of
 the owned stdin source before the jobserver token report and finalizers.

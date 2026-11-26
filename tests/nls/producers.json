@@ -8,6 +8,168 @@
   },
   "rows": [
     {
+      "id": "nls-fr-builtin-recipe-error-serial",
+      "args": [
+        "--no-print-directory",
+        "-j1",
+        "CC=/bin/false",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "616c6c3a20780a",
+        "x.c": "696e74206d61696e28766f696429207b2072657475726e20303b207d0a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "/bin/false     x.c   -o x\n",
+        "stderr": "make: *** [<commande interne>: x] Error 1\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-fr-builtin-recipe-error-fifo",
+      "args": [
+        "--no-print-directory",
+        "-j2",
+        "-Otarget",
+        "--jobserver-style=fifo",
+        "CC=/bin/false",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "616c6c3a20780a",
+        "x.c": "696e74206d61696e28766f696429207b2072657475726e20303b207d0a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "/bin/false     x.c   -o x\n",
+        "stderr": "make: *** [<commande interne>: x] Error 1\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-fr-builtin-recipe-error-pipe",
+      "args": [
+        "--no-print-directory",
+        "-j2",
+        "-Otarget",
+        "--jobserver-style=pipe",
+        "CC=/bin/false",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "616c6c3a20780a",
+        "x.c": "696e74206d61696e28766f696429207b2072657475726e20303b207d0a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "/bin/false     x.c   -o x\n",
+        "stderr": "make: *** [<commande interne>: x] Error 1\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-fr-builtin-recipe-signal-serial",
+      "signal_fact": ["SIGTERM", "fr_FR.UTF-8"],
+      "args": [
+        "--no-print-directory",
+        "-j1",
+        "CC=/bin/sh die.sh",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "616c6c3a20780a",
+        "x.c": "696e74206d61696e28766f696429207b2072657475726e20303b207d0a",
+        "die.sh": "6b696c6c202d5445524d2024240a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "/bin/sh die.sh     x.c   -o x\n",
+        "stderr": "make: *** [<commande interne>: x] @OS_DETAIL@\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-fr-builtin-recipe-signal-ignored-pipe",
+      "signal_fact": ["SIGTERM", "fr_FR.UTF-8"],
+      "args": [
+        "--no-print-directory",
+        "-i",
+        "-j2",
+        "--jobserver-style=pipe",
+        "CC=/bin/sh die.sh",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "616c6c3a20780a",
+        "x.c": "696e74206d61696e28766f696429207b2072657475726e20303b207d0a",
+        "die.sh": "6b696c6c202d5445524d2024240a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "/bin/sh die.sh     x.c   -o x\n",
+        "stderr": "make: [<commande interne>: x] @OS_DETAIL@ (ignorée)\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-c-builtin-recipe-error-pipe",
+      "args": [
+        "--no-print-directory",
+        "-j2",
+        "-Otarget",
+        "--jobserver-style=pipe",
+        "CC=/bin/false",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "616c6c3a20780a",
+        "x.c": "696e74206d61696e28766f696429207b2072657475726e20303b207d0a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "/bin/false     x.c   -o x\n",
+        "stderr": "make: *** [<builtin>: x] Error 1\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
       "id": "nls-fr-cached-recipe-summary",
       "args": [
         "-rR",

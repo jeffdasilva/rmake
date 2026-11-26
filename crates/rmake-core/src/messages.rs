@@ -21,6 +21,7 @@ pub enum MessageId {
     NoRuleNeeded,
     TargetNotRemade,
     RecipeError,
+    BuiltinRecipe,
     DeleteTarget,
     DeletePeer,
     RetainArchiveMember,
@@ -118,7 +119,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 108] = [
+    pub const ALL: [Self; 109] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -133,6 +134,7 @@ impl MessageId {
         Self::NoRuleNeeded,
         Self::TargetNotRemade,
         Self::RecipeError,
+        Self::BuiltinRecipe,
         Self::DeleteTarget,
         Self::DeletePeer,
         Self::RetainArchiveMember,
@@ -267,6 +269,7 @@ impl MessageId {
                 ignored: b"",
                 suffix: b"",
             },
+            Self::BuiltinRecipe => Message::BuiltinRecipe,
             Self::DeleteTarget
             | Self::DeletePeer
             | Self::RetainArchiveMember
@@ -505,6 +508,7 @@ impl MessageId {
             Self::NoRuleNeeded => c"%sNo rule to make target '%s', needed by '%s'%s",
             Self::TargetNotRemade => c"Target '%s' not remade because of errors.",
             Self::RecipeError => c"%s[%s: %s] Error %d%s%s",
+            Self::BuiltinRecipe => c"<builtin>",
             Self::DeleteTarget => c"*** Deleting file '%s'",
             Self::DeletePeer => c"*** [%s] Deleting file '%s'",
             Self::RetainArchiveMember => c"*** Archive member '%s' may be bogus; not deleted",
@@ -714,6 +718,7 @@ pub enum Message<'a> {
         ignored: &'a [u8],
         suffix: &'a [u8],
     },
+    BuiltinRecipe,
     RecipeCleanup {
         target: &'a [u8],
         owner: Option<&'a [u8]>,
@@ -901,6 +906,7 @@ impl<'a> Message<'a> {
             } => MessageId::NoRuleNeeded,
             Self::TargetNotRemade(_) => MessageId::TargetNotRemade,
             Self::RecipeError { .. } => MessageId::RecipeError,
+            Self::BuiltinRecipe => MessageId::BuiltinRecipe,
             Self::RecipeCleanup { owner, archive, .. } => match (owner.is_some(), archive) {
                 (false, false) => MessageId::DeleteTarget,
                 (true, false) => MessageId::DeletePeer,
@@ -1052,6 +1058,7 @@ impl<'a> Message<'a> {
             Self::Stop
             | Self::MissingSeparator { .. }
             | Self::MissingSeparatorConditional
+            | Self::BuiltinRecipe
             | Self::Ignored
             | Self::NoTargets { .. }
             | Self::MultipleDefaultGoals

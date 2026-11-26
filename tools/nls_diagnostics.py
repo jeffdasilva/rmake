@@ -53,27 +53,32 @@ import ctypes
 import errno
 import locale
 import os
+import signal
 import sys
 locale.setlocale(locale.LC_ALL, "")
-function = ctypes.CDLL(None).strerror
+is_signal = sys.argv[2:] == ["signal"]
+function = getattr(ctypes.CDLL(None), "strsignal" if is_signal else "strerror")
 function.argtypes = [ctypes.c_int]
 function.restype = ctypes.c_char_p
-os.write(1, function(getattr(errno, sys.argv[1])))
+os.write(1, function(getattr(signal if is_signal else errno, sys.argv[1])))
 """
 
 
-def errno_witness(case, runtime, fact):
+def os_detail_witness(case, runtime, fact, kind):
     name, locale = fact
-    assert name in {"ENOENT", "ENOTDIR", "EISDIR", "ENOSPC", "ENOLCK", "ELOOP", "ENAMETOOLONG", "EACCES"}
+    supported = {"SIGTERM"} if kind == "signal" else {
+        "ENOENT", "ENOTDIR", "EISDIR", "ENOSPC", "ENOLCK", "ELOOP", "ENAMETOOLONG", "EACCES",
+    }
+    assert name in supported
     assert locale in {"C", "fr_FR.UTF-8", "C.UTF-8"}
     variables = {**case.environment, "LC_ALL": locale, "LANG": locale}
     variables.pop("LD_PRELOAD", None)
     environment = h.clean_environment(runtime, variables)
     out, err, status, limit, leftovers = h.capture(
-        [sys.executable, "-c", OS_WITNESS, name], runtime / "work", environment, 5,
+        [sys.executable, "-c", OS_WITNESS, name, kind], runtime / "work", environment, 5,
     )
     if status or err or limit or leftovers or not out or b"\n" in out:
-        raise h.HarnessError("could not witness public libc errno text")
+        raise h.HarnessError("could not witness public libc diagnostic text")
     expected = dict(case.expected)
     stream = "stdout_hex" if case.output == "merged" else "stderr_hex"
     text = bytes.fromhex(expected[stream])
@@ -102,7 +107,7 @@ def cases(selection):
     debug_options = json.loads((DATA / "debug-options.json").read_bytes())
     suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution,
               touch_open, cleanup, wait_notice, intermediate, file_io, output_lock, debug_options)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 176, 15, 20, 14, 13, 18, 16, 12, 26, 8, 12, 12, 8, 7):
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 182, 15, 20, 14, 13, 18, 16, 12, 26, 8, 12, 12, 8, 7):
         raise h.HarnessError("unexpected NLS model inventory")
     shuffle_option = json.loads((DATA / "shuffle-option.json").read_bytes())
     if len(shuffle_option["rows"]) != 9 or shuffle_option["fixture_sha256"]:
@@ -279,8 +284,11 @@ def main(argv=None):
                 case, detail = loader_witness(case, reset, kind)
                 record["raw_loader_detail_hex"] = detail.hex()
             if (fact := row.get("errno_fact")) is not None:
-                case, detail = errno_witness(case, reset, fact)
+                case, detail = os_detail_witness(case, reset, fact, "errno")
                 record["raw_errno_detail_hex"] = detail.hex()
+            if (fact := row.get("signal_fact")) is not None:
+                case, detail = os_detail_witness(case, reset, fact, "signal")
+                record["raw_signal_detail_hex"] = detail.hex()
             expected_files = h.snapshot({name: reset / name for name in ("work", "home", "tmp")})
             expected_files["work/seen"].update(content=base64.b64encode(model.seen).decode(), size=len(model.seen),
                                                sha256=hashlib.sha256(model.seen).hexdigest())

@@ -266,6 +266,15 @@ fn location_prefix(location: &Location) -> Vec<u8> {
     bytes
 }
 
+fn recipe_error_location_prefix(location: &Location) -> Vec<u8> {
+    if !location.file.is_null() {
+        return location_prefix(location);
+    }
+    let mut bytes = crate::messages::system(rmake_core::messages::Message::BuiltinRecipe);
+    bytes.extend_from_slice(b": ");
+    bytes
+}
+
 fn one_logical_recipe_slot(bytes: &[u8]) -> bool {
     bytes
         .split_inclusive(|&byte| byte == b'\n')
@@ -9552,7 +9561,7 @@ impl Engine {
             && (!job.ignore || !self.globally_silent())
         {
             self.show_recipe_makefile_error(remake);
-            let source = location_prefix(&job.location);
+            let source = recipe_error_location_prefix(&job.location);
             let ignored = if job.ignore {
                 crate::messages::system(rmake_core::messages::Message::Ignored)
             } else {
@@ -9571,7 +9580,7 @@ impl Engine {
                 [
                     if job.ignore { b"".as_slice() } else { b"*** " },
                     b"[",
-                    &location_prefix(&job.location),
+                    &source,
                     &target,
                     format!("] {error}").as_bytes(),
                     &ignored,
@@ -19419,7 +19428,7 @@ impl Engine {
                     && (!ignore || !self.globally_silent())
                 {
                     self.show_recipe_makefile_error(remake.as_ref());
-                    let source = location_prefix(&recipe.location);
+                    let source = recipe_error_location_prefix(&recipe.location);
                     let ignored = if ignore {
                         crate::messages::system(rmake_core::messages::Message::Ignored)
                     } else {
@@ -19438,7 +19447,7 @@ impl Engine {
                         } else {
                             let mut message = if ignore { Vec::new() } else { b"*** ".to_vec() };
                             message.push(b'[');
-                            message.extend_from_slice(&location_prefix(&recipe.location));
+                            message.extend_from_slice(&source);
                             message.extend_from_slice(target);
                             message.extend_from_slice(format!("] {error}").as_bytes());
                             message.extend_from_slice(&ignored);
