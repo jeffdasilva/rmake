@@ -3,7 +3,7 @@
 
 //! Named stdin source publication is separate from the buffered copy lifetime.
 use std::cell::Cell;
-use std::ffi::{CString, OsString, c_char, c_int, c_void};
+use std::ffi::{CString, OsString, c_char, c_int, c_uint, c_void};
 use std::fs::File;
 use std::io;
 use std::os::fd::{FromRawFd, IntoRawFd};
@@ -16,6 +16,13 @@ unsafe extern "C" {
     fn rm_stdin_read(bytes: *mut u8, capacity: usize, finished: *mut c_int) -> usize;
     fn rm_stdin_write(output: *mut c_void, bytes: *const u8, length: usize) -> c_int;
     fn rm_stdin_close(output: *mut c_void);
+    fn umask(mask: c_uint) -> c_uint;
+}
+
+/// Keep the named creation mask in force through terminal error handling.
+pub fn retain_create_failure_mask() {
+    // SAFETY: umask updates process permissions and takes no pointers.
+    unsafe { umask(0o077) };
 }
 
 struct Buffered(*mut c_void);

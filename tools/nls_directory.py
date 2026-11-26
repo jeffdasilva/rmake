@@ -26,7 +26,7 @@ STDIN_CREATE_RECORD = "home/stdin-create-attempt"
 STDIN_CREATE_PATH = b"@STDIN_CREATE_PATH@"
 
 
-def observe(case, runtime, binary, launcher):
+def observe(case, runtime, binary, launcher, stdin_umask=None):
     if launcher is None:
         return h.execute(case, runtime, binary)
     h.reset_workspace(case, runtime, binary)
@@ -40,7 +40,12 @@ def observe(case, runtime, binary, launcher):
         if launcher == "entry-stdin":
             command = ["/bin/sh", "-c", 'exec "$@" < ../build/stdin-input.mk', "stdin-launcher", *command]
     elif launcher == "stdin-create":
-        command = ["/bin/sh", "-c", 'exec "$@" < stdin-input.mk', "stdin-launcher", executable, *case.args]
+        launch = 'exec "$@" < stdin-input.mk'
+        arguments = [executable, *case.args]
+        if stdin_umask is not None:
+            launch = 'umask "$1" && shift && ' + launch
+            arguments.insert(0, stdin_umask)
+        command = ["/bin/sh", "-c", launch, "stdin-launcher", *arguments]
     else:
         command = [sys.executable, str(DATA / "deleted_cwd.py"), launcher,
                    str(cwd), executable, *case.args]
@@ -68,7 +73,7 @@ def load_rows(selection):
     data = json.loads((DATA / "directory.json").read_bytes())
     rows = data["rows"]
     names = {row["id"] for row in rows}
-    if len(rows) != 50 or len(names) != 50:
+    if len(rows) != 55 or len(names) != 55:
         raise h.HarnessError("unexpected NLS directory inventory")
     if set(selection) - names:
         raise h.HarnessError("unknown exact NLS directory ID")
@@ -86,6 +91,11 @@ def load_rows(selection):
             raise h.HarnessError("NLS directory model uses unpinned source")
         if row["launch"] not in (None, "initial", "after-C", "entry", "entry-stdin", "stdin-create"):
             raise h.HarnessError("unknown NLS directory launch")
+        if "stdin_umask" in row:
+            if row["launch"] != "stdin-create" or row["stdin_umask"] not in ("022", "077"):
+                raise h.HarnessError("unexpected named stdin umask input")
+            if row.get("finalizer_seen_mode") not in (0o600, 0o644) or "seen" in row["files"]:
+                raise h.HarnessError("umask model requires a new finalizer-owned seen file")
     return data, [row for row in rows if not selection or row["id"] in selection]
 
 
@@ -204,6 +214,8 @@ def main(argv=None):
         for row in rows:
             model, errors = make_model(row, root, locale)
             case, compilation, filesystem = directory.prepare(model, root / model.id, runtime, "/usr/bin/cc")
+            if "finalizer_seen_mode" in row:
+                filesystem["work/seen"]["mode"] = row["finalizer_seen_mode"]
             source_effect = row.get("source_after_restart")
             if source_effect:
                 path, kind = source_effect
@@ -223,7 +235,7 @@ def main(argv=None):
                 binaries.append(candidate)
             observed = []
             for binary in binaries:
-                value = observe(case, runtime, binary, row["launch"])
+                value = observe(case, runtime, binary, row["launch"], row.get("stdin_umask"))
                 observed.append(value)
                 record["observations"].append(directory.evidence(value))
                 publish()

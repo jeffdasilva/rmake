@@ -3377,6 +3377,7 @@ impl Engine {
                     return Err(());
                 }
                 Err(rmake_linux::stdin_source::CopyError::Create { path, error }) => {
+                    rmake_linux::stdin_source::retain_create_failure_mask();
                     let message = crate::output::temporary_creation_message(&path, &error);
                     emit_output(
                         &self.output,
