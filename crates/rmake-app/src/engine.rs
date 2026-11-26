@@ -637,6 +637,7 @@ struct RequiredRemakeWorkerPair<'a> {
     second: &'a [u8],
     second_identity: u64,
     second_before: SystemTime,
+    second_failure: Option<Rc<Cell<Option<SystemTime>>>>,
 }
 
 struct TrailingOptionalWorker {
@@ -1308,6 +1309,7 @@ struct ParallelJob {
     waiting_load: bool,
     child: Option<rmake_linux::child::Child>,
     signal_cleaned: bool,
+    required_pair_failure: Option<Rc<Cell<Option<SystemTime>>>>,
     trailing_optional_worker: Option<Rc<TrailingOptionalWorker>>,
 }
 
@@ -8840,6 +8842,15 @@ impl Engine {
                 {
                     // This root settled while the same later child still ran.
                     pair.first_reap = Some(clock);
+                    if self.options.keep_going
+                        && !pair.first_double_colon
+                        && let Some(job) = self.parallel_jobs.primary.get_mut(pair.second)
+                        && job.identity == pair.second_identity
+                    {
+                        let failure = Rc::new(Cell::new(None));
+                        job.required_pair_failure = Some(Rc::clone(&failure));
+                        pair.second_failure = Some(failure);
+                    }
                 }
                 if request.trace_synthetic_reap
                     && needs_visit
@@ -9733,6 +9744,17 @@ impl Engine {
         }
         let cached = self.cached_recipe_outcome(outcome);
         self.file_traversals.set_outcome(&target, cached);
+        if let Some(failure) = job.required_pair_failure
+            && failed_source_recipe
+            && !optional_failure
+            && cached.ran_refresh()
+            && cached.failed
+            && !cached.question_outdated
+            && let Some(clock) = cached.time
+            && Self::regular_remake_clock(&target) == Some(clock)
+        {
+            failure.set(Some(clock));
+        }
         if let Some(worker) = job.trailing_optional_worker
             && launched
             && !pending
@@ -14648,6 +14670,7 @@ impl Engine {
                 second: &second.file.name,
                 second_identity,
                 second_before,
+                second_failure: None,
             })
         })
     }
@@ -14726,8 +14749,14 @@ impl Engine {
                 .outcome(pair.second)
                 .is_some_and(|second| {
                     second.ran_refresh()
-                        && second.goal_verdict().is_none()
                         && second.time == Some(pair.second_before)
+                        && (second.goal_verdict().is_none()
+                            || (self.options.keep_going
+                                && second.failed
+                                && !second.question_outdated
+                                && pair.second_failure.as_deref().is_some_and(|failure| {
+                                    failure.get() == Some(pair.second_before)
+                                })))
                 })
     }
 
@@ -18360,6 +18389,7 @@ impl Engine {
                     waiting_load: true,
                     child: None,
                     signal_cleaned: false,
+                    required_pair_failure: None,
                     trailing_optional_worker: None,
                 },
             );
@@ -19068,6 +19098,7 @@ impl Engine {
                         waiting_load: false,
                         child: process.ok().map(|(child, _)| child),
                         signal_cleaned: false,
+                        required_pair_failure: None,
                         trailing_optional_worker: None,
                         continuation: RecipeState {
                             branch,
