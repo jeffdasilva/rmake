@@ -63,6 +63,7 @@ pub enum MessageId {
     IntermediateTargetConflict,
     SecondaryTargetConflict,
     CircularDependency,
+    PatternPeerNotUpdated,
     MissingTargetPattern,
     MultipleTargetPatterns,
     TargetPatternWithoutPercent,
@@ -85,7 +86,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 75] = [
+    pub const ALL: [Self; 76] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -142,6 +143,7 @@ impl MessageId {
         Self::IntermediateTargetConflict,
         Self::SecondaryTargetConflict,
         Self::CircularDependency,
+        Self::PatternPeerNotUpdated,
         Self::MissingTargetPattern,
         Self::MultipleTargetPatterns,
         Self::TargetPatternWithoutPercent,
@@ -295,6 +297,7 @@ impl MessageId {
                 target: b"target",
                 prerequisite: b"input",
             },
+            Self::PatternPeerNotUpdated => Message::PatternPeerNotUpdated(b"peer"),
             Self::MissingTargetPattern => Message::MissingTargetPattern,
             Self::MultipleTargetPatterns => Message::MultipleTargetPatterns,
             Self::TargetPatternWithoutPercent => Message::TargetPatternWithoutPercent,
@@ -402,6 +405,9 @@ impl MessageId {
             }
             Self::SecondaryTargetConflict => c"%s cannot be both .NOTINTERMEDIATE and .SECONDARY",
             Self::CircularDependency => c"Circular %s <- %s dependency dropped.",
+            Self::PatternPeerNotUpdated => {
+                c"warning: pattern recipe did not update peer target '%s'."
+            }
             Self::MissingTargetPattern => c"missing target pattern",
             Self::MultipleTargetPatterns => c"multiple target patterns",
             Self::TargetPatternWithoutPercent => c"target pattern contains no '%%'",
@@ -567,6 +573,7 @@ pub enum Message<'a> {
         target: &'a [u8],
         prerequisite: &'a [u8],
     },
+    PatternPeerNotUpdated(&'a [u8]),
     MissingTargetPattern,
     MultipleTargetPatterns,
     TargetPatternWithoutPercent,
@@ -695,6 +702,7 @@ impl<'a> Message<'a> {
                 }
             }
             Self::CircularDependency { .. } => MessageId::CircularDependency,
+            Self::PatternPeerNotUpdated(_) => MessageId::PatternPeerNotUpdated,
             Self::MissingTargetPattern => MessageId::MissingTargetPattern,
             Self::MultipleTargetPatterns => MessageId::MultipleTargetPatterns,
             Self::TargetPatternWithoutPercent => MessageId::TargetPatternWithoutPercent,
@@ -757,6 +765,7 @@ impl<'a> Message<'a> {
             | Self::NothingToBeDone(name)
             | Self::UpToDate(name)
             | Self::LowResolutionTime(name)
+            | Self::PatternPeerNotUpdated(name)
             | Self::DirectiveTail(name)
             | Self::ExtraneousConditional(name)
             | Self::InvalidFileOperation(name)
