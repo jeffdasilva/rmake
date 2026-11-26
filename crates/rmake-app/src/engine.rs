@@ -18896,7 +18896,8 @@ impl Engine {
                         .map_or_else(|| signal_status(status), |code| format!("Error {code}")),
                 ),
                 Err(err) => {
-                    self.stderr(&[program.as_slice(), b": ", os_error(&err).as_bytes()].concat());
+                    let detail = rmake_linux::filesystem::source_error_detail(&err);
+                    self.stderr(&[program.as_slice(), b": ", &detail].concat());
                     // GNU rechecks the last successfully spawned command
                     // when the next executable lookup fails.
                     if executable_launch_failed
@@ -18913,14 +18914,8 @@ impl Engine {
                         && let Some(path) = previous_executable.as_ref()
                         && let Err(error) = std::fs::metadata(path)
                     {
-                        self.stderr(
-                            &[
-                                path.as_os_str().as_bytes(),
-                                b": ",
-                                os_error(&error).as_bytes(),
-                            ]
-                            .concat(),
-                        );
+                        let detail = rmake_linux::filesystem::source_error_detail(&error);
+                        self.stderr(&[path.as_os_str().as_bytes(), b": ", &detail].concat());
                     }
                     Some("Error 127".to_owned())
                 }
