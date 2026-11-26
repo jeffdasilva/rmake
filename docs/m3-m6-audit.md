@@ -421,6 +421,10 @@ failure still reports its missing rule and independent goals can proceed.
 A successful declared required worker can supply a new physical clock to
 the source decision before the sole tagged synthetic branch fails. The
 held cases cover both reaping orders and a genuine required-worker failure.
+A successfully reaped required worker can leave a reread pending when a
+trailing optional worker later restores the required file’s timestamp.
+The held cases retain the tagged missing-rule diagnostic and check the
+final physical clock used by ordinary goals.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
