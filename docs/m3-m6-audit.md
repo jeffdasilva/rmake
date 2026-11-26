@@ -182,9 +182,10 @@ covers mixed required and optional failure policies.
   The tested unignored serial launch errors record the first cleanup-policy
   lookup in the file table and invalidate the displayed nonphony timestamp
   when a direct executable or the configured recipe shell fails to start.
-  This covers fully forced recipes under `-n`, `-q`, and `-t`. Mixed forced
-  and ordinary recipes still differ in their simulated timestamps after a
-  failed launch.
+  This covers fully forced recipes under `-n`, `-q`, and `-t`. In those modes,
+  the database retains the simulated timestamp of a nonphony file when its mixed
+  forced and ordinary recipe reaches an unignored launch failure or nonzero
+  child exit. Ignored failures followed by a query stop remain open.
   GNU also checks a prior executable's path during a later launch failure and
   can emit an additional diagnostic. That diagnostic remains open.
   Cleanup after a real child error follows the existing policy. Archive and remake

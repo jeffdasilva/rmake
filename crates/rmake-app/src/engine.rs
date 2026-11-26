@@ -328,6 +328,7 @@ enum DatabaseResult {
     Outcome,
     Simulated,
     SimulatedQuery,
+    SimulatedRecipeFailure,
     TouchedTarget,
     // A settled touch can supply the failed-source restart verdict.
     SimulatedTouch,
@@ -348,7 +349,10 @@ impl DatabaseResult {
     fn has_simulated_time(self) -> bool {
         matches!(
             self,
-            Self::Simulated | Self::SimulatedQuery | Self::TouchedTarget
+            Self::Simulated
+                | Self::SimulatedQuery
+                | Self::SimulatedRecipeFailure
+                | Self::TouchedTarget
         )
     }
 }
@@ -16203,7 +16207,9 @@ impl Engine {
                         TouchCompletion::Physical => DatabaseResult::PhysicalTouch,
                     };
                 }
-                if execution.expansion_failed {
+                if execution.simulated_failure_time {
+                    outcome.database_result = DatabaseResult::SimulatedRecipeFailure;
+                } else if execution.expansion_failed {
                     outcome.database_result = DatabaseResult::UnfinishedRecipeExpansion;
                 } else if rule.grouped_double_id().is_some()
                     && execution.status == Status::Fatal
@@ -17915,6 +17921,18 @@ impl Engine {
                 Ok(status) => status.code().filter(|code| *code != 0),
                 Err(_) => Some(127),
             };
+            let serial_recipe_failure = !ignore
+                && (executable_launch_failed || (result.is_ok() && error_code.is_some()))
+                && !parallel
+                && !self.remaking
+                && remake.is_none()
+                && branch.is_none()
+                && !self.running_groups.contains_key(target)
+                && rmake_core::filenames::archive_parts(target).is_none();
+            let simulated_failure_time = serial_recipe_failure
+                && !phony
+                && flow.has_ordinary()
+                && MakefileModes::from_options(&self.options).active();
             let error = match result {
                 Ok(status) if status.success() => None,
                 // Recursive make uses exit 1 to report an out-of-date build in
@@ -17922,8 +17940,11 @@ impl Engine {
                 // command; ignored errors retain their ordinary handling.
                 Ok(status) if self.options.question && !ignore && status.code() == Some(1) => {
                     self.forced_query_completed();
-                    return Execution::question(ran, failure_cleanup)
-                        .with_recursion(!flow.has_ordinary());
+                    return Execution {
+                        simulated_failure_time,
+                        ..Execution::question(ran, failure_cleanup)
+                            .with_recursion(!flow.has_ordinary())
+                    };
                 }
                 Ok(status) => Some(
                     status
@@ -17982,18 +18003,10 @@ impl Engine {
                     let mut execution = Execution::failure(ran, failure_cleanup)
                         .with_recursion(!flow.has_ordinary());
                     execution.launch_failed = !launched;
-                    if executable_launch_failed
-                        && !parallel
-                        && !self.remaking
-                        && remake.is_none()
-                        && branch.is_none()
-                        && (execution.all_recursive
-                            || !MakefileModes::from_options(&self.options).active())
-                        && !self.running_groups.contains_key(target)
-                        && rmake_core::filenames::archive_parts(target).is_none()
-                    {
+                    execution.simulated_failure_time = simulated_failure_time;
+                    if executable_launch_failed && serial_recipe_failure {
                         self.record_delete_on_error_lookup();
-                        if !phony {
+                        if !phony && !simulated_failure_time {
                             // A failed executable launch completes the attempt
                             // without leaving a child that can clean up targets.
                             self.database_unchecked_times

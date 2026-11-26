@@ -49,6 +49,8 @@ pub struct Execution {
     pub launch_failed: bool,
     /// The database observes a failure while expanding a recipe line.
     pub expansion_failed: bool,
+    /// A failed command in a mixed recipe leaves the simulated timestamp.
+    pub simulated_failure_time: bool,
     pub status: Status,
     pub cleanup: Cleanup,
     /// At completion, every logical recipe line is recursive after prefix scanning.
