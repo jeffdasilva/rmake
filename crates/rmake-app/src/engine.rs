@@ -633,7 +633,6 @@ struct TrailingOptionalWorker {
     required_identity: u64,
     optional_identity: u64,
     required_before: SystemTime,
-    optional_before: SystemTime,
     only_synthetic_tail_remains: bool,
     required_failure_settled: Cell<bool>,
     result: Cell<Option<TrailingOptionalWorkerResult>>,
@@ -641,20 +640,8 @@ struct TrailingOptionalWorker {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum TrailingOptionalWorkerResult {
-    Completed,
-    Failed,
-}
-
-impl PendingMakefileRemake<'_> {
-    fn trailing_worker_completed_at_same_clock(&self) -> bool {
-        self.trailing_optional_worker
-            .as_ref()
-            .is_some_and(|worker| {
-                worker.result.get() == Some(TrailingOptionalWorkerResult::Completed)
-                    && Engine::regular_remake_clock(&worker.required)
-                        == Some(worker.required_before)
-            })
-    }
+    Completed(SystemTime),
+    Failed(SystemTime),
 }
 
 struct InlineOptionalRemakeClock<'a> {
@@ -4263,12 +4250,9 @@ impl Engine {
                                         engine.settled_trailing_optional_visit(
                                             trailing,
                                             visited,
-                                            request.same_clock_inline_optional_settled
-                                                || request
-                                                    .trailing_worker_completed_at_same_clock(),
-                                        ) || engine.settled_failed_trailing_optional_worker(
-                                            request, trailing,
-                                        )
+                                            request.same_clock_inline_optional_settled,
+                                        ) || engine
+                                            .settled_trailing_optional_worker(request, trailing)
                                     })
                             })
                     });
@@ -4292,15 +4276,9 @@ impl Engine {
                                             // then discover the missing rule.
                                             explicit_refresh
                                                 && (request.optional_visit_settled
-                                                    || (request
-                                                        .trailing_worker_completed_at_same_clock()
-                                                        && engine.settled_trailing_optional_visit(
-                                                            trailing, visited, true,
-                                                        ))
-                                                    || engine
-                                                        .settled_failed_trailing_optional_worker(
-                                                            request, trailing,
-                                                        )
+                                                    || engine.settled_trailing_optional_worker(
+                                                        request, trailing,
+                                                    )
                                                     || visited
                                                         .get(trailing.neighbor)
                                                         .zip(
@@ -9400,26 +9378,21 @@ impl Engine {
                     .parallel_jobs
                     .get(&worker.required, worker.required_identity)
                     .is_some_and(|required| required.child.is_some()))
-            && Self::regular_remake_clock(&target) == Some(worker.optional_before)
+            && let Some(clock) = cached.time
+            && Self::regular_remake_clock(&target) == Some(clock)
         {
-            if !report_error
-                && Self::same_clock_optional_remake_outcome(Some(worker.optional_before), cached)
-            {
+            if !report_error && Self::same_clock_optional_remake_outcome(Some(clock), cached) {
                 worker
                     .result
-                    .set(Some(TrailingOptionalWorkerResult::Completed));
+                    .set(Some(TrailingOptionalWorkerResult::Completed(clock)));
             } else if failed_source_recipe
                 && optional_failure
-                && self.cached_failed_optional_remake_at_same_clock(
-                    &target,
-                    worker.optional_before,
-                    cached,
-                )
+                && self.cached_failed_optional_remake_at_clock(&target, clock, cached)
             {
                 // The optional failure remains cached for ordinary dependents.
                 worker
                     .result
-                    .set(Some(TrailingOptionalWorkerResult::Failed));
+                    .set(Some(TrailingOptionalWorkerResult::Failed(clock)));
             }
         }
         if !pending {
@@ -13608,13 +13581,13 @@ impl Engine {
             && result.completion == CompletionTime::Refresh
     }
 
-    fn cached_failed_optional_remake_at_same_clock(
+    fn cached_failed_optional_remake_at_clock(
         &self,
         name: &[u8],
-        before: SystemTime,
+        clock: SystemTime,
         result: Outcome,
     ) -> bool {
-        result.time == Some(before)
+        result.time == Some(clock)
             && result.ran_refresh()
             && result.failed
             && !result.question_outdated
@@ -13624,32 +13597,36 @@ impl Engine {
                 .is_some_and(Option::is_none)
     }
 
-    fn settled_failed_trailing_optional_worker(
+    fn settled_trailing_optional_worker(
         &self,
         request: &PendingMakefileRemake<'_>,
         trailing: &TrailingOptionalRemake<'_>,
     ) -> bool {
-        self.options.keep_going
-            && request
-                .trailing_optional_worker
-                .as_ref()
-                .is_some_and(|worker| {
-                    worker.result.get() == Some(TrailingOptionalWorkerResult::Failed)
-                        && Self::regular_remake_clock(&worker.required)
-                            == Some(worker.required_before)
-                        && Self::regular_remake_clock(trailing.neighbor)
-                            == Some(worker.optional_before)
-                        && self
-                            .file_traversals
-                            .outcome(trailing.neighbor)
-                            .is_some_and(|result| {
-                                self.cached_failed_optional_remake_at_same_clock(
-                                    trailing.neighbor,
-                                    worker.optional_before,
-                                    *result,
-                                )
-                            })
-                })
+        let (Some(worker), Some(cached)) = (
+            &request.trailing_optional_worker,
+            self.file_traversals.outcome(trailing.neighbor).copied(),
+        ) else {
+            return false;
+        };
+        if !self.options.keep_going {
+            return false;
+        }
+        let (clock, settled) = match worker.result.get() {
+            Some(TrailingOptionalWorkerResult::Completed(clock)) => (
+                clock,
+                Self::same_clock_optional_remake_outcome(Some(clock), cached),
+            ),
+            Some(TrailingOptionalWorkerResult::Failed(clock)) => (
+                clock,
+                self.cached_failed_optional_remake_at_clock(trailing.neighbor, clock, cached),
+            ),
+            None => return false,
+        };
+        // The source pass still decides reread from its own visit and clock.
+        // Use this child result only while its observed timestamp is current.
+        settled
+            && Self::regular_remake_clock(trailing.neighbor) == Some(clock)
+            && Self::regular_remake_clock(&worker.required) == Some(worker.required_before)
     }
 
     fn settled_trailing_optional_visit(
@@ -13970,7 +13947,6 @@ impl Engine {
             required_identity,
             optional_identity: optional.identity,
             required_before,
-            optional_before,
             only_synthetic_tail_remains,
             required_failure_settled: Cell::new(false),
             result: Cell::new(None),

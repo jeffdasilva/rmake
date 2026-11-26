@@ -367,10 +367,14 @@ and an explicit required refresh before the later missing synthetic rule.
 The required synthetic failure can also settle before the optional worker
 finishes. Both worker orders preserve the optional failure for ordinary
 dependents when the worker exits unsuccessfully and both timestamps stay fixed.
+When the optional worker leaves a new timestamp that stays current, a
+successful remake can reread the source, and an unsuccessful remake preserves
+the ordinary dependency error without causing a reread.
 For the qualified inline refresh without a relevant time assumption, a trailing
 file changed and then restored by the required worker uses its final timestamp
 for the restart decision and ordinary goal visits.
-Other completion orders and changed worker clocks still need qualification.
+Restoration after a separate worker completes and other completion orders still
+need qualification.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
