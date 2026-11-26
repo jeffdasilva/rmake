@@ -26,7 +26,7 @@ def digest(value):
     return hashlib.sha256(value).hexdigest()
 
 
-def run_case(row, root, runtime, reference, candidate, locale, compiler):
+def run_case(row, root, runtime, reference, candidate, locale, compiler, expected_usage_sha256):
     model = native.Model(
         row["id"], {name: bytes.fromhex(value) for name, value in row["files"].items()},
         {key: row["expected"][key] for key in ("exit_code", "stdout_hex")},
@@ -49,7 +49,7 @@ def run_case(row, root, runtime, reference, candidate, locale, compiler):
         errors = h.expectation_errors(case, value)
         if not value.stderr.startswith(prefix):
             errors.append("getopt stderr prefix differs from the typed model")
-        elif digest(value.stderr[len(prefix):]) != row["expected"]["usage_sha256"]:
+        elif digest(value.stderr[len(prefix):]) != expected_usage_sha256:
             errors.append("full GNU usage transcript hash differs")
         if value.filesystem != filesystem:
             errors.append("full filesystem differs")
@@ -85,8 +85,11 @@ def main():
     if h.sha256_file(catalog) != plan["reference_make_catalog_sha256"]:
         raise h.HarnessError("unexpected reference French Make catalog")
     locale = locale_data.provision(opts.locale_root.resolve())
+    aarch64 = locale["host"]["machine"] == "aarch64"
+    lock_key = "locale_lock_sha256_aarch64" if aarch64 else "locale_lock_sha256"
+    usage_key = "usage_sha256_aarch64" if aarch64 else "usage_sha256"
     if (locale["lock_sha256"], locale["generated_tree_sha256"]) != (
-            plan["locale_lock_sha256"], plan["locale_generated_tree_sha256"]):
+            plan[lock_key], plan["locale_generated_tree_sha256"]):
         raise h.HarnessError("unexpected locale data")
     native.SOURCES = opts.models.parent
     if h.sha256_file(native.SOURCES / FIXTURE) != plan["fixture_sha256"]:
@@ -113,7 +116,8 @@ def main():
             runtime = root / "runtime"
             runtime.mkdir()
             for row in selected:
-                result = run_case(row, root, runtime, reference, opts.candidate.resolve(), locale, opts.cc)
+                result = run_case(row, root, runtime, reference, opts.candidate.resolve(),
+                                  locale, opts.cc, row["expected"][usage_key])
                 report["records"].append(result)
                 publish()
                 if any(item["limit"] or item["leftover_processes"] or item["returncode"] < 0

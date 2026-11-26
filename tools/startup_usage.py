@@ -213,7 +213,7 @@ def models():
     yield Model('fr-unknown-option', (b'-z',), SHORT, french=True)
 
 
-def observe(model, binary, invoke, reset, locale, engine):
+def observe(model, binary, invoke, reset, locale, engine, make_host):
     reset.mkdir()
     work, home, temporary = (reset / name for name in ('work', 'home', 'tmp'))
     for directory in (work, home, temporary):
@@ -256,7 +256,7 @@ def observe(model, binary, invoke, reset, locale, engine):
             stderr_ok = err.startswith(expected_err) and b'Options' in err and USAGE not in err
         else:
             stderr_ok = err.startswith(expected_err + USAGE) and err.endswith(
-                b'\nThis program built for x86_64-pc-linux-gnu\nReport bugs to <bug-make@gnu.org>\n')
+                b'\nThis program built for ' + make_host + b'\nReport bugs to <bug-make@gnu.org>\n')
     else:
         stderr_ok = err == expected_err
     present = (work / 'seen').read_bytes() if (work / 'seen').is_file() else None
@@ -294,6 +294,7 @@ def main():
     if not selected:
         parser.error(f'unknown startup usage case: {args.case}')
     profile = oracle.verify(args.oracle)
+    make_host = profile['observed']['variables']['MAKE_HOST'].encode('ascii')
     locale = locale_data.provision(args.locale_root.resolve()) if any(model.french for model in selected) else None
     rows = []
     previous_umask = os.umask(0o022)
@@ -306,7 +307,8 @@ def main():
                 for name, binary in (('gnu-first', args.oracle), ('gnu-second', args.oracle),
                                      ('candidate', args.candidate)):
                     try:
-                        observations.append(observe(model, binary.absolute(), root / 'make', reset, locale, name))
+                        observations.append(observe(
+                            model, binary.absolute(), root / 'make', reset, locale, name, make_host))
                     finally:
                         h.remove_tree(reset)
                 passed = compare(model, observations)
