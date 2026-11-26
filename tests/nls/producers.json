@@ -2047,6 +2047,161 @@
         "stderr_hex": "",
         "seen_hex": "616e63686f720a7265616465720a6c6566740a72696768740a"
       }
+    },
+    {
+      "id": "nls-file-alias-explicit-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "616c6c3a207372632f706172656e7420706172656e742061667465720a4750415448203d207372630a534541524348203d2024286576616c207670617468202520737263290a7372632f706172656e743a206473742e696e0a0940242866696c65203e3e7365656e2c646573743a2440297072696e7466202725735c6e272027636f6d706c657465647c24407c243c270a706172656e743a207372632e696e0a0940242853454152434829242866696c65203e3e7365656e2c736f757263653a2440297072696e7466202725735c6e272072657461696e6564203e207372632f706172656e740a61667465723a0a0940242866696c65203e3e7365656e2c61667465723a242866696c65203c7372632f706172656e7429297072696e7466202725735c6e272061667465720a",
+        "dst.in": "696e7075740a",
+        "src/seed": "736565640a",
+        "seen": "616e63686f720a",
+        "src.in": "696e7075740a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "completed|src/parent|dst.in\nafter\n",
+        "stderr": "Makefile:7: Une recette a été spécifiée pour le fichier « parent » dans Makefile : 7,\nMakefile:7: mais « parent » est maintenant considéré comme étant le même fichier que « src/parent ».\nMakefile:7: La recette pour « parent » sera ignorée en faveur de celle pour « src/parent ».\n",
+        "seen": "anchor\ndest:src/parent\nsource:parent\nafter:retained\n"
+      },
+      "updates": {
+        "src/parent": "72657461696e65640a"
+      }
+    },
+    {
+      "id": "nls-file-alias-pattern-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "616c6c3a207372632f706172656e7420706172656e742061667465720a4750415448203d207372630a534541524348203d2024286576616c207670617468202520737263290a7372632f706172656e743a206473742e696e0a0940242866696c65203e3e7365656e2c646573743a2440297072696e7466202725735c6e272027636f6d706c657465647c24407c243c270a253a20252e736565640a0940242853454152434829242866696c65203e3e7365656e2c736f757263653a2440297072696e7466202725735c6e272072657461696e6564203e207372632f706172656e740a61667465723a0a0940242866696c65203e3e7365656e2c61667465723a242866696c65203c7372632f706172656e7429297072696e7466202725735c6e272061667465720a",
+        "dst.in": "696e7075740a",
+        "src/seed": "736565640a",
+        "seen": "616e63686f720a",
+        "parent.seed": "696e7075740a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "completed|src/parent|dst.in\nafter\n",
+        "stderr": "Makefile:7: Das Rezept für die Datei „parent“ wurde in Makefile:7 angegeben,\nMakefile:7: aber „parent“ wird jetzt als dieselbe Datei wie „src/parent“ betrachtet.\nMakefile:7: Das Rezept für „parent“ wird ignoriert, das für „src/parent“ wird bevorzugt.\n",
+        "seen": "anchor\ndest:src/parent\nsource:parent\nafter:retained\n"
+      },
+      "updates": {
+        "src/parent": "72657461696e65640a"
+      }
+    },
+    {
+      "id": "nls-file-alias-explicit-raw-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "616c6c3a207372632f7061ff72656e74207061ff72656e742061667465720a4750415448203d207372630a534541524348203d2024286576616c207670617468202520737263290a7372632f7061ff72656e743a206473742e696e0a0940242866696c65203e3e7365656e2c646573743a2440297072696e7466202725735c6e272027636f6d706c657465647c24407c243c270a7061ff72656e743a207372632e696e0a0940242853454152434829242866696c65203e3e7365656e2c736f757263653a2440297072696e7466202725735c6e272072657461696e6564203e207372632f7061ff72656e740a61667465723a0a0940242866696c65203e3e7365656e2c61667465723a242866696c65203c7372632f7061ff72656e7429297072696e7466202725735c6e272061667465720a",
+        "dst.in": "696e7075740a",
+        "src/seed": "736565640a",
+        "seen": "616e63686f720a",
+        "src.in": "696e7075740a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "636f6d706c657465647c7372632f7061ff72656e747c6473742e696e0a61667465720a",
+        "stderr_hex": "4d616b6566696c653a373a20e38395e382a1e382a4e383ab20277061ff72656e742720e381aee3819fe38281e381aee381aee383ace382b7e38394e3818c204d616b6566696c653a3720e381a7e68c87e5ae9ae38195e3828ce381bee38197e3819f2c0a4d616b6566696c653a373a20e38197e3818be38197e4bb8ae381af20277061ff72656e742720e381a820277372632f7061ff72656e742720e381afe5908ce38198e38395e382a1e382a4e383abe381a8e8a68be381aae38195e3828ce381bee381992e0a4d616b6566696c653a373a20277061ff72656e742720e381aee3819fe38281e381aee383ace382b7e38394e381af2c20277372632f7061ff72656e742720e381aee3819fe38281e381aee38282e381aee38292e584aae58588e38199e3828be3819fe38281e784a1e8a696e38195e3828ce381bee381992e0a",
+        "seen_hex": "616e63686f720a646573743a7372632f7061ff72656e740a736f757263653a7061ff72656e740a61667465723a72657461696e65640a"
+      },
+      "updates": {
+        "src/pa\udcffrent": "72657461696e65640a"
+      }
+    },
+    {
+      "id": "nls-file-alias-explicit-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "616c6c3a207372632f706172656e7420706172656e742061667465720a4750415448203d207372630a534541524348203d2024286576616c207670617468202520737263290a7372632f706172656e743a206473742e696e0a0940242866696c65203e3e7365656e2c646573743a2440297072696e7466202725735c6e272027636f6d706c657465647c24407c243c270a706172656e743a207372632e696e0a0940242853454152434829242866696c65203e3e7365656e2c736f757263653a2440297072696e7466202725735c6e272072657461696e6564203e207372632f706172656e740a61667465723a0a0940242866696c65203e3e7365656e2c61667465723a242866696c65203c7372632f706172656e7429297072696e7466202725735c6e272061667465720a",
+        "dst.in": "696e7075740a",
+        "src/seed": "736565640a",
+        "seen": "616e63686f720a",
+        "src.in": "696e7075740a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "completed|src/parent|dst.in\nafter\n",
+        "stderr": "Makefile:7: Recipe was specified for file 'parent' at Makefile:7,\nMakefile:7: but 'parent' is now considered the same file as 'src/parent'.\nMakefile:7: Recipe for 'parent' will be ignored in favor of the one for 'src/parent'.\n",
+        "seen": "anchor\ndest:src/parent\nsource:parent\nafter:retained\n"
+      },
+      "updates": {
+        "src/parent": "72657461696e65640a"
+      }
+    },
+    {
+      "id": "nls-file-alias-no-search-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "616c6c3a207372632f706172656e7420706172656e742061667465720a4750415448203d207372630a534541524348203d2024286576616c207670617468202520737263290a7372632f706172656e743a206473742e696e0a0940242866696c65203e3e7365656e2c646573743a2440297072696e7466202725735c6e272027636f6d706c657465647c24407c243c270a706172656e743a207372632e696e0a0940242866696c65203e3e7365656e2c736f757263653a2440297072696e7466202725735c6e272072657461696e6564203e207372632f706172656e740a61667465723a0a0940242866696c65203e3e7365656e2c61667465723a242866696c65203c7372632f706172656e7429297072696e7466202725735c6e272061667465720a",
+        "dst.in": "696e7075740a",
+        "src/seed": "736565640a",
+        "seen": "616e63686f720a",
+        "src.in": "696e7075740a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "completed|src/parent|dst.in\nafter\n",
+        "stderr": "",
+        "seen": "anchor\ndest:src/parent\nsource:parent\nafter:retained\n"
+      },
+      "updates": {
+        "src/parent": "72657461696e65640a"
+      }
     }
   ]
 }
