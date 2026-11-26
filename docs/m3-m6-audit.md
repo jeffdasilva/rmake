@@ -428,6 +428,9 @@ A successfully reaped required worker can leave a reread pending when a
 trailing optional worker later restores the required file’s timestamp.
 The held cases retain the tagged missing-rule diagnostic and check the
 final physical clock used by ordinary goals.
+With an earlier blocked or absent optional read under keep-going, a
+restored required timestamp can govern ordinary prerequisite freshness
+and the set of newer prerequisites in the original pass.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 

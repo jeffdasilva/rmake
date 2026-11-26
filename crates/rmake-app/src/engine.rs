@@ -5179,6 +5179,13 @@ impl Engine {
                                 .settled_current_leading_optional(&leading.neighbor.name, &visited))
                         .then_some(trailing)
                     });
+                    let settled_failed_leading_trailing =
+                        deferred_trailing_layout.and_then(|leading| {
+                            let trailing = leading.trailing.as_ref()?;
+                            (name == trailing.neighbor
+                                && self.settled_leading_optional_visit_failure(leading, &visited))
+                            .then_some(trailing)
+                        });
                     let trailing_worker_source = ordinary_trailing_optional
                         .or(current_leading_trailing)
                         .or_else(|| {
@@ -5191,18 +5198,7 @@ impl Engine {
                                         .as_ref()
                                         .filter(|_| read_files.len() == 3)
                                 })
-                                .or_else(|| {
-                                    let leading = deferred_trailing_layout?;
-                                    let trailing = leading.trailing.as_ref()?;
-                                    let (before, _) =
-                                        visited.get(leading.neighbor.name.as_slice())?;
-                                    (name == trailing.neighbor
-                                        && self.settled_leading_optional_failure(
-                                            leading.neighbor,
-                                            *before,
-                                        ))
-                                    .then_some(trailing)
-                                })
+                                .or(settled_failed_leading_trailing)
                         });
                     if let Some(trailing) = trailing_worker_source
                         && name == trailing.neighbor
@@ -5222,7 +5218,9 @@ impl Engine {
                     {
                         let retain_required_clock = ordinary_trailing_optional.is_some()
                             || current_leading_trailing.is_some()
-                            || (read_files.len() == 3 && trailing_optional_source.is_some());
+                            || (read_files.len() == 3 && trailing_optional_source.is_some())
+                            || (settled_failed_leading_trailing.is_some()
+                                && !self.has_assumed_double_colon_entry(&trailing.required.name));
                         request.trailing_optional_worker = self.track_trailing_optional_worker(
                             trailing,
                             before,
@@ -5716,7 +5714,7 @@ impl Engine {
                     if let Some(leading) = deferred_trailing_layout {
                         self.publish_restored_trailing_worker_clock(leading, &visited, &pending);
                     }
-                    for remake in pending {
+                    for remake in &pending {
                         changed |= remake.trailing_prerequisite_changed;
                         let name = remake.file.name.as_slice();
                         let before = visited[name].0;
@@ -5748,10 +5746,10 @@ impl Engine {
                             changed |= self
                                 .restored_trailing_worker_outcome(worker, trailing.neighbor, before)
                                 .is_some()
-                                || self.restored_required_worker_clock(&remake, trailing, &visited);
+                                || self.restored_required_worker_clock(remake, trailing, &visited);
                         }
                         let (result, retained_worker_restart) =
-                            source_outcome(self, remake.file, result, Some((&visited, &remake)));
+                            source_outcome(self, remake.file, result, Some((&visited, remake)));
                         if remake.duplicate && (remake.file.optional || !result.failed) {
                             continue;
                         }
@@ -6049,6 +6047,14 @@ impl Engine {
                 self.wait_all_jobs();
                 self.remove_intermediates();
                 return 2;
+            }
+            if !changed
+                && !remake_question
+                && !modes.active()
+                && self.parallel_jobs.is_empty()
+                && let Some(leading) = deferred_trailing_layout
+            {
+                self.publish_restored_required_worker_clock(leading, &visited, &pending);
             }
             if ran_remake_recipe || self.recipe_reaps != initial_reaps {
                 // Keep the cached outcomes and timestamps, but report ordinary
@@ -13763,17 +13769,63 @@ impl Engine {
                 .file_traversals
                 .outcome(&worker.required)
                 .is_some_and(|outcome| self.settled_required_worker_refresh(*outcome))
-            && visited
-                .get(leading.neighbor.name.as_slice())
-                .is_some_and(|(before, _)| {
-                    self.settled_leading_optional_failure(leading.neighbor, *before)
-                })
+            && self.settled_leading_optional_visit_failure(leading, visited)
             && let Some(outcome) = self.restored_trailing_worker_outcome(worker, name, before)
         {
             // The earlier failure deferred the optional read's clock sample.
             // Ordinary consumers use that final sample after restoration.
             self.publish_optional_remake_clock(name, outcome, before, before);
         }
+    }
+
+    fn publish_restored_required_worker_clock(
+        &mut self,
+        leading: &LeadingOptionalRemake<'_>,
+        visited: &MakefileVisits<'_>,
+        pending: &[PendingMakefileRemake<'_>],
+    ) {
+        let name = leading.required.name.as_slice();
+        if self.has_assumed_double_colon_entry(name)
+            || !self.settled_leading_optional_visit_failure(leading, visited)
+        {
+            return;
+        }
+        let Some(trailing) = leading.trailing.as_ref() else {
+            return;
+        };
+        if let Some(request) = pending.iter().find(|request| {
+            !request.duplicate
+                && !request.modes.active()
+                && std::ptr::eq(request.file, trailing.required)
+        }) && let Some(worker) = request.trailing_optional_worker.as_deref()
+            && worker.no_required_tail_remains
+            && matches!(
+                worker.result.get(),
+                Some(TrailingOptionalWorkerResult::Completed(_))
+            )
+            && let Some(mut outcome) = self.file_traversals.outcome(name).copied()
+            && outcome.ran_refresh()
+            && outcome.goal_verdict().is_none()
+            && outcome.time == worker.required_reap_clock.get()
+            && self.restored_required_worker_clock(request, trailing, visited)
+        {
+            // This pass continues with the original reads. Ordinary goals
+            // compare the final physical time of the completed source.
+            outcome.time = Some(worker.required_before);
+            self.file_traversals.set_outcome(name, outcome);
+        }
+    }
+
+    fn settled_leading_optional_visit_failure(
+        &self,
+        leading: &LeadingOptionalRemake<'_>,
+        visited: &MakefileVisits<'_>,
+    ) -> bool {
+        visited
+            .get(leading.neighbor.name.as_slice())
+            .is_some_and(|(before, _)| {
+                self.settled_leading_optional_failure(leading.neighbor, *before)
+            })
     }
 
     fn same_clock_optional_remake_outcome(before: Option<SystemTime>, result: Outcome) -> bool {
