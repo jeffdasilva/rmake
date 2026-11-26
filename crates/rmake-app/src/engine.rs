@@ -633,6 +633,7 @@ struct TrailingOptionalWorker {
     required_identity: u64,
     optional_identity: u64,
     required_before: SystemTime,
+    direct_reread: bool,
     no_required_tail_remains: bool,
     only_synthetic_tail_remains: bool,
     required_failure_settled: Cell<bool>,
@@ -5247,15 +5248,17 @@ impl Engine {
                                 && std::ptr::eq(request.file, trailing.required)
                         })
                     {
-                        let retain_required_clock = ordinary_trailing_optional.is_some()
+                        let direct_reread = ordinary_trailing_optional.is_some()
                             || current_leading_trailing.is_some()
-                            || (read_files.len() == 3 && trailing_optional_source.is_some())
+                            || (read_files.len() == 3 && trailing_optional_source.is_some());
+                        let retain_required_clock = direct_reread
                             || (settled_failed_leading_trailing.is_some()
                                 && !self.has_assumed_double_colon_entry(&trailing.required.name));
                         request.trailing_optional_worker = self.track_trailing_optional_worker(
                             trailing,
                             before,
                             retain_required_clock,
+                            direct_reread,
                         );
                     }
                     let optional_visit_settled = failed_leading_optional.is_some_and(|leading| {
@@ -9651,7 +9654,14 @@ impl Engine {
                         .is_some_and(|required| required.child.is_some())
                     || (worker.no_required_tail_remains
                         && worker.required_reap.get().is_some()
-                        && job.before == Some(clock)
+                        && (job.before == Some(clock)
+                            || (worker.direct_reread
+                                && matches!(
+                                    worker.required_reap.get(),
+                                    Some(RequiredRemakeWorkerReap::Completed(_))
+                                )
+                                && failed_source_recipe
+                                && optional_failure))
                         && (!report_error || (failed_source_recipe && optional_failure))))
                 && Self::regular_remake_clock(&target) == Some(clock)
             {
@@ -14021,7 +14031,7 @@ impl Engine {
         // restores the source clock before this pass reaches its final check.
         matches!(worker.required_reap.get(), Some(RequiredRemakeWorkerReap::Completed(clock))
             if self.successful_explicit_source_refresh(&worker.required, clock)
-                && self.required_worker_clock_was_restored(worker, trailing, visited))
+                && self.required_worker_clock_was_restored(worker, trailing, visited, worker.direct_reread))
     }
 
     fn failed_declared_worker_reap(
@@ -14061,7 +14071,7 @@ impl Engine {
                     || (worker.only_synthetic_tail_remains
                         && worker.required_failure_settled.get()))
                     && self.failed_declared_worker_reap(worker).is_some()
-                    && self.required_worker_clock_was_restored(worker, trailing, visited)
+                    && self.required_worker_clock_was_restored(worker, trailing, visited, false)
             })
     }
 
@@ -14070,14 +14080,24 @@ impl Engine {
         worker: &TrailingOptionalWorker,
         trailing: &TrailingOptionalRemake<'_>,
         visited: &MakefileVisits<'_>,
+        allow_changed_optional_failure: bool,
     ) -> bool {
         let name = trailing.neighbor;
-        visited.get(name).is_some_and(|&(before, _)| {
-            before.is_some()
-                && Self::regular_remake_clock(&worker.required) == Some(worker.required_before)
-                && Self::regular_remake_clock(name) == before
-                && self.settled_optional_worker_clock(worker, name) == before
-        })
+        let Some(&(Some(before), _)) = visited.get(name) else {
+            return false;
+        };
+        Self::regular_remake_clock(&worker.required) == Some(worker.required_before)
+            && self
+                .settled_optional_worker_clock(worker, name)
+                .is_some_and(|clock| {
+                    Self::regular_remake_clock(name) == Some(clock)
+                        && (clock == before
+                            || (allow_changed_optional_failure
+                                && matches!(
+                                    worker.result.get(),
+                                    Some(TrailingOptionalWorkerResult::Failed(_))
+                                )))
+                })
     }
 
     fn retained_trailing_worker_clock(
@@ -14449,6 +14469,7 @@ impl Engine {
         trailing: &TrailingOptionalRemake<'_>,
         optional_before: SystemTime,
         retain_required_clock: bool,
+        direct_reread: bool,
     ) -> Option<Rc<TrailingOptionalWorker>> {
         let required = &trailing.required.name;
         if !self.active_trailing_optional_remake(trailing)
@@ -14472,6 +14493,7 @@ impl Engine {
             required_identity,
             optional_identity: optional.identity,
             required_before,
+            direct_reread,
             no_required_tail_remains,
             only_synthetic_tail_remains,
             required_failure_settled: Cell::new(false),
