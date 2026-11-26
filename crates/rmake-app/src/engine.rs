@@ -4148,7 +4148,10 @@ impl Engine {
                     ))
             };
             let source_outcome =
-                |engine: &Self, source: &Makefile, mut outcome: Outcome, initial_visit: bool| {
+                |engine: &Self,
+                 source: &Makefile,
+                 mut outcome: Outcome,
+                 prior_visits: Option<&MakefileVisits<'_>>| {
                     // Keep each branch failure for ordinary prerequisite visits.
                     // The remake pass uses the original successful source head.
                     let declared_tail_failed = matches!(
@@ -4168,22 +4171,44 @@ impl Engine {
                                         // The child can set this verdict only after
                                         // the optional visit settles.
                                         RemakeFailure::RequiredSyntheticRecipe => true,
-                                        // A synchronous no-rule result settles
-                                        // before the optional source's visit.
                                         RemakeFailure::RequiredSyntheticInput => {
-                                            initial_visit
-                                                && trailing.kind == TrailingOptionalKind::Unruled
-                                                && !engine
-                                                    .file_traversals
-                                                    .has_outcome(trailing.neighbor)
-                                                && !engine.pending(trailing.neighbor)
-                                                && engine.unruled_remake_source(trailing.neighbor)
-                                                && !engine
-                                                    .database
-                                                    .rules
-                                                    .contains_key(b".DEFAULT".as_slice())
-                                                && fs::symlink_metadata(os(trailing.neighbor))
-                                                    .is_ok_and(|file| file.is_file())
+                                            if let Some(visited) = prior_visits {
+                                                // A real explicit recipe can finish
+                                                // after the optional source settles,
+                                                // then discover the missing rule.
+                                                outcome.ran
+                                                    && outcome.completion == CompletionTime::Refresh
+                                                    && !outcome.fatal
+                                                    && !outcome.blocked
+                                                    && visited
+                                                        .get(trailing.neighbor)
+                                                        .zip(
+                                                            engine
+                                                                .file_traversals
+                                                                .outcome(trailing.neighbor),
+                                                        )
+                                                        .is_some_and(|((before, _), optional)| {
+                                                            engine.settled_trailing_optional_remake(
+                                                                trailing, *before, *optional, false,
+                                                            )
+                                                        })
+                                            } else {
+                                                // A synchronous no-rule result
+                                                // can precede the optional visit.
+                                                trailing.kind == TrailingOptionalKind::Unruled
+                                                    && !engine
+                                                        .file_traversals
+                                                        .has_outcome(trailing.neighbor)
+                                                    && !engine.pending(trailing.neighbor)
+                                                    && engine
+                                                        .unruled_remake_source(trailing.neighbor)
+                                                    && !engine
+                                                        .database
+                                                        .rules
+                                                        .contains_key(b".DEFAULT".as_slice())
+                                                    && fs::symlink_metadata(os(trailing.neighbor))
+                                                        .is_ok_and(|file| file.is_file())
+                                            }
                                         }
                                         _ => false,
                                     }
@@ -4677,7 +4702,7 @@ impl Engine {
                     build_visit,
                     track_named_source.then_some(&mut source_started_command),
                 );
-                result = source_outcome(self, makefile, result, true);
+                result = source_outcome(self, makefile, result, None);
                 let chain_failed = result.failed;
                 let refreshed_implicit_time = loaded_implicit_time.filter(|_| {
                     !MakefileModes::from_options(&self.options).active()
@@ -5362,7 +5387,7 @@ impl Engine {
                             .outcome(self.aliases.resolve(name))
                             .copied()
                             .unwrap_or(remake.initial);
-                        let result = source_outcome(self, remake.file, result, false);
+                        let result = source_outcome(self, remake.file, result, Some(&visited));
                         if remake.duplicate && (remake.file.optional || !result.failed) {
                             continue;
                         }
