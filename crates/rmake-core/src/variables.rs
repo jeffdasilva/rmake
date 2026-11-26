@@ -1470,6 +1470,24 @@ impl VariableStore {
         true
     }
 
+    pub(crate) fn local_pattern_binding_scope(&self, name: &[u8]) -> Option<(usize, TargetScope)> {
+        let (index, _) = self.lookup_from(name, 0)?;
+        let layer = self.layers.get(index.checked_sub(1)?)?;
+        if !layer.pattern || layer.inherited {
+            return None;
+        }
+        let identity = layer.variables.database_history.as_ref()?.identity();
+        Some((
+            identity,
+            TargetScope {
+                variables: Arc::clone(&layer.variables),
+                pattern: true,
+                target: None,
+                declaration_revision: 0,
+            },
+        ))
+    }
+
     pub(crate) fn inherited_target_binding(&self, name: &[u8]) -> Option<(&[u8], &Variable)> {
         let (index, binding) = self.lookup_from(name, 0)?;
         let layer = self.layers.get(index.checked_sub(1)?)?;
@@ -1995,21 +2013,28 @@ impl VariableStore {
         &mut self,
         revision: u64,
         scope: impl Fn(&[u8], Option<usize>) -> Option<&'a TargetScope>,
+        pattern_scope: impl Fn(usize) -> Option<&'a TargetScope>,
     ) {
         if self.target_scope_revision == revision {
             return;
         }
         for index in 0..self.layers.len() {
             let layer = &self.layers[index];
-            if let Some(name) = layer.target.as_deref()
-                && let Some(scope) = scope(
-                    name,
-                    layer
-                        .variables
-                        .database_history
-                        .as_ref()
-                        .map(TableHistory::identity),
-                )
+            let identity = || {
+                layer
+                    .variables
+                    .database_history
+                    .as_ref()
+                    .map(TableHistory::identity)
+            };
+            let replacement = if let Some(name) = layer.target.as_deref() {
+                scope(name, identity())
+            } else if layer.pattern {
+                identity().and_then(&pattern_scope)
+            } else {
+                None
+            };
+            if let Some(scope) = replacement
                 && !Arc::ptr_eq(&layer.variables, &scope.variables)
             {
                 self.layers.make_mut()[index].variables = Arc::clone(&scope.variables);

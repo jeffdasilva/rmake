@@ -94,6 +94,9 @@ NUL boundaries, rebinding and cancellation.
   transfer updates that global slot for subsequent readers.
   A retained inherited binding can transfer into its owning named
   declaration. Later descendants and named reads see that owner's update.
+  A selected file's own activated pattern slot can also receive a command
+  value. Cached reads of the same table see the update, while separate
+  activations keep their own values.
   Standalone export and unexport lists record the visible-scope lookup for
   each name before updating its policy or creating an empty global binding.
   A list lookup refreshes the global .VARIABLES cache when that special
