@@ -185,7 +185,9 @@ covers mixed required and optional failure policies.
   This covers fully forced recipes under `-n`, `-q`, and `-t`. In those modes,
   the database retains the simulated timestamp of a nonphony file when its mixed
   forced and ordinary recipe reaches an unignored launch failure or nonzero
-  child exit. Ignored failures followed by a query stop remain open.
+  child exit. The same timestamp is recorded when serial `-q` stops at an
+  ordinary line after a real child or an ignored executable launch failure.
+  This leaves the existing target cleanup rules in effect.
   GNU also checks a prior executable's path during a later launch failure and
   can emit an additional diagnostic. That diagnostic remains open.
   Cleanup after a real child error follows the existing policy. Archive and remake

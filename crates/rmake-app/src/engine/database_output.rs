@@ -453,7 +453,7 @@ impl Engine {
                 database_result,
                 DatabaseResult::ObservedGroup
                     | DatabaseResult::ObservedDoubleColon
-                    | DatabaseResult::SimulatedRecipeFailure
+                    | DatabaseResult::SimulatedRecipeCompletion
             ) && self.database_unchecked_times.borrow().contains(name));
         let timestamp = if unchecked {
             None

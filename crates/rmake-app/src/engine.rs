@@ -328,7 +328,7 @@ enum DatabaseResult {
     Outcome,
     Simulated,
     SimulatedQuery,
-    SimulatedRecipeFailure,
+    SimulatedRecipeCompletion,
     TouchedTarget,
     // A settled touch can supply the failed-source restart verdict.
     SimulatedTouch,
@@ -351,7 +351,7 @@ impl DatabaseResult {
             self,
             Self::Simulated
                 | Self::SimulatedQuery
-                | Self::SimulatedRecipeFailure
+                | Self::SimulatedRecipeCompletion
                 | Self::TouchedTarget
         )
     }
@@ -16251,8 +16251,8 @@ impl Engine {
                         TouchCompletion::Physical => DatabaseResult::PhysicalTouch,
                     };
                 }
-                if execution.simulated_failure_time {
-                    outcome.database_result = DatabaseResult::SimulatedRecipeFailure;
+                if execution.simulated_completion_time {
+                    outcome.database_result = DatabaseResult::SimulatedRecipeCompletion;
                 } else if execution.expansion_failed {
                     outcome.database_result = DatabaseResult::UnfinishedRecipeExpansion;
                 } else if rule.grouped_double_id().is_some()
@@ -17335,6 +17335,7 @@ impl Engine {
             debug_job: _,
         } = state;
         let variables = &mut variables;
+        let mut command_attempted = false;
         while let Some((index, bytes, recipe)) = expanded.pop_front() {
             self.observe_interrupt();
             if self.interrupt.is_some() {
@@ -17459,8 +17460,21 @@ impl Engine {
                 if record_question {
                     self.would_build = true;
                 }
-                return Execution::question(ran, flow.continuation_cleanup())
-                    .with_recursion(!flow.has_ordinary());
+                // Once a command has started, stopping on a later ordinary
+                // line gives a mixed recipe the simulated completion time.
+                let simulated_completion_time = command_attempted
+                    && !phony
+                    && !parallel
+                    && !self.remaking
+                    && remake.is_none()
+                    && branch.is_none()
+                    && !self.running_groups.contains_key(target)
+                    && rmake_core::filenames::archive_parts(target).is_none();
+                return Execution {
+                    simulated_completion_time,
+                    ..Execution::question(ran, flow.continuation_cleanup())
+                        .with_recursion(!flow.has_ordinary())
+                };
             }
             if self.options.touch && !force {
                 continue;
@@ -17915,6 +17929,7 @@ impl Engine {
                 self.observe_interrupt();
                 return Execution::pending();
             }
+            command_attempted |= process.is_ok() || executable_launch_failed;
             let result = match process {
                 Ok(mut child) => self
                     .wait_serial_child(&mut child, target, before, phony, owner.debug_job.as_ref())
@@ -17973,7 +17988,7 @@ impl Engine {
                 && branch.is_none()
                 && !self.running_groups.contains_key(target)
                 && rmake_core::filenames::archive_parts(target).is_none();
-            let simulated_failure_time = serial_recipe_failure
+            let simulated_completion_time = serial_recipe_failure
                 && !phony
                 && flow.has_ordinary()
                 && MakefileModes::from_options(&self.options).active();
@@ -17985,7 +18000,7 @@ impl Engine {
                 Ok(status) if self.options.question && !ignore && status.code() == Some(1) => {
                     self.forced_query_completed();
                     return Execution {
-                        simulated_failure_time,
+                        simulated_completion_time,
                         ..Execution::question(ran, failure_cleanup)
                             .with_recursion(!flow.has_ordinary())
                     };
@@ -18047,10 +18062,10 @@ impl Engine {
                     let mut execution = Execution::failure(ran, failure_cleanup)
                         .with_recursion(!flow.has_ordinary());
                     execution.launch_failed = !launched;
-                    execution.simulated_failure_time = simulated_failure_time;
+                    execution.simulated_completion_time = simulated_completion_time;
                     if executable_launch_failed && serial_recipe_failure {
                         self.record_delete_on_error_lookup();
-                        if !phony && !simulated_failure_time {
+                        if !phony && !simulated_completion_time {
                             // A failed executable launch completes the attempt
                             // without leaving a child that can clean up targets.
                             self.database_unchecked_times
