@@ -1125,6 +1125,10 @@ impl rmake_core::diagnostic::TargetReadReceiver for TargetReads<'_> {
         self.recipes.get(target).or_else(|| self.base.get(target))
     }
 
+    fn has_file_aliases(&self) -> bool {
+        !self.aliases.is_empty()
+    }
+
     fn named_owner<'a>(&self, mut owner: ScopeParent<&'a [u8]>) -> ScopeParent<&'a [u8]> {
         if owner.branch.is_some()
             && (!self.direct_heads || self.aliases.contains_source_or_destination(owner.target))

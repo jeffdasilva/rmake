@@ -459,6 +459,10 @@ pub trait TargetReadReceiver {
     ) -> Option<&crate::variables::VariableStore>;
     fn retain_locals(&mut self, target: &[u8], variables: crate::variables::VariableStore);
 
+    fn has_file_aliases(&self) -> bool {
+        false
+    }
+
     fn named_owner<'a>(&self, owner: ScopeParent<&'a [u8]>) -> ScopeParent<&'a [u8]> {
         ScopeParent {
             target: owner.target,

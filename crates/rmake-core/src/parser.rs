@@ -3580,14 +3580,16 @@ impl Database {
             };
             let rhs = assignment.spec.value;
             let kind = assignment.spec.kind;
-            let plain_file = || {
+            let single_colon = || {
                 self.rules
                     .get(target)
-                    .is_some_and(|rule| rule.double_colon.is_none() && rule.group.is_none())
+                    .filter(|rule| rule.double_colon.is_none())
             };
             let writes_file_binding = match name.as_slice() {
                 b".SHELLSTATUS" => {
-                    scope.get(&name).is_none() && (declaration.head.is_some() || plain_file())
+                    scope.get(&name).is_none()
+                        && (declaration.head.is_some()
+                            || single_colon().is_some_and(|rule| rule.group.is_none()))
                 }
                 b"@" | b"%" | b"*" | b"<" | b"^" | b"+" | b"?" | b"|" => {
                     kind == Assignment::Append
@@ -3597,7 +3599,16 @@ impl Database {
                             .as_ref()
                             .and_then(|caller| caller.get(&name))
                             .is_some_and(|binding| binding.origin() == Origin::Automatic)
-                        && plain_file()
+                        && single_colon().is_some_and(|rule| {
+                            rule.group.as_ref().is_none_or(|group| {
+                                group.double_id.is_none()
+                                    && group.implicit_identity.is_none()
+                                    && context
+                                        .target_reads
+                                        .as_deref()
+                                        .is_some_and(|reads| !reads.has_file_aliases())
+                            })
+                        })
                         && crate::filenames::archive_parts(target).is_none()
                 }
                 _ => false,
