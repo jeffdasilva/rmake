@@ -188,8 +188,10 @@ covers mixed required and optional failure policies.
   child exit. The same timestamp is recorded when serial `-q` stops at an
   ordinary line after a real child or an ignored executable launch failure.
   This leaves the existing target cleanup rules in effect.
-  GNU also checks a prior executable's path during a later launch failure and
-  can emit an additional diagnostic. That diagnostic remains open.
+  Ordinary serial recipes now report a failed stat of the last launched
+  executable after an unignored missing-executable error, before the recipe's
+  terminal error. Ignored errors, child exit 127, other prior executable
+  failures, and recursive output synchronization remain open.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)

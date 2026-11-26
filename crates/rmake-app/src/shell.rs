@@ -137,7 +137,7 @@ pub fn run(
     );
     drop(spool);
     let (child, stdout) = match launch {
-        Ok(child) => child,
+        Ok((capture, _)) => capture,
         Err(error) => {
             if retain_failed_pipe {
                 pipe.expect("failed launch owns a capture pipe")
