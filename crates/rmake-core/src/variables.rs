@@ -5195,11 +5195,19 @@ impl Expansion<'_, '_> {
         }
     }
 
+    fn too_few_builtin_arguments(&mut self, function: &[u8], count: usize) -> ExpandError {
+        self.retain_native_fatal_expansion();
+        ExpandError::InsufficientArguments {
+            function: function.to_vec(),
+            count,
+        }
+    }
+
     fn eager_builtin(&mut self, name: &[u8], args: &[Vec<u8>]) -> Result<Vec<u8>, ExpandError> {
         if let Some((minimum, _)) = arity(name)
             && args.len() < minimum
         {
-            return Err(too_few_arguments(name, args.len()));
+            return Err(self.too_few_builtin_arguments(name, args.len()));
         }
         let first = args.first().map(Vec::as_slice).unwrap_or_default();
         match name {
@@ -5582,13 +5590,6 @@ pub(crate) fn evaluation_error(error: crate::parser::ParseError) -> ExpandError 
         }
     };
     original.preserve_frozen(diagnostic)
-}
-
-fn too_few_arguments(function: &[u8], count: usize) -> ExpandError {
-    ExpandError::InsufficientArguments {
-        function: function.to_vec(),
-        count,
-    }
 }
 
 struct Decimal<'a> {

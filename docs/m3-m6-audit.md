@@ -555,7 +555,9 @@ ordinary reload behavior. Terminal load diagnostics in the reader keep
 their original error text and give existing finalizers the selected file
 and active lexical scope. A fatal zero or negative index in the word
 function keeps the diagnostic definition location and gives finalizers
-the active caller’s location and scope.
+the active caller’s location and scope. Built-in arity failures preserve
+the same distinction after eager and call arguments have expanded, or
+before a direct lazy call expands any argument.
 GNU Make remains an external test reference and cannot serve as a runtime
 implementation fallback.
 

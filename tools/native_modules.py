@@ -165,6 +165,7 @@ def models() -> list[Model]:
     result.extend(finalizer_shell_models())
     result.extend(fatal_scope_models())
     result.extend(word_zero_finalizer_models())
+    result.extend(builtin_arity_finalizer_models())
     result.extend(reader_syntax_finalizer_models())
     result.extend(flag_finalizer_models())
     result.extend(fast_sync_finalizer_models())
@@ -982,6 +983,78 @@ def word_zero_finalizer_models() -> list[Model]:
         model('lexical-success', head + b'VALUE:=$(let .LOADED,lexical,' + valid + b')\n' + goal,
               failure=b'', seen=lexical_operand + b'goal\n' + global_scope),
     ]
+
+
+def builtin_arity_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    recipe = b'.PHONY: all dep\nall: .LOADED := target\nall: dep\n\t@'
+    tail = b':\ndep:;@:\n'
+    operand = b'$(file >>seen,operand-$(.LOADED)-$@-$<)'
+    eager = b'$(wordlist 1,' + operand + b'2)'
+    lazy_operand = operand + b'$(error unexpanded)yes'
+    called = b'$(call wordlist,1,' + operand + b'2)'
+    called_if = b'$(call if,' + operand + b'yes)'
+    nested = b'$(error nested)'
+    valid = b'$(wordlist 1,' + operand + b'2,alpha beta)'
+    eager_error = b"insufficient number of arguments (2) to function 'wordlist'"
+    if_error = b"insufficient number of arguments (1) to function 'if'"
+    global_scope = b'scope=[||file|global||]\n'
+    lexical_scope = b'scope=[||automatic|lexical||]\n'
+    target_scope = b'scope=[all|dep|file|target||]\n'
+    target_lexical = b'scope=[all|dep|automatic|lexical||]\n'
+    global_operand = b'operand-global--\n'
+    lexical_operand = b'operand-lexical--\n'
+    target_operand = b'operand-target-all-dep\n'
+    target_lexical_operand = b'operand-lexical-all-dep\n'
+    finalizer = Module('fatal_scope.c', 'fatal_scope.so')
+
+    def let(expression):
+        return b'$(let .LOADED,lexical,' + expression + b')'
+
+    def model(name, text, *, failure=eager_error, location=b'Makefile:4', final_location=None,
+              seen=global_operand + global_scope, args=(), api=False):
+        stderr = (location + b': *** ' + failure + b'.  Stop.\n') if failure else b''
+        stderr += (final_location or (location if failure else b'make')) + b': finalizer-location\n'
+        return Model(
+            'native-builtin-arity-finalizer-' + name,
+            {'Makefile': text, 'seen': b'anchor\n'},
+            {'exit_code': 2 if failure else 0, 'stdout_hex': '', 'stderr_hex': stderr.hex()},
+            b'anchor\nread\n' + seen,
+            (finalizer, Module()) if api else (finalizer,),
+            args=('-rR', '--no-print-directory', '-j1', *args, 'all'),
+        )
+
+    result = [
+        model('eager-reader', head + eager + b'\n' + goal),
+        model('eager-recipe-let', head + recipe + let(eager) + tail,
+              location=b'Makefile:7', seen=target_lexical_operand + target_lexical),
+        model('eager-recipe-definition', head + b'BAD = ' + eager + b'\n' + recipe + b'$(BAD)' + tail,
+              location=b'Makefile:4', final_location=b'Makefile:8', seen=target_operand + target_scope),
+        model('eager-anonymous-let', goal, location=b'make', seen=lexical_operand + lexical_scope,
+              args=('--eval', (head + let(eager)).decode('ascii'))),
+        model('eager-native-expand', b'load probe_api.so\n' + head + recipe
+              + b'$(probe_expand_guard ' + eager.replace(b'$', b'$$') + b')' + tail,
+              location=b'Makefile:8', seen=target_operand + target_scope, api=True),
+        model('called-wordlist', head + let(called) + b'\n' + goal, seen=lexical_operand + lexical_scope),
+        model('called-if', head + recipe + let(called_if) + tail,
+              failure=if_error, location=b'Makefile:7', seen=target_lexical_operand + target_lexical),
+        model('eager-nested-error', head + recipe + let(eager.replace(operand, operand + nested)) + tail,
+              failure=b'nested', location=b'Makefile:7', seen=target_lexical_operand + target_lexical),
+        model('call-nested-error', head + recipe + let(called_if.replace(operand, operand + nested)) + tail,
+              failure=b'nested', location=b'Makefile:7', seen=target_lexical_operand + target_lexical),
+        model('unselected', head + b'$(if ,' + eager + b')\n' + goal, failure=b'', seen=b'goal\n' + global_scope),
+        model('valid-returns', head + b'VALUE:=' + let(valid) + b'\n' + goal,
+              failure=b'', seen=lexical_operand + b'goal\n' + global_scope),
+    ]
+    for name, count, prefix in (
+        (b'if', 1, b''), (b'intcmp', 1, b''), (b'foreach', 2, b'variable,'), (b'let', 2, b'variable,'),
+    ):
+        expression = b'$(' + name + b' ' + prefix + lazy_operand + b')'
+        result.append(model('direct-lazy-' + name.decode('ascii'), head + let(expression) + b'\n' + goal,
+                            failure=b"insufficient number of arguments (%u) to function '%s'" % (count, name),
+                            seen=lexical_scope))
+    return result
 
 
 def reader_syntax_finalizer_models() -> list[Model]:

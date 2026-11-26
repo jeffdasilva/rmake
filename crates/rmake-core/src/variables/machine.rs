@@ -429,7 +429,7 @@ impl Expansion<'_, '_> {
                         let argument = source.slice(start..source.bytes().len());
                         let ranges = split_arg_ranges(argument.bytes(), delimiter, maximum);
                         if ranges.len() < minimum && lazy(&name) {
-                            return Err(too_few_arguments(&name, ranges.len()));
+                            return Err(self.too_few_builtin_arguments(&name, ranges.len()));
                         }
                         let args = ranges.into_iter().map(|r| argument.slice(r)).collect();
                         let job = if let Some(function) = function {
@@ -977,7 +977,7 @@ impl Expansion<'_, '_> {
         if let Some((minimum, maximum)) = arity(name) {
             let mut values = expanded[1..].to_vec();
             if values.len() < minimum {
-                return Err(too_few_arguments(name, values.len()));
+                return Err(self.too_few_builtin_arguments(name, values.len()));
             }
             if let Some(max) = maximum {
                 values.truncate(max);
