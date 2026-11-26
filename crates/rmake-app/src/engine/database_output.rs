@@ -7,6 +7,7 @@ use rmake_core::database::{
     self, AutomaticVariables, DatabaseView, DirectoryState, DirectoryView, FileStatus, FileTime,
     FileView, HashStats,
 };
+use rmake_core::file_records::FileRecordEntry;
 use rmake_core::variables::Variable;
 
 const PRESENTATION: database::Presentation<'static> = database::Presentation::localized(
@@ -146,6 +147,20 @@ impl Engine {
         }
     }
 
+    fn recreated_visited_goal_source(&self, entry: FileRecordEntry<'_>, canonical: &[u8]) -> bool {
+        if self.merged_goal_reports.is_empty() || entry.lookup_name == canonical {
+            return false;
+        }
+        // The queue still names the retired source. The file table can now
+        // hold a different owner at the same spelling.
+        self.database.file_records.moved_lookup_id_at_snapshot(entry.lookup_name)
+            .is_some_and(|queued| {
+                queued != entry.id
+                    && matches!(self.merged_goal_reports.get(&queued),
+                                Some(MergedGoalReport::CompletedVisitedSource(name)) if name == canonical)
+            })
+    }
+
     fn write_database(&self, output: &mut impl Write) -> io::Result<()> {
         let history = self
             .database
@@ -188,15 +203,17 @@ impl Engine {
                                 snapshot.view.target_variables,
                             ));
                     }
-                } else if permanent_archive_original_names.contains(name)
-                    || self
-                        .database
-                        .is_recreated_file_head_name(name, self.aliases.resolve(name))
-                {
-                    snapshot.view.command_line = false;
-                    snapshot.view.preserve_name = true;
-                } else if moved_original_names.contains(name) {
-                    snapshot.view.command_line = false;
+                } else {
+                    let canonical = self.aliases.resolve(name);
+                    if permanent_archive_original_names.contains(name)
+                        || self.recreated_visited_goal_source(entry, canonical)
+                        || self.database.is_recreated_file_head_name(name, canonical)
+                    {
+                        snapshot.view.command_line = false;
+                        snapshot.view.preserve_name = true;
+                    } else if moved_original_names.contains(name) {
+                        snapshot.view.command_line = false;
+                    }
                 }
                 snapshots.push(snapshot);
             }

@@ -173,6 +173,7 @@ def authenticate(lock: dict, destination: Path) -> dict:
     if valid not in signature.stdout:
         raise ProfileError('release lacks the pinned Ubuntu signing identity')
     write_owned(provenance / 'signature-status.txt', signature.stdout + signature.stderr)
+    archive = lock.get('archive_base', ARCHIVE)
     hashes = release_hashes(release); index = lock['signed_index']; name = index['path']
     if hashes.get(name) != (index['sha256'], index['size']) or index['size'] > MAX_BYTES:
         raise ProfileError('locked locale index differs from signed release')
@@ -183,7 +184,7 @@ def authenticate(lock: dict, destination: Path) -> dict:
         packed_name = name + '.xz'
         if packed_name not in hashes: raise ProfileError('signed compressed index is absent')
         expected, size = hashes[packed_name]
-        packed = download(provenance / 'main-Packages.xz', ARCHIVE + 'dists/noble/' + packed_name, expected, size)
+        packed = download(provenance / 'main-Packages.xz', archive + 'dists/noble/' + packed_name, expected, size)
         with lzma.LZMAFile(io.BytesIO(packed)) as stream: data = stream.read(index['size'] + 1)
     if len(data) != index['size'] or digest(data) != index['sha256']:
         raise ProfileError('locale index fails signed size/digest')
@@ -197,7 +198,7 @@ def authenticate(lock: dict, destination: Path) -> dict:
         if name not in records: continue
         row = records[name]
         expected = {'Package': row['name'], 'Version': row['version'], 'Architecture': row['architecture'],
-                    'SHA256': row['sha256'], 'Size': str(row['size']), 'Filename': row['url'].removeprefix(ARCHIVE)}
+                    'SHA256': row['sha256'], 'Size': str(row['size']), 'Filename': row['url'].removeprefix(archive)}
         if name in found or any(fields.get(key) != value for key, value in expected.items()):
             raise ProfileError('package differs from authenticated locale index: ' + name)
         found[name] = paragraph
@@ -236,9 +237,11 @@ def generate(lock: dict, prefix: Path, locale_root: Path, work: Path) -> dict:
 
 
 def provision_locked(destination: Path) -> dict:
-    if platform.machine() != 'x86_64' or platform.libc_ver() != ('glibc', '2.39'):
-        raise ProfileError('pinned locale profile requires Linux/x86-64 glibc2.39')
-    lock_bytes = LOCK.read_bytes(); lock = json.loads(lock_bytes)
+    machine = platform.machine()
+    if machine not in ('x86_64', 'aarch64') or platform.libc_ver() != ('glibc', '2.39'):
+        raise ProfileError('a pinned locale profile requires Linux with x86-64 or AArch64 glibc 2.39')
+    profile_lock = LOCK.with_name('locale-data-arm64.json') if machine == 'aarch64' else LOCK
+    lock_bytes = profile_lock.read_bytes(); lock = json.loads(lock_bytes)
     if lock.get('schema_version') != 1 or lock['locale'] != 'fr_FR.UTF-8':
         raise ProfileError('unsupported locale data lock')
     for name in ('installed_tree_sha256', 'generated_tree_sha256', 'charmap_uncompressed_sha256'):

@@ -67,6 +67,15 @@ verifies the package and generated data identities and leaves system locale
 configuration unchanged. `make bootstrap-locale-data` prepares this test data
 on its own.
 
+The [AArch64 locale lock](../oracle/locale-data-arm64.json) verifies the same
+French source data and an Arm `localedef` package from the signed Noble Ports
+index. Both locks pin the same compiled French locale tree. The
+[native AArch64 job](../.github/workflows/native-aarch64.yml) checks the pinned
+GNU Make reference twice on the C and French startup debug diagnostics after
+verifying the private locale and GNU Make catalog. The optimized rmake build
+then runs the same diagnostics against the verified reference and retains its
+own report.
+
 ## Language and profile coverage
 
 The [catalog selection gate](../tests/catalog-coverage/README.md) exercises all

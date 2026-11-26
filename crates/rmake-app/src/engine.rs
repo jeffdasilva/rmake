@@ -1038,6 +1038,7 @@ struct MovedArchiveRecord {
 
 enum MergedGoalReport {
     CompletedSource(Vec<u8>),
+    CompletedVisitedSource(Vec<u8>),
     UnattemptedDestination,
 }
 
@@ -7354,7 +7355,10 @@ impl Engine {
                     .and_then(|id| self.moved_archives.get(&id))
             };
             let completed_source = match merged_report {
-                Some(MergedGoalReport::CompletedSource(name)) => Some(name.as_slice()),
+                Some(
+                    MergedGoalReport::CompletedSource(name)
+                    | MergedGoalReport::CompletedVisitedSource(name),
+                ) => Some(name.as_slice()),
                 _ => None,
             };
             let reported_goal = if let Some(name) = completed_source {
@@ -10496,10 +10500,12 @@ impl Engine {
     }
 
     fn record_merged_goal_reports(&mut self, owners: MergedGoalOwners, name: &[u8]) {
-        self.merged_goal_reports.insert(
-            owners.source,
-            MergedGoalReport::CompletedSource(name.to_vec()),
-        );
+        let source = if owners.destination_unattempted {
+            MergedGoalReport::CompletedSource(name.to_vec())
+        } else {
+            MergedGoalReport::CompletedVisitedSource(name.to_vec())
+        };
+        self.merged_goal_reports.insert(owners.source, source);
         if owners.destination_unattempted {
             self.merged_goal_reports
                 .insert(owners.destination, MergedGoalReport::UnattemptedDestination);
@@ -10633,6 +10639,7 @@ impl Engine {
                     && (self.gpath_match(target, &name) || self.other_file_record(&name, target))
                 {
                     let owners = self.late_goal_merge_owners(target, &name);
+                    let mut retire_visited_source = false;
                     if self
                         .relocate_search_record(target, &name, None, owners)
                         .is_err()
@@ -10644,11 +10651,12 @@ impl Engine {
                     {
                         if !owners.destination_unattempted {
                             outcome.database_result = DatabaseResult::MergedVisitedFile;
+                            retire_visited_source = true;
                         }
                         self.record_merged_goal_reports(owners, &name);
                     }
                     self.file_traversals.set_outcome(&name, outcome);
-                    if self.database.has_detached_file_head(&name) {
+                    if retire_visited_source || self.database.has_detached_file_head(&name) {
                         // A new record can reuse the old lookup key. Keep the
                         // completed update on its physical destination.
                         self.file_traversals.remove_outcome(target);
