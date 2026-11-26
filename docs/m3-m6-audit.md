@@ -37,6 +37,9 @@ at the end of this audit.
   [post-read warning policy](passive-warning-phases.md) and
   [sequential source completion](passive-source-order.md). These records retain
   the order of definitions, warnings and `MAKEFLAGS` expansion.
+  The database records one lookup per post-read flag source with warnings enabled.
+  An unchanged `MAKEFLAGS` replay also records its encoded command-line eval
+  reference when present.
 - [Output validation and mutex failures](output-validation-order.md) and the
   [startup output-lock gate](../tests/startup-output-mutex/README.md). Completed
   definitions and output remain observable when later validation or opening fails.
