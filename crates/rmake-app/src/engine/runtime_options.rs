@@ -841,9 +841,9 @@ impl Engine {
         let mut changed = false;
         let mut file_jobs = None;
         for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
-            if self.flag_state.warn_undefined.get()
-                && self.database.variables.database_lookup(name).is_none()
-            {
+            let warn_missing =
+                self.flag_state.warn_undefined.get() && self.database.variables.get(name).is_none();
+            if warn_missing {
                 let expression = [b"$(".as_slice(), name, b")"].concat();
                 if let Err(error) = self.expand_global(&expression, None) {
                     self.expansion_error(None, &error);
@@ -857,25 +857,34 @@ impl Engine {
             };
             // Selecting the unchanged-value shortcut is an implementation
             // probe. The selected shortcut or real expansion below owns the
-            // one semantic reference, never both.
+            // one semantic reference. A missing-source warning expansion
+            // above has already recorded its reference.
             let binding = self.database.variables.get(name);
             let has_binding = binding.is_some();
             let unchanged = binding.is_none_or(|value| value.raw_value() == *initial);
             let reopen_unchanged = unchanged
                 && self.options.sync_mutex.is_some()
                 && binding.is_some_and(|value| nonempty_flag_source(value.raw_value()));
-            if unchanged {
+            let unchanged_makeflags =
+                (unchanged && name == b"MAKEFLAGS" && has_binding).then(|| {
+                    self.initial_flags
+                        .strip_suffix(b" -- $(MAKEOVERRIDES)")
+                        .or_else(|| {
+                            self.initial_flags
+                                .strip_suffix(b" -- $(-*-command-variables-*-)")
+                        })
+                        .unwrap_or(&self.initial_flags)
+                });
+            if unchanged && !warn_missing {
                 self.database.variables.database_lookup(name);
+                if unchanged_makeflags.is_some_and(|flags| flags.ends_with(b" $(-*-eval-flags-*-)"))
+                    && binding.is_some_and(|variable| variable.flavor() == Flavor::Recursive)
+                {
+                    // The canonical source contains the encoded command-line evals.
+                    self.database.variables.database_lookup(b"-*-eval-flags-*-");
+                }
             }
-            let value = if unchanged && name == b"MAKEFLAGS" && changed && has_binding {
-                let prefix = self
-                    .initial_flags
-                    .strip_suffix(b" -- $(MAKEOVERRIDES)")
-                    .or_else(|| {
-                        self.initial_flags
-                            .strip_suffix(b" -- $(-*-command-variables-*-)")
-                    })
-                    .unwrap_or(&self.initial_flags);
+            let value = if let Some(prefix) = unchanged_makeflags.filter(|_| changed) {
                 Some(prefix.to_vec())
             } else if !unchanged {
                 let expression = [b"$(".as_slice(), name, b")"].concat();

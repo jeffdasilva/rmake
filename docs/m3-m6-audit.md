@@ -37,6 +37,9 @@ at the end of this audit.
   [post-read warning policy](passive-warning-phases.md) and
   [sequential source completion](passive-source-order.md). These records retain
   the order of definitions, warnings and `MAKEFLAGS` expansion.
+  The database records one lookup per post-read flag source with warnings enabled.
+  An unchanged `MAKEFLAGS` replay also records its encoded command-line eval
+  reference when present.
 - [Output validation and mutex failures](output-validation-order.md) and the
   [startup output-lock gate](../tests/startup-output-mutex/README.md). Completed
   definitions and output remain observable when later validation or opening fails.
@@ -387,8 +390,10 @@ for the restart decision and ordinary goal visits.
 A successful sole trailing worker can also leave a reread pending if the
 required worker later restores the optional timestamp. In the selected mixed
 layout with an earlier optional failure, ordinary dependents instead see the
-restored final timestamp. The remaining required-worker failures and other
-completion orders still need qualification.
+restored final timestamp. Both layouts also cover a real failure from the final
+declared required recipe under keep-going. The recipe diagnostic and cached
+dependency failures remain available. Other failure shapes and completion
+orders still need qualification.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 

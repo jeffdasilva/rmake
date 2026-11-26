@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright 2026 Jeff DaSilva
 //! Build-only reader for the public MO table format, independent of libc internals.
-use crate::system_messages::MessageId;
+use crate::system_messages::{MessageId, MessageRef};
 use std::{collections::HashMap, path::Path};
 
 pub fn validate(path: &Path) -> Result<(), String> {
@@ -76,8 +76,8 @@ pub fn validate_bytes(bytes: &[u8]) -> Result<(), String> {
             .unwrap_or(msgid)
     };
     for id in MessageId::ALL {
-        id.sample()
-            .render(resolve(id.msgid().to_bytes()))
+        MessageRef::Borrowed(id.sample())
+            .render_localized(|key| Ok(resolve(key.to_bytes()).to_vec()))
             .map_err(|error| format!("invalid {:?} translation schema: {error:?}", id))?;
     }
     for key in crate::debug_messages::ALL {

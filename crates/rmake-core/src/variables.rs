@@ -18,6 +18,7 @@ use crate::diagnostic::{
     Diagnostic, EnvironmentValue, ExpansionContext, FilesystemEffect, FilesystemError, Location,
     Output, ShellRequest,
 };
+use crate::messages::{Message, WordIndexOperand, WordIndexProblem};
 
 mod direct;
 mod linear;
@@ -421,6 +422,7 @@ impl ExpandError {
             Self::UnterminatedReference => Message::UnterminatedReference,
             Self::RecursiveVariable(name) => Message::RecursiveVariable(name),
             Self::EmptyVariableName => Message::EmptyVariableName,
+            Self::WordIndexZero => Message::WordIndexZero,
             Self::UnterminatedFunction { function, close } => Message::UnterminatedFunction {
                 name: function,
                 close: *close,
@@ -528,6 +530,7 @@ impl ExpandError {
             Self::EmptyVariableName => {
                 Diagnostic::system(crate::messages::Message::EmptyVariableName)
             }
+            Self::WordIndexZero => Diagnostic::system(crate::messages::Message::WordIndexZero),
             Self::InvalidInteger {
                 second,
                 value,
@@ -590,9 +593,12 @@ impl fmt::Display for ExpandError {
             Self::Cancelled => output.write_str("interrupted"),
             Self::Safety(error) => output.write_str(error.message()),
             Self::ExpansionLimit => output.write_str("variable expansion resource limit exceeded"),
-            Self::WordIndexZero => {
-                output.write_str("first argument to 'word' function must be greater than 0")
-            }
+            Self::WordIndexZero => output.write_str(
+                crate::messages::MessageId::WordIndexZero
+                    .msgid()
+                    .to_str()
+                    .expect("English message is UTF-8"),
+            ),
             Self::InvalidInteger { .. } | Self::InsufficientArguments { .. } => {
                 write!(output, "{}", self.diagnostic())
             }
@@ -5258,7 +5264,7 @@ impl Expansion<'_, '_> {
             }
             b"words" => Ok(words(first).count().to_string().into_bytes()),
             b"word" => {
-                let index = word_index(first, name, false)?;
+                let index = word_index(first, WordIndexOperand::WordFirst)?;
                 if index <= 0 {
                     return Err(ExpandError::WordIndexZero);
                 }
@@ -5268,23 +5274,19 @@ impl Expansion<'_, '_> {
                     .to_vec())
             }
             b"wordlist" => {
-                let start = word_index(first, name, false)?;
+                let start = word_index(first, WordIndexOperand::WordlistFirst)?;
                 if start < 1 {
-                    return Err(word_index_error(
-                        name,
-                        false,
-                        Some(start.to_string().as_bytes()),
-                        false,
-                    ));
+                    return Err(ExpandError::system(Message::InvalidWordIndex {
+                        operand: WordIndexOperand::WordlistFirst,
+                        problem: WordIndexProblem::Invalid(start.to_string().as_bytes()),
+                    }));
                 }
-                let end = word_index(&args[1], name, true)?;
+                let end = word_index(&args[1], WordIndexOperand::WordlistSecond)?;
                 if end < 0 {
-                    return Err(word_index_error(
-                        name,
-                        true,
-                        Some(end.to_string().as_bytes()),
-                        false,
-                    ));
+                    return Err(ExpandError::system(Message::InvalidWordIndex {
+                        operand: WordIndexOperand::WordlistSecond,
+                        problem: WordIndexProblem::Invalid(end.to_string().as_bytes()),
+                    }));
                 }
                 if end < start {
                     return Ok(Vec::new());
@@ -5733,35 +5735,13 @@ fn split_arg_ranges(
     result
 }
 
-fn word_index_error(
-    function: &[u8],
-    second: bool,
-    value: Option<&[u8]>,
-    out_of_range: bool,
-) -> ExpandError {
-    let mut message = b"invalid ".to_vec();
-    message.extend_from_slice(if second { b"second" } else { b"first" });
-    message.extend_from_slice(b" argument to '");
-    message.extend_from_slice(function);
-    message.extend_from_slice(b"' function: ");
-    match value {
-        None => message.extend_from_slice(b"empty value"),
-        Some(value) => {
-            message.push(b'\'');
-            message.extend_from_slice(value);
-            message.push(b'\'');
-            if out_of_range {
-                message.extend_from_slice(b" out of range");
-            }
-        }
-    }
-    ExpandError::WordIndexError(message)
-}
-
-fn word_index(value: &[u8], function: &[u8], second: bool) -> Result<i64, ExpandError> {
+fn word_index(value: &[u8], operand: WordIndexOperand) -> Result<i64, ExpandError> {
     let trimmed = trim(value);
     if trimmed.is_empty() {
-        return Err(word_index_error(function, second, None, false));
+        return Err(ExpandError::system(Message::InvalidWordIndex {
+            operand,
+            problem: WordIndexProblem::Empty,
+        }));
     }
     let (negative, digits) = match trimmed[0] {
         b'-' => (true, &trimmed[1..]),
@@ -5779,13 +5759,19 @@ fn word_index(value: &[u8], function: &[u8], second: bool) -> Result<i64, Expand
         let digit = u64::from(*digit - b'0');
         if magnitude > (limit - digit) / 10 {
             // Numeric-prefix overflow wins even when nonnumeric suffixes follow.
-            return Err(word_index_error(function, second, Some(value), true));
+            return Err(ExpandError::system(Message::InvalidWordIndex {
+                operand,
+                problem: WordIndexProblem::OutOfRange(value),
+            }));
         }
         magnitude = magnitude * 10 + digit;
         count += 1;
     }
     if count == 0 || count != digits.len() {
-        return Err(word_index_error(function, second, Some(value), false));
+        return Err(ExpandError::system(Message::InvalidWordIndex {
+            operand,
+            problem: WordIndexProblem::Invalid(value),
+        }));
     }
     Ok(if negative && magnitude == 1u64 << 63 {
         i64::MIN
