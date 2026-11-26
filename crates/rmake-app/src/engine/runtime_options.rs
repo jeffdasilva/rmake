@@ -666,7 +666,7 @@ impl Engine {
         }
         self.jobserver = if let Some(auth) = &self.options.jobserver_auth {
             use rmake_core::messages::Argument;
-            use rmake_linux::{jobserver::JoinError, messages};
+            use rmake_linux::{filesystem, jobserver::JoinError, messages};
             match Jobserver::join(auth) {
                 Ok(server) => Some(server),
                 Err(error) => {
@@ -682,19 +682,14 @@ impl Engine {
                             }),
                         ),
                         JoinError::Unavailable(error) => auth.strip_prefix(b"fifo:").map(|path| {
-                            let detail = os_error(&error);
+                            let detail = filesystem::source_error_detail(&error);
                             messages::render_format(
                                 c"cannot open jobserver %s: %s",
-                                &[Argument::Bytes(path), Argument::Bytes(detail.as_bytes())],
+                                &[Argument::Bytes(path), Argument::Bytes(&detail)],
                             )
                             .unwrap_or_else(|_| {
-                                [
-                                    b"cannot open jobserver ".as_slice(),
-                                    path,
-                                    b": ",
-                                    detail.as_bytes(),
-                                ]
-                                .concat()
+                                [b"cannot open jobserver ".as_slice(), path, b": ", &detail]
+                                    .concat()
                             })
                         }),
                     };

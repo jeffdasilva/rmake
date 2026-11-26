@@ -1,11 +1,12 @@
 {
-  "classification": "Original GNU2 directory localization models. Path slots come from the fresh workspace. Explicit errno slots come from an independent public libc call using the verified locale and original environment.",
+  "classification": "Original GNU2 directory localization models. Path slots come from the fresh workspace. Explicit errno slots come from an independent public libc call using the verified locale and original environment. The live callback rows independently witness the fixture catalog errno in the ordered seen file.",
   "original_models_sha256": "6281bc03103a311c5d968b610d9481cb0db599cea025fdae3fc85981f5aeea80",
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
   "fixture_sha256": {
     "nls_control.c": "11bfb337c609581d2a01736461a9814c100f6fb980903eaeeaba4b6de28a238e",
     "deleted_cwd.py": "4e00366df1d0b63b08de660c5f2c8e0e30ce13ac2bf3d5a301608000b156cfbf",
-    "native/fatal_scope.c": "c767af0adba20f45d65eb2778b4c0703a7e62970bbc06041ea9cffddab7b9740"
+    "native/fatal_scope.c": "c767af0adba20f45d65eb2778b4c0703a7e62970bbc06041ea9cffddab7b9740",
+    "include_errno.c": "283299076626bf68bd3aa22e1a6fa3572403cd7de25bc43b3f9dc37bb02e0f31"
   },
   "rows": [
     {
@@ -1109,6 +1110,312 @@
         "build/owned.mk",
         "directory"
       ]
+    },
+    {
+      "id": "nls-directory-getcwd-after-c-gnumakeflags-latin1",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "/proc/self/fd/197",
+        "-f",
+        "@WORK@/Makefile",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "GNUMAKEFLAGS": "$(eval load @WORK@/include_errno.so)$(nls_errno_fr )",
+        "PROBE_ERRNO_CATALOG": "@WORK@/errno-catalog"
+      },
+      "launch": "after-C",
+      "modules": [
+        {
+          "source": "include_errno.c",
+          "filename": "include_errno.so",
+          "defines": [
+            "NLS_ERRNO_LATIN1"
+          ]
+        }
+      ],
+      "files": {
+        "Makefile": "2428696e666f204355524449523d3c2428435552444952293e290a242866696c65203e3e40574f524b402f7365656e2c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a",
+        "plain": "726567756c61722066696c650a",
+        "present/anchor": "70726573656e740a",
+        "errno-catalog/fr/LC_MESSAGES/libc.mo": "de12049500000000030000001c000000340000000000000000000000000000004c000000190000004d0000000f00000067000000280000007700000011000000a000000011000000b2000000004e6f20737563682066696c65206f72206469726563746f7279004e6f742061206469726563746f727900436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a00666978747572652d46522dc3a96368656300666978747572652d46522d706172656e7400"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "4355524449523d3c40574f524b403e0a",
+        "stderr_template_hex": "6d616b653a20676574637764203a20666978747572652d46522de9636865630a",
+        "seen_template_hex": "616e63686f720a6f726967696e616c3d666978747572652d46522de9636865630a756e72656c617465643d666978747572652d46522d706172656e740a726561640a676f616c0a"
+      }
+    },
+    {
+      "id": "nls-directory-getcwd-after-c-gnumakeflags-ascii",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "/proc/self/fd/197",
+        "-f",
+        "@WORK@/Makefile",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "GNUMAKEFLAGS": "$(eval load @WORK@/include_errno.so)$(nls_errno_fr )",
+        "PROBE_ERRNO_CATALOG": "@WORK@/errno-catalog"
+      },
+      "launch": "after-C",
+      "modules": [
+        {
+          "source": "include_errno.c",
+          "filename": "include_errno.so"
+        }
+      ],
+      "files": {
+        "Makefile": "2428696e666f204355524449523d3c2428435552444952293e290a242866696c65203e3e40574f524b402f7365656e2c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a",
+        "plain": "726567756c61722066696c650a",
+        "present/anchor": "70726573656e740a",
+        "errno-catalog/fr/LC_MESSAGES/libc.mo": "de12049500000000030000001c000000340000000000000000000000000000004c000000190000004d0000000f00000067000000280000007700000011000000a000000011000000b2000000004e6f20737563682066696c65206f72206469726563746f7279004e6f742061206469726563746f727900436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a00666978747572652d46522d616273656e7400666978747572652d46522d706172656e7400"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "4355524449523d3c40574f524b403e0a",
+        "stderr_template_hex": "6d616b653a20676574637764203a20666978747572652d46522d616273656e740a",
+        "seen_template_hex": "616e63686f720a6f726967696e616c3d666978747572652d46522d616273656e740a756e72656c617465643d666978747572652d46522d706172656e740a726561640a676f616c0a"
+      }
+    },
+    {
+      "id": "nls-directory-getcwd-present-gnumakeflags-latin1",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "present",
+        "-f",
+        "@WORK@/Makefile",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "GNUMAKEFLAGS": "$(eval load @WORK@/include_errno.so)$(nls_errno_fr )",
+        "PROBE_ERRNO_CATALOG": "@WORK@/errno-catalog"
+      },
+      "launch": null,
+      "modules": [
+        {
+          "source": "include_errno.c",
+          "filename": "include_errno.so",
+          "defines": [
+            "NLS_ERRNO_LATIN1"
+          ]
+        }
+      ],
+      "files": {
+        "Makefile": "2428696e666f204355524449523d3c2428435552444952293e290a242866696c65203e3e40574f524b402f7365656e2c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a",
+        "plain": "726567756c61722066696c650a",
+        "present/anchor": "70726573656e740a",
+        "errno-catalog/fr/LC_MESSAGES/libc.mo": "de12049500000000030000001c000000340000000000000000000000000000004c000000190000004d0000000f00000067000000280000007700000011000000a000000011000000b2000000004e6f20737563682066696c65206f72206469726563746f7279004e6f742061206469726563746f727900436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a00666978747572652d46522dc3a96368656300666978747572652d46522d706172656e7400"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "4355524449523d3c40574f524b402f70726573656e743e0a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a6f726967696e616c3d666978747572652d46522de9636865630a756e72656c617465643d666978747572652d46522d706172656e740a726561640a676f616c0a"
+      }
+    },
+    {
+      "id": "nls-directory-getcwd-after-c-makeflags-latin1",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "/proc/self/fd/197",
+        "-f",
+        "@WORK@/Makefile",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "MAKEFLAGS": "$(eval load @WORK@/include_errno.so)$(nls_errno_fr )",
+        "PROBE_ERRNO_CATALOG": "@WORK@/errno-catalog"
+      },
+      "launch": "after-C",
+      "modules": [
+        {
+          "source": "include_errno.c",
+          "filename": "include_errno.so",
+          "defines": [
+            "NLS_ERRNO_LATIN1"
+          ]
+        }
+      ],
+      "files": {
+        "Makefile": "2428696e666f204355524449523d3c2428435552444952293e290a242866696c65203e3e40574f524b402f7365656e2c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a",
+        "plain": "726567756c61722066696c650a",
+        "present/anchor": "70726573656e740a",
+        "errno-catalog/fr/LC_MESSAGES/libc.mo": "de12049500000000030000001c000000340000000000000000000000000000004c000000190000004d0000000f00000067000000280000007700000011000000a000000011000000b2000000004e6f20737563682066696c65206f72206469726563746f7279004e6f742061206469726563746f727900436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a00666978747572652d46522dc3a96368656300666978747572652d46522d706172656e7400"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "4355524449523d3c40574f524b403e0a",
+        "stderr_template_hex": "6d616b653a20676574637764203a20666978747572652d46522de9636865630a",
+        "seen_template_hex": "616e63686f720a6f726967696e616c3d666978747572652d46522de9636865630a756e72656c617465643d666978747572652d46522d706172656e740a726561640a676f616c0a"
+      }
+    },
+    {
+      "id": "nls-directory-getcwd-after-c-makeflags-ascii",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "/proc/self/fd/197",
+        "-f",
+        "@WORK@/Makefile",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "MAKEFLAGS": "$(eval load @WORK@/include_errno.so)$(nls_errno_fr )",
+        "PROBE_ERRNO_CATALOG": "@WORK@/errno-catalog"
+      },
+      "launch": "after-C",
+      "modules": [
+        {
+          "source": "include_errno.c",
+          "filename": "include_errno.so"
+        }
+      ],
+      "files": {
+        "Makefile": "2428696e666f204355524449523d3c2428435552444952293e290a242866696c65203e3e40574f524b402f7365656e2c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a",
+        "plain": "726567756c61722066696c650a",
+        "present/anchor": "70726573656e740a",
+        "errno-catalog/fr/LC_MESSAGES/libc.mo": "de12049500000000030000001c000000340000000000000000000000000000004c000000190000004d0000000f00000067000000280000007700000011000000a000000011000000b2000000004e6f20737563682066696c65206f72206469726563746f7279004e6f742061206469726563746f727900436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a00666978747572652d46522d616273656e7400666978747572652d46522d706172656e7400"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "4355524449523d3c40574f524b403e0a",
+        "stderr_template_hex": "6d616b653a20676574637764203a20666978747572652d46522d616273656e740a",
+        "seen_template_hex": "616e63686f720a6f726967696e616c3d666978747572652d46522d616273656e740a756e72656c617465643d666978747572652d46522d706172656e740a726561640a676f616c0a"
+      }
+    },
+    {
+      "id": "nls-directory-getcwd-present-makeflags-latin1",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "present",
+        "-f",
+        "@WORK@/Makefile",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8",
+        "MAKEFLAGS": "$(eval load @WORK@/include_errno.so)$(nls_errno_fr )",
+        "PROBE_ERRNO_CATALOG": "@WORK@/errno-catalog"
+      },
+      "launch": null,
+      "modules": [
+        {
+          "source": "include_errno.c",
+          "filename": "include_errno.so",
+          "defines": [
+            "NLS_ERRNO_LATIN1"
+          ]
+        }
+      ],
+      "files": {
+        "Makefile": "2428696e666f204355524449523d3c2428435552444952293e290a242866696c65203e3e40574f524b402f7365656e2c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a",
+        "plain": "726567756c61722066696c650a",
+        "present/anchor": "70726573656e740a",
+        "errno-catalog/fr/LC_MESSAGES/libc.mo": "de12049500000000030000001c000000340000000000000000000000000000004c000000190000004d0000000f00000067000000280000007700000011000000a000000011000000b2000000004e6f20737563682066696c65206f72206469726563746f7279004e6f742061206469726563746f727900436f6e74656e742d547970653a20746578742f706c61696e3b20636861727365743d5554462d380a00666978747572652d46522dc3a96368656300666978747572652d46522d706172656e7400"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "4355524449523d3c40574f524b402f70726573656e743e0a",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a6f726967696e616c3d666978747572652d46522de9636865630a756e72656c617465643d666978747572652d46522d706172656e740a726561640a676f616c0a"
+      }
+    },
+    {
+      "id": "nls-directory-getcwd-after-c-ordinary",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-C",
+        "/proc/self/fd/197",
+        "-f",
+        "@WORK@/Makefile",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "launch": "after-C",
+      "modules": [],
+      "files": {
+        "Makefile": "2428696e666f204355524449523d3c2428435552444952293e290a242866696c65203e3e40574f524b402f7365656e2c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a",
+        "plain": "726567756c61722066696c650a",
+        "present/anchor": "70726573656e740a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "4355524449523d3c40574f524b403e0a",
+        "stderr_template_hex": "6d616b653a206765746377643a2040454e4f454e54400a",
+        "seen_template_hex": "616e63686f720a726561640a676f616c0a"
+      }
+    },
+    {
+      "id": "nls-directory-getcwd-initial-ordinary",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-f",
+        "@WORK@/Makefile",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "launch": "initial",
+      "modules": [],
+      "files": {
+        "Makefile": "2428696e666f204355524449523d3c2428435552444952293e290a242866696c65203e3e40574f524b402f7365656e2c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a",
+        "seen": "616e63686f720a",
+        "plain": "726567756c61722066696c650a",
+        "present/anchor": "70726573656e740a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "4355524449523d3c3e0a",
+        "stderr_template_hex": "6d616b653a206765746377643a2040454e4f454e54400a",
+        "seen_template_hex": "616e63686f720a726561640a676f616c0a"
+      }
     }
   ]
 }

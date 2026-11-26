@@ -134,6 +134,10 @@ NUL boundaries, rebinding and cancellation.
   A rejected append still counts its lookup of the global definition.
   The optional-file database marker belongs to the active remake visit.
   A serial fatal dump retains the marker from the interrupted visit.
+  A scoped include during a serial goal records a failed open as a missing timestamp.
+  An accepted reopen clears that timestamp while preserving the update verdict.
+  A serial missing-rule stop occurs before completing the file update.
+  The active ordinary prerequisite chain retains that state in a dump.
 - [Eval allocation investigation](eval-allocation-profiles.md) retains experiments
   rejected after elapsed-time regressions and the selected runtime controls.
 

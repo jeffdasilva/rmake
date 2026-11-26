@@ -623,9 +623,20 @@ struct PendingMakefileRemake<'a> {
     trace_synthetic_reap: bool,
     optional_visit_settled: bool,
     same_clock_inline_optional_settled: bool,
+    required_worker_pair: Option<Box<RequiredRemakeWorkerPair<'a>>>,
     trailing_optional_worker: Option<Rc<TrailingOptionalWorker>>,
     trailing_prerequisite_child: Option<Box<RemakePrerequisiteChild<'a>>>,
     trailing_prerequisite_changed: bool,
+}
+
+struct RequiredRemakeWorkerPair<'a> {
+    first_identity: u64,
+    first_before: SystemTime,
+    first_double_colon: bool,
+    first_reap: Option<SystemTime>,
+    second: &'a [u8],
+    second_identity: u64,
+    second_before: SystemTime,
 }
 
 struct TrailingOptionalWorker {
@@ -893,11 +904,11 @@ pub(crate) fn emit_output(
 }
 
 fn emit_getcwd_error(output: &crate::output::Controller, program: &[u8], error: &io::Error) {
-    let detail = os_error(error);
+    let detail = rmake_linux::filesystem::source_error_detail(error);
     let message = crate::messages::system(Message::OsError {
         action: b"getcwd",
         path: b"",
-        detail: detail.as_bytes(),
+        detail: &detail,
     });
     emit_output(
         output,
@@ -1760,6 +1771,8 @@ pub struct Engine {
     makefile_names: HashSet<Vec<u8>>,
     aliases: Aliases,
     path_observations: HashMap<Vec<u8>, PathObservation>,
+    ordinary_include_open_times: bool,
+    reopened_include_times: HashSet<Vec<u8>>,
     resolved_names: HashMap<Vec<u8>, Vec<u8>>,
     ignored_vpath: HashSet<Vec<u8>>,
     archive_vpath_reads: RefCell<Option<Box<ArchiveVpathReads>>>,
@@ -2349,6 +2362,8 @@ impl Engine {
             makefile_names: HashSet::new(),
             aliases: Aliases::default(),
             path_observations: HashMap::new(),
+            ordinary_include_open_times: false,
+            reopened_include_times: HashSet::new(),
             resolved_names: HashMap::new(),
             ignored_vpath: HashSet::new(),
             archive_vpath_reads: RefCell::new(None),
@@ -2465,14 +2480,80 @@ impl Engine {
                 || self.filesystem.borrow_mut().child_completed(),
             )
         };
-        let mut include = |name: &[u8]| self.include_search.borrow().read(name);
+        let record_open_times = self.ordinary_include_open_times && direct_heads;
+        let mut open_results = Vec::new();
+        let mut include = |name: &[u8]| {
+            let result = self.include_search.borrow().read(name);
+            if record_open_times {
+                match &result {
+                    Ok(included) => open_results.push((included.name.clone(), true)),
+                    Err(IncludeFailure::Deferred { resolved_name, .. }) => {
+                        open_results
+                            .push((resolved_name.as_deref().unwrap_or(name).to_vec(), false));
+                    }
+                    Err(IncludeFailure::Fatal(_)) => {}
+                }
+            }
+            result
+        };
         let context = runtime_context(location, &mut output)
             .with_makeflags(&mut flags)
             .with_target_reads(&mut target_reads)
             .with_filesystem(&mut filesystem)
             .with_shell(&shell)
             .with_includes(&mut include);
-        operation(&mut self.database, context)
+        let result = operation(&mut self.database, context);
+        for (name, opened) in open_results {
+            self.retain_include_open_time(name, opened);
+        }
+        result
+    }
+
+    fn retain_include_open_time(&mut self, name: Vec<u8>, opened: bool) {
+        if self.assumed_time(&name).is_some()
+            || self.aliases.contains_source_or_destination(&name)
+            || rmake_core::filenames::archive_parts(&name).is_some()
+            || self
+                .database
+                .rules
+                .get(&name)
+                .is_some_and(|rule| rule.double_colon.is_some() || rule.grouped_targets().is_some())
+        {
+            return;
+        }
+        if !opened {
+            // The recorded open already established that this file is missing.
+            // A later graph visit consumes that observation before searching.
+            self.retain_database_time(&name, None);
+            self.reopened_include_times.remove(&name);
+            self.database_unchecked_times.get_mut().remove(&name);
+            if let Some(outcome) = self.file_traversals.outcome_mut(&name) {
+                outcome.time = None;
+            }
+            self.path_observations.insert(name, None);
+        } else if self
+            .database_times
+            .get_mut()
+            .get(&name)
+            .is_some_and(Option::is_none)
+        {
+            // Reopening only resets a missing time. An existing physical
+            // observation and the earlier update verdict keep their owners.
+            self.database_times.get_mut().remove(&name);
+            if self
+                .path_observations
+                .get(&name)
+                .is_some_and(Option::is_none)
+            {
+                self.path_observations.remove(&name);
+            }
+            if let Some(outcome) = self.file_traversals.outcome(&name) {
+                if !outcome.failed && !outcome.question_outdated {
+                    self.reopened_include_times.insert(name.clone());
+                }
+                self.database_unchecked_times.get_mut().insert(name);
+            }
+        }
     }
 
     fn expand_global(
@@ -4572,6 +4653,7 @@ impl Engine {
                                     trace_synthetic_reap: false,
                                     optional_visit_settled: false,
                                     same_clock_inline_optional_settled: false,
+                                    required_worker_pair: None,
                                     trailing_optional_worker: None,
                                     trailing_prerequisite_child: None,
                                     trailing_prerequisite_changed: false,
@@ -5287,6 +5369,7 @@ impl Engine {
                         trace_synthetic_reap,
                         optional_visit_settled,
                         same_clock_inline_optional_settled: false,
+                        required_worker_pair: None,
                         trailing_optional_worker: None,
                         trailing_prerequisite_child: None,
                         trailing_prerequisite_changed: false,
@@ -5743,6 +5826,12 @@ impl Engine {
                 } else {
                     RemakeWait::Command
                 };
+                if !modes.active()
+                    && let Some(pair) =
+                        self.required_remake_worker_pair(&read_files, &pending, &visited)
+                {
+                    pending[0].required_worker_pair = Some(pair);
+                }
                 stopped = !self.wait_makefile_remakes(
                     &mut pending,
                     &visited,
@@ -5764,6 +5853,9 @@ impl Engine {
                             .outcome(self.aliases.resolve(name))
                             .copied()
                             .unwrap_or(remake.initial);
+                        changed |= remake.required_worker_pair.as_deref().is_some_and(|pair| {
+                            self.restored_required_remake_pair(name, result, pair)
+                        });
                         if !changed
                             && let Some(trailing) = ordinary_trailing_optional
                             && !remake.duplicate
@@ -6176,6 +6268,7 @@ impl Engine {
             self.publish_restarted_assumptions();
         }
         self.unlink_stdin();
+        self.ordinary_include_open_times = true;
         let mut goals = if self.options.goals.is_empty() {
             // GNU expands a recursive default goal's raw value here, without
             // entering the .DEFAULT_GOAL binding's definition context. Nested
@@ -8728,6 +8821,26 @@ impl Engine {
                     .outcome(self.aliases.resolve(name))
                     .copied()
                     .unwrap_or(request.initial);
+                if !request.active
+                    && let Some(pair) = request.required_worker_pair.as_deref_mut()
+                    && pair.first_reap.is_none()
+                    && outcome.ran_refresh()
+                    && outcome.goal_verdict().is_none()
+                    && let Some(clock) = outcome.time
+                    && clock != pair.first_before
+                    && Self::regular_remake_clock(name) == Some(clock)
+                    && self.parallel_jobs.get(name, pair.first_identity).is_none()
+                    && self.parallel_jobs.len() == 1
+                    && self
+                        .parallel_jobs
+                        .get(pair.second, pair.second_identity)
+                        .is_some_and(|job| job.child.is_some())
+                    && (!pair.first_double_colon
+                        || self.successful_explicit_source_refresh(name, clock))
+                {
+                    // This root settled while the same later child still ran.
+                    pair.first_reap = Some(clock);
+                }
                 if request.trace_synthetic_reap
                     && needs_visit
                     && !request.active
@@ -11218,7 +11331,10 @@ impl Engine {
         if outcome.failed {
             return outcome;
         }
-        if !outcome.search_after_update {
+        // A successful reopen leaves an earlier completed file unchecked
+        // until this consumer actually needs its current timestamp.
+        let reopened_include = outcome.time.is_none() && self.reopened_include_times.remove(target);
+        if !outcome.search_after_update && !reopened_include {
             // This is the successful consumer/goal timestamp phase. Without
             // search paths, use the already-retained local observation; the
             // bookkeeping stat need not be repeated just for diagnostics.
@@ -13539,13 +13655,16 @@ impl Engine {
             let tentative_member = self.discard_missing_archive_name(target);
             let optional = self.optional_remake();
             let keep_going = self.options.keep_going;
-            let stopping_archive_member = !optional
+            let stopping_missing_rule = !optional
                 && !keep_going
                 && (tentative_member
-                    || rmake_core::filenames::archive_parts(target).is_some_and(|(archive, _)| {
-                        self.database_unchecked_times.borrow().contains(target)
-                            || self.retained_permanent_archive(archive)
-                    }));
+                    || match rmake_core::filenames::archive_parts(target) {
+                        Some((archive, _)) => {
+                            self.database_unchecked_times.borrow().contains(target)
+                                || self.retained_permanent_archive(archive)
+                        }
+                        None => !self.remaking && !self.parallel_graph(),
+                    });
             self.missing_rule_parents
                 .insert(target.to_vec(), parent.map(|parent| parent.target.to_vec()));
             if !optional {
@@ -13560,7 +13679,7 @@ impl Engine {
             }
             let result = Outcome {
                 failed: true,
-                database_result: if stopping_archive_member {
+                database_result: if stopping_missing_rule {
                     DatabaseResult::UnfinishedMissingRule
                 } else {
                     DatabaseResult::Outcome
@@ -14487,6 +14606,129 @@ impl Engine {
     fn regular_remake_clock(name: &[u8]) -> Option<SystemTime> {
         let file = fs::symlink_metadata(os(name)).ok()?;
         file.is_file().then(|| file.modified().ok()).flatten()
+    }
+
+    fn required_remake_worker_pair<'a>(
+        &self,
+        read_files: &[(Makefile, bool)],
+        requests: &[PendingMakefileRemake<'a>],
+        visited: &MakefileVisits<'_>,
+    ) -> Option<Box<RequiredRemakeWorkerPair<'a>>> {
+        let [
+            (primary, false),
+            (first_source, false),
+            (second_source, false),
+        ] = read_files
+        else {
+            return None;
+        };
+        let [first, second] = requests else {
+            return None;
+        };
+        if !self.parallel_makefile_remakes
+            || self.options.always
+            || self.assumptions.is_some()
+            || self.parallel_jobs.len() != 2
+            || !self.unruled_remake_source(&primary.name)
+            || !std::ptr::eq(first.file, first_source)
+            || !std::ptr::eq(second.file, second_source)
+        {
+            return None;
+        }
+        let (first_identity, first_before, first_double_colon) =
+            self.held_direct_required_remake_job(first, visited)?;
+        let (second_identity, second_before, second_double_colon) =
+            self.held_direct_required_remake_job(second, visited)?;
+        (!second_double_colon).then(|| {
+            Box::new(RequiredRemakeWorkerPair {
+                first_identity,
+                first_before,
+                first_double_colon,
+                first_reap: None,
+                second: &second.file.name,
+                second_identity,
+                second_before,
+            })
+        })
+    }
+
+    fn held_direct_required_remake_job(
+        &self,
+        request: &PendingMakefileRemake<'_>,
+        visited: &MakefileVisits<'_>,
+    ) -> Option<(u64, SystemTime, bool)> {
+        let file = request.file;
+        let name = file.name.as_slice();
+        if file.optional
+            || file.missing
+            || file.location.is_none()
+            || request.duplicate
+            || !request.active
+            || request.modes.active()
+            || self.aliases.resolve(name) != name
+            || self.file_traversals.visit(name)?.parent.is_some()
+        {
+            return None;
+        }
+        let &(Some(before), _) = visited.get(name)? else {
+            return None;
+        };
+        let job = self.parallel_jobs.primary.get(name)?;
+        if job.child.is_none()
+            || job.recursive
+            || job.ignore
+            || job.phony
+            || !job.continuation.expanded.is_empty()
+            || job
+                .continuation
+                .remake
+                .as_ref()
+                .is_none_or(|remake| remake.optional)
+            || job.before != Some(before)
+            || Self::regular_remake_clock(name) != Some(before)
+        {
+            return None;
+        }
+        let double_colon = job.continuation.branch.is_some();
+        let direct = if double_colon {
+            self.unassumed_direct_double_colon_remake(name)
+                && self.pending_explicit_remake_recipe(name)
+                && self
+                    .pending_double_colon
+                    .get(name)
+                    .is_some_and(|state| state.branches.is_empty())
+        } else {
+            self.declared_optional_remake_source(name)
+                && self
+                    .database
+                    .rules
+                    .get(name)
+                    .is_some_and(|rule| rule.recipes.is_some())
+        };
+        direct.then_some((job.identity, before, double_colon))
+    }
+
+    fn restored_required_remake_pair(
+        &self,
+        first: &[u8],
+        outcome: Outcome,
+        pair: &RequiredRemakeWorkerPair<'_>,
+    ) -> bool {
+        pair.first_reap.is_some()
+            && outcome.time == pair.first_reap
+            && outcome.ran_refresh()
+            && outcome.goal_verdict().is_none()
+            && self.parallel_jobs.is_empty()
+            && Self::regular_remake_clock(first) == Some(pair.first_before)
+            && Self::regular_remake_clock(pair.second) == Some(pair.second_before)
+            && self
+                .file_traversals
+                .outcome(pair.second)
+                .is_some_and(|second| {
+                    second.ran_refresh()
+                        && second.goal_verdict().is_none()
+                        && second.time == Some(pair.second_before)
+                })
     }
 
     fn track_trailing_optional_worker(
@@ -16769,6 +17011,19 @@ impl Engine {
                 continue;
             };
             merge_child(&mut outcome, child);
+            if child.database_result == DatabaseResult::UnfinishedMissingRule
+                && !self.remaking
+                && !self.parallel_graph()
+                && !self.options.keep_going
+                && branch.is_none()
+                && group.is_none()
+                && rmake_core::filenames::archive_parts(target).is_none()
+                && rmake_core::filenames::archive_parts(dependency).is_none()
+            {
+                // The missing-rule stop interrupts each waiting ancestor
+                // before GNU would finish its file update.
+                outcome.database_result = DatabaseResult::UnfinishedMissingRule;
+            }
             let order_only = !all_normal && !normal_names.contains(dependency.as_slice());
             let inspected_stale = intermediate_stale
                 .as_ref()
