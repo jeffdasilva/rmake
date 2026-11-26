@@ -12,7 +12,7 @@ use crate::diagnostic::{
     Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, IncludeError, IncludeFailure,
     Output,
 };
-use crate::messages::Message;
+use crate::messages::{Message, MessageId};
 use crate::reader::{
     Input, ParserLine, ParserReader, fold_recipe_reference_continuations, has_comment,
     strip_comment, strip_recipe_continuation_prefix,
@@ -5970,13 +5970,31 @@ impl Database {
                         ));
                     }
                     self.load_native_with(&name, keyword == b"-load", &location, context)
-                        .map_err(|error| ParseError {
-                            unlocated: error.is_unlocated(),
-                            location: error
+                        .map_err(|error| {
+                            let location = error
                                 .diagnostic_location(Some(&location))
-                                .unwrap_or(&location)
-                                .clone(),
-                            message: error.diagnostic(),
+                                .unwrap_or(&location);
+                            // The loader freezes the diagnostic before returning. The
+                            // reader owns teardown context for these terminal failures.
+                            let cause = match &error {
+                                ExpandError::RenderedSystem { error, .. } => error.as_ref(),
+                                error => error,
+                            };
+                            if cause.system_message().is_some_and(|message| {
+                                matches!(
+                                    message.id(),
+                                    MessageId::MissingNativeLicense
+                                        | MessageId::NativeSymbolFailure
+                                        | MessageId::LoadFailed
+                                )
+                            }) {
+                                self.retain_native_reader_error(location, context);
+                            }
+                            ParseError {
+                                unlocated: error.is_unlocated(),
+                                location: location.clone(),
+                                message: error.diagnostic(),
+                            }
                         })?;
                 }
                 continue;

@@ -540,7 +540,9 @@ handling across startup phases, profiles and resource failures. Preserve
 registration, allocator and callback ownership through those combinations.
 When a remake pass returns a query verdict, unloaded modules stay closed.
 The [native lifecycle gate](native-modules.md) checks query, dry-run and
-ordinary reload behavior.
+ordinary reload behavior. Terminal load diagnostics in the reader keep
+their original error text and give existing finalizers the selected file
+and active lexical scope.
 GNU Make remains an external test reference and cannot serve as a runtime
 implementation fallback.
 
