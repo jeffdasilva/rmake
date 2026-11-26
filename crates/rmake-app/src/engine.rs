@@ -9660,14 +9660,18 @@ impl Engine {
                         .get(&worker.required, worker.required_identity)
                         .is_some_and(|required| required.child.is_some())
                     || (worker.no_required_tail_remains
-                        && worker.required_reap.get().is_some()
-                        && (job.before == Some(clock)
-                            || (matches!(
-                                worker.required_reap.get(),
-                                Some(RequiredRemakeWorkerReap::Completed(_))
-                            ) && failed_source_recipe
-                                && optional_failure))
-                        && (!report_error || (failed_source_recipe && optional_failure))))
+                        && match worker.required_reap.get() {
+                            Some(_) if job.before == Some(clock) => {
+                                !report_error || (failed_source_recipe && optional_failure)
+                            }
+                            Some(RequiredRemakeWorkerReap::Completed(_)) => {
+                                failed_source_recipe && optional_failure
+                            }
+                            Some(RequiredRemakeWorkerReap::FailedDeclaredTail { .. }) => {
+                                worker.direct_reread && failed_source_recipe && optional_failure
+                            }
+                            None => false,
+                        }))
                 && Self::regular_remake_clock(&target) == Some(clock)
             {
                 if !report_error && Self::same_clock_optional_remake_outcome(Some(clock), cached) {
@@ -14087,7 +14091,12 @@ impl Engine {
                     || (worker.only_synthetic_tail_remains
                         && worker.required_failure_settled.get()))
                     && self.failed_declared_worker_reap(worker).is_some()
-                    && self.required_worker_clock_was_restored(worker, trailing, visited, false)
+                    && self.required_worker_clock_was_restored(
+                        worker,
+                        trailing,
+                        visited,
+                        worker.direct_reread,
+                    )
             })
     }
 
