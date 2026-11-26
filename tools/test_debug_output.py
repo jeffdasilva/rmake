@@ -9,6 +9,7 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -191,6 +192,33 @@ class DebugOutputTests(unittest.TestCase):
             with patch.object(d.h, 'execute', side_effect=execute):
                 self.assertIs(d.execute_model(model, self.case, runtime, Path('/engine')), self.good)
 
+    def test_child_wait_requires_sleep_and_a_blocking_abi_call(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proc = Path(tmp)
+            (proc / 'stat').write_bytes(b'42 (make) S 12\n')
+            calls = (
+                ('x86_64', '61 0xffffffff 0x1234 0x0', True),
+                ('x86_64', '61 0xffffffff 0x1234 0x1', False),
+                ('x86_64', '7 0x1234 0x2 0xffffffff', True),
+                ('x86_64', '7 0x1234 0x2 0x0', False),
+                ('aarch64', '260 0xffffffff 0x1234 0x0', True),
+                ('aarch64', '73 0x1234 0x2 0x0', True),
+                ('aarch64', '73 0x1234 0x2 0x1234', False),
+            )
+            for machine, call, expected in calls:
+                with self.subTest(machine=machine, call=call):
+                    with patch.object(d.os, 'uname', return_value=SimpleNamespace(machine=machine)):
+                        (proc / 'syscall').write_text(call + ' 0x0 0x0 0x0 0x1 0x2\n')
+                        self.assertEqual(d.blocking_child_wait(proc), expected)
+            with patch.object(d.os, 'uname', return_value=SimpleNamespace(machine='x86_64')):
+                (proc / 'stat').write_bytes(b'42 (make) R 12\n')
+                (proc / 'syscall').write_text('61 0xffffffff 0x1234 0x0 0x0 0x0 0x0 0x1 0x2\n')
+                self.assertFalse(d.blocking_child_wait(proc))
+                (proc / 'stat').write_bytes(b'42 (make) S 12\n')
+                (proc / 'syscall').unlink()
+                with self.assertRaisesRegex(d.h.HarnessError, 'cannot observe held make child'):
+                    d.blocking_child_wait(proc)
+
     def test_two_barrier_expected_file_order_and_tail_marker_remain_strict(self):
         model = next(row for row in d.models()
                      if row.id == 'debug-implicit-group-frontier-two-barriers-pipe-all')
@@ -209,8 +237,8 @@ class DebugOutputTests(unittest.TestCase):
 
     def test_static_inventory_and_retained_history_hashes(self):
         models = d.models()
-        self.assertEqual(len(models), 708)
-        self.assertEqual(len({model.id for model in models}), 708)
+        self.assertEqual(len(models), 724)
+        self.assertEqual(len({model.id for model in models}), 724)
         self.assertEqual(sum(model.id.startswith('debug-held-dispatch-') for model in models), 9)
         self.assertEqual(sum(model.id.startswith('debug-child-') for model in models),10)
         self.assertEqual(sum(model.id.startswith('debug-boundary-') for model in models),14)
@@ -250,6 +278,12 @@ class DebugOutputTests(unittest.TestCase):
                              for model in models), 5)
         self.assertEqual(sum(model.id.startswith('debug-remake-changed-optional-worker-before-no-rule-')
                              for model in models), 5)
+        self.assertEqual(sum(model.id.startswith('debug-remake-restored-trailing-worker-')
+                             for model in models), 3)
+        self.assertEqual(sum(model.id.startswith('debug-remake-restored-mixed-worker-')
+                             for model in models), 5)
+        self.assertEqual(sum(model.id.startswith('debug-remake-ordinary-trailing-worker-')
+                             for model in models), 8)
         self.assertEqual(sum(model.id.startswith('debug-remake-mixed-optional-before-no-rule-inline-')
                              for model in models), 5)
         self.assertEqual(sum(model.id.startswith('debug-remake-mixed-optional-before-no-rule-declared-')

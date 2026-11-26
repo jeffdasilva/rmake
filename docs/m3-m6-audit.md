@@ -378,8 +378,11 @@ the ordinary dependency error without causing a reread.
 For the qualified inline refresh without a relevant time assumption, a trailing
 file changed and then restored by the required worker uses its final timestamp
 for the restart decision and ordinary goal visits.
-Restoration after a separate worker completes and other completion orders still
-need qualification.
+A successful sole trailing worker can also leave a reread pending if the
+required worker later restores the optional timestamp. In the selected mixed
+layout with an earlier optional failure, ordinary dependents instead see the
+restored final timestamp. The remaining required-worker failures and other
+completion orders still need qualification.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
