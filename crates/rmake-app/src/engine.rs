@@ -345,6 +345,8 @@ enum DatabaseResult {
     UnfinishedUpdate,
     // This recipe completed, then its failure stopped ordinary traversal.
     StoppedAfterChildFailure,
+    // A completed failure whose prerequisite consumer may still sample its time.
+    ContinuedAfterChildFailure,
 }
 
 impl DatabaseResult {
@@ -16840,6 +16842,26 @@ impl Engine {
             let pending = self.pending(dependency);
             let child = if pending {
                 child
+            } else if child.database_result == DatabaseResult::ContinuedAfterChildFailure
+                && self.options.keep_going
+                && !self.remaking
+                && !self.parallel_graph()
+                && state.branch.is_none()
+                && state.group.is_none()
+                && self.assumptions.is_none()
+                && self.vpath_dirs.is_empty()
+                && !self.database.has_vpaths()
+                && !self.aliases.contains_source_or_destination(dependency)
+                && !dependency.starts_with(b"-l")
+                && self.database_unchecked_times.get_mut().remove(dependency)
+            {
+                // A continuing prerequisite checks the failed child's clock.
+                // Later consumers use that retained observation.
+                let time = self.name_time(dependency);
+                if let Some(cached) = self.file_traversals.outcome_mut(dependency) {
+                    cached.time = time;
+                }
+                Outcome { time, ..child }
             } else {
                 self.observe_updated(dependency, child)
             };
@@ -17446,10 +17468,12 @@ impl Engine {
                 }
                 if execution.simulated_completion_time {
                     outcome.database_result = DatabaseResult::SimulatedRecipeCompletion;
-                } else if execution.stopped_after_child_failure
-                    && execution.status == Status::Failure
-                {
-                    outcome.database_result = DatabaseResult::StoppedAfterChildFailure;
+                } else if execution.failed_serial_child && execution.status == Status::Failure {
+                    outcome.database_result = if self.options.keep_going {
+                        DatabaseResult::ContinuedAfterChildFailure
+                    } else {
+                        DatabaseResult::StoppedAfterChildFailure
+                    };
                 } else if execution.expansion_failed {
                     outcome.database_result = DatabaseResult::UnfinishedRecipeExpansion;
                 } else if rule.grouped_double_id().is_some()
@@ -19295,8 +19319,7 @@ impl Engine {
                         .with_recursion(!flow.has_ordinary());
                     execution.launch_failed = !launched;
                     execution.simulated_completion_time = simulated_completion_time;
-                    execution.stopped_after_child_failure =
-                        failed_child && !self.options.keep_going && serial_ordinary_failure;
+                    execution.failed_serial_child = failed_child && serial_ordinary_failure;
                     if executable_launch_failed && serial_recipe_failure {
                         self.record_delete_on_error_lookup();
                         if !phony && !simulated_completion_time {
