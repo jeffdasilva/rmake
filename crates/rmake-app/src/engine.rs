@@ -8133,15 +8133,12 @@ impl Engine {
                 // and begins a new command for any later removable record.
                 crate::output::stdout_parts(&[&line]);
                 line.clear();
-                self.stderr(
-                    &[
-                        b"\nunlink: ".as_slice(),
-                        &target,
-                        b": ",
-                        os_error(&error).as_bytes(),
-                    ]
-                    .concat(),
-                );
+                let detail = rmake_linux::filesystem::source_error_detail(&error);
+                self.stderr(&crate::messages::system(Message::OsError {
+                    action: b"\nunlink: ",
+                    path: &target,
+                    detail: &detail,
+                }));
             }
         }
         if !line.is_empty() {

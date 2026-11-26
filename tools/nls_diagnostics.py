@@ -102,7 +102,7 @@ def cases(selection):
     debug_options = json.loads((DATA / "debug-options.json").read_bytes())
     suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution,
               touch_open, cleanup, wait_notice, intermediate, file_io, output_lock, debug_options)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 141, 15, 20, 14, 13, 18, 16, 12, 18, 8, 12, 12, 8, 7):
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 141, 15, 20, 14, 13, 18, 16, 12, 26, 8, 12, 12, 8, 7):
         raise h.HarnessError("unexpected NLS model inventory")
     shuffle_option = json.loads((DATA / "shuffle-option.json").read_bytes())
     if len(shuffle_option["rows"]) != 9 or shuffle_option["fixture_sha256"]:
@@ -142,8 +142,9 @@ def cases(selection):
         raise h.HarnessError("output lock fixture inventory differs")
     fixtures.update(lock_fixtures)
     cleanup_fixtures = cleanup["fixture_sha256"]
-    if set(cleanup_fixtures) != {"recipe_unlink_errno.c"}:
-        raise h.HarnessError("recipe unlink fixture inventory differs")
+    if (set(cleanup_fixtures) != {"recipe_unlink_errno.c", "nls_control.c"}
+            or cleanup_fixtures["nls_control.c"] != fixtures["nls_control.c"]):
+        raise h.HarnessError("cleanup fixture inventory differs")
     fixtures.update(cleanup_fixtures)
     if any(suite["fixture_sha256"] for suite in (repeat, replay, low_resolution, touch_open,
                                                 wait_notice, intermediate, file_io, debug_options)):
@@ -291,6 +292,11 @@ def main(argv=None):
                     content=base64.b64encode(value).decode(), size=len(value),
                     sha256=hashlib.sha256(value).hexdigest(),
                 )
+            for name in row.get("created_directories", []):
+                path = "work/" + str(native.safe_relative(name))
+                if path in expected_files:
+                    raise h.HarnessError("expected a newly created directory")
+                expected_files[path] = {"type": "directory", "mode": 0o755}
             for name in row.get("directory_replacements", []):
                 path = "work/" + str(native.safe_relative(name))
                 if expected_files.get(path, {}).get("type") != "file":
