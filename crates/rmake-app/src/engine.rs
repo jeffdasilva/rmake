@@ -17392,6 +17392,7 @@ impl Engine {
             if crate::recipe_flow::optimized_noop(&invocation) {
                 continue;
             }
+            let direct = matches!(invocation, crate::process::Invocation::Direct { .. });
             let (program, arguments) = match invocation {
                 crate::process::Invocation::Direct { program, args }
                 | crate::process::Invocation::Shell { program, args } => (program, args),
@@ -17703,6 +17704,14 @@ impl Engine {
                 },
             );
             self.retain_database_context(target, branch, variables);
+            let executable_launch_failed = process.as_ref().is_err_and(|error| {
+                matches!(
+                    error.kind(),
+                    io::ErrorKind::NotFound
+                        | io::ErrorKind::PermissionDenied
+                        | io::ErrorKind::NotADirectory
+                )
+            });
             // An ordinary parallel executable lookup failure still occupies its
             // recipe's graph frame until the next dispatch or goal sweep.
             // This first attempt can coexist with registered ordinary workers.
@@ -17713,14 +17722,7 @@ impl Engine {
                 && !flow.retained_owner()
                 && !flow.failed_launch()
                 && !(self.options.dry_run || self.options.question || self.options.touch)
-                && process.as_ref().is_err_and(|error| {
-                    matches!(
-                        error.kind(),
-                        io::ErrorKind::NotFound
-                            | io::ErrorKind::PermissionDenied
-                            | io::ErrorKind::NotADirectory
-                    )
-                })
+                && executable_launch_failed
                 && self
                     .parallel_jobs
                     .values()
@@ -17900,6 +17902,25 @@ impl Engine {
                     let mut execution = Execution::failure(ran, failure_cleanup)
                         .with_recursion(!flow.has_ordinary());
                     execution.launch_failed = !launched;
+                    if executable_launch_failed
+                        && direct
+                        && !parallel
+                        && !self.remaking
+                        && remake.is_none()
+                        && branch.is_none()
+                        && !MakefileModes::from_options(&self.options).active()
+                        && !self.running_groups.contains_key(target)
+                        && rmake_core::filenames::archive_parts(target).is_none()
+                    {
+                        self.record_delete_on_error_lookup();
+                        if !phony {
+                            // A failed executable launch completes the attempt
+                            // without leaving a child that can clean up targets.
+                            self.database_unchecked_times
+                                .borrow_mut()
+                                .insert(target.to_vec());
+                        }
+                    }
                     return execution;
                 }
             }
@@ -18016,6 +18037,14 @@ impl Engine {
         self.fatal_with_owner(None, message, true);
     }
 
+    fn record_delete_on_error_lookup(&self) {
+        if !self.database_delete_policy.replace(true)
+            && let Some(history) = self.database.database_history()
+        {
+            history.record_file_lookup(b".DELETE_ON_ERROR");
+        }
+    }
+
     fn cleanup_target(
         &self,
         target: &[u8],
@@ -18023,11 +18052,8 @@ impl Engine {
         phony: bool,
         cleanup: Cleanup,
     ) -> bool {
-        if matches!(cleanup, Cleanup::ChangedOnError | Cleanup::ChangedOnSignal)
-            && !self.database_delete_policy.replace(true)
-            && let Some(history) = self.database.database_history()
-        {
-            history.record_file_lookup(b".DELETE_ON_ERROR");
+        if matches!(cleanup, Cleanup::ChangedOnError | Cleanup::ChangedOnSignal) {
+            self.record_delete_on_error_lookup();
         }
 
         if self.cleanup_one(target, before, phony, cleanup, None) {
