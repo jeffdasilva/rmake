@@ -1,0 +1,12 @@
+id = "startup-assume-old-operand-long-alias-repeat"
+requirement = "options.assumed-old-operands"
+candidate = "required"
+description = "Startup assumed-file operands compare against prepared filenames before HOME expansion."
+provenance = "Original effect fixture and output anchored against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "HOME=$(info expanded-home)~", "--assume-old=~/a", "--old-file=~/a", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "657870616e6465642d686f6d650a676f616c0a6d616b653a2027616c6c2720697320757020746f20646174652e0a"
+stderr_hex = ""

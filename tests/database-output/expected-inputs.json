@@ -54563,6 +54563,414 @@
         }
       ],
       "trusted_trace_sha256": "b8a374a39401dd4ef0fc10f29bfb2d8180b939c3142d278b4b967ff853957299"
+    },
+    "database-phase-assumed-operand-old-repeat": {
+      "template_sha256": "b8ba87c32a86888c66e879eb7ce89869cff1ec4ab090dbd2d630078da47c8dd0",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "6f6c64"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "alias",
+              "d0",
+              "."
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6f6c64"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6f6c64"
+            ],
+            [
+              "add",
+              "6f6c64"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "5cab5721087505865ecb3d6d37954f81b6650377706b4cc6959ad8574e0b97de"
+    },
+    "database-phase-assumed-operand-old-prepared-repeat": {
+      "template_sha256": "b8ba87c32a86888c66e879eb7ce89869cff1ec4ab090dbd2d630078da47c8dd0",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "6f6c64"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "alias",
+              "d0",
+              "."
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6f6c64"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6f6c64"
+            ],
+            [
+              "add",
+              "6f6c64"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "5cab5721087505865ecb3d6d37954f81b6650377706b4cc6959ad8574e0b97de"
+    },
+    "database-phase-assumed-operand-old-long-repeat": {
+      "template_sha256": "b8ba87c32a86888c66e879eb7ce89869cff1ec4ab090dbd2d630078da47c8dd0",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "6f6c64"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "alias",
+              "d0",
+              "."
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "2e50484f4e59"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6f6c64"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6f6c64"
+            ],
+            [
+              "add",
+              "6f6c64"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "5cab5721087505865ecb3d6d37954f81b6650377706b4cc6959ad8574e0b97de"
+    },
+    "database-phase-assumed-operand-new-repeat-control": {
+      "template_sha256": "a180cf53c8ba88b8374d2c8689723042e009f7a1e210e8dc6f68e15dcd4a9781",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "696e707574"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "alias",
+              "d0",
+              "."
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "696e707574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "d5f7de82d02a5cfc79a4ea44a1407b2026d07734e323b4d12b6dcec22e2b8889"
     }
   }
 }

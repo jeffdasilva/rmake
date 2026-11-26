@@ -692,26 +692,25 @@ impl State {
                         history.intern(options.files[index].as_os_str().as_bytes());
                     }
                 }
-                crate::cli::Argument::OldFile(index) => {
-                    let raw = options.old_files[index].as_os_str().as_bytes();
-                    options.old_files[index] = self.path(program, raw)?;
-                    if let Some(history) = self.database.database_history() {
-                        history.intern(options.old_files[index].as_os_str().as_bytes());
-                    }
-                }
-                crate::cli::Argument::NewFile(index) => {
-                    let raw = options.new_files[index].as_os_str().as_bytes();
+                assumed @ (crate::cli::Argument::OldFile(index)
+                | crate::cli::Argument::NewFile(index)) => {
+                    let files = if matches!(assumed, crate::cli::Argument::OldFile(_)) {
+                        &mut options.old_files
+                    } else {
+                        &mut options.new_files
+                    };
+                    let raw = files[index].as_os_str().as_bytes();
                     // Compare the incoming spelling against the already
                     // prepared operands before resolving this path.
-                    if options.new_files[..index]
+                    if files[..index]
                         .iter()
                         .any(|path| path.as_os_str().as_bytes() == raw)
                     {
-                        options.new_files.pop();
+                        files.pop();
                     } else {
-                        options.new_files[index] = self.path(program, raw)?;
+                        files[index] = self.path(program, raw)?;
                         if let Some(history) = self.database.database_history() {
-                            history.intern(options.new_files[index].as_os_str().as_bytes());
+                            history.intern(files[index].as_os_str().as_bytes());
                         }
                     }
                 }
