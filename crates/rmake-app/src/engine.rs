@@ -3566,6 +3566,9 @@ impl Engine {
                 if default_file.is_none() {
                     // Preloaded rules may generate a default main makefile.
                     for name in [b"GNUmakefile".as_slice(), b"makefile", b"Makefile"] {
+                        if let Some(history) = self.database.database_history() {
+                            history.intern(name);
+                        }
                         self.database.file_records.insert(name);
                         self.database.makefiles.push(Makefile {
                             name: name.to_vec(),

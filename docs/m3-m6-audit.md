@@ -136,6 +136,8 @@ NUL boundaries, rebinding and cancellation.
   A serial fatal dump retains the marker from the interrupted visit.
   A scoped include during a serial goal records a failed open as a missing timestamp.
   An accepted reopen clears that timestamp while preserving the update verdict.
+  When default makefile discovery misses, the reader interns all three
+  optional remake candidate names as it enters their file records.
   A serial missing-rule stop occurs before completing the file update.
   The active ordinary prerequisite chain retains that state in a dump.
   A launched child retains its completed failure while its waiting ordinary
