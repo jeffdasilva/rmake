@@ -400,7 +400,7 @@ impl Controller {
     }
 }
 
-fn temporary_creation_message(path: &Path, error: &io::Error) -> Vec<u8> {
+pub(crate) fn temporary_creation_message(path: &Path, error: &io::Error) -> Vec<u8> {
     use rmake_core::messages::Argument::Bytes;
     let path = path.as_os_str().as_bytes();
     let detail = rmake_linux::filesystem::source_error_detail(error);

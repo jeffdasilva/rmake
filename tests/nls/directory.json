@@ -1,12 +1,13 @@
 {
-  "classification": "Original GNU2 directory localization models. Path slots come from the fresh workspace. Explicit errno slots come from an independent public libc call using the verified locale and original environment. The live callback rows independently witness the fixture catalog errno in the ordered seen file.",
+  "classification": "Original GNU2 directory localization models. Path slots come from the fresh workspace. Explicit errno slots come from an independent public libc call using the verified locale and original environment. The live callback rows independently witness the fixture catalog errno in the ordered seen file. Named stdin create rows get their attempted path and errno code from a passive libc observer.",
   "original_models_sha256": "6281bc03103a311c5d968b610d9481cb0db599cea025fdae3fc85981f5aeea80",
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
   "fixture_sha256": {
     "nls_control.c": "11bfb337c609581d2a01736461a9814c100f6fb980903eaeeaba4b6de28a238e",
     "deleted_cwd.py": "4e00366df1d0b63b08de660c5f2c8e0e30ce13ac2bf3d5a301608000b156cfbf",
     "native/fatal_scope.c": "c767af0adba20f45d65eb2778b4c0703a7e62970bbc06041ea9cffddab7b9740",
-    "include_errno.c": "283299076626bf68bd3aa22e1a6fa3572403cd7de25bc43b3f9dc37bb02e0f31"
+    "include_errno.c": "283299076626bf68bd3aa22e1a6fa3572403cd7de25bc43b3f9dc37bb02e0f31",
+    "stdin_create_observer.c": "ccb7fea7394926c6f59248eae883ba5e1af45cdb0313b230468ab6b39441b648"
   },
   "rows": [
     {
@@ -1415,6 +1416,515 @@
         "stdout_template_hex": "4355524449523d3c3e0a",
         "stderr_template_hex": "6d616b653a206765746377643a2040454e4f454e54400a",
         "seen_template_hex": "616e63686f720a726561640a676f616c0a"
+      }
+    },
+    {
+      "id": "nls-directory-stdin-create-missing-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-C",
+        "shifted",
+        "-f",
+        "-",
+        "all"
+      ],
+      "environment": {
+        "MAKE_TMPDIR": "relative///",
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "",
+        "LD_PRELOAD": "@WORK@/stdin_create_observer.so",
+        "PROBE_CREATE_RECORD": "@HOME@/stdin-create-attempt"
+      },
+      "launch": "stdin-create",
+      "stdin_create": "ENOENT",
+      "modules": [
+        {
+          "source": "stdin_create_observer.c",
+          "filename": "stdin_create_observer.so"
+        }
+      ],
+      "files": {
+        "relative/anchor": "656e7472790a",
+        "shifted/anchor": "736869667465640a",
+        "seen": "616e63686f720a",
+        "stdin-input.mk": "242866696c65203e3e40574f524b402f7365656e2c726561646572290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "",
+        "stderr_template_hex": "6d616b653a2063616e6e6f74206372656174652074656d706f726172792066696c652040535444494e5f4352454154455f50415448403a2040454e4f454e54400a6d616b653a202a2a2a2063616e6e6f742073746f7265206d616b6566696c652066726f6d20737464696e20746f20612074656d706f726172792066696c652e202053746f702e0a",
+        "seen_template_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-directory-stdin-create-missing-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-C",
+        "shifted",
+        "-f",
+        "-",
+        "all"
+      ],
+      "environment": {
+        "MAKE_TMPDIR": "relative///",
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de",
+        "LD_PRELOAD": "@WORK@/stdin_create_observer.so",
+        "PROBE_CREATE_RECORD": "@HOME@/stdin-create-attempt"
+      },
+      "launch": "stdin-create",
+      "stdin_create": "ENOENT",
+      "modules": [
+        {
+          "source": "stdin_create_observer.c",
+          "filename": "stdin_create_observer.so"
+        }
+      ],
+      "files": {
+        "relative/anchor": "656e7472790a",
+        "shifted/anchor": "736869667465640a",
+        "seen": "616e63686f720a",
+        "stdin-input.mk": "242866696c65203e3e40574f524b402f7365656e2c726561646572290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "",
+        "stderr_template_hex": "6d616b653a204665686c6572206265696d2045727a657567656e206465722074656d706f72c3a472656e20446174656920e2809e40535444494e5f4352454154455f5041544840e2809c3a2040454e4f454e54400a6d616b653a202a2a2a204665686c6572206265696d2053706569636865726e20646572204d616b6564617465692061757320646572205374616e6461726465696e6761626520696e2065696e65722074656d706f72c3a472656e2044617465692e20205363686c7573732e0a",
+        "seen_template_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-directory-stdin-create-missing-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-C",
+        "shifted",
+        "-f",
+        "-",
+        "all"
+      ],
+      "environment": {
+        "MAKE_TMPDIR": "relative///",
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja",
+        "LD_PRELOAD": "@WORK@/stdin_create_observer.so",
+        "PROBE_CREATE_RECORD": "@HOME@/stdin-create-attempt"
+      },
+      "launch": "stdin-create",
+      "stdin_create": "ENOENT",
+      "modules": [
+        {
+          "source": "stdin_create_observer.c",
+          "filename": "stdin_create_observer.so"
+        }
+      ],
+      "files": {
+        "relative/anchor": "656e7472790a",
+        "shifted/anchor": "736869667465640a",
+        "seen": "616e63686f720a",
+        "stdin-input.mk": "242866696c65203e3e40574f524b402f7365656e2c726561646572290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "",
+        "stderr_template_hex": "6d616b653a20e4b880e69982e38395e382a1e382a4e383ab2040535444494e5f4352454154455f504154484020e38292e4bd9ce68890e381a7e3818de381bee3819be382933a2040454e4f454e54400a6d616b653a202a2a2a206d616b6566696c6520e38292e6a899e6ba96e585a5e58a9be3818be38289e4b880e69982e38395e382a1e382a4e383abe381abe6a0bce7b48de381a7e3818de381bee3819be382932e2020e4b8ade6ada22e0a",
+        "seen_template_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-directory-stdin-create-nondir-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-C",
+        "shifted",
+        "-f",
+        "-",
+        "all"
+      ],
+      "environment": {
+        "MAKE_TMPDIR": "relative-\udcff///",
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr",
+        "LD_PRELOAD": "@WORK@/stdin_create_observer.so",
+        "PROBE_CREATE_RECORD": "@HOME@/stdin-create-attempt"
+      },
+      "launch": "stdin-create",
+      "stdin_create": "ENOTDIR",
+      "modules": [
+        {
+          "source": "stdin_create_observer.c",
+          "filename": "stdin_create_observer.so"
+        }
+      ],
+      "files": {
+        "relative-\udcff/anchor": "656e7472790a",
+        "shifted/anchor": "736869667465640a",
+        "seen": "616e63686f720a",
+        "stdin-input.mk": "242866696c65203e3e40574f524b402f7365656e2c726561646572290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a",
+        "shifted/relative-\udcff": "726567756c61720a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "",
+        "stderr_template_hex": "6d616b653a2063616e6e6f74206372656174652074656d706f726172792066696c652040535444494e5f4352454154455f50415448403a2040454e4f54444952400a6d616b653a202a2a2a2063616e6e6f742073746f7265206d616b6566696c652066726f6d20737464696e20746f20612074656d706f726172792066696c652e20417272c3aa742e0a",
+        "seen_template_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-directory-stdin-create-success-shifted-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-C",
+        "shifted",
+        "-f",
+        "-",
+        "all"
+      ],
+      "environment": {
+        "MAKE_TMPDIR": "relative///",
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "",
+        "LD_PRELOAD": "@WORK@/stdin_create_observer.so",
+        "PROBE_CREATE_RECORD": "@HOME@/stdin-create-attempt"
+      },
+      "launch": "stdin-create",
+      "stdin_create": "",
+      "modules": [
+        {
+          "source": "stdin_create_observer.c",
+          "filename": "stdin_create_observer.so"
+        }
+      ],
+      "files": {
+        "relative/anchor": "656e7472790a",
+        "shifted/anchor": "736869667465640a",
+        "seen": "616e63686f720a",
+        "stdin-input.mk": "242866696c65203e3e40574f524b402f7365656e2c726561646572290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a",
+        "shifted/relative/anchor": "73656c65637465640a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a7265616465720a676f616c0a"
+      }
+    },
+    {
+      "id": "nls-directory-stdin-create-success-entry-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-f",
+        "-",
+        "all"
+      ],
+      "environment": {
+        "MAKE_TMPDIR": "relative///",
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de",
+        "LD_PRELOAD": "@WORK@/stdin_create_observer.so",
+        "PROBE_CREATE_RECORD": "@HOME@/stdin-create-attempt"
+      },
+      "launch": "stdin-create",
+      "stdin_create": "",
+      "modules": [
+        {
+          "source": "stdin_create_observer.c",
+          "filename": "stdin_create_observer.so"
+        }
+      ],
+      "files": {
+        "relative/anchor": "656e7472790a",
+        "shifted/anchor": "736869667465640a",
+        "seen": "616e63686f720a",
+        "stdin-input.mk": "242866696c65203e3e40574f524b402f7365656e2c726561646572290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a7265616465720a676f616c0a"
+      }
+    },
+    {
+      "id": "nls-directory-stdin-create-ordinary-file-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-C",
+        "shifted",
+        "-f",
+        "ordinary.mk",
+        "all"
+      ],
+      "environment": {
+        "MAKE_TMPDIR": "relative///",
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de",
+        "LD_PRELOAD": "@WORK@/stdin_create_observer.so",
+        "PROBE_CREATE_RECORD": "@HOME@/stdin-create-attempt"
+      },
+      "launch": "stdin-create",
+      "stdin_create": null,
+      "modules": [
+        {
+          "source": "stdin_create_observer.c",
+          "filename": "stdin_create_observer.so"
+        }
+      ],
+      "files": {
+        "relative/anchor": "656e7472790a",
+        "shifted/anchor": "736869667465640a",
+        "seen": "616e63686f720a",
+        "stdin-input.mk": "242866696c65203e3e40574f524b402f7365656e2c726561646572290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a",
+        "shifted/ordinary.mk": "242866696c65203e3e40574f524b402f7365656e2c726561646572290a2e50484f4e593a20616c6c0a616c6c3a3b40242866696c65203e3e40574f524b402f7365656e2c676f616c293a0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "",
+        "stderr_template_hex": "",
+        "seen_template_hex": "616e63686f720a7265616465720a676f616c0a"
+      }
+    },
+    {
+      "id": "nls-directory-stdin-create-finalizer-missing-022",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-C",
+        "shifted",
+        "-f",
+        "-",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "MAKE_TMPDIR": "relative/",
+        "LD_PRELOAD": "@WORK@/stdin_create_observer.so",
+        "PROBE_CREATE_RECORD": "@HOME@/stdin-create-attempt",
+        "GNUMAKEFLAGS": "$(eval load @WORK@/fatal_scope.so)"
+      },
+      "launch": "stdin-create",
+      "stdin_create": "ENOENT",
+      "stdin_umask": "022",
+      "finalizer_seen_mode": 384,
+      "modules": [
+        {
+          "source": "stdin_create_observer.c",
+          "filename": "stdin_create_observer.so"
+        },
+        {
+          "source": "native/fatal_scope.c",
+          "filename": "fatal_scope.so"
+        }
+      ],
+      "files": {
+        "relative/anchor": "6f726967696e0a",
+        "shifted/anchor": "6c6f636174696f6e0a",
+        "stdin-input.mk": "2428696e666f20726561646572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "",
+        "stderr_template_hex": "6d616b653a2063616e6e6f74206372656174652074656d706f726172792066696c652040535444494e5f4352454154455f50415448403a2040454e4f454e54400a6d616b653a202a2a2a2063616e6e6f742073746f7265206d616b6566696c652066726f6d20737464696e20746f20612074656d706f726172792066696c652e202053746f702e0a6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
+        "seen_template_hex": "73636f70653d5b7c7c66696c657c40574f524b402f666174616c5f73636f70652e736f7c7c5d0a"
+      }
+    },
+    {
+      "id": "nls-directory-stdin-create-finalizer-nondir-022",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-C",
+        "shifted",
+        "-f",
+        "-",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "MAKE_TMPDIR": "relative/",
+        "LD_PRELOAD": "@WORK@/stdin_create_observer.so",
+        "PROBE_CREATE_RECORD": "@HOME@/stdin-create-attempt",
+        "GNUMAKEFLAGS": "$(eval load @WORK@/fatal_scope.so)"
+      },
+      "launch": "stdin-create",
+      "stdin_create": "ENOTDIR",
+      "stdin_umask": "022",
+      "finalizer_seen_mode": 384,
+      "modules": [
+        {
+          "source": "stdin_create_observer.c",
+          "filename": "stdin_create_observer.so"
+        },
+        {
+          "source": "native/fatal_scope.c",
+          "filename": "fatal_scope.so"
+        }
+      ],
+      "files": {
+        "relative/anchor": "6f726967696e0a",
+        "shifted/anchor": "6c6f636174696f6e0a",
+        "stdin-input.mk": "2428696e666f20726561646572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "shifted/relative": "726567756c61720a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "",
+        "stderr_template_hex": "6d616b653a2063616e6e6f74206372656174652074656d706f726172792066696c652040535444494e5f4352454154455f50415448403a2040454e4f54444952400a6d616b653a202a2a2a2063616e6e6f742073746f7265206d616b6566696c652066726f6d20737464696e20746f20612074656d706f726172792066696c652e202053746f702e0a6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
+        "seen_template_hex": "73636f70653d5b7c7c66696c657c40574f524b402f666174616c5f73636f70652e736f7c7c5d0a"
+      }
+    },
+    {
+      "id": "nls-directory-stdin-create-finalizer-missing-077",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-C",
+        "shifted",
+        "-f",
+        "-",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "MAKE_TMPDIR": "relative/",
+        "LD_PRELOAD": "@WORK@/stdin_create_observer.so",
+        "PROBE_CREATE_RECORD": "@HOME@/stdin-create-attempt",
+        "GNUMAKEFLAGS": "$(eval load @WORK@/fatal_scope.so)"
+      },
+      "launch": "stdin-create",
+      "stdin_create": "ENOENT",
+      "stdin_umask": "077",
+      "finalizer_seen_mode": 384,
+      "modules": [
+        {
+          "source": "stdin_create_observer.c",
+          "filename": "stdin_create_observer.so"
+        },
+        {
+          "source": "native/fatal_scope.c",
+          "filename": "fatal_scope.so"
+        }
+      ],
+      "files": {
+        "relative/anchor": "6f726967696e0a",
+        "shifted/anchor": "6c6f636174696f6e0a",
+        "stdin-input.mk": "2428696e666f20726561646572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stdout_template_hex": "",
+        "stderr_template_hex": "6d616b653a2063616e6e6f74206372656174652074656d706f726172792066696c652040535444494e5f4352454154455f50415448403a2040454e4f454e54400a6d616b653a202a2a2a2063616e6e6f742073746f7265206d616b6566696c652066726f6d20737464696e20746f20612074656d706f726172792066696c652e202053746f702e0a6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
+        "seen_template_hex": "73636f70653d5b7c7c66696c657c40574f524b402f666174616c5f73636f70652e736f7c7c5d0a"
+      }
+    },
+    {
+      "id": "nls-directory-stdin-create-finalizer-success-022",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-C",
+        "shifted",
+        "-f",
+        "-",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "MAKE_TMPDIR": "relative/",
+        "LD_PRELOAD": "@WORK@/stdin_create_observer.so",
+        "PROBE_CREATE_RECORD": "@HOME@/stdin-create-attempt",
+        "GNUMAKEFLAGS": "$(eval load @WORK@/fatal_scope.so)"
+      },
+      "launch": "stdin-create",
+      "stdin_create": "",
+      "stdin_umask": "022",
+      "finalizer_seen_mode": 420,
+      "modules": [
+        {
+          "source": "stdin_create_observer.c",
+          "filename": "stdin_create_observer.so"
+        },
+        {
+          "source": "native/fatal_scope.c",
+          "filename": "fatal_scope.so"
+        }
+      ],
+      "files": {
+        "relative/anchor": "6f726967696e0a",
+        "shifted/anchor": "6c6f636174696f6e0a",
+        "stdin-input.mk": "2428696e666f20726561646572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "shifted/relative/anchor": "73656c65637465640a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "7265616465720a",
+        "stderr_template_hex": "6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
+        "seen_template_hex": "73636f70653d5b7c7c66696c657c40574f524b402f666174616c5f73636f70652e736f7c7c5d0a"
+      }
+    },
+    {
+      "id": "nls-directory-stdin-create-finalizer-ordinary-022",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-C",
+        "shifted",
+        "-f",
+        "ordinary.mk",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "MAKE_TMPDIR": "relative/",
+        "LD_PRELOAD": "@WORK@/stdin_create_observer.so",
+        "PROBE_CREATE_RECORD": "@HOME@/stdin-create-attempt",
+        "GNUMAKEFLAGS": "$(eval load @WORK@/fatal_scope.so)"
+      },
+      "launch": "stdin-create",
+      "stdin_create": null,
+      "stdin_umask": "022",
+      "finalizer_seen_mode": 420,
+      "modules": [
+        {
+          "source": "stdin_create_observer.c",
+          "filename": "stdin_create_observer.so"
+        },
+        {
+          "source": "native/fatal_scope.c",
+          "filename": "fatal_scope.so"
+        }
+      ],
+      "files": {
+        "relative/anchor": "6f726967696e0a",
+        "shifted/anchor": "6c6f636174696f6e0a",
+        "stdin-input.mk": "2428696e666f20726561646572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a",
+        "shifted/ordinary.mk": "2428696e666f20726561646572290a2e50484f4e593a20616c6c0a616c6c3a3b403a0a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_template_hex": "7265616465720a",
+        "stderr_template_hex": "6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
+        "seen_template_hex": "73636f70653d5b7c7c66696c657c40574f524b402f666174616c5f73636f70652e736f7c7c5d0a"
       }
     }
   ]

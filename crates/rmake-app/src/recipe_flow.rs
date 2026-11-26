@@ -47,6 +47,8 @@ pub struct Execution {
     pub pending: bool,
     /// A nonignored recipe command failed before starting a child.
     pub launch_failed: bool,
+    /// A launched serial child completed, then its failure stopped traversal.
+    pub stopped_after_child_failure: bool,
     /// The database observes a failure while expanding a recipe line.
     pub expansion_failed: bool,
     /// A mixed recipe finishes in a simulated mode after starting a command.

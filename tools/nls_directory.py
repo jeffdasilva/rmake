@@ -3,6 +3,8 @@
 # Copyright 2026 Jeff DaSilva
 """Exact GNU2 comparison of localized directory framing and cwd failures."""
 import argparse
+import base64
+import errno
 from dataclasses import replace
 import json
 import os
@@ -20,9 +22,11 @@ import oracle as reference
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "tests/nls"
 COPIED_STDIN = "@COPIED_STDIN@"
+STDIN_CREATE_RECORD = "home/stdin-create-attempt"
+STDIN_CREATE_PATH = b"@STDIN_CREATE_PATH@"
 
 
-def observe(case, runtime, binary, launcher):
+def observe(case, runtime, binary, launcher, stdin_umask=None):
     if launcher is None:
         return h.execute(case, runtime, binary)
     h.reset_workspace(case, runtime, binary)
@@ -35,6 +39,13 @@ def observe(case, runtime, binary, launcher):
         command = [executable, *case.args]
         if launcher == "entry-stdin":
             command = ["/bin/sh", "-c", 'exec "$@" < ../build/stdin-input.mk', "stdin-launcher", *command]
+    elif launcher == "stdin-create":
+        launch = 'exec "$@" < stdin-input.mk'
+        arguments = [executable, *case.args]
+        if stdin_umask is not None:
+            launch = 'umask "$1" && shift && ' + launch
+            arguments.insert(0, stdin_umask)
+        command = ["/bin/sh", "-c", launch, "stdin-launcher", *arguments]
     else:
         command = [sys.executable, str(DATA / "deleted_cwd.py"), launcher,
                    str(cwd), executable, *case.args]
@@ -48,12 +59,13 @@ def observe(case, runtime, binary, launcher):
 def errno_witness(root, environment, name):
     # Query the OS diagnostic independently, with the same locale inputs.
     # The Make template, prefix, spacing, newline and stream remain literal.
+    witness_environment = {key: value for key, value in environment.items() if key != "LD_PRELOAD"}
     out, err, status, limit, leftovers = h.capture(
         [sys.executable, "-c", nls.OS_WITNESS, name], root,
-        h.clean_environment(root, environment), 5,
+        h.clean_environment(root, witness_environment), 5,
     )
     if status or err or limit or leftovers or not out or b"\n" in out:
-        raise h.HarnessError("could not witness host libc cwd or unlink diagnostic")
+        raise h.HarnessError("could not witness host libc filesystem diagnostic")
     return out
 
 
@@ -61,12 +73,13 @@ def load_rows(selection):
     data = json.loads((DATA / "directory.json").read_bytes())
     rows = data["rows"]
     names = {row["id"] for row in rows}
-    if len(rows) != 43 or len(names) != 43:
+    if len(rows) != 55 or len(names) != 55:
         raise h.HarnessError("unexpected NLS directory inventory")
     if set(selection) - names:
         raise h.HarnessError("unknown exact NLS directory ID")
     fixtures = data["fixture_sha256"]
-    if set(fixtures) != {"nls_control.c", "deleted_cwd.py", "native/fatal_scope.c", "include_errno.c"}:
+    if set(fixtures) != {"nls_control.c", "deleted_cwd.py", "native/fatal_scope.c",
+                         "include_errno.c", "stdin_create_observer.c"}:
         raise h.HarnessError("unexpected NLS directory fixture inventory")
     for name, expected in fixtures.items():
         source = DATA.parent / name if name == "native/fatal_scope.c" else DATA / name
@@ -76,8 +89,13 @@ def load_rows(selection):
     for row in rows:
         if any(module["source"] not in module_sources for module in row["modules"]):
             raise h.HarnessError("NLS directory model uses unpinned source")
-        if row["launch"] not in (None, "initial", "after-C", "entry", "entry-stdin"):
+        if row["launch"] not in (None, "initial", "after-C", "entry", "entry-stdin", "stdin-create"):
             raise h.HarnessError("unknown NLS directory launch")
+        if "stdin_umask" in row:
+            if row["launch"] != "stdin-create" or row["stdin_umask"] not in ("022", "077"):
+                raise h.HarnessError("unexpected named stdin umask input")
+            if row.get("finalizer_seen_mode") not in (0o600, 0o644) or "seen" in row["files"]:
+                raise h.HarnessError("umask model requires a new finalizer-owned seen file")
     return data, [row for row in rows if not selection or row["id"] in selection]
 
 
@@ -89,12 +107,12 @@ def make_model(row, root, locale):
     # The loaded callback witnesses the exact errno bytes in the ordered seen file.
     callback_errno = any(item["source"] == "include_errno.c" for item in row["modules"])
     cwd_failure = row["launch"] == "initial" or (row["launch"] == "after-C" and not callback_errno)
-    for name in ("ENOENT", "EISDIR"):
+    for name in ("ENOENT", "EISDIR", "ENOTDIR"):
         slot = f"@{name}@".encode()
         count = stderr.count(slot)
         if count != 0 or (name == "ENOENT" and cwd_failure):
             if count != 1:
-                raise h.HarnessError("cwd or unlink failure must declare exactly one slot per errno")
+                raise h.HarnessError("filesystem failure must declare exactly one slot per errno")
             errors[name] = errno_witness(root, environment, name)
             stderr = stderr.replace(slot, errors[name])
     expected["stderr_template_hex"] = stderr.hex()
@@ -142,6 +160,27 @@ def identify_copied_stdin(value, runtime):
     return replace(value, filesystem=filesystem, stderr=value.stderr.replace(path, COPIED_STDIN.encode())), sampled
 
 
+def observe_stdin_create(value, row):
+    sample = value.filesystem.get(STDIN_CREATE_RECORD)
+    expected = row["stdin_create"]
+    if expected is None:
+        if sample is not None:
+            raise h.HarnessError("ordinary input unexpectedly attempted named stdin storage")
+        return value, None
+    if sample is None or sample.get("type") != "file" or sample.get("mode") != 0o600:
+        raise h.HarnessError("missing named stdin creation witness")
+    prefix = os.fsencode(row["environment"]["MAKE_TMPDIR"])
+    error = getattr(errno, expected) if expected else 0
+    pattern = b"(" + re.escape(prefix) + rb"Gm[A-Za-z0-9]{6})\t" + str(error).encode() + b"\n"
+    matched = re.fullmatch(pattern, base64.b64decode(sample["content"], validate=True))
+    if matched is None:
+        raise h.HarnessError("named stdin attempt path or errno differs")
+    path = matched.group(1)
+    filesystem = {key: entry for key, entry in value.filesystem.items() if key != STDIN_CREATE_RECORD}
+    stderr = value.stderr.replace(path, STDIN_CREATE_PATH)
+    return replace(value, stderr=stderr, filesystem=filesystem), {"path_hex": path.hex(), "errno": error}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--oracle", type=Path, default=ROOT / ".tools/oracle/bin/make")
@@ -175,14 +214,19 @@ def main(argv=None):
         for row in rows:
             model, errors = make_model(row, root, locale)
             case, compilation, filesystem = directory.prepare(model, root / model.id, runtime, "/usr/bin/cc")
+            if "finalizer_seen_mode" in row:
+                filesystem["work/seen"]["mode"] = row["finalizer_seen_mode"]
             source_effect = row.get("source_after_restart")
             if source_effect:
                 path, kind = source_effect
                 expected_restart_source(filesystem, path, kind)
             record = {"id": model.id, "model": row, "compilation": compilation, "expected_filesystem": filesystem,
                       "enoent_hex": errors["ENOENT"].hex() if "ENOENT" in errors else None, "observations": []}
-            if "EISDIR" in errors:
-                record["eisdir_hex"] = errors["EISDIR"].hex()
+            for error in ("EISDIR", "ENOTDIR"):
+                if error in errors:
+                    record[error.lower() + "_hex"] = errors[error].hex()
+            if "stdin_create" in row:
+                record["stdin_create_observations"] = []
             if source_effect and path == COPIED_STDIN:
                 record["copied_stdin_observations"] = []
             report["records"].append(record)
@@ -191,7 +235,7 @@ def main(argv=None):
                 binaries.append(candidate)
             observed = []
             for binary in binaries:
-                value = observe(case, runtime, binary, row["launch"])
+                value = observe(case, runtime, binary, row["launch"], row.get("stdin_umask"))
                 observed.append(value)
                 record["observations"].append(directory.evidence(value))
                 publish()
@@ -200,6 +244,10 @@ def main(argv=None):
                 if source_effect and path == COPIED_STDIN:
                     value, sampled = identify_copied_stdin(value, runtime)
                     record["copied_stdin_observations"].append(sampled)
+                    observed[-1] = value
+                if "stdin_create" in row:
+                    value, sampled = observe_stdin_create(value, row)
+                    record["stdin_create_observations"].append(sampled)
                     observed[-1] = value
             record.update(directory.assess(model, case, runtime, filesystem, observed, [{} for _ in observed]))
             print(("PASS " if record["passed"] else "FAIL ") + model.id, flush=True)

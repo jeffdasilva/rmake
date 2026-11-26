@@ -138,6 +138,8 @@ NUL boundaries, rebinding and cancellation.
   An accepted reopen clears that timestamp while preserving the update verdict.
   A serial missing-rule stop occurs before completing the file update.
   The active ordinary prerequisite chain retains that state in a dump.
+  A launched child retains its completed failure while its waiting ordinary
+  ancestors remain unupdated when traversal stops.
 - [Eval allocation investigation](eval-allocation-profiles.md) retains experiments
   rejected after elapsed-time regressions and the selected runtime controls.
 
