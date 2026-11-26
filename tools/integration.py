@@ -357,7 +357,7 @@ def configuration_campaign(project, fixture, runtime, binaries, parts):
     return row
 
 
-def main(argv=None):
+def main(argv=None, *, verify_reference=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--oracle', type=Path, default=ROOT / '.tools/oracle/bin/make')
     parser.add_argument('--candidate', type=Path)
@@ -382,14 +382,17 @@ def main(argv=None):
                 extract(source, archives[name], Path(tmp) / name)
                 print('Verified', name, source['archive_sha256'])
         return 0
-    oracle.verify(args.oracle.resolve())
-    binaries = [args.oracle.resolve(), args.oracle.resolve()]
+    reference = args.oracle.resolve()
+    verifier = oracle.verify if verify_reference is None else verify_reference
+    profile = verifier(reference)
+    binaries = [reference, reference]
     if args.candidate: binaries.append(args.candidate.resolve())
     args.report.parent.mkdir(parents=True, exist_ok=True)
     parts = Path(tempfile.mkdtemp(prefix=args.report.stem + '-raw-', dir=args.report.parent))
     report = {'classification': plan['classification'], 'manifest': plan,
               'tool_sha256': h.sha256_file(Path(__file__)), 'observer_sha256': h.sha256_file(Path(h.__file__)),
               'record_tool_sha256': h.sha256_file(Path(integration_records.__file__)),
+              'reference_profile': profile['profile_id'],
               'affinity': sorted(os.sched_getaffinity(0)), 'oracle_only': args.candidate is None,
               'binaries': [h.executable_identity(b) for b in binaries],
               'compiler': h.executable_identity(Path('/usr/bin/cc')), 'projects': []}

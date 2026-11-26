@@ -21,6 +21,7 @@ import tempfile
 import urllib.request
 
 import conformance
+import integration
 import native_modules
 import oracle
 import process_restarts
@@ -260,7 +261,15 @@ def cases(root, reference, candidate, compiler):
             'native': native_report, 'process_restarts': restart_report, 'restart_pipe': pipe_report}
 
 
-def run(root, report, revision):
+def xxhash_case(root, reference, candidate, report, verify_reference):
+    return integration.main(
+        ['--case', 'xxhash-0.8.3', '--oracle', str(reference), '--candidate', str(candidate),
+         '--cache', str(root / 'integration-cache'), '--report', str(report)],
+        verify_reference=verify_reference,
+    ) == 0
+
+
+def run(root, report, revision, *, xxhash_report=None):
     env = oracle.clean_environment()
     loader, compiler, sources = build_sysroot(root, env)
     ucontext, sources['libucontext'] = build_ucontext(root, compiler, loader, env)
@@ -277,14 +286,25 @@ def run(root, report, revision):
     profile = oracle.create_profile(reference, config, build, runtime_observer=reference_runtime)
     profile_path = root / 'oracle/profile.json'
     profile_path.write_text(json.dumps(profile, indent=2) + '\n', encoding='utf-8')
-    oracle.verify(reference, profile_path, config, runtime_observer=reference_runtime)
+    verify_reference = functools.partial(oracle.verify, profile_path=profile_path, config=config,
+                                         runtime_observer=reference_runtime)
+    verify_reference(reference)
     for name, variables in (('reference', profile['observed']['variables']),
                             ('candidate', oracle.probe_variables(candidate))):
         if variables['MAKE_HOST'] != MAKE_HOST or variables['.INCLUDE_DIRS'] != profile['observed']['variables']['.INCLUDE_DIRS']:
             raise oracle.OracleError(f'unexpected {name} host metadata or include directory')
     digest = oracle.sha256_file(candidate)
     observations = cases(root, reference, candidate, compiler)
-    oracle.verify(reference, profile_path, config, runtime_observer=reference_runtime)
+    if xxhash_report is not None:
+        project = {'report': str(xxhash_report), 'passed': False}
+        try:
+            project['passed'] = xxhash_case(root, reference, candidate, xxhash_report, verify_reference)
+        except (OSError, conformance.HarnessError) as error:
+            project['error'] = str(error)
+            print('FAIL xxhash-0.8.3', error, flush=True)
+        observations['xxhash'] = project
+        observations['passed'] = observations['passed'] and project['passed']
+    verify_reference(reference)
     if oracle.sha256_file(candidate) != digest or observe_runtime(candidate, loader=loader, libraries=libraries) != observed:
         raise oracle.OracleError('musl candidate or runtime changed during observation')
     report.parent.mkdir(parents=True, exist_ok=True)
@@ -298,8 +318,14 @@ def run(root, report, revision):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--report', type=Path, required=True)
+    parser.add_argument('--xxhash-report', type=Path,
+                        help='also compare pinned xxHash using the host compiler and recipe shell')
     parser.add_argument('--revision', default=os.environ.get('GITHUB_SHA'))
     args = parser.parse_args()
+    report = args.report.resolve()
+    xxhash_report = args.xxhash_report.resolve() if args.xxhash_report is not None else None
+    if xxhash_report == report:
+        parser.error('--xxhash-report must differ from --report')
     if (platform.system(), platform.machine()) != ('Linux', 'x86_64'):
         parser.error('the musl smoke profile requires x86-64 Linux')
     try:
@@ -308,7 +334,7 @@ def main():
             # The GCC specs and linker arguments embed this exact directory.
             if not re.fullmatch(r'/[a-zA-Z0-9_./-]+', str(root)):
                 raise oracle.OracleError('the musl work directory must have a simple absolute path')
-            return 0 if run(root, args.report.resolve(), args.revision) else 1
+            return 0 if run(root, report, args.revision, xxhash_report=xxhash_report) else 1
     except (OSError, subprocess.CalledProcessError, oracle.OracleError, conformance.HarnessError) as error:
         parser.exit(1, f'musl smoke: {error}\n')
 

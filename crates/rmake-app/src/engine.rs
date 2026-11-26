@@ -328,6 +328,7 @@ enum DatabaseResult {
     Outcome,
     Simulated,
     SimulatedQuery,
+    TouchedTarget,
     // A settled touch can supply the failed-source restart verdict.
     SimulatedTouch,
     PhysicalTouch,
@@ -342,7 +343,10 @@ enum DatabaseResult {
 
 impl DatabaseResult {
     fn has_simulated_time(self) -> bool {
-        matches!(self, Self::Simulated | Self::SimulatedQuery)
+        matches!(
+            self,
+            Self::Simulated | Self::SimulatedQuery | Self::TouchedTarget
+        )
     }
 }
 
@@ -596,6 +600,14 @@ struct PendingMakefileRemake<'a> {
     duplicate: bool,
     active: bool,
     initial: Outcome,
+    trailing_prerequisite_child: Option<Box<RemakePrerequisiteChild<'a>>>,
+    trailing_prerequisite_changed: bool,
+}
+
+struct RemakePrerequisiteChild<'a> {
+    name: &'a [u8],
+    identity: u64,
+    before: SystemTime,
 }
 
 struct OptionalMakefileFailure {
@@ -4274,6 +4286,8 @@ impl Engine {
                                     duplicate: true,
                                     active: true,
                                     initial: Outcome::default(),
+                                    trailing_prerequisite_child: None,
+                                    trailing_prerequisite_changed: false,
                                 });
                                 continue;
                             }
@@ -4572,6 +4586,17 @@ impl Engine {
                             .assumed_new_double_colon_entries(self.aliases.resolve(name))
                             .is_some_and(|(_, count)| count == 1));
                 let mut source_started_command = false;
+                if let Some(trailing) = &trailing_optional_source
+                    && name == trailing.neighbor
+                    && pending_peer
+                    && self.options.keep_going
+                    && let Some(request) = pending.iter_mut().find(|request| {
+                        !request.duplicate && std::ptr::eq(request.file, trailing.required)
+                    })
+                {
+                    request.trailing_prerequisite_child = self
+                        .trailing_remake_prerequisite_child(trailing, &read_files[..source_index]);
+                }
                 let inline_optional_dispatch =
                     (trailing_optional_source.as_ref().is_some_and(|trailing| {
                         name == trailing.neighbor && trailing.kind == TrailingOptionalKind::Declared
@@ -4840,6 +4865,8 @@ impl Engine {
                         duplicate: false,
                         active: true,
                         initial: result,
+                        trailing_prerequisite_child: None,
+                        trailing_prerequisite_changed: false,
                     });
                     continue;
                 }
@@ -5237,6 +5264,7 @@ impl Engine {
                 );
                 if !stopped {
                     for remake in pending {
+                        changed |= remake.trailing_prerequisite_changed;
                         let name = remake.file.name.as_slice();
                         let before = visited[name].0;
                         let result = self
@@ -5715,11 +5743,12 @@ impl Engine {
             // A previous failure settles the invocation verdict. Later serial
             // goals can still complete, and a prerequisite can observe their
             // new timestamp when it actually consumes the file.
-            let outcome = if pending || self.defer_goal_timestamp_after_failure() {
-                outcome
-            } else {
-                self.observe_updated(&goal, outcome)
-            };
+            let outcome =
+                if pending || self.defer_goal_timestamp_after_failure(&goal, outcome.completion) {
+                    outcome
+                } else {
+                    self.observe_updated(&goal, outcome)
+                };
             let mut completed_report = None;
             if self.options.keep_going && !outcome.fatal {
                 let name = self.aliases.resolve(&goal);
@@ -8056,6 +8085,34 @@ impl Engine {
                     .outcome(self.aliases.resolve(name))
                     .copied()
                     .unwrap_or(request.initial);
+                if request.active
+                    && let Some(child) = &request.trailing_prerequisite_child
+                    && !self.pending(child.name)
+                {
+                    let time = self
+                        .file_traversals
+                        .outcome(child.name)
+                        .filter(|result| {
+                            self.parallel_jobs.get(child.name, child.identity).is_none()
+                                && result.ran
+                                && !result.failed
+                                && !result.fatal
+                                && !result.blocked
+                                && !result.question_outdated
+                                && result.completion == CompletionTime::Refresh
+                        })
+                        .and_then(|result| result.time);
+                    match time {
+                        Some(time) if self.qualify_synthetic_recipe_after_optional_read(name) => {
+                            // Keep the optional source's completion clock
+                            // through the later synthetic command.
+                            request.trailing_prerequisite_changed = time != child.before;
+                            request.trailing_prerequisite_child = None;
+                        }
+                        None => request.trailing_prerequisite_child = None,
+                        Some(_) => {}
+                    }
+                }
                 if !needs_visit {
                     if (wait_for_completed_job || start_load_at_pass)
                         && outcome.question_outdated
@@ -10383,11 +10440,34 @@ impl Engine {
         Some((source, destination))
     }
 
-    fn defer_goal_timestamp_after_failure(&self) -> bool {
-        self.ordinary_queries.first_verdict == Some(Status::Failure)
-            && !self.remaking
-            && !self.parallel_graph()
-            && !MakefileModes::from_options(&self.options).active()
+    fn defer_goal_timestamp_after_failure(
+        &self,
+        target: &[u8],
+        completion: CompletionTime,
+    ) -> bool {
+        if self.ordinary_queries.first_verdict != Some(Status::Failure)
+            || self.remaking
+            || self.parallel_graph()
+        {
+            return false;
+        }
+        let modes = MakefileModes::from_options(&self.options);
+        if !modes.active() {
+            return true;
+        }
+        if !modes.touch || modes.dry_run || modes.question || completion != CompletionTime::Refresh
+        {
+            return false;
+        }
+        // Goal reporting can still hold the queued spelling after GPATH has
+        // adopted the rule on its canonical file.
+        let target = self.aliases.resolve(target);
+        rmake_core::filenames::archive_parts(target).is_none()
+            && self
+                .database
+                .rules
+                .get(target)
+                .is_some_and(|rule| rule.double_colon.is_none() && rule.grouped_targets().is_none())
     }
 
     fn observe_updated(&mut self, target: &[u8], mut outcome: Outcome) -> Outcome {
@@ -13007,13 +13087,14 @@ impl Engine {
         result: Outcome,
         inline_completion: bool,
     ) -> bool {
-        if result.fatal || result.question_outdated || result.time != before {
+        if result.fatal || result.question_outdated {
             return false;
         }
         let name = trailing.neighbor;
         match trailing.kind {
             TrailingOptionalKind::Unruled => {
                 before.is_some()
+                    && result.time == before
                     && !result.ran
                     && !result.failed
                     && self.unruled_remake_source(name)
@@ -13023,9 +13104,11 @@ impl Engine {
                     && !result.failed
                     && !result.blocked
                     && self.declared_optional_remake_source(name)
-                    // A prepared ':' counts as run but creates no recipe job.
-                    && (!result.ran
+                    // Inline expansion and a prepared ':' can refresh the
+                    // physical clock without creating a recipe job.
+                    && ((!result.ran && result.time == before)
                         || (inline_completion
+                            && result.time.is_some()
                             && result.completion == CompletionTime::Refresh
                             && self.parallel_jobs.len() == 1
                             && !MakefileModes::from_options(&self.options).active()))
@@ -13034,6 +13117,7 @@ impl Engine {
                 // The optional file settled as a direct missing-rule visit.
                 // Keep that failure available to ordinary prerequisites.
                 before.is_none()
+                    && result.time.is_none()
                     && result.failed
                     && !result.ran
                     && !result.blocked
@@ -13069,12 +13153,47 @@ impl Engine {
                 })
     }
 
-    fn qualify_synthetic_recipe_after_optional_read(&mut self, target: &[u8]) {
+    fn trailing_remake_prerequisite_child<'a>(
+        &self,
+        trailing: &TrailingOptionalRemake<'a>,
+        earlier_sources: &[(Makefile, bool)],
+    ) -> Option<Box<RemakePrerequisiteChild<'a>>> {
+        if trailing.kind != TrailingOptionalKind::Declared || self.parallel_jobs.len() != 1 {
+            return None;
+        }
+        let name = trailing.neighbor;
+        let job = self.parallel_jobs.primary.get(name)?;
+        let before = job.before?;
+        let owner = self.file_traversals.visit(name)?.parent.as_ref()?;
+        // The first required visit owns this worker even when its file is
+        // also the final optional read in the pass.
+        (job.child.is_some()
+            && !job.recursive
+            && job.continuation.branch.is_none()
+            && job.continuation.expanded.is_empty()
+            && job
+                .continuation
+                .remake
+                .as_ref()
+                .is_some_and(|remake| !remake.optional)
+            && earlier_sources.iter().any(|(file, skip)| {
+                !*skip && !file.optional && file.location.is_some() && file.name == owner.target
+            }))
+        .then(|| {
+            Box::new(RemakePrerequisiteChild {
+                name,
+                identity: job.identity,
+                before,
+            })
+        })
+    }
+
+    fn qualify_synthetic_recipe_after_optional_read(&mut self, target: &[u8]) -> bool {
         let Some(job) = self.parallel_jobs.primary.get(target) else {
-            return;
+            return false;
         };
         let Some(ordinal) = job.continuation.branch else {
-            return;
+            return false;
         };
         if job.child.is_some()
             && job.continuation.expanded.is_empty()
@@ -13091,7 +13210,9 @@ impl Engine {
             // The final synthetic command stayed pending through the optional
             // visit. Either child can now finish first.
             remake.use_declared_synthetic_head = true;
+            return true;
         }
+        false
     }
 
     fn required_synthetic_recipe(&self, target: &[u8], ordinal: Option<usize>) -> bool {
@@ -15445,6 +15566,17 @@ impl Engine {
                 {
                     outcome.database_result = DatabaseResult::SimulatedQuery;
                 } else if execution.touch != TouchCompletion::None
+                    && !self.remaking
+                    && !self.parallel_graph()
+                    && branch.is_none()
+                    && rule.grouped_targets().is_none()
+                    && execution.status == Status::Success
+                    && outcome.completion == CompletionTime::AssumeNew
+                {
+                    // A successful ordinary touch marks the logical file as
+                    // new even when it also set a physical timestamp.
+                    outcome.database_result = DatabaseResult::TouchedTarget;
+                } else if execution.touch != TouchCompletion::None
                     && self.remaking
                     && !self.parallel_makefile_remakes
                     && !execution.pending
@@ -15473,7 +15605,7 @@ impl Engine {
                 if !phony
                     && !execution.pending
                     && execution.status == Status::Success
-                    && self.defer_goal_timestamp_after_failure()
+                    && self.defer_goal_timestamp_after_failure(target, outcome.completion)
                 {
                     // Recipe completion invalidates the logical file time
                     // even if expansion or an optimized ':' leaves no child.
