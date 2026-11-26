@@ -562,6 +562,8 @@ Interrupted intermediate cleanup localizes deletion and unlink failures while
 preserving raw filename and system error bytes.
 Diagnostic prefixes use the raw final component of `argv[0]`, with `make`
 as the fallback for an empty invocation argument.
+Native setup-name inference classifies basename bytes under the active C
+locale, including letters in a single-byte locale.
 A restart that cannot return to the original directory emits the localized
 system warning and fatal message in order. It reports a failed unlink of
 the owned stdin source before the jobserver token report and finalizers.

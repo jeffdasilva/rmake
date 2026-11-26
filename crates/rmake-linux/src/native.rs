@@ -46,6 +46,7 @@ struct Request {
     flags: c_uint,
 }
 unsafe extern "C" {
+    fn isalnum(character: c_int) -> c_int;
     fn rm_native_create(
         operation: c_int,
         function: *mut c_void,
@@ -925,9 +926,11 @@ fn setup_name(input: &[u8]) -> Result<(Vec<u8>, Vec<u8>), ExpandError> {
         return Ok((input[..open].to_vec(), input[open + 1..close].to_vec()));
     }
     let base = input.rsplit(|&b| b == b'/').next().unwrap_or(input);
+    // The loader classifies basename bytes in the active libc locale.
     let end = base
         .iter()
-        .position(|b| !b.is_ascii_alphanumeric() && *b != b'_')
+        // SAFETY: every byte converts to an unsigned char value in c_int.
+        .position(|&byte| byte != b'_' && unsafe { isalnum(c_int::from(byte)) } == 0)
         .unwrap_or(base.len());
     Ok((input.to_vec(), [&base[..end], b"_gmk_setup"].concat()))
 }

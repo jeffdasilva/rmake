@@ -8,6 +8,106 @@
   },
   "rows": [
     {
+      "id": "nls-loader-ctype-c-high-byte",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "C"
+      },
+      "latin1_ctype": false,
+      "files": {
+        "Makefile": "4d414b45464c414753202b3d202d2d64656275673d760a2d6c6f6164202e2f6d6f64e92e736f0a24286572726f7220666978747572652073746f70290a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "4c6f6164696e672073796d626f6c206d6f645f676d6b5f73657475702066726f6d206d6f64e92e736f0a6d6f64e92e736f3a2063616e6e6f74206f70656e20736861726564206f626a6563742066696c653a204e6f20737563682066696c65206f72206469726563746f72790a",
+        "stderr": "Makefile:3: *** fixture stop.  Stop.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-loader-ctype-latin1-high-byte",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "fr_FR.ISO-8859-1"
+      },
+      "latin1_ctype": true,
+      "files": {
+        "Makefile": "4d414b45464c414753202b3d202d2d64656275673d760a2d6c6f6164202e2f6d6f64e92e736f0a24286572726f7220666978747572652073746f70290a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "4c6f6164696e672073796d626f6c206d6f64e95f676d6b5f73657475702066726f6d206d6f64e92e736f0a6d6f64e92e736f3a2063616e6e6f74206f70656e20736861726564206f626a6563742066696c653a204e6f20737563682066696c65206f72206469726563746f72790a",
+        "stderr": "Makefile:3: *** fixture stop.  Stop.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-loader-ctype-latin1-leading-byte",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "fr_FR.ISO-8859-1"
+      },
+      "latin1_ctype": true,
+      "files": {
+        "Makefile": "4d414b45464c414753202b3d202d2d64656275673d760a2d6c6f6164202e2fe96d6f642e736f0a24286572726f7220666978747572652073746f70290a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "4c6f6164696e672073796d626f6c20e96d6f645f676d6b5f73657475702066726f6d20e96d6f642e736f0ae96d6f642e736f3a2063616e6e6f74206f70656e20736861726564206f626a6563742066696c653a204e6f20737563682066696c65206f72206469726563746f72790a",
+        "stderr": "Makefile:3: *** fixture stop.  Stop.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-loader-ctype-latin1-underscore",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "",
+        "LANG": "C",
+        "LC_CTYPE": "fr_FR.ISO-8859-1"
+      },
+      "latin1_ctype": true,
+      "files": {
+        "Makefile": "4d414b45464c414753202b3d202d2d64656275673d760a2d6c6f6164202e2f6d6f645f2e736f0a24286572726f7220666978747572652073746f70290a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "4c6f6164696e672073796d626f6c206d6f645f5f676d6b5f73657475702066726f6d206d6f645f2e736f0a6d6f645f2e736f3a2063616e6e6f74206f70656e20736861726564206f626a6563742066696c653a204e6f20737563682066696c65206f72206469726563746f72790a",
+        "stderr": "Makefile:3: *** fixture stop.  Stop.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
       "id": "nls-fr-loader-missing-object",
       "args": [
         "-rR",

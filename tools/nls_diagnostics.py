@@ -4,6 +4,7 @@
 """Strict GNU2 comparison of the bounded owned-catalog NLS profiles."""
 import argparse
 import base64
+import gzip
 import hashlib
 import json
 import os
@@ -110,7 +111,7 @@ def cases(selection):
     debug_options = json.loads((DATA / "debug-options.json").read_bytes())
     suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution,
               touch_open, cleanup, wait_notice, intermediate, file_io, output_lock, debug_options)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 188, 15, 20, 14, 13, 18, 16, 15, 26, 8, 18, 12, 8, 7):
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 188, 19, 20, 14, 13, 18, 16, 15, 26, 8, 18, 12, 8, 7):
         raise h.HarnessError("unexpected NLS model inventory")
     shuffle_option = json.loads((DATA / "shuffle-option.json").read_bytes())
     if len(shuffle_option["rows"]) != 9 or shuffle_option["fixture_sha256"]:
@@ -282,6 +283,25 @@ def release_on_wait_notice(runtime):
     return observe
 
 
+def prepare_latin1_ctype(profile, root):
+    # Provisioning has already verified the package and the full input tree.
+    prefix = Path(profile["environment"]["LOCPATH"]).parent / "prefix/usr"
+    i18n = prefix / "share/i18n"
+    charmap = root / "ISO-8859-1"
+    charmap.write_bytes(gzip.decompress((i18n / "charmaps/ISO-8859-1.gz").read_bytes()))
+    locales = root / "latin1-locales"
+    locales.mkdir()
+    result = locale_data.run(
+        [str(prefix / "bin/localedef"), "--no-archive", "-i", str(i18n / "locales/fr_FR"),
+         "-f", str(charmap), str(locales / "fr_FR.ISO-8859-1")],
+        env={"PATH": "/usr/bin:/bin", "LC_ALL": "C", "HOME": str(root), "I18NPATH": str(i18n)},
+        umask=0o022,
+    )
+    if result.stdout or result.stderr:
+        raise h.HarnessError("localedef emitted an unexpected Latin-1 diagnostic")
+    return {"LOCPATH": str(locales)}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--oracle", type=Path, default=ROOT / ".tools/oracle/bin/make")
@@ -323,10 +343,14 @@ def main(argv=None):
         args.report.write_text(json.dumps(report, indent=2) + "\n")
     with tempfile.TemporaryDirectory(prefix="rmake-nls-") as temporary:
         root = Path(temporary)
+        latin1 = prepare_latin1_ctype(profile, root) if any(row.get("latin1_ctype") for row in rows) else None
+        if latin1 is not None:
+            report["latin1_ctype_tree_sha256"] = locale_data.tree_digest(Path(latin1["LOCPATH"]))
         reset = root / "runtime"
         reset.mkdir()
         for row in rows:
-            model = prepare(row, profile["environment"])
+            environment = latin1 if row.get("latin1_ctype") else profile["environment"]
+            model = prepare(row, environment)
             record = {"id": model.id, "model": row, "observations": [], "passed": False}
             report["cases"].append(record)
             try:
