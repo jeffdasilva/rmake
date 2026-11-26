@@ -6236,13 +6236,7 @@ impl Database {
                 if grouped && !double_colon && rule.group.is_some() {
                     declaration.group_warnings.push((
                         declaration.recipes[0].location.clone(),
-                        [
-                            b"warning: overriding group membership for target '".as_slice(),
-                            target,
-                            b"'",
-                        ]
-                        .concat()
-                        .into(),
+                        Diagnostic::system(Message::OverrideGroupMembership(target)),
                     ));
                 }
                 let group = rule.group.get_or_insert_with(Default::default);

@@ -395,7 +395,9 @@ forced recipe's physical timestamp after an earlier failure.
 The native AArch64 glibc gate covers three C and C.UTF-8 locale cases and the
 startup debug-option and directory-error diagnostics in C and a pinned French
 locale. It runs the startup usage and getopt models on both build profiles
-using the same locale data. The reports retain the native comparisons.
+using the same locale data. It also checks selected filesystem and build
+diagnostics in C, French, German and Japanese on both builds, including raw
+paths and warning order. The reports retain the native comparisons.
 The dynamic musl gate has one C.UTF-8 wildcard byte-width case. Broader diagnostic
 producers, native and Guile callbacks, cache history, resource failures and
 musl NLS remain open. See the

@@ -10616,14 +10616,9 @@ impl Engine {
         for text in words(&patterns) {
             let pattern = Pattern::new(text);
             if !pattern.has_wildcard() {
-                self.stderr(
-                    &[
-                        b".LIBPATTERNS element '".as_slice(),
-                        pattern.literal_bytes(),
-                        b"' is not a pattern",
-                    ]
-                    .concat(),
-                );
+                self.stderr(&crate::messages::system(Message::InvalidLibraryPattern(
+                    pattern.literal_bytes(),
+                )));
                 continue;
             }
             let name = pattern.replace(library)?;

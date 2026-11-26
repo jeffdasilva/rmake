@@ -199,9 +199,9 @@ impl Database {
                             .recipe_location
                             .as_ref()
                             .or(rule.prerequisite_location.as_ref());
-                        context.emit(Output::Warning {
+                        context.emit(Output::SystemWarning {
                             location,
-                            message: b"warning: ignoring prerequisites on suffix rule definition",
+                            message: crate::messages::WarningMessage::SuffixRulePrerequisites,
                         });
                     }
                     if destination == b".a" {
