@@ -339,7 +339,11 @@ impl Plan {
                     .evaluate(&self.program, |database, context| {
                         database.expand_with(&expression, context)
                     })
-                    .map_err(StartupError::expansion)?;
+                    .map_err(|error| {
+                        let mut error = StartupError::expansion(error);
+                        error.version = parsed_prefix.version;
+                        error
+                    })?;
                 let mut incoming = Vec::new();
                 Options::append_expanded_flags(&mut incoming, &value);
                 // Empty sources retain expansion effects without another parse.
@@ -373,9 +377,11 @@ impl Plan {
                             version: parsed_prefix.version,
                         });
                     }
-                    parsed_prefix
-                        .decode_debug()
-                        .map_err(|error| StartupError::from(Diagnostic::from(error)))?;
+                    parsed_prefix.decode_debug().map_err(|error| {
+                        let mut error = StartupError::from(Diagnostic::from(error));
+                        error.version = parsed_prefix.version;
+                        error
+                    })?;
                     inherited_mode = output_mode(parsed_prefix.output_sync.as_deref()).map_err(
                         |mut error| {
                             error.version = parsed_prefix.version;
@@ -383,7 +389,10 @@ impl Plan {
                         },
                     )?;
                     if let Some(authentication) = &parsed_prefix.sync_mutex {
-                        state.complete_mutex(authentication)?;
+                        state.complete_mutex(authentication).map_err(|mut error| {
+                            error.version = parsed_prefix.version;
+                            error
+                        })?;
                     }
                     prefix_count += count;
                     state
