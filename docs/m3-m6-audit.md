@@ -81,6 +81,11 @@ NUL boundaries, rebinding and cancellation.
   a fresh lookup and records the logical tables visited as it finds each part.
   Standalone export and unexport lists record the visible-scope lookup for
   each name before updating its policy or creating an empty global binding.
+  A list lookup refreshes the global .VARIABLES cache when that special
+  binding is visible. A selected shadow keeps its ordinary value.
+  Recipe and shell child environments use the current stored .VARIABLES
+  bytes. A recursive assignment expands those bytes in the child environment
+  context. An ordinary lookup can refresh the stored bytes as names change.
   User-defined calls record the initial body lookup and the lookup in the
   argument frame when a literal callee has a body. An empty callee still
   evaluates its arguments before returning an empty result.

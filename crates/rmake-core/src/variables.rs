@@ -698,6 +698,16 @@ impl Bindings {
         self.order.remove(name);
         value
     }
+    fn cached_variable_names(&self) -> Option<Vec<u8>> {
+        self.names_cache.get().map(|cache| {
+            cache
+                .0
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .value
+                .clone()
+        })
+    }
     fn get_mut(&mut self, name: &[u8]) -> Option<&mut Variable> {
         self.values.get_mut(name)
     }
@@ -925,6 +935,22 @@ impl VariableStore {
     /// deliberately not observed here.
     pub fn record_database_lookup(&self, name: &[u8]) {
         self.database_lookup_from(name);
+    }
+
+    pub(crate) fn record_export_list_lookup(
+        &self,
+        name: &[u8],
+        globals: &Self,
+    ) -> Result<(), ExpandError> {
+        if self
+            .database_lookup(name)
+            .is_some_and(|variable| variable.scope.variable_names)
+        {
+            // An earlier name on the list may have created a global after
+            // the caller's scope was captured.
+            globals.variable_names(true)?;
+        }
+        Ok(())
     }
 
     fn database_lookup_from(&self, name: &[u8]) -> Option<(usize, &Variable)> {
@@ -1557,14 +1583,7 @@ impl VariableStore {
         if !variable.scope.variable_names {
             return None;
         }
-        self.variables.names_cache.get().map(|cache| {
-            cache
-                .0
-                .lock()
-                .unwrap_or_else(|error| error.into_inner())
-                .value
-                .clone()
-        })
+        self.variables.cached_variable_names()
     }
 
     /// Visible definitions in physical storage order. Make's observable name,
@@ -2869,7 +2888,7 @@ impl VariableStore {
             expansion.binding_context = Some(variable.definition.clone());
             expansion.expand_layer(name, first, Some(first_layer), true)
         } else {
-            expansion.selected_variable(name, variable, Some(layer))
+            expansion.selected_environment_variable(name, variable, layer)
         }
     }
 
@@ -2910,7 +2929,7 @@ impl VariableStore {
             expansion.binding_context = Some(variable.definition.clone());
             expansion.expand_layer(name, &first, Some(first_layer), true)
         } else {
-            expansion.selected_variable(name, variable, Some(layer))
+            expansion.selected_environment_variable(name, variable, layer)
         }
     }
 
@@ -3932,7 +3951,7 @@ pub(crate) fn expand_environment_database(
             Ok(Vec::new())
         }
     } else {
-        expansion.selected_variable(name, variable, Some(layer))
+        expansion.selected_environment_variable(name, variable, layer)
     };
     if tracked {
         expansion.store.database_mut().unwrap().exporting.pop();
@@ -4367,6 +4386,30 @@ impl Expansion<'_, '_> {
         }
     }
 
+    fn selected_environment_variable(
+        &mut self,
+        name: &[u8],
+        variable: &Variable,
+        layer: usize,
+    ) -> Result<Vec<u8>, ExpandError> {
+        if !variable.scope.variable_names {
+            return self.selected_variable(name, variable, Some(layer));
+        }
+        // Environment selection uses the stored value without a special lookup.
+        let value = self
+            .store
+            .bindings_at_layer(layer)
+            .and_then(Bindings::cached_variable_names)
+            .unwrap_or_else(|| variable.value.clone());
+        if variable.flavor == Flavor::Simple {
+            return Ok(value);
+        }
+        let mut stored = variable.clone();
+        stored.scope.variable_names = false;
+        stored.value = value;
+        self.selected_variable(name, &stored, Some(layer))
+    }
+
     fn selected_variable(
         &mut self,
         name: &[u8],
@@ -4590,7 +4633,7 @@ impl Expansion<'_, '_> {
             self.active.pop();
             result
         } else {
-            self.selected_variable(name, variable, Some(layer))
+            self.selected_environment_variable(name, variable, layer)
         };
         if tracked {
             self.store.database_mut().unwrap().exporting.pop();
