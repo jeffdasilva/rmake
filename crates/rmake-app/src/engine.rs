@@ -9655,12 +9655,10 @@ impl Engine {
                     || (worker.no_required_tail_remains
                         && worker.required_reap.get().is_some()
                         && (job.before == Some(clock)
-                            || (worker.direct_reread
-                                && matches!(
-                                    worker.required_reap.get(),
-                                    Some(RequiredRemakeWorkerReap::Completed(_))
-                                )
-                                && failed_source_recipe
+                            || (matches!(
+                                worker.required_reap.get(),
+                                Some(RequiredRemakeWorkerReap::Completed(_))
+                            ) && failed_source_recipe
                                 && optional_failure))
                         && (!report_error || (failed_source_recipe && optional_failure))))
                 && Self::regular_remake_clock(&target) == Some(clock)
@@ -13911,9 +13909,10 @@ impl Engine {
             && let Some(mut outcome) = self.file_traversals.outcome(name).copied()
             && outcome.ran_refresh()
             && outcome.goal_verdict().is_none()
-            && matches!(worker.required_reap.get(),
-                Some(RequiredRemakeWorkerReap::Completed(clock)) if outcome.time == Some(clock))
-            && self.restored_required_worker_clock(request, trailing, visited)
+            && let Some(RequiredRemakeWorkerReap::Completed(clock)) = worker.required_reap.get()
+            && outcome.time == Some(clock)
+            && self.successful_explicit_source_refresh(&worker.required, clock)
+            && self.required_worker_clock_was_restored(worker, trailing, visited, true)
         {
             // This pass continues with the original reads. Ordinary goals
             // compare the final physical time of the completed source.
