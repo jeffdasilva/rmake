@@ -102,9 +102,9 @@ def _model_file(filename: str) -> list[Model]:
         ):
             raise h.HarnessError('sequential workers require an ordered release sequence')
         if not isinstance(model.wait_after_first_reap, bool) or (
-            model.wait_after_first_reap and (len(model.release_sequence) != 2 or model.sequential_workers)
+            model.wait_after_first_reap and (len(model.release_sequence) < 2 or model.sequential_workers)
         ):
-            raise h.HarnessError('waiting after the first reap requires two overlapping workers')
+            raise h.HarnessError('waiting after the first reap requires overlapping workers')
         if model.release_sequence:
             validate_release_sequence(model, stdout)
         uses_version = b'@EXPLICIT_VERSION@' in stdout
@@ -344,10 +344,11 @@ def execute_model(model: Model, case: h.Case, runtime: Path, binary: Path) -> h.
         return h.execute(case, runtime, binary)
     work = runtime / 'work'
     released = 0
-    held_pair: tuple[int, int, bytes] | None = None
+    worker_starts: dict[int, bytes] = {}
+    released_workers: set[int] = set()
 
     def release(parent: int, stdout: bytes) -> None:
-        nonlocal released, held_pair
+        nonlocal released
         if released == len(sequence):
             return
         prefix, marker = sequence[released]
@@ -377,22 +378,31 @@ def execute_model(model: Model, case: h.Case, runtime: Path, binary: Path) -> h.
             try:
                 children = {int(pid) for pid in (proc / 'task' / str(parent) / 'children').read_text().split()}
                 if released:
-                    assert held_pair is not None
-                    first, second, started = held_pair
-                    if children != {second} or Path('/proc', str(first)).is_dir():
+                    if (children != worker_starts.keys() - released_workers
+                            or any(Path('/proc', str(pid)).is_dir() for pid in released_workers)
+                            or not blocking_child_wait(proc)):
                         return
-                    identity = Path('/proc', str(second), 'stat').read_bytes().rpartition(b') ')[2].split()
-                    if identity[19] != started or not blocking_child_wait(proc):
+                elif len(children) != len(sequence) or (
+                        len(sequence) > 2 and not blocking_child_wait(proc)
+                ):
+                    return
+
+                starts = {
+                    pid: Path('/proc', str(pid), 'stat').read_bytes().rpartition(b') ')[2].split()[19]
+                    for pid in children
+                }
+                if released:
+                    if any(worker_starts[pid] != stamp for pid, stamp in starts.items()):
                         return
                 else:
-                    if len(children) != 2:
+                    worker_starts.update(starts)
+                if len(children) == 1:
+                    worker, = children
+                else:
+                    worker = int((work / (prefix + 'pid')).read_text())
+                    if worker not in children:
                         return
-                    first = int((work / (prefix + 'pid')).read_text())
-                    if first not in children:
-                        return
-                    second, = children - {first}
-                    identity = Path('/proc', str(second), 'stat').read_bytes().rpartition(b') ')[2].split()
-                    held_pair = first, second, identity[19]
+                released_workers.add(worker)
             except (FileNotFoundError, ProcessLookupError):
                 return
         temporary = work / (prefix + 'release.tmp')

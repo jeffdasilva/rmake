@@ -23,27 +23,33 @@ unsafe extern "C" {
     fn rm_write_standard(error: c_int, bytes: *const u8, length: usize) -> usize;
 }
 
-/// Render into the C finalizer's existing stack buffer. The callback neither
-/// accesses an application host nor retains a pointer from the closing stream.
+/// Render the C finalizer diagnostic. C owns the optional allocation
+/// when the full message exceeds the caller's stack buffer.
 #[unsafe(no_mangle)]
 unsafe extern "C" fn rm_format_stdout_error(
     detail: *const c_char,
     buffer: *mut c_char,
     capacity: usize,
-) {
+) -> *mut c_char {
     if capacity == 0 {
-        return;
+        return std::ptr::null_mut();
     }
     // SAFETY: the C caller supplies either NULL or a live strerror string and
     // a writable stack buffer of the given size. Copy the strerror text before
     // calling gettext, which also uses the current libc locale.
     let detail = (!detail.is_null()).then(|| unsafe { CStr::from_ptr(detail) }.to_bytes().to_vec());
     let message = crate::messages::render_stdout_error(detail.as_deref());
+    if message.len() >= capacity
+        && let Ok(owned) = crate::native::allocated(&message)
+    {
+        return owned.cast();
+    }
     let length = message.len().min(capacity - 1);
     unsafe {
         std::ptr::copy_nonoverlapping(message.as_ptr(), buffer.cast(), length);
         *buffer.add(length) = 0;
     }
+    std::ptr::null_mut()
 }
 
 fn write_standard_count(error: bool, bytes: &[u8]) -> usize {

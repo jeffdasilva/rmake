@@ -327,18 +327,23 @@ int rm_native_flush(void) { return fflush(NULL); }
  * after this close, matching the public stdout lifetime of the reference. */
 static atomic_int native_stdout_closed;
 static atomic_uint stdout_level;
-extern void rm_format_stdout_error(const char *, char *, size_t);
+extern char *rm_format_stdout_error(const char *, char *, size_t);
 static void close_native_stdout(void) {
     int previous_error = ferror(stdout);
     atomic_store_explicit(&native_stdout_closed, 1, memory_order_release);
     int closed = fclose(stdout);
     int saved = errno;
     if (previous_error || closed != 0) {
-        char message[1024];
-        rm_format_stdout_error(closed != 0 ? strerror(saved) : NULL, message, sizeof message);
-        if (active) {
-            active->request.text = message;
-            yield_request(active, 5);
+        char scratch[1024];
+        const char *detail = closed != 0 ? strerror(saved) : NULL;
+        char *owned = rm_format_stdout_error(detail, scratch, sizeof scratch);
+        const char *message = owned ? owned : scratch;
+        struct rm_session *session = active;
+        if (session) {
+            /* The host copies the borrowed message while this frame is suspended. */
+            session->request.text = message;
+            yield_request(session, 5);
+            session->request.text = NULL;
         } else {
             extern char *program_invocation_short_name;
             unsigned int level = atomic_load_explicit(&stdout_level, memory_order_relaxed);
@@ -347,6 +352,7 @@ static void close_native_stdout(void) {
             else
                 fprintf(stderr, "%s: %s\n", program_invocation_short_name, message);
         }
+        free(owned);
         exit(1);
     }
 }

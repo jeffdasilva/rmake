@@ -30,6 +30,12 @@ def execute(model, inputs, runtime, binaries, emit, native, locale):
     fixture.mkdir()
     for name, contents in model['files'].items():
         (fixture / name).write_text(contents)
+    for field, path in (('errno_catalog_hex', 'errno-catalog/fr/LC_MESSAGES/libc.mo'),
+                        ('make_catalog_hex', 'make-catalog/fr/LC_MESSAGES/make.mo')):
+        if field in model:
+            catalog = fixture / path
+            catalog.parent.mkdir(parents=True)
+            catalog.write_bytes(bytes.fromhex(model[field]))
     shutil.copyfile(FIXTURES / 'launch.py', fixture / 'launch.py')
     if model.get('emit'):
         shutil.copy2(emit, fixture / 'emit')
@@ -38,6 +44,7 @@ def execute(model, inputs, runtime, binaries, emit, native, locale):
     h.validate_fixture(fixture)
     case = h.Case(fixture, model['id'], 'resource.stdout', 'required', tuple(model['args']), 5,
                   model.get('env', {}), {})
+    expected_stderr = bytes.fromhex(model['stderr_hex']) if 'stderr_hex' in model else model['stderr'].encode()
     observations = []
     for binary in binaries:
         h.reset_workspace(case, runtime, binary)
@@ -46,14 +53,16 @@ def execute(model, inputs, runtime, binaries, emit, native, locale):
         command = ['/usr/bin/python3', 'launch.py', model['mode'], str(model['limit']),
                    str(roots['bin'] / 'make'), *case.args]
         environment = h.clean_environment(runtime, case.environment)
-        if model.get('locale') == 'fr':
-            environment.update(locale['environment'], LC_ALL=locale['locale'])
+        if model.get('locale') in ('fr', 'native-fr'):
+            environment.update(locale['environment'])
+            if model['locale'] == 'fr':
+                environment['LC_ALL'] = locale['locale']
         out, err, status, bound, left = h.capture(command, roots['work'], environment, case.timeout)
         filesystem = h.snapshot(roots)
         for name, contents in model['created'].items():
             expected['work/' + name] = file_record(contents)
         errors = [name for name, different in (
-            ('stdout', out != model['stdout'].encode()), ('stderr', err != model['stderr'].encode()),
+            ('stdout', out != model['stdout'].encode()), ('stderr', err != expected_stderr),
             ('status', status != model['status']), ('bounds', bool(bound or left)),
             ('complete filesystem', filesystem != expected),
         ) if different]
@@ -89,7 +98,7 @@ def main():
             parser.error(f'unknown case: {", ".join(sorted(unknown))}')
         models = [row for row in models if row['id'] in args.case]
     locale = None
-    if any(row.get('locale') == 'fr' for row in models):
+    if any(row.get('locale') in ('fr', 'native-fr') for row in models):
         key = json.loads((nls_diagnostics.DATA / 'models.json').read_bytes())['reference_catalog_sha256']
         _, _, _, locale = nls_diagnostics.prepare_reference(reference, key, args.locale_root)
     previous = os.umask(0o022)

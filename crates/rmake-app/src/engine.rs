@@ -629,19 +629,20 @@ struct PendingMakefileRemake<'a> {
     same_clock_inline_optional_settled: bool,
     required_worker_pair: Option<Box<RequiredRemakeWorkerPair<'a>>>,
     trailing_optional_worker: Option<Rc<TrailingOptionalWorker>>,
-    trailing_prerequisite_child: Option<Box<RemakePrerequisiteChild<'a>>>,
+    trailing_prerequisite_child: Option<Box<RemakeChild<'a>>>,
     trailing_prerequisite_changed: bool,
 }
 
 struct RequiredRemakeWorkerPair<'a> {
     first_identity: u64,
     first_before: SystemTime,
-    first_double_colon: bool,
-    first_reap: Option<SystemTime>,
+    first_branch: Option<usize>,
+    first_reap: Option<RequiredRemakeWorkerReap>,
     second: &'a [u8],
     second_identity: u64,
     second_before: SystemTime,
     second_failure: Option<Rc<Cell<Option<SystemTime>>>>,
+    third: Option<RemakeChild<'a>>,
 }
 
 struct TrailingOptionalWorker {
@@ -677,7 +678,7 @@ struct InlineOptionalRemakeClock<'a> {
     changed_on_visit: bool,
 }
 
-struct RemakePrerequisiteChild<'a> {
+struct RemakeChild<'a> {
     name: &'a [u8],
     identity: u64,
     before: SystemTime,
@@ -8841,22 +8842,21 @@ impl Engine {
                 if !request.active
                     && let Some(pair) = request.required_worker_pair.as_deref_mut()
                     && pair.first_reap.is_none()
-                    && outcome.ran_refresh()
-                    && outcome.goal_verdict().is_none()
+                    && self.settled_required_worker_refresh(outcome)
                     && let Some(clock) = outcome.time
                     && clock != pair.first_before
                     && Self::regular_remake_clock(name) == Some(clock)
                     && self.parallel_jobs.get(name, pair.first_identity).is_none()
-                    && self.parallel_jobs.len() == 1
+                    && self.required_remake_pair_has_expected_workers(pair)
                     && self
                         .parallel_jobs
                         .get(pair.second, pair.second_identity)
                         .is_some_and(|job| job.child.is_some())
-                    && (!pair.first_double_colon
-                        || self.successful_explicit_source_refresh(name, clock))
+                    && let Some(reap) =
+                        self.required_remake_pair_first_reap(name, pair, outcome, clock)
                 {
                     // This root settled while the same later child still ran.
-                    pair.first_reap = Some(clock);
+                    pair.first_reap = Some(reap);
                     if self.options.keep_going
                         && let Some(job) = self.parallel_jobs.primary.get_mut(pair.second)
                         && job.identity == pair.second_identity
@@ -14218,18 +14218,28 @@ impl Engine {
         else {
             return None;
         };
-        let branch = self
-            .database_branch_outcomes
-            .get(&(worker.required.clone(), ordinal))?;
-        (branch.ran_refresh()
-            && branch.failed
-            && !branch.question_outdated
-            && branch.time == Some(clock)
-            && matches!(
-                branch.remake_failure,
-                RemakeFailure::RequiredDeclaredTailRecipe
-            ))
-        .then_some((ordinal, clock))
+        self.failed_declared_branch_at_clock(&worker.required, ordinal, clock)
+            .then_some((ordinal, clock))
+    }
+
+    fn failed_declared_branch_at_clock(
+        &self,
+        target: &[u8],
+        ordinal: usize,
+        clock: SystemTime,
+    ) -> bool {
+        self.database_branch_outcomes
+            .get(&(target.to_vec(), ordinal))
+            .is_some_and(|branch| {
+                branch.ran_refresh()
+                    && branch.failed
+                    && !branch.question_outdated
+                    && branch.time == Some(clock)
+                    && matches!(
+                        branch.remake_failure,
+                        RemakeFailure::RequiredDeclaredTailRecipe
+                    )
+            })
     }
 
     fn restored_failed_required_worker_clock(
@@ -14654,37 +14664,55 @@ impl Engine {
             (primary, false),
             (first_source, false),
             (second_source, false),
+            trailing_sources @ ..,
         ] = read_files
         else {
             return None;
         };
-        let [first, second] = requests else {
+        let [first, second, trailing_requests @ ..] = requests else {
             return None;
         };
         if !self.parallel_makefile_remakes
             || self.options.always
             || self.assumptions.is_some()
-            || self.parallel_jobs.len() != 2
+            || self.parallel_jobs.len() != requests.len()
             || !self.unruled_remake_source(&primary.name)
             || !std::ptr::eq(first.file, first_source)
             || !std::ptr::eq(second.file, second_source)
         {
             return None;
         }
-        let (first_identity, first_before, first_double_colon) =
+        let (first_identity, first_before, first_branch) =
             self.held_direct_required_remake_job(first, visited)?;
-        let (second_identity, second_before, second_double_colon) =
+        let (second_identity, second_before, second_branch) =
             self.held_direct_required_remake_job(second, visited)?;
-        (!second_double_colon).then(|| {
+        let third = match (trailing_sources, trailing_requests) {
+            ([], []) => None,
+            ([(source, false)], [request]) if std::ptr::eq(request.file, source) => {
+                let (identity, before, branch) =
+                    self.held_direct_required_remake_job(request, visited)?;
+                if branch.is_some() {
+                    return None;
+                }
+                Some(RemakeChild {
+                    name: &request.file.name,
+                    identity,
+                    before,
+                })
+            }
+            _ => return None,
+        };
+        second_branch.is_none().then(|| {
             Box::new(RequiredRemakeWorkerPair {
                 first_identity,
                 first_before,
-                first_double_colon,
+                first_branch,
                 first_reap: None,
                 second: &second.file.name,
                 second_identity,
                 second_before,
                 second_failure: None,
+                third,
             })
         })
     }
@@ -14693,7 +14721,7 @@ impl Engine {
         &self,
         request: &PendingMakefileRemake<'_>,
         visited: &MakefileVisits<'_>,
-    ) -> Option<(u64, SystemTime, bool)> {
+    ) -> Option<(u64, SystemTime, Option<usize>)> {
         let file = request.file;
         let name = file.name.as_slice();
         if file.optional
@@ -14726,8 +14754,8 @@ impl Engine {
         {
             return None;
         }
-        let double_colon = job.continuation.branch.is_some();
-        let direct = if double_colon {
+        let branch = job.continuation.branch;
+        let direct = if branch.is_some() {
             self.unassumed_direct_double_colon_remake(name)
                 && self.pending_explicit_remake_recipe(name)
                 && self
@@ -14742,7 +14770,58 @@ impl Engine {
                     .get(name)
                     .is_some_and(|rule| rule.recipes.is_some())
         };
-        direct.then_some((job.identity, before, double_colon))
+        direct.then_some((job.identity, before, branch))
+    }
+
+    fn required_remake_pair_has_expected_workers(
+        &self,
+        pair: &RequiredRemakeWorkerPair<'_>,
+    ) -> bool {
+        match &pair.third {
+            Some(third)
+                if self
+                    .parallel_jobs
+                    .get(third.name, third.identity)
+                    .is_some_and(|job| job.child.is_some()) =>
+            {
+                self.parallel_jobs.len() == 2
+            }
+            Some(third) => {
+                self.parallel_jobs.len() == 1 && self.unchanged_required_remake_worker(third)
+            }
+            None => self.parallel_jobs.len() == 1,
+        }
+    }
+
+    fn unchanged_required_remake_worker(&self, worker: &RemakeChild<'_>) -> bool {
+        Self::regular_remake_clock(worker.name) == Some(worker.before)
+            && self
+                .file_traversals
+                .outcome(worker.name)
+                .is_some_and(|outcome| {
+                    outcome.ran_refresh()
+                        && outcome.goal_verdict().is_none()
+                        && outcome.time == Some(worker.before)
+                })
+    }
+
+    fn required_remake_pair_first_reap(
+        &self,
+        name: &[u8],
+        pair: &RequiredRemakeWorkerPair<'_>,
+        outcome: Outcome,
+        clock: SystemTime,
+    ) -> Option<RequiredRemakeWorkerReap> {
+        if outcome.goal_verdict().is_none() {
+            return (pair.first_branch.is_none()
+                || self.successful_explicit_source_refresh(name, clock))
+            .then_some(RequiredRemakeWorkerReap::Completed(clock));
+        }
+        let ordinal = pair.first_branch?;
+        // The current declared head can supply the reread clock after its
+        // final recipe failed. The actual branch failure remains cached.
+        self.failed_declared_branch_at_clock(name, ordinal, clock)
+            .then_some(RequiredRemakeWorkerReap::FailedDeclaredTail { ordinal, clock })
     }
 
     fn restored_required_remake_pair(
@@ -14751,13 +14830,29 @@ impl Engine {
         outcome: Outcome,
         pair: &RequiredRemakeWorkerPair<'_>,
     ) -> bool {
-        pair.first_reap.is_some()
-            && outcome.time == pair.first_reap
-            && outcome.ran_refresh()
-            && outcome.goal_verdict().is_none()
+        let clock = match pair.first_reap {
+            Some(RequiredRemakeWorkerReap::Completed(clock))
+                if outcome.goal_verdict().is_none() =>
+            {
+                clock
+            }
+            Some(RequiredRemakeWorkerReap::FailedDeclaredTail { ordinal, clock })
+                if outcome.failed
+                    && self.failed_declared_branch_at_clock(first, ordinal, clock) =>
+            {
+                clock
+            }
+            _ => return false,
+        };
+        outcome.time == Some(clock)
+            && self.settled_required_worker_refresh(outcome)
             && self.parallel_jobs.is_empty()
             && Self::regular_remake_clock(first) == Some(pair.first_before)
             && Self::regular_remake_clock(pair.second) == Some(pair.second_before)
+            && pair
+                .third
+                .as_ref()
+                .is_none_or(|third| self.unchanged_required_remake_worker(third))
             && self
                 .file_traversals
                 .outcome(pair.second)
@@ -14845,7 +14940,7 @@ impl Engine {
         &self,
         trailing: &TrailingOptionalRemake<'a>,
         earlier_sources: &[(Makefile, bool)],
-    ) -> Option<Box<RemakePrerequisiteChild<'a>>> {
+    ) -> Option<Box<RemakeChild<'a>>> {
         if trailing.kind != TrailingOptionalKind::Declared || self.parallel_jobs.len() != 1 {
             return None;
         }
@@ -14868,7 +14963,7 @@ impl Engine {
                 !*skip && !file.optional && file.location.is_some() && file.name == owner.target
             }))
         .then(|| {
-            Box::new(RemakePrerequisiteChild {
+            Box::new(RemakeChild {
                 name,
                 identity: job.identity,
                 before,
@@ -16849,19 +16944,9 @@ impl Engine {
                 && state.branch.is_none()
                 && state.group.is_none()
                 && self.assumptions.is_none()
-                && self.vpath_dirs.is_empty()
-                && !self.database.has_vpaths()
-                && !self.aliases.contains_source_or_destination(dependency)
                 && !dependency.starts_with(b"-l")
-                && self.database_unchecked_times.get_mut().remove(dependency)
             {
-                // A continuing prerequisite checks the failed child's clock.
-                // Later consumers use that retained observation.
-                let time = self.name_time(dependency);
-                if let Some(cached) = self.file_traversals.outcome_mut(dependency) {
-                    cached.time = time;
-                }
-                Outcome { time, ..child }
+                self.observe_failed_prerequisite_time(dependency, child)
             } else {
                 self.observe_updated(dependency, child)
             };
@@ -16884,6 +16969,33 @@ impl Engine {
             }
             (child, pending)
         }
+    }
+
+    fn observe_failed_prerequisite_time(&mut self, dependency: &[u8], child: Outcome) -> Outcome {
+        let name = self.aliases.resolve(dependency);
+        if !self.database_unchecked_times.get_mut().contains(name) {
+            return child;
+        }
+        let alias = self.aliases.contains_source_or_destination(dependency);
+        let time = if !alias && self.vpath_dirs.is_empty() && !self.database.has_vpaths() {
+            self.name_time(name)
+        } else if alias
+            && self.gpath_dirs.is_empty()
+            && !self.options.check_symlink_times
+            && let Some(time) = modified(name)
+        {
+            // The retained VPATH name still exists, so its own timestamp
+            // answers the query without a new search or file rename.
+            self.retain_database_time(name, Some(time));
+            Some(time)
+        } else {
+            return child;
+        };
+        self.database_unchecked_times.get_mut().remove(name);
+        if let Some(cached) = self.file_traversals.outcome_mut(name) {
+            cached.time = time;
+        }
+        Outcome { time, ..child }
     }
 
     fn prerequisite_stale(&self, before: Option<SystemTime>, child: Outcome) -> bool {

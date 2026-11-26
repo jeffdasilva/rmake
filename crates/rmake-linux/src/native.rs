@@ -166,7 +166,7 @@ fn cstring(value: &[u8]) -> CString {
     let end = value.iter().position(|&b| b == 0).unwrap_or(value.len());
     CString::new(&value[..end]).expect("NUL prefix removed")
 }
-fn allocated(value: &[u8]) -> Result<*mut c_void, ExpandError> {
+pub(crate) fn allocated(value: &[u8]) -> Result<*mut c_void, ExpandError> {
     let size = value
         .len()
         .checked_add(1)
