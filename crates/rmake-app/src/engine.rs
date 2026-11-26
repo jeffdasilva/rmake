@@ -607,6 +607,7 @@ struct PendingMakefileRemake<'a> {
     active: bool,
     initial: Outcome,
     trace_synthetic_reap: bool,
+    inline_optional_settled: bool,
     trailing_prerequisite_child: Option<Box<RemakePrerequisiteChild<'a>>>,
     trailing_prerequisite_changed: bool,
 }
@@ -4153,7 +4154,7 @@ impl Engine {
                 |engine: &Self,
                  source: &Makefile,
                  mut outcome: Outcome,
-                 prior_visits: Option<&MakefileVisits<'_>>| {
+                 prior_visits: Option<(&MakefileVisits<'_>, bool)>| {
                     // Keep each branch failure for ordinary prerequisite visits.
                     // The remake pass uses the original successful source head.
                     let declared_tail_failed = matches!(
@@ -4174,15 +4175,18 @@ impl Engine {
                                         // the optional visit settles.
                                         RemakeFailure::RequiredSyntheticRecipe => true,
                                         RemakeFailure::RequiredSyntheticInput => {
-                                            if let Some(visited) = prior_visits {
+                                            if let Some((visited, inline_optional_settled)) =
+                                                prior_visits
+                                            {
                                                 // A real explicit recipe can finish
                                                 // after the optional source settles,
                                                 // then discover the missing rule.
                                                 outcome.ran
-                                                    && outcome.completion == CompletionTime::Refresh
-                                                    && !outcome.fatal
-                                                    && !outcome.blocked
-                                                    && visited
+                                                && outcome.completion == CompletionTime::Refresh
+                                                && !outcome.fatal
+                                                && !outcome.blocked
+                                                && (inline_optional_settled
+                                                    || visited
                                                         .get(trailing.neighbor)
                                                         .zip(
                                                             engine
@@ -4193,7 +4197,7 @@ impl Engine {
                                                             engine.settled_trailing_optional_remake(
                                                                 trailing, *before, *optional, false,
                                                             )
-                                                        })
+                                                        }))
                                             } else {
                                                 // A synchronous no-rule result
                                                 // can precede the optional visit.
@@ -4352,6 +4356,7 @@ impl Engine {
                                     active: true,
                                     initial: Outcome::default(),
                                     trace_synthetic_reap: false,
+                                    inline_optional_settled: false,
                                     trailing_prerequisite_child: None,
                                     trailing_prerequisite_changed: false,
                                 });
@@ -4982,11 +4987,13 @@ impl Engine {
                         active: true,
                         initial: result,
                         trace_synthetic_reap,
+                        inline_optional_settled: false,
                         trailing_prerequisite_child: None,
                         trailing_prerequisite_changed: false,
                     });
                     continue;
                 }
+                let inline_completion = inline_optional_dispatch == Some(self.next_job);
                 if let Some(trailing) = &trailing_optional_source
                     && name == trailing.neighbor
                     && self.options.keep_going
@@ -4994,10 +5001,22 @@ impl Engine {
                         trailing,
                         before,
                         result,
-                        inline_optional_dispatch == Some(self.next_job),
+                        inline_completion,
                     )
                 {
-                    self.qualify_synthetic_recipe_after_optional_read(&trailing.required.name);
+                    let required = &trailing.required.name;
+                    self.qualify_synthetic_recipe_after_optional_read(required);
+                    if inline_completion
+                        && result.completion == CompletionTime::Refresh
+                        && self.pending_explicit_remake_recipe(required)
+                        && let Some(request) = pending.iter_mut().find(|request| {
+                            !request.duplicate && std::ptr::eq(request.file, trailing.required)
+                        })
+                    {
+                        // Keep the inline receipt while the direct explicit
+                        // worker is alive. The later missing rule has no job.
+                        request.inline_optional_settled = true;
+                    }
                 }
                 let deferred_peer_failure = deferred_peer_failure
                     || (pending_peer
@@ -5389,7 +5408,12 @@ impl Engine {
                             .outcome(self.aliases.resolve(name))
                             .copied()
                             .unwrap_or(remake.initial);
-                        let result = source_outcome(self, remake.file, result, Some(&visited));
+                        let result = source_outcome(
+                            self,
+                            remake.file,
+                            result,
+                            Some((&visited, remake.inline_optional_settled)),
+                        );
                         if remake.duplicate && (remake.file.optional || !result.failed) {
                             continue;
                         }
@@ -13461,6 +13485,33 @@ impl Engine {
                 before,
             })
         })
+    }
+
+    fn pending_explicit_remake_recipe(&self, target: &[u8]) -> bool {
+        let Some(job) = self.parallel_jobs.primary.get(target) else {
+            return false;
+        };
+        let Some(ordinal) = job.continuation.branch else {
+            return false;
+        };
+        job.child.is_some()
+            && !job.recursive
+            && job.continuation.expanded.is_empty()
+            && self.pending_double_colon.get(target).is_some_and(|state| {
+                state.depth == 0 && state.active == Some(ordinal) && state.before.is_some()
+            })
+            && self
+                .database
+                .rules
+                .get(target)
+                .and_then(|rule| rule.double_colon.as_ref())
+                .and_then(|declarations| declarations.get(ordinal))
+                .is_some_and(|branch| {
+                    branch.recipes.is_some()
+                        && branch.grouped_targets().is_none()
+                        && branch.implicit_pattern.is_none()
+                        && !branch.default_recipe
+                })
     }
 
     fn qualify_synthetic_recipe_after_optional_read(&mut self, target: &[u8]) -> bool {
