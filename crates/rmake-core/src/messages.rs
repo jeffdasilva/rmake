@@ -108,10 +108,11 @@ pub enum MessageId {
     WordlistSecondInvalid,
     WordlistSecondEmpty,
     WordlistSecondOutOfRange,
+    PrerequisitesInRecipe,
 }
 
 impl MessageId {
-    pub const ALL: [Self; 101] = [
+    pub const ALL: [Self; 102] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -213,6 +214,7 @@ impl MessageId {
         Self::WordlistSecondInvalid,
         Self::WordlistSecondEmpty,
         Self::WordlistSecondOutOfRange,
+        Self::PrerequisitesInRecipe,
     ];
 
     pub(crate) fn is_unlocated(self) -> bool {
@@ -452,6 +454,7 @@ impl MessageId {
                 operand: WordIndexOperand::WordlistSecond,
                 problem: WordIndexProblem::OutOfRange(b"9223372036854775808"),
             },
+            Self::PrerequisitesInRecipe => Message::PrerequisitesInRecipe,
         }
     }
     pub fn msgid(self) -> &'static CStr {
@@ -591,6 +594,7 @@ impl MessageId {
             Self::WordlistSecondOutOfRange => {
                 c"invalid second argument to 'wordlist' function: '%s' out of range"
             }
+            Self::PrerequisitesInRecipe => c"prerequisites cannot be defined in recipes",
         }
     }
 }
@@ -801,6 +805,7 @@ pub enum Message<'a> {
         operand: WordIndexOperand,
         problem: WordIndexProblem<'a>,
     },
+    PrerequisitesInRecipe,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -956,6 +961,7 @@ impl<'a> Message<'a> {
             Self::NativeArgumentCount { minimum: false, .. } => MessageId::NativeMaximumArguments,
             Self::UnsupportedArchiveSymbol(_) => MessageId::UnsupportedArchiveSymbol,
             Self::WordIndexZero => MessageId::WordIndexZero,
+            Self::PrerequisitesInRecipe => MessageId::PrerequisitesInRecipe,
             Self::InvalidWordIndex { operand, problem } => match (operand, problem) {
                 (WordIndexOperand::WordFirst, WordIndexProblem::Invalid(_)) => {
                     MessageId::WordFirstInvalid
@@ -1024,7 +1030,8 @@ impl<'a> Message<'a> {
             | Self::MissingFileName
             | Self::ExtraFileArgument
             | Self::EmptyNativeFunction
-            | Self::WordIndexZero => {}
+            | Self::WordIndexZero
+            | Self::PrerequisitesInRecipe => {}
             Self::RecursiveVariable(name)
             | Self::DuplicateRecipe { target: name, .. }
             | Self::OverrideGroupMembership(name)

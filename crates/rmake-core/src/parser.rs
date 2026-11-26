@@ -6068,11 +6068,11 @@ impl Database {
     ) -> Result<(), ParseError> {
         if declaration.header.is_some() && self.rules_frozen {
             self.retain_native_reader_error(closing_location, context);
-            return Err(ParseError {
-                unlocated: false,
-                location: declaration.location.clone().expect("rule header location"),
-                message: "prerequisites cannot be defined in recipes".into(),
-            });
+            return Err(ParseError::system(
+                declaration.location.clone().expect("rule header location"),
+                Message::PrerequisitesInRecipe,
+                context,
+            ));
         }
         let missing_group = declaration.grouped
             && declaration.recipes.is_empty()

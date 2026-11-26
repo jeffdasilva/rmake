@@ -2810,6 +2810,182 @@
         "stderr_hex": "",
         "seen_hex": "616e63686f720a726561640a72756e0a"
       }
+    },
+    {
+      "id": "nls-frozen-rule-direct-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a616c6c3a203b2040242866696c65203e3e7365656e2c6265666f72652924286576616c206f75743a20616e2d696e70757429242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a206c6573207072c3a9726571756973206e652070657576656e7420c3aa7472652064c3a966696e69732064616e73206465732072656365747465732e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a726561640a6265666f72650a"
+      }
+    },
+    {
+      "id": "nls-frozen-rule-direct-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a616c6c3a203b2040242866696c65203e3e7365656e2c6265666f72652924286576616c206f75743a20616e2d696e70757429242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20707265726571756973697465732063616e6e6f7420626520646566696e656420696e20726563697065732e202053746f702e0a",
+        "seen_hex": "616e63686f720a726561640a6265666f72650a"
+      }
+    },
+    {
+      "id": "nls-frozen-rule-group-first-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a646566696e6520520a61206220263a0a696665712028242866696c65203e3e7365656e2c636f6e646974696f6e616c292428696e666f20636f6e646974696f6e616c292c290a656e6469660a656e6465660a616c6c3a203b2040242866696c65203e3e7365656e2c6265666f72652924286576616c20242876616c756520522929242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "636f6e646974696f6e616c0a",
+        "stderr_hex": "4d616b6566696c653a373a202a2a2a20566f726175737365747a756e67656e206bc3b66e6e656e206e6963687420696e2052657a657074656e20646566696e696572742077657264656e2e20205363686c7573732e0a",
+        "seen_hex": "616e63686f720a726561640a6265666f72650a636f6e646974696f6e616c0a"
+      }
+    },
+    {
+      "id": "nls-frozen-rule-include-header-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a616c6c3a203b2040242866696c65203e3e7365656e2c6265666f72652924286576616c20696e636c756465206c6174652e6d6b29242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a",
+        "late.mk": "242866696c65203e3e7365656e2c6368696c64290a6f75743a20616e2d696e7075740a6e657874242866696c65203e3e7365656e2c666f7262696464656e293a0a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6c6174652e6d6b3a323a202a2a2a20e5bf85e8a681e69da1e4bbb6e38292e383ace382b7e38394e58685e381a7e5ae9ae7bea9e381a7e3818de381bee3819be382932e2020e4b8ade6ada22e0a",
+        "seen_hex": "616e63686f720a726561640a6265666f72650a6368696c640a"
+      }
+    },
+    {
+      "id": "nls-frozen-rule-target-scope-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a616c6c3a2054203d2024286576616c206f75743a20616e2d696e707574290a616c6c3a203b2040242866696c65203e3e7365656e2c6265666f72652924285429242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a333a202a2a2a206c6573207072c3a9726571756973206e652070657576656e7420c3aa7472652064c3a966696e69732064616e73206465732072656365747465732e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a726561640a6265666f72650a"
+      }
+    },
+    {
+      "id": "nls-frozen-rule-secondary-pl",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a2e5345434f4e44455850414e53494f4e3a0a5455524e203d20242866696c65203e3e7365656e2c6265666f72652924286576616c202e4f4e455348454c4c3a290a616c6c3a202424285455524e290a0940242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a353a202a2a2a2077796d6167616e6961206e6965206d6f67c485206279c48720646566696e696f77616e652077206f70697361636820706f6c656365c5842e2053746f702e0a",
+        "seen_hex": "616e63686f720a726561640a6265666f72650a"
+      }
+    },
+    {
+      "id": "nls-frozen-rule-targetless-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a616c6c3a203b2040242866696c65203e3e7365656e2c6265666f72652924286576616c203a20242866696c65203e3e7365656e2c7461696c2929242866696c65203e3e7365656e2c72756e296563686f206f6b61790a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "6f6b61790a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a726561640a6265666f72650a7461696c0a72756e0a"
+      }
     }
   ]
 }
