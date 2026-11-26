@@ -47,6 +47,8 @@ pub struct Execution {
     pub pending: bool,
     /// A nonignored recipe command failed before starting a child.
     pub launch_failed: bool,
+    /// The database observes a failure while expanding a recipe line.
+    pub expansion_failed: bool,
     pub status: Status,
     pub cleanup: Cleanup,
     /// At completion, every logical recipe line is recursive after prefix scanning.

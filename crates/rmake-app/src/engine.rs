@@ -335,6 +335,7 @@ enum DatabaseResult {
     ObservedGroup,
     ObservedDoubleColon,
     RecipeUnstarted,
+    UnfinishedRecipeExpansion,
     // A completed archive container merged into an unattempted file record.
     MergedArchiveContainer,
     // A completed ordinary source whose visited destination kept its file stem.
@@ -606,6 +607,7 @@ struct PendingMakefileRemake<'a> {
     active: bool,
     initial: Outcome,
     trace_synthetic_reap: bool,
+    inline_optional_settled: bool,
     trailing_prerequisite_child: Option<Box<RemakePrerequisiteChild<'a>>>,
     trailing_prerequisite_changed: bool,
 }
@@ -1301,6 +1303,7 @@ struct RecipeInputs<'a> {
     before: Option<SystemTime>,
     branch: Option<usize>,
     record_suffix_stem_lookup: bool,
+    record_expansion_failure: bool,
     location: Option<&'a Location>,
     dependencies: &'a [Dependency],
     dropped: &'a HashSet<Vec<u8>>,
@@ -4148,7 +4151,10 @@ impl Engine {
                     ))
             };
             let source_outcome =
-                |engine: &Self, source: &Makefile, mut outcome: Outcome, initial_visit: bool| {
+                |engine: &Self,
+                 source: &Makefile,
+                 mut outcome: Outcome,
+                 prior_visits: Option<(&MakefileVisits<'_>, bool)>| {
                     // Keep each branch failure for ordinary prerequisite visits.
                     // The remake pass uses the original successful source head.
                     let declared_tail_failed = matches!(
@@ -4168,22 +4174,47 @@ impl Engine {
                                         // The child can set this verdict only after
                                         // the optional visit settles.
                                         RemakeFailure::RequiredSyntheticRecipe => true,
-                                        // A synchronous no-rule result settles
-                                        // before the optional source's visit.
                                         RemakeFailure::RequiredSyntheticInput => {
-                                            initial_visit
-                                                && trailing.kind == TrailingOptionalKind::Unruled
-                                                && !engine
-                                                    .file_traversals
-                                                    .has_outcome(trailing.neighbor)
-                                                && !engine.pending(trailing.neighbor)
-                                                && engine.unruled_remake_source(trailing.neighbor)
-                                                && !engine
-                                                    .database
-                                                    .rules
-                                                    .contains_key(b".DEFAULT".as_slice())
-                                                && fs::symlink_metadata(os(trailing.neighbor))
-                                                    .is_ok_and(|file| file.is_file())
+                                            if let Some((visited, inline_optional_settled)) =
+                                                prior_visits
+                                            {
+                                                // A real explicit recipe can finish
+                                                // after the optional source settles,
+                                                // then discover the missing rule.
+                                                outcome.ran
+                                                && outcome.completion == CompletionTime::Refresh
+                                                && !outcome.fatal
+                                                && !outcome.blocked
+                                                && (inline_optional_settled
+                                                    || visited
+                                                        .get(trailing.neighbor)
+                                                        .zip(
+                                                            engine
+                                                                .file_traversals
+                                                                .outcome(trailing.neighbor),
+                                                        )
+                                                        .is_some_and(|((before, _), optional)| {
+                                                            engine.settled_trailing_optional_remake(
+                                                                trailing, *before, *optional, false,
+                                                            )
+                                                        }))
+                                            } else {
+                                                // A synchronous no-rule result
+                                                // can precede the optional visit.
+                                                trailing.kind == TrailingOptionalKind::Unruled
+                                                    && !engine
+                                                        .file_traversals
+                                                        .has_outcome(trailing.neighbor)
+                                                    && !engine.pending(trailing.neighbor)
+                                                    && engine
+                                                        .unruled_remake_source(trailing.neighbor)
+                                                    && !engine
+                                                        .database
+                                                        .rules
+                                                        .contains_key(b".DEFAULT".as_slice())
+                                                    && fs::symlink_metadata(os(trailing.neighbor))
+                                                        .is_ok_and(|file| file.is_file())
+                                            }
                                         }
                                         _ => false,
                                     }
@@ -4325,6 +4356,7 @@ impl Engine {
                                     active: true,
                                     initial: Outcome::default(),
                                     trace_synthetic_reap: false,
+                                    inline_optional_settled: false,
                                     trailing_prerequisite_child: None,
                                     trailing_prerequisite_changed: false,
                                 });
@@ -4677,7 +4709,7 @@ impl Engine {
                     build_visit,
                     track_named_source.then_some(&mut source_started_command),
                 );
-                result = source_outcome(self, makefile, result, true);
+                result = source_outcome(self, makefile, result, None);
                 let chain_failed = result.failed;
                 let refreshed_implicit_time = loaded_implicit_time.filter(|_| {
                     !MakefileModes::from_options(&self.options).active()
@@ -4955,11 +4987,13 @@ impl Engine {
                         active: true,
                         initial: result,
                         trace_synthetic_reap,
+                        inline_optional_settled: false,
                         trailing_prerequisite_child: None,
                         trailing_prerequisite_changed: false,
                     });
                     continue;
                 }
+                let inline_completion = inline_optional_dispatch == Some(self.next_job);
                 if let Some(trailing) = &trailing_optional_source
                     && name == trailing.neighbor
                     && self.options.keep_going
@@ -4967,10 +5001,22 @@ impl Engine {
                         trailing,
                         before,
                         result,
-                        inline_optional_dispatch == Some(self.next_job),
+                        inline_completion,
                     )
                 {
-                    self.qualify_synthetic_recipe_after_optional_read(&trailing.required.name);
+                    let required = &trailing.required.name;
+                    self.qualify_synthetic_recipe_after_optional_read(required);
+                    if inline_completion
+                        && result.completion == CompletionTime::Refresh
+                        && self.pending_explicit_remake_recipe(required)
+                        && let Some(request) = pending.iter_mut().find(|request| {
+                            !request.duplicate && std::ptr::eq(request.file, trailing.required)
+                        })
+                    {
+                        // Keep the inline receipt while the direct explicit
+                        // worker is alive. The later missing rule has no job.
+                        request.inline_optional_settled = true;
+                    }
                 }
                 let deferred_peer_failure = deferred_peer_failure
                     || (pending_peer
@@ -5362,7 +5408,12 @@ impl Engine {
                             .outcome(self.aliases.resolve(name))
                             .copied()
                             .unwrap_or(remake.initial);
-                        let result = source_outcome(self, remake.file, result, false);
+                        let result = source_outcome(
+                            self,
+                            remake.file,
+                            result,
+                            Some((&visited, remake.inline_optional_settled)),
+                        );
                         if remake.duplicate && (remake.file.optional || !result.failed) {
                             continue;
                         }
@@ -13436,6 +13487,33 @@ impl Engine {
         })
     }
 
+    fn pending_explicit_remake_recipe(&self, target: &[u8]) -> bool {
+        let Some(job) = self.parallel_jobs.primary.get(target) else {
+            return false;
+        };
+        let Some(ordinal) = job.continuation.branch else {
+            return false;
+        };
+        job.child.is_some()
+            && !job.recursive
+            && job.continuation.expanded.is_empty()
+            && self.pending_double_colon.get(target).is_some_and(|state| {
+                state.depth == 0 && state.active == Some(ordinal) && state.before.is_some()
+            })
+            && self
+                .database
+                .rules
+                .get(target)
+                .and_then(|rule| rule.double_colon.as_ref())
+                .and_then(|declarations| declarations.get(ordinal))
+                .is_some_and(|branch| {
+                    branch.recipes.is_some()
+                        && branch.grouped_targets().is_none()
+                        && branch.implicit_pattern.is_none()
+                        && !branch.default_recipe
+                })
+    }
+
     fn qualify_synthetic_recipe_after_optional_read(&mut self, target: &[u8]) -> bool {
         let Some(job) = self.parallel_jobs.primary.get(target) else {
             return false;
@@ -15883,6 +15961,7 @@ impl Engine {
                                 || (branch.is_some()
                                     && rule.implicit_pattern.is_some()
                                     && rule.stem.as_deref() == Some(b""))),
+                        record_expansion_failure: branch.is_none() && rule.group.is_none(),
                         location: recipes.first().map(|recipe| &recipe.location),
                         dependencies: &rule.dependencies,
                         dropped: &dropped,
@@ -15963,7 +16042,9 @@ impl Engine {
                         TouchCompletion::Physical => DatabaseResult::PhysicalTouch,
                     };
                 }
-                if rule.grouped_double_id().is_some()
+                if execution.expansion_failed {
+                    outcome.database_result = DatabaseResult::UnfinishedRecipeExpansion;
+                } else if rule.grouped_double_id().is_some()
                     && execution.status == Status::Fatal
                     && !execution.ran
                 {
@@ -16607,6 +16688,7 @@ impl Engine {
             before,
             branch,
             record_suffix_stem_lookup,
+            record_expansion_failure,
             location,
             dependencies,
             dropped,
@@ -16766,7 +16848,19 @@ impl Engine {
                 }
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
-                    return Execution::fatal(false);
+                    let mut execution = Execution::fatal(false);
+                    if record_expansion_failure
+                        && !self.remaking
+                        && !parallel
+                        && self.output.database_requested()
+                        && rmake_core::filenames::archive_parts(target).is_none()
+                    {
+                        // Earlier expansion effects belong to the file table
+                        // even when no recipe command was dispatched.
+                        self.retain_database_context(target, branch, &variables);
+                        execution.expansion_failed = true;
+                    }
+                    return execution;
                 }
             }
         }
