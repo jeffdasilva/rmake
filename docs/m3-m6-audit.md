@@ -434,6 +434,9 @@ final physical clock used by ordinary goals.
 With an earlier blocked or absent optional read under keep-going, a
 restored required timestamp can govern ordinary prerequisite freshness
 and the set of newer prerequisites in the original pass.
+A genuine declared required failure can also expose a rewritten clock
+before restoration. The held reread cases retain the actual recipe
+failure and any matching assumed branch diagnostic in order.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
