@@ -1490,14 +1490,15 @@ impl VariableStore {
     /// Unlike internal removal, an undefine directive observes origin priority
     /// and promotes an environment binding when -e makes it prevail.
     pub fn undefine(&mut self, name: &[u8], origin: Origin) -> bool {
-        self.database_definition_lookup(name);
-        if !self.can_undefine(name, origin) {
+        if !self.prepare_undefine(name, origin) {
             return false;
         }
         self.remove(name).is_some()
     }
 
-    pub(crate) fn can_undefine(&mut self, name: &[u8], origin: Origin) -> bool {
+    /// Probe the definition table before deciding whether the binding can be removed.
+    pub(crate) fn prepare_undefine(&mut self, name: &[u8], origin: Origin) -> bool {
+        self.database_definition_lookup(name);
         self.promote_environment(name, origin);
         self.get(name)
             .is_none_or(|variable| variable.origin <= origin)

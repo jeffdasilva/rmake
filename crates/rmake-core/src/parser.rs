@@ -5501,7 +5501,7 @@ impl Database {
                 self.finish_declaration(declaration, &location, context)?;
                 let name = self.expand_directive_name(rest, &location, context)?;
                 let name = name.as_slice();
-                if self.variables.can_undefine(name, origin) {
+                if self.variables.prepare_undefine(name, origin) {
                     let safety = if self.runtime_metadata_live && name == b".DEFAULT_GOAL" {
                         Some(crate::safety::SafetyError::DefaultGoalDeletion)
                     } else if self.exporting.iter().any(|active| active == name) {

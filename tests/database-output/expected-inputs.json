@@ -34064,6 +34064,350 @@
         }
       ],
       "trusted_trace_sha256": "4f29fe7c61a14ccea1ebaccf357ab1e9f2839db6d8901bcba568a103445420ac"
+    },
+    "database-phase-undefine-special-reallocate": {
+      "template_sha256": "c253ae15d29e5d073081d1226aadb587f96765f515569ad7511b4f464ec144f3",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "4f29fe7c61a14ccea1ebaccf357ab1e9f2839db6d8901bcba568a103445420ac"
+    },
+    "database-phase-undefine-global-from-lexical": {
+      "template_sha256": "ac57732c771cbb0a28ca96484d607dc86eef9e14bdf5c80e68ac3a7a48fa977b",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "4f29fe7c61a14ccea1ebaccf357ab1e9f2839db6d8901bcba568a103445420ac"
+    },
+    "database-phase-undefine-command-precedence": {
+      "template_sha256": "4a63cbec82e7fa2e0f70013e369796555ed683c238ea5bb002d4e4b7b0d02776",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "4f29fe7c61a14ccea1ebaccf357ab1e9f2839db6d8901bcba568a103445420ac"
+    },
+    "database-phase-undefine-colliding-miss": {
+      "template_sha256": "d15a44d0f547dd57736a997a6c6d82ad48fbab3dfa2bdb5adcdd5650862fdc9f",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "4f29fe7c61a14ccea1ebaccf357ab1e9f2839db6d8901bcba568a103445420ac"
     }
   }
 }
