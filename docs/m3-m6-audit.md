@@ -185,7 +185,9 @@ covers mixed required and optional failure policies.
   This covers fully forced recipes under `-n`, `-q`, and `-t`. In those modes,
   the database retains the simulated timestamp of a nonphony file when its mixed
   forced and ordinary recipe reaches an unignored launch failure or nonzero
-  child exit. Ignored failures followed by a query stop remain open.
+  child exit. The same timestamp is recorded when serial `-q` stops at an
+  ordinary line after a real child or an ignored executable launch failure.
+  This leaves the existing target cleanup rules in effect.
   GNU also checks a prior executable's path during a later launch failure and
   can emit an additional diagnostic. That diagnostic remains open.
   Cleanup after a real child error follows the existing policy. Archive and remake
@@ -345,6 +347,9 @@ required worker is reaped. The declared cases check that the recipe stays
 unexpanded. An unruled trailing source can also settle through a direct
 missing-rule visit. That failure remains available to ordinary dependents
 while an independent goal can still proceed.
+The trailing declaration can also run inline while the required worker is
+active when its completion and final physical timestamp both match the
+original timestamp.
 Two-worker optional cases and other kinds of trailing optional visits still
 need qualification.
 [Held remake campaign](../tools/remake_parallel.py) ·
@@ -376,11 +381,11 @@ earlier goals can contribute to the lookup counters. The database cases also
 cover ordinary touch timestamps and when a later prerequisite observes a
 forced recipe's physical timestamp after an earlier failure.
 
-The native AArch64 glibc gate covers three C and C.UTF-8 locale cases. Its
-French lane verified the startup debug-option diagnostic in C and a pinned
-French locale. The retained GNU2 and optimized reports cover the exact native
-run. The
-dynamic musl gate has one C.UTF-8 wildcard byte-width case. Broader diagnostic
+The native AArch64 glibc gate covers three C and C.UTF-8 locale cases and the
+startup debug-option and directory-error diagnostics in C and a pinned French
+locale. It runs the startup usage and getopt models on both build profiles
+using the same locale data. The reports retain the native comparisons.
+The dynamic musl gate has one C.UTF-8 wildcard byte-width case. Broader diagnostic
 producers, native and Guile callbacks, cache history, resource failures and
 musl NLS remain open. See the
 [native AArch64](../.github/workflows/native-aarch64.yml) and

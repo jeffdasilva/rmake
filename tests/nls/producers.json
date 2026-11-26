@@ -1,5 +1,5 @@
 {
-  "classification": "Original18 literal catalog producer models. Input LOCPATH is supplied by the verified locale profile.",
+  "classification": "Catalog producer models, including startup directory changes. Input LOCPATH is supplied by the verified locale profile.",
   "original_models_sha256": "78853414ec1b9e0bec84ad5fb9d9868efe94f6c01d67e39f1c7039e51a1db646",
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
   "fixture_sha256": {
@@ -433,6 +433,129 @@
         "stdout_hex": "",
         "stderr_hex": "4d616b6566696c653a343a202a2a2a2066696c65203a2066696368696572206d616e7175616e742e20417272c3aa742e0a",
         "seen_hex": "616e63686f720a6265666f72650a"
+      }
+    },
+    {
+      "id": "nls-startup-chdir-missing-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "A:=$(file >>seen,before)",
+        "--directory",
+        "./missing",
+        "B:=$(file >>seen,after)"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a616c6c3a3b403a0a"
+      },
+      "modules": [],
+      "errno_fact": [
+        "ENOENT",
+        "C"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a206d697373696e673a20404f535f44455441494c402e202053746f702e0a",
+        "seen_hex": "616e63686f720a6265666f72650a61667465720a"
+      }
+    },
+    {
+      "id": "nls-startup-chdir-missing-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "A:=$(file >>seen,before)",
+        "--directory",
+        "./missing",
+        "B:=$(file >>seen,after)"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a616c6c3a3b403a0a"
+      },
+      "modules": [],
+      "errno_fact": [
+        "ENOENT",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a206d697373696e67203a20404f535f44455441494c402e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a6265666f72650a61667465720a"
+      }
+    },
+    {
+      "id": "nls-startup-chdir-notdir-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-C",
+        "one",
+        "--directory",
+        "plain"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a616c6c3a3b403a0a",
+        "one/plain": "6f636375706965640a"
+      },
+      "modules": [],
+      "errno_fact": [
+        "ENOTDIR",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a20706c61696e203a20404f535f44455441494c402e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-startup-chdir-raw-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-C",
+        "bad-\udcff"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a616c6c3a3b403a0a"
+      },
+      "modules": [],
+      "errno_fact": [
+        "ENOENT",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a202a2a2a206261642dff203a20404f535f44455441494c402e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a"
       }
     }
   ]

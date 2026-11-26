@@ -180,6 +180,10 @@ templates that reorder arguments.
 
 ## Include and source I/O diagnostics
 
+A failed startup `-C` formats the path and libc detail with the Make catalog. The [producer models](../tests/nls/producers.json) capture libc error
+text separately and check argument effects, raw paths and successive directory
+changes in C and French.
+
 Makefile open failures retain resolved search names and error numbers. Failed
 include remakes use GNU's fixed colon separator. Explicit `-f` failures and
 fatal stream-read errors use their own templates. A stream-read error retains

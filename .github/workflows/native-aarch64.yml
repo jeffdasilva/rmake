@@ -88,12 +88,24 @@ jobs:
           python3 tools/locale_profiles.py "$@" --report artifacts/locales/aarch64-gnu2.json
           python3 tools/locale_profiles.py "$@" --candidate target/release/rmake \
             --report artifacts/locales/aarch64-optimized.json
-          python3 tools/nls_diagnostics.py \
-            --case nls-debug-option-startup-c --case nls-debug-option-startup-fr \
+          set -- --case nls-debug-option-startup-c --case nls-debug-option-startup-fr \
+            --case nls-startup-chdir-missing-c --case nls-startup-chdir-missing-fr \
+            --case nls-startup-chdir-notdir-fr --case nls-startup-chdir-raw-fr
+          python3 tools/nls_diagnostics.py "$@" \
             --locale-root .tools/locale-data-arm64 --report artifacts/locales/aarch64-fr-gnu2.json
-          python3 tools/nls_diagnostics.py --candidate target/release/rmake \
-            --case nls-debug-option-startup-c --case nls-debug-option-startup-fr \
+          python3 tools/nls_diagnostics.py "$@" --candidate target/release/rmake \
             --locale-root .tools/locale-data-arm64 --report artifacts/locales/aarch64-fr-optimized.json
+      - name: Check localized startup usage
+        timeout-minutes: 3
+        run: |
+          for kind in debug release; do
+            python3 tools/startup_usage.py --candidate "target/$kind/rmake" \
+              --locale-root .tools/locale-data-arm64 \
+              --report "artifacts/locales/aarch64-startup-usage-$kind.json"
+            python3 tools/getopt_locale.py --candidate "target/$kind/rmake" \
+              --locale-root .tools/locale-data-arm64 \
+              --report "artifacts/locales/aarch64-getopt-$kind.json"
+          done
       - name: Check the pinned xxHash project
         timeout-minutes: 5
         run: |
