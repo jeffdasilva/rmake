@@ -9976,15 +9976,12 @@ impl Engine {
     fn name_time(&self, name: &[u8]) -> Option<SystemTime> {
         let observed = rmake_linux::timestamp::observe(name, self.options.check_symlink_times);
         for issue in observed.issues {
-            self.stderr(
-                &[
-                    issue.operation,
-                    issue.path.as_slice(),
-                    b": ",
-                    os_error(&issue.error).as_bytes(),
-                ]
-                .concat(),
-            );
+            let detail = rmake_linux::filesystem::source_error_detail(&issue.error);
+            self.stderr(&crate::messages::system(Message::OsError {
+                action: issue.operation,
+                path: &issue.path,
+                detail: &detail,
+            }));
         }
         self.retain_database_time(name, observed.time);
         observed.time
