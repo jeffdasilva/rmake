@@ -516,7 +516,7 @@ struct RequestedGoal {
 type SharedIncludeError = Rc<Cell<Option<PendingIncludeError>>>;
 type MakefileVisits<'a> = HashMap<&'a [u8], (Option<SystemTime>, Option<SharedIncludeError>)>;
 
-struct FailedLeadingOptionalRemake<'a> {
+struct LeadingOptionalRemake<'a> {
     required: &'a Makefile,
     neighbor: &'a Makefile,
     trailing: Option<TrailingOptionalRemake<'a>>,
@@ -4173,26 +4173,52 @@ impl Engine {
                 && !all_required_sources
                 && leading_optional_source.is_none()
                 && self.options.new_files.len() == 1;
-            let check_inline_clock_after_reap = self.parallel_makefile_remakes
-                && self.options.keep_going
+            let check_leading_clock_after_reap = self.parallel_makefile_remakes
                 && !modes.active()
                 && read_files.len() == 4
                 && self.options.new_files.len() <= 1;
-            let failed_leading_layout = if use_failed_leading_head || check_inline_clock_after_reap
-            {
-                self.failed_leading_optional_remake(&read_files)
-            } else {
-                None
-            };
-            let failed_leading_optional = failed_leading_layout
+            let leading_optional_layout =
+                if use_failed_leading_head || check_leading_clock_after_reap {
+                    self.leading_optional_remake_layout(&read_files)
+                } else {
+                    None
+                };
+            let failed_leading_optional = leading_optional_layout
                 .as_ref()
                 .filter(|_| use_failed_leading_head);
-            let deferred_trailing_layout = failed_leading_layout.as_ref().filter(|leading| {
-                check_inline_clock_after_reap
+            let direct_trailing_layout = leading_optional_layout.as_ref().filter(|leading| {
+                check_leading_clock_after_reap
                     && leading.trailing.as_ref().is_some_and(|trailing| {
                         trailing.kind == TrailingOptionalKind::Declared
                             && self.unassumed_direct_double_colon_remake(&leading.required.name)
                     })
+            });
+            let deferred_trailing_layout =
+                direct_trailing_layout.filter(|_| self.options.keep_going);
+            let ordinary_current_leading = direct_trailing_layout.filter(|leading| {
+                !self.has_assumed_double_colon_entry(&leading.required.name)
+                    && !leading.neighbor.missing
+                    && self.unruled_remake_source(&leading.neighbor.name)
+            });
+            let assumed_current_leading = leading_optional_layout.as_ref().filter(|leading| {
+                check_leading_clock_after_reap
+                    && use_failed_leading_head
+                    && self.options.keep_going
+                    && !leading.neighbor.missing
+                    && self.unruled_remake_source(&leading.neighbor.name)
+                    && leading
+                        .trailing
+                        .as_ref()
+                        .is_some_and(|trailing| trailing.kind == TrailingOptionalKind::Declared)
+                    && self
+                        .assumed_new_double_colon_entries(&leading.required.name)
+                        .is_some_and(|(_, count)| count == 1)
+                    && self
+                        .database
+                        .rules
+                        .get(&leading.required.name)
+                        .and_then(|rule| rule.double_colon.as_ref())
+                        .is_some_and(|branches| branches.len() == 2)
             });
             let trailing_optional_source = if use_required_source_head
                 && !all_required_sources
@@ -4202,7 +4228,7 @@ impl Engine {
             } else {
                 None
             };
-            let ordinary_trailing_optional = if self.parallel_makefile_remakes
+            let ordinary_trailing_only = if self.parallel_makefile_remakes
                 && !modes.active()
                 && read_files.len() == 3
                 && self.options.new_files.len() <= 1
@@ -4215,6 +4241,7 @@ impl Engine {
             } else {
                 None
             };
+            let mut ordinary_trailing_optional = ordinary_trailing_only.as_ref();
             let uses_declared_synthetic_head = |engine: &Self, source: &Makefile| {
                 !source.optional
                     && !source.missing
@@ -4251,19 +4278,44 @@ impl Engine {
                 ) && !outcome.fatal
                     && !outcome.question_outdated;
                 let explicit_refresh = outcome.ran_refresh();
-                let retained_worker_restart = explicit_refresh
+                let (retained_worker_restart, missing_after_current_leading) = if explicit_refresh
                     && outcome.failed
                     && !outcome.question_outdated
                     && matches!(
                         outcome.remake_failure,
                         RemakeFailure::RequiredSyntheticInput
                     )
-                    && prior_visits.is_some_and(|(visited, request)| {
-                        trailing_optional_source.as_ref().is_some_and(|trailing| {
-                            std::ptr::eq(trailing.required, source)
-                                && engine.retained_trailing_worker_clock(request, trailing, visited)
+                    && let Some((visited, request)) = prior_visits
+                {
+                    let current_leading_trailing = assumed_current_leading
+                        .filter(|leading| {
+                            std::ptr::eq(leading.required, source)
+                                && request
+                                    .trailing_optional_worker
+                                    .as_ref()
+                                    .is_some_and(|worker| worker.only_synthetic_tail_remains)
+                                && engine.settled_current_leading_optional(
+                                    &leading.neighbor.name,
+                                    visited,
+                                )
                         })
-                    });
+                        .and_then(|leading| leading.trailing.as_ref());
+                    (
+                        trailing_optional_source
+                            .as_ref()
+                            .or(current_leading_trailing)
+                            .is_some_and(|trailing| {
+                                std::ptr::eq(trailing.required, source)
+                                    && engine
+                                        .retained_trailing_worker_clock(request, trailing, visited)
+                            }),
+                        current_leading_trailing.is_some_and(|trailing| {
+                            engine.settled_trailing_optional_worker(request, trailing)
+                        }),
+                    )
+                } else {
+                    (false, false)
+                };
                 let missing_after_leading_failure = explicit_refresh
                     && matches!(
                         outcome.remake_failure,
@@ -4285,6 +4337,7 @@ impl Engine {
                     });
                 if declared_tail_failed
                     || missing_after_leading_failure
+                    || missing_after_current_leading
                     || retained_worker_restart
                     || (matches!(
                         outcome.remake_failure,
@@ -5111,8 +5164,23 @@ impl Engine {
                     {
                         self.qualify_synthetic_recipe_after_optional_read(&trailing.required.name);
                     }
-                    let trailing_worker_source =
-                        ordinary_trailing_optional.as_ref().or_else(|| {
+                    if let Some(leading) = ordinary_current_leading
+                        && let Some(trailing) = leading.trailing.as_ref()
+                        && name == trailing.neighbor
+                        && self.settled_current_leading_optional(&leading.neighbor.name, &visited)
+                    {
+                        ordinary_trailing_optional = Some(trailing);
+                    }
+                    let current_leading_trailing = assumed_current_leading.and_then(|leading| {
+                        let trailing = leading.trailing.as_ref()?;
+                        (name == trailing.neighbor
+                            && self
+                                .settled_current_leading_optional(&leading.neighbor.name, &visited))
+                        .then_some(trailing)
+                    });
+                    let trailing_worker_source = ordinary_trailing_optional
+                        .or(current_leading_trailing)
+                        .or_else(|| {
                             if !self.options.keep_going {
                                 return None;
                             }
@@ -5145,6 +5213,8 @@ impl Engine {
                         && let Some(request) = pending.iter_mut().find(|request| {
                             !request.duplicate
                                 && (mixed_trailing_source.is_none()
+                                    || ordinary_trailing_optional.is_some()
+                                    || current_leading_trailing.is_some()
                                     || request.optional_visit_settled)
                                 && std::ptr::eq(request.file, trailing.required)
                         })
@@ -5649,7 +5719,7 @@ impl Engine {
                             .copied()
                             .unwrap_or(remake.initial);
                         if !changed
-                            && let Some(trailing) = ordinary_trailing_optional.as_ref()
+                            && let Some(trailing) = ordinary_trailing_optional
                             && !remake.duplicate
                             && std::ptr::eq(remake.file, trailing.required)
                             && !remake.modes.active()
@@ -5659,6 +5729,12 @@ impl Engine {
                             && let Some(worker) = remake.trailing_optional_worker.as_deref()
                             && worker.no_required_tail_remains
                             && let Some(&(Some(before), _)) = visited.get(trailing.neighbor)
+                            && ordinary_current_leading.is_none_or(|leading| {
+                                self.settled_current_leading_optional(
+                                    &leading.neighbor.name,
+                                    &visited,
+                                )
+                            })
                         {
                             // The earlier successful child supplied the reread
                             // timestamp before this required worker restored it.
@@ -13498,10 +13574,10 @@ impl Engine {
         .then_some(neighbor.name.as_slice())
     }
 
-    fn failed_leading_optional_remake<'a>(
+    fn leading_optional_remake_layout<'a>(
         &self,
         read_files: &'a [(Makefile, bool)],
-    ) -> Option<FailedLeadingOptionalRemake<'a>> {
+    ) -> Option<LeadingOptionalRemake<'a>> {
         let [
             (primary, false),
             (neighbor, false),
@@ -13545,7 +13621,7 @@ impl Engine {
             }
             _ => return None,
         };
-        Some(FailedLeadingOptionalRemake {
+        Some(LeadingOptionalRemake {
             required,
             neighbor,
             trailing,
@@ -13634,7 +13710,7 @@ impl Engine {
 
     fn publish_restored_trailing_worker_clock(
         &mut self,
-        leading: &FailedLeadingOptionalRemake<'_>,
+        leading: &LeadingOptionalRemake<'_>,
         visited: &MakefileVisits<'_>,
         pending: &[PendingMakefileRemake<'_>],
     ) {
@@ -13746,8 +13822,8 @@ impl Engine {
         let Some(&(Some(before), _)) = visited.get(name) else {
             return false;
         };
-        // With only the trailing optional source, its successful clock
-        // can be read before the required synthetic failure settles.
+        // The successful trailing clock can be read before the required
+        // synthetic failure settles.
         self.options.keep_going
             && worker.only_synthetic_tail_remains
             && self
@@ -13800,6 +13876,23 @@ impl Engine {
                                 file.is_file() && file.modified().ok() == *before
                             }))
                 })
+    }
+
+    fn settled_current_leading_optional(&self, name: &[u8], visited: &MakefileVisits<'_>) -> bool {
+        visited
+            .get(name)
+            .zip(self.file_traversals.outcome(name))
+            .is_some_and(|((before, _), outcome)| {
+                before.is_some()
+                    && outcome.time == *before
+                    && outcome.completion == CompletionTime::Unchanged
+                    && !outcome.ran
+                    && !outcome.fatal
+                    && !outcome.blocked
+                    && outcome.goal_verdict().is_none()
+                    && self.unruled_remake_source(name)
+                    && Self::regular_remake_clock(name) == *before
+            })
     }
 
     fn settled_leading_optional_failure(

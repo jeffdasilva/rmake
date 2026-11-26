@@ -394,6 +394,10 @@ restored final timestamp. Both layouts also cover a real failure from the final
 declared required recipe under keep-going. The recipe diagnostic and cached
 dependency failures remain available. Other failure shapes and completion
 orders still need qualification.
+The ordinary reread also covers an earlier unruled optional source that stayed
+current. The corresponding assumed refresh retains the tagged missing-rule
+failure for dependents and can reread after the required worker restores the
+optional file's timestamp.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
