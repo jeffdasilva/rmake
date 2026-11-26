@@ -11,6 +11,60 @@ unsafe extern "C" {
     fn strcoll(left: *const c_char, right: *const c_char) -> c_int;
 }
 
+#[cfg(all(target_arch = "x86_64", target_env = "musl"))]
+unsafe extern "C" {
+    fn newlocale(mask: c_int, locale: *const c_char, base: *mut c_void) -> *mut c_void;
+    fn freelocale(locale: *mut c_void);
+}
+
+#[cfg(all(target_arch = "x86_64", target_env = "musl"))]
+pub(crate) struct ByteMatchLocale {
+    previous: *mut c_void,
+    selected: *mut c_void,
+}
+
+#[cfg(all(target_arch = "x86_64", target_env = "musl"))]
+impl ByteMatchLocale {
+    /// The bundled GNU matcher consumes bytes, even in a UTF-8 locale.
+    /// Switch only for matching and restore the caller before collation.
+    pub(crate) fn select() -> Option<Self> {
+        // A thread-local selection can differ from the process LC_CTYPE.
+        let current = unsafe { uselocale(std::ptr::null_mut()) };
+        if current as isize == -1 {
+            let ctype = unsafe { setlocale(0, std::ptr::null()) };
+            if !ctype.is_null()
+                && matches!(unsafe { CStr::from_ptr(ctype) }.to_bytes(), b"C" | b"POSIX")
+            {
+                return None;
+            }
+        }
+        // On musl, LC_CTYPE is 0 and its selection mask is 1.
+        // The new locale is private and held until the previous one is restored.
+        let selected = unsafe { newlocale(1, c"C".as_ptr(), std::ptr::null_mut()) };
+        if selected.is_null() {
+            return None;
+        }
+        let previous = unsafe { uselocale(selected) };
+        if previous.is_null() {
+            unsafe { freelocale(selected) };
+            return None;
+        }
+        Some(Self { previous, selected })
+    }
+}
+
+#[cfg(all(target_arch = "x86_64", target_env = "musl"))]
+impl Drop for ByteMatchLocale {
+    fn drop(&mut self) {
+        // Both pointers came from this thread's successful uselocale call
+        // and its owned newlocale selection.
+        unsafe {
+            uselocale(self.previous);
+            freelocale(self.selected);
+        }
+    }
+}
+
 /// Let libc select every category using LC_ALL, category overrides and LANG.
 /// The executable calls this once at entry, before any foreign code or threads.
 /// An unavailable selection leaves the initial C locale in place; it does not

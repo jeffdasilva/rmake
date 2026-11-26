@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import functools
 import hashlib
 import json
@@ -181,6 +182,34 @@ def observe_runtime(binary, *, loader, libraries):
     }
 
 
+def utf8_wildcard_case(root, reference, candidate):
+    case = conformance.load_case(oracle.ROOT / 'tests/musl/wildcard-utf8-byte-width')
+    case = replace(case, environment={**case.environment, 'LC_ALL': 'C.UTF-8'})
+    root.mkdir()
+    first, second = (conformance.execute(case, root, reference) for _ in range(2))
+    mismatches = (
+        conformance.expectation_errors(case, first, root=root)
+        + conformance.expectation_errors(case, second, root=root)
+        + conformance.differences(first, second)
+    )
+    gnu2_qualified = not mismatches
+    observations = {'gnu-1': first, 'gnu-2': second}
+    if gnu2_qualified:
+        trial = conformance.execute(case, root, candidate)
+        observations['candidate'] = trial
+        mismatches.extend(conformance.differences(first, trial))
+    print('FAIL' if mismatches else 'PASS', case.id, ', '.join(mismatches), flush=True)
+    return {
+        'id': case.id, 'environment': case.environment, 'expected': case.expected,
+        'gnu2_qualified': gnu2_qualified, 'passed': not mismatches, 'mismatches': mismatches,
+        'observations': {
+            name: {**conformance.observation_json(value), 'stdout_hex': value.stdout.hex(),
+                   'stderr_hex': value.stderr.hex()}
+            for name, value in observations.items()
+        },
+    }
+
+
 def cases(root, reference, candidate, compiler):
     ordinary = []
     workspace = root / 'ordinary'
@@ -199,6 +228,8 @@ def cases(root, reference, candidate, compiler):
             mismatches.append('process limit')
         ordinary.append({'id': name, 'mismatches': mismatches})
         print('FAIL' if mismatches else 'PASS', name, ', '.join(mismatches), flush=True)
+
+    utf8_wildcard = utf8_wildcard_case(root / 'utf8-wildcard', reference, candidate)
 
     native = [model for model in native_modules.models() if model.id in NATIVE_CASES]
     restarts = [model for model in process_restarts.models() if model['id'] in RESTART_CASES]
@@ -223,10 +254,10 @@ def cases(root, reference, candidate, compiler):
             os.environ.pop('PATH', None)
         else:
             os.environ['PATH'] = host_path
-    passed = (all(not case['mismatches'] for case in ordinary) and native_report['passed']
-              and restart_report['passed'] and pipe_report['passed'])
-    return {'passed': passed, 'ordinary': ordinary, 'native': native_report,
-            'process_restarts': restart_report, 'restart_pipe': pipe_report}
+    passed = (all(not case['mismatches'] for case in ordinary) and utf8_wildcard['passed']
+              and native_report['passed'] and restart_report['passed'] and pipe_report['passed'])
+    return {'passed': passed, 'ordinary': ordinary, 'utf8_wildcard': utf8_wildcard,
+            'native': native_report, 'process_restarts': restart_report, 'restart_pipe': pipe_report}
 
 
 def run(root, report, revision):

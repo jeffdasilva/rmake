@@ -116,8 +116,9 @@ The [native x86-64 musl workflow](../.github/workflows/native-musl.yml) uses
 musl 1.2.4 and libucontext 1.5.2 with the Ubuntu host recipe shell. It compares
 optimized rmake with pinned GNU Make in the C locale across selected wildcard,
 shell-status, include remake, native module setup, process restart, and inherited
-jobserver pipe cases. See the [testing guide](testing.md) for the reproducible
-build and the [M3/M6 audit](m3-m6-audit.md) for broader platform coverage.
+jobserver pipe cases. A separate C.UTF-8 fixture checks wildcard byte width.
+See the [testing guide](testing.md) for the reproducible build and the
+[M3/M6 audit](m3-m6-audit.md) for broader platform coverage.
 
 ## How rmake checks a difference
 

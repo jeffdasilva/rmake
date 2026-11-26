@@ -156,6 +156,11 @@ impl Engine {
             .values()
             .map(|owner| owner.original.as_slice())
             .collect();
+        let archive_reads = self.archive_vpath_reads.borrow();
+        let permanent_archive_original_names: HashSet<_> = archive_reads
+            .iter()
+            .flat_map(|reads| reads.permanent_containers.values().map(Vec::as_slice))
+            .collect();
         let mut snapshots = Vec::new();
         for entry in self.database.file_records.entries() {
             let moved = self.moved_archives.get(&entry.id);
@@ -183,9 +188,10 @@ impl Engine {
                                 snapshot.view.target_variables,
                             ));
                     }
-                } else if self
-                    .database
-                    .is_recreated_file_head_name(name, self.aliases.resolve(name))
+                } else if permanent_archive_original_names.contains(name)
+                    || self
+                        .database
+                        .is_recreated_file_head_name(name, self.aliases.resolve(name))
                 {
                     snapshot.view.command_line = false;
                     snapshot.view.preserve_name = true;
@@ -477,9 +483,15 @@ impl Engine {
             view.updated = outcome.database_result != DatabaseResult::UnfinishedMissingRule;
             view.status = if !view.updated {
                 FileStatus::Unattempted
-            } else if detached_head {
+            } else if detached_head
+                || outcome.database_result == DatabaseResult::MergedArchiveContainer
+            {
                 // Rehash copies the updated flag onto the unvisited physical
                 // destination and leaves its update result untouched.
+                if outcome.database_result == DatabaseResult::MergedArchiveContainer {
+                    // Its file stem is separate from the source's recipe locals.
+                    view.stem = None;
+                }
                 FileStatus::Unattempted
             } else if outcome.failed {
                 FileStatus::Failed
@@ -496,7 +508,13 @@ impl Engine {
             view.status = FileStatus::DependenciesRunning;
         }
         let automatic = variables
-            .map(|variables| variables.database_file_definitions())
+            .map(|variables| {
+                if branch.is_none() {
+                    variables.database_file_definitions_with_scope(view.target_variables)
+                } else {
+                    variables.database_file_definitions()
+                }
+            })
             .or_else(|| {
                 view.target_variables
                     .map(|scope| scope.database_definitions().collect())

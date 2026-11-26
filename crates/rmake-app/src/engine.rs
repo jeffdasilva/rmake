@@ -334,6 +334,8 @@ enum DatabaseResult {
     ObservedGroup,
     ObservedDoubleColon,
     RecipeUnstarted,
+    // A completed archive container merged into an unattempted file record.
+    MergedArchiveContainer,
     // A stopping missing-rule diagnostic precedes update completion.
     UnfinishedMissingRule,
 }
@@ -1463,6 +1465,7 @@ struct ArchiveVpathReads {
     members: HashSet<Vec<u8>>,
     archives: HashSet<Vec<u8>>,
     paths: HashMap<Vec<u8>, Vec<u8>>,
+    permanent_containers: HashMap<FileRecordId, Vec<u8>>,
 }
 
 #[derive(Clone, Copy)]
@@ -1475,6 +1478,7 @@ struct ArchiveLocation {
     refresh: bool,
     member_time: Option<SystemTime>,
     container_time: Option<SystemTime>,
+    settled_missing_container: bool,
     path: Option<Vec<u8>>,
 }
 
@@ -4568,6 +4572,12 @@ impl Engine {
                             .assumed_new_double_colon_entries(self.aliases.resolve(name))
                             .is_some_and(|(_, count)| count == 1));
                 let mut source_started_command = false;
+                let inline_optional_dispatch =
+                    (trailing_optional_source.as_ref().is_some_and(|trailing| {
+                        name == trailing.neighbor && trailing.kind == TrailingOptionalKind::Declared
+                    }) && !pending_peer
+                        && !self.file_traversals.has_outcome(self.aliases.resolve(name)))
+                    .then_some(self.next_job);
                 let mut result = self.build_recording_initial_time(
                     name,
                     None,
@@ -4836,7 +4846,12 @@ impl Engine {
                 if let Some(trailing) = &trailing_optional_source
                     && name == trailing.neighbor
                     && self.options.keep_going
-                    && self.settled_trailing_optional_remake(trailing, before, result)
+                    && self.settled_trailing_optional_remake(
+                        trailing,
+                        before,
+                        result,
+                        inline_optional_dispatch == Some(self.next_job),
+                    )
                 {
                     self.qualify_synthetic_recipe_after_optional_read(&trailing.required.name);
                 }
@@ -8952,7 +8967,7 @@ impl Engine {
                 .archive_location_for(target, false)
                 .map_err(|error| self.expansion_error(None, &error))?;
             if let Some(path) = &location.path
-                && self.has_file_record(archive)
+                && self.database.file_records.contains(archive)
                 && self.database.file_records.logical_name(path) == Some(archive)
             {
                 // enter_file recreated the original container key. Merging
@@ -8962,11 +8977,51 @@ impl Engine {
             if let Some(path) = &location.path
                 && (self.gpath_match(archive, path) || self.other_file_record(path, archive))
             {
+                let name = [path.as_slice(), b"(", member, b")"].concat();
+                let settled_container =
+                    if location.container_time.is_some() && self.gpath_match(archive, path) {
+                        self.settled_archive_record(archive)
+                    } else {
+                        None
+                    };
+                let merged_owners =
+                    settled_container.and_then(|_| self.late_goal_merge_owners(archive, path));
+                let retained_owner = if self.database.file_records.contains(path) {
+                    merged_owners.map(|(_, destination)| destination)
+                } else {
+                    settled_container
+                };
+                if retained_owner.is_some()
+                    && let Some(history) = self.database.database_history()
+                {
+                    // VPATH interns the permanent container result before the
+                    // member's rehash interns its matching spelling.
+                    history.intern(path);
+                    history.intern(&name);
+                }
                 self.rename_search_record(archive, path)?;
+                if let Some(owner) = retained_owner
+                    && let Some(mut outcome) = self.file_traversals.remove_outcome(archive)
+                {
+                    debug_assert_eq!(self.database.file_records.id(path), Some(owner));
+                    // Both kinds of permanent rename retain the update and
+                    // the observation of the searched container.
+                    outcome.time = location.container_time;
+                    if let Some((source, destination)) = merged_owners {
+                        outcome.database_result = DatabaseResult::MergedArchiveContainer;
+                        self.record_merged_goal_reports(source, destination, path);
+                    }
+                    self.file_traversals.set_outcome(path, outcome);
+                    self.archive_vpath_reads
+                        .get_mut()
+                        .as_mut()
+                        .expect("successful archive search records the path")
+                        .permanent_containers
+                        .insert(owner, archive.to_vec());
+                }
                 self.path_observations
                     .entry(path.clone())
                     .or_insert(Some((None, location.container_time)));
-                let name = [path.as_slice(), b"(", member, b")"].concat();
                 self.rename_search_record(target, &name)?;
                 let observation = self
                     .archive_observation_at(target, &location, Some(&name))
@@ -9016,7 +9071,7 @@ impl Engine {
             let observation = self
                 .archive_observation_at(target, &location, Some(target))
                 .map_err(|error| self.expansion_error(None, &error))?;
-            if location.container_time.is_some() {
+            if location.container_time.is_some() || location.settled_missing_container {
                 self.path_observations.insert(target.to_vec(), observation);
             }
             return Ok(None);
@@ -9845,6 +9900,22 @@ impl Engine {
         } else {
             local_time
         };
+        // An unsuccessful container lookup updates the completed container's
+        // physical time, but returns before setting the member's own mtime.
+        let settled_missing_container = !refresh
+            && path.is_none()
+            && container_time.is_none()
+            && archive == container
+            && self.assumed_time(archive).is_none()
+            && self.settled_archive_record(archive).is_some();
+        if settled_missing_container {
+            if let Some(outcome) = self.file_traversals.outcome_mut(archive) {
+                outcome.time = None;
+            }
+            self.database_unchecked_times
+                .borrow_mut()
+                .insert(target.to_vec());
+        }
         // The archive is a separate file observation even when the member
         // has already finished. Its first physical timestamp may be here.
         if self.clock_candidate(container_time).is_some()
@@ -9891,6 +9962,7 @@ impl Engine {
             refresh,
             member_time,
             container_time,
+            settled_missing_container,
             path,
         })
     }
@@ -9926,18 +9998,19 @@ impl Engine {
             .as_deref()
             .or(location.path.as_deref())
             .unwrap_or(archive);
-        if location.path.is_none()
-            && previous.is_some()
-            && self.database.file_records.id(path).is_some_and(|id| {
-                self.moved_archives
-                    .get(&id)
-                    .is_some_and(|owner| owner.original == archive)
-            })
-            && let Some(history) = self.database.database_history()
-        {
-            // After a local rebuild, ar_member_date looks up the retained
-            // searched container before reading the original member date.
-            history.record_file_lookup(path);
+        if let Some(history) = self.database.database_history() {
+            let tentative_rebuild = location.path.is_none()
+                && previous.is_some()
+                && self.database.file_records.id(path).is_some_and(|id| {
+                    self.moved_archives
+                        .get(&id)
+                        .is_some_and(|owner| owner.original == archive)
+                });
+            if tentative_rebuild || self.retained_permanent_archive(path) {
+                // ar_member_date looks up the searched container before reading
+                // the member date, including after a local member rebuild.
+                history.record_file_lookup(path);
+            }
         }
         let date = rmake_linux::archive::date(path, member)
             .map_err(|error| ExpandError::UnlocatedError(error.into_message()))?;
@@ -9955,6 +10028,20 @@ impl Engine {
             self.check_clock_skew(name, time);
         }
         Ok(Some((resolved, time)))
+    }
+
+    fn retained_permanent_archive(&self, path: &[u8]) -> bool {
+        self.archive_vpath_reads
+            .borrow()
+            .as_ref()
+            .is_some_and(|reads| {
+                !reads.permanent_containers.is_empty()
+                    && self
+                        .database
+                        .file_records
+                        .id(path)
+                        .is_some_and(|id| reads.permanent_containers.contains_key(&id))
+            })
     }
 
     fn archive_observation(
@@ -10131,12 +10218,21 @@ impl Engine {
         if !self.vpath_searchable(archive) {
             return Ok(None);
         }
-        for directory in self
-            .database
-            .vpath_directories(archive)
-            .chain(self.vpath_dirs.iter().map(Vec::as_slice))
-            .filter(|directory| *directory != b".")
-        {
+        let paths = self.database.ranked_vpath_directories(archive).chain(
+            self.vpath_dirs
+                .iter()
+                .filter(|path| path.as_slice() != b".")
+                .enumerate()
+                .map(|(index, path)| ((self.database.vpath_group_count(), index), path.as_slice())),
+        );
+        let mut observed_group = None;
+        for ((group, _), directory) in paths {
+            if let Some(history) = self.database.database_history()
+                && observed_group != Some(group)
+            {
+                history.record_file_lookup(archive);
+                observed_group = Some(group);
+            }
             let path = searched_name(directory, archive);
             let (lookup, membership) = search_probe_names(directory, archive, &path);
             if self.search_record_matches(archive, &lookup)
@@ -10233,6 +10329,18 @@ impl Engine {
         self.merged_goal_reports.get(&owner)
     }
 
+    fn record_merged_goal_reports(
+        &mut self,
+        source: FileRecordId,
+        destination: FileRecordId,
+        name: &[u8],
+    ) {
+        self.merged_goal_reports
+            .insert(source, MergedGoalReport::CompletedSource(name.to_vec()));
+        self.merged_goal_reports
+            .insert(destination, MergedGoalReport::UnattemptedDestination);
+    }
+
     fn late_goal_merge_owners(
         &self,
         from: &[u8],
@@ -10302,7 +10410,9 @@ impl Engine {
         }
         if let Some(stamp) = self.archive_completion_times.get(target) {
             outcome.time = stamp.time;
-            if !stamp.known {
+            if stamp.known {
+                self.database_unchecked_times.borrow_mut().remove(target);
+            } else {
                 outcome.completion = CompletionTime::ArchiveUnknown;
             }
             outcome.search_after_update = false;
@@ -10324,10 +10434,7 @@ impl Engine {
                     } else if let Some((source, destination)) = owners
                         && !self.database.has_detached_file_head(&name)
                     {
-                        self.merged_goal_reports
-                            .insert(source, MergedGoalReport::CompletedSource(name.clone()));
-                        self.merged_goal_reports
-                            .insert(destination, MergedGoalReport::UnattemptedDestination);
+                        self.record_merged_goal_reports(source, destination, &name);
                     }
                     self.file_traversals.set_outcome(&name, outcome);
                     if self.database.has_detached_file_head(&name) {
@@ -12021,7 +12128,7 @@ impl Engine {
         match self.archive_observation_at(target, &location, search.then_some(target)) {
             Ok(observation) => {
                 if search {
-                    if location.container_time.is_some() {
+                    if location.container_time.is_some() || location.settled_missing_container {
                         self.path_observations.insert(target.to_vec(), observation);
                     }
                 } else {
@@ -12596,6 +12703,13 @@ impl Engine {
             let tentative_member = self.discard_missing_archive_name(target);
             let optional = self.optional_remake();
             let keep_going = self.options.keep_going;
+            let stopping_archive_member = !optional
+                && !keep_going
+                && (tentative_member
+                    || rmake_core::filenames::archive_parts(target).is_some_and(|(archive, _)| {
+                        self.database_unchecked_times.borrow().contains(target)
+                            || self.retained_permanent_archive(archive)
+                    }));
             self.missing_rule_parents
                 .insert(target.to_vec(), parent.map(|parent| parent.target.to_vec()));
             if !optional {
@@ -12610,7 +12724,7 @@ impl Engine {
             }
             let result = Outcome {
                 failed: true,
-                database_result: if tentative_member && !optional && !keep_going {
+                database_result: if stopping_archive_member {
                     DatabaseResult::UnfinishedMissingRule
                 } else {
                     DatabaseResult::Outcome
@@ -12891,26 +13005,37 @@ impl Engine {
         trailing: &TrailingOptionalRemake<'_>,
         before: Option<SystemTime>,
         result: Outcome,
+        inline_completion: bool,
     ) -> bool {
-        if result.ran || result.fatal || result.question_outdated || result.time != before {
+        if result.fatal || result.question_outdated || result.time != before {
             return false;
         }
         let name = trailing.neighbor;
         match trailing.kind {
             TrailingOptionalKind::Unruled => {
-                before.is_some() && !result.failed && self.unruled_remake_source(name)
+                before.is_some()
+                    && !result.ran
+                    && !result.failed
+                    && self.unruled_remake_source(name)
             }
             TrailingOptionalKind::Declared => {
                 before.is_some()
                     && !result.failed
                     && !result.blocked
                     && self.declared_optional_remake_source(name)
+                    // A prepared ':' counts as run but creates no recipe job.
+                    && (!result.ran
+                        || (inline_completion
+                            && result.completion == CompletionTime::Refresh
+                            && self.parallel_jobs.len() == 1
+                            && !MakefileModes::from_options(&self.options).active()))
             }
             TrailingOptionalKind::Missing => {
                 // The optional file settled as a direct missing-rule visit.
                 // Keep that failure available to ordinary prerequisites.
                 before.is_none()
                     && result.failed
+                    && !result.ran
                     && !result.blocked
                     && self
                         .missing_rule_parents

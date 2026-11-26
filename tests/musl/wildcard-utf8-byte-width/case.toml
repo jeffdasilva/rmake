@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright 2026 Jeff DaSilva
+id = "wildcard-utf8-byte-width"
+requirement = "functions.filesystem"
+candidate = "required"
+description = "The bundled musl wildcard matcher counts bytes under C.UTF-8"
+provenance = "Original fixture with one ASCII byte and one two-byte UTF-8 name."
+args = ["-rR", "-s", "--no-print-directory"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "one=[names/a]\ntwo=[names/é]\n"
+stderr = ""
