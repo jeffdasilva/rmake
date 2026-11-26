@@ -5550,8 +5550,14 @@ impl Database {
                         .iter()
                         .rev()
                         .any(|frame| frame.set_export_policy(name, export))
-                        || self.apply_scoped_assignment_qualifiers(name, false, Some(export))
                     {
+                        continue;
+                    }
+                    self.evaluation_scope
+                        .as_ref()
+                        .unwrap_or(&self.variables)
+                        .record_database_lookup(name);
+                    if self.apply_scoped_assignment_qualifiers(name, false, Some(export)) {
                         continue;
                     }
                     if self.variables.get(name).is_none() {

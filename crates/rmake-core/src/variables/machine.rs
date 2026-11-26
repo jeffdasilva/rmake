@@ -970,6 +970,10 @@ impl Expansion<'_, '_> {
     ) -> Result<(), ExpandError> {
         let name_text = trim_function_start(&expanded[0]);
         let name = name_text.split(gnu_whitespace).next().unwrap_or_default();
+        if name.is_empty() {
+            m.values.push(Vec::new());
+            return Ok(());
+        }
         if let Some((minimum, maximum)) = arity(name) {
             let mut values = expanded[1..].to_vec();
             if values.len() < minimum {
@@ -1000,12 +1004,16 @@ impl Expansion<'_, '_> {
             return Ok(());
         }
         let Some(variable) = self.lookup(name).cloned() else {
-            if !name.is_empty() && self.context.warns_undefined() {
+            if self.context.warns_undefined() {
                 self.warn_missing(name)?;
             }
             m.values.push(Vec::new());
             return Ok(());
         };
+        if variable.raw_value().is_empty() {
+            m.values.push(Vec::new());
+            return Ok(());
+        }
         let layer = if self
             .bindings
             .iter()
@@ -1078,41 +1086,35 @@ impl Expansion<'_, '_> {
             let binding = self.bindings[start]
                 .get(name)
                 .expect("selected call parameter");
-            let value = if variable.raw_value().is_empty() {
-                Vec::new()
-            } else {
-                binding.raw_value().to_vec()
-            };
-            m.values.push(value);
+            m.values.push(binding.raw_value().to_vec());
         } else if computed {
-            if variable.raw_value().is_empty() {
-                m.values.push(Vec::new());
-            } else {
-                // A computed name can supply a nested reference or close
-                // the generated reference before the end of the token.
-                let mut expression = Vec::with_capacity(name.len() + 3);
-                expression.extend_from_slice(b"$(");
-                expression.extend_from_slice(name);
-                expression.push(b')');
-                let expression = m.owned(expression, depth)?;
-                m.read(expression, depth, nearest)?;
-            }
+            // A computed name can supply a nested reference or close
+            // the generated reference before the end of the token.
+            let mut expression = Vec::with_capacity(name.len() + 3);
+            expression.extend_from_slice(b"$(");
+            expression.extend_from_slice(name);
+            expression.push(b')');
+            let expression = m.owned(expression, depth)?;
+            m.read(expression, depth, nearest)?;
         } else if substitution {
             // The generated reference can select a substitution in this frame.
-            if variable.raw_value().is_empty() {
-                m.values.push(Vec::new());
-            } else {
-                m.values.push(name.to_vec());
-                m.job(Kind::Resolve, depth, nearest)?;
-            }
-        } else if variable.flavor == Flavor::Simple {
-            m.values.push(variable.value);
+            m.values.push(name.to_vec());
+            m.job(Kind::Resolve, depth, nearest)?;
         } else {
-            m.job(
-                Kind::Layer(name.to_vec(), variable, layer, 0),
-                depth,
-                location,
-            )?;
+            if layer.is_some() {
+                // A literal non-lexical callee is looked up again when its
+                // generated reference expands inside the argument frame.
+                self.store.record_database_lookup(name);
+            }
+            if variable.flavor == Flavor::Simple {
+                m.values.push(variable.value);
+            } else {
+                m.job(
+                    Kind::Layer(name.to_vec(), variable, layer, 0),
+                    depth,
+                    location,
+                )?;
+            }
         }
         Ok(())
     }

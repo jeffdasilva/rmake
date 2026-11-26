@@ -79,6 +79,11 @@ NUL boundaries, rebinding and cancellation.
   pattern append checks the binding's own table before storing its deferred
   suffix. Expanding an inherited append in a recipe or environment starts
   a fresh lookup and records the logical tables visited as it finds each part.
+  Standalone export and unexport lists record the visible-scope lookup for
+  each name before updating its policy or creating an empty global binding.
+  User-defined calls record the initial body lookup and the lookup in the
+  argument frame when a literal callee has a body. An empty callee still
+  evaluates its arguments before returning an empty result.
 - [Variable metadata](variable-metadata.md), [POSIX mode](posix-mode.md),
   [late built-in disabling](late-builtins.md) and
   [byte-preserving child environments](environment-vectors.md).
