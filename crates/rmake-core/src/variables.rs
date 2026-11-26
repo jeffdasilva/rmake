@@ -2891,6 +2891,10 @@ impl VariableStore {
         }
         self.promote_environment(name, origin);
         if self.get(name).is_some_and(|old| old.origin > origin) {
+            if !value.is_empty() {
+                // An append rejected by origin still probes the definition slot.
+                self.database_definition_lookup(name);
+            }
             return Ok(());
         }
         let current = match base {
