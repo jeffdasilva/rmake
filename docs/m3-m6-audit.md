@@ -131,6 +131,9 @@ NUL boundaries, rebinding and cancellation.
   An accepted include appends its filename to the raw value of the visible
   MAKEFILE_LIST binding and writes the result globally. It preserves the
   selected flavor and starts a recursive value when no binding is visible.
+  A rejected append still counts its lookup of the global definition.
+  The optional-file database marker belongs to the active remake visit.
+  A serial fatal dump retains the marker from the interrupted visit.
 - [Eval allocation investigation](eval-allocation-profiles.md) retains experiments
   rejected after elapsed-time regressions and the selected runtime controls.
 

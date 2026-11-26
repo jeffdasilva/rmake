@@ -1692,7 +1692,8 @@ pub struct Engine {
     database_delete_policy: Cell<bool>,
     database_times: RefCell<HashMap<Vec<u8>, Option<SystemTime>>>,
     database_secondary: HashSet<Vec<u8>>,
-    database_remake_started: HashSet<Vec<u8>>,
+    database_optional_visits: Vec<Vec<u8>>,
+    database_fatal_optional_visits: RefCell<Vec<Vec<u8>>>,
     program: Vec<u8>,
     makelevel: u32,
     inherited_exports: HashSet<Vec<u8>>,
@@ -2291,7 +2292,8 @@ impl Engine {
             database_delete_policy: Cell::new(false),
             database_times: RefCell::new(HashMap::new()),
             database_secondary: HashSet::new(),
-            database_remake_started: HashSet::new(),
+            database_optional_visits: Vec::new(),
+            database_fatal_optional_visits: RefCell::new(Vec::new()),
             program,
             makelevel,
             inherited_exports,
@@ -2934,6 +2936,12 @@ impl Engine {
             return;
         }
         let mut shutdown = self.shutdown.get();
+        if shutdown == Shutdown::Running && !self.database_optional_visits.is_empty() {
+            // The database is printed after the serial update stack unwinds.
+            self.database_fatal_optional_visits
+                .borrow_mut()
+                .clone_from(&self.database_optional_visits);
+        }
         let wait = shutdown.report(owner);
         self.shutdown.set(shutdown);
         if let Some(location) = location.filter(|location| !location.file.is_null()) {
@@ -4506,7 +4514,6 @@ impl Engine {
                 .map(|(file, _)| file.name.as_slice())
                 .collect();
             for (source_index, (makefile, skip)) in read_files.iter().enumerate() {
-                self.database_remake_started.insert(makefile.name.clone());
                 if *skip {
                     if !makefile.optional
                         && let Some(detail) = &makefile.read_error
@@ -9653,16 +9660,18 @@ impl Engine {
                         .get(&worker.required, worker.required_identity)
                         .is_some_and(|required| required.child.is_some())
                     || (worker.no_required_tail_remains
-                        && worker.required_reap.get().is_some()
-                        && (job.before == Some(clock)
-                            || (worker.direct_reread
-                                && matches!(
-                                    worker.required_reap.get(),
-                                    Some(RequiredRemakeWorkerReap::Completed(_))
-                                )
-                                && failed_source_recipe
-                                && optional_failure))
-                        && (!report_error || (failed_source_recipe && optional_failure))))
+                        && match worker.required_reap.get() {
+                            Some(_) if job.before == Some(clock) => {
+                                !report_error || (failed_source_recipe && optional_failure)
+                            }
+                            Some(RequiredRemakeWorkerReap::Completed(_)) => {
+                                failed_source_recipe && optional_failure
+                            }
+                            Some(RequiredRemakeWorkerReap::FailedDeclaredTail { .. }) => {
+                                worker.direct_reread && failed_source_recipe && optional_failure
+                            }
+                            None => false,
+                        }))
                 && Self::regular_remake_clock(&target) == Some(clock)
             {
                 if !report_error && Self::same_clock_optional_remake_outcome(Some(clock), cached) {
@@ -10268,7 +10277,6 @@ impl Engine {
             &mut self.database_implicit,
             &mut self.terminal_prerequisites,
             &mut self.database_secondary,
-            &mut self.database_remake_started,
             &mut self.ignored_vpath,
         ] {
             if flags.remove(from) {
@@ -13074,6 +13082,14 @@ impl Engine {
         // load check, even if that check starts this goal's queued recipe.
         let commands_before = self.commands_started;
         let mut reused_failed_outcome = false;
+        let mark_optional_visit = self.remaking
+            && !self.parallel_makefile_remakes
+            && self.optional_remake()
+            && self.output.database_requested();
+        if mark_optional_visit {
+            // Leaf updates and early expansion can bypass the cycle detection set.
+            self.database_optional_visits.push(target.to_vec());
+        }
         let mut outcome = if archive_error {
             Outcome {
                 failed: true,
@@ -13109,6 +13125,9 @@ impl Engine {
         {
             outcome.failed = true;
             outcome.fatal = true;
+        }
+        if mark_optional_visit {
+            self.database_optional_visits.pop();
         }
         if self.optional_remake()
             && !reused_failed_outcome
@@ -13911,9 +13930,10 @@ impl Engine {
             && let Some(mut outcome) = self.file_traversals.outcome(name).copied()
             && outcome.ran_refresh()
             && outcome.goal_verdict().is_none()
-            && matches!(worker.required_reap.get(),
-                Some(RequiredRemakeWorkerReap::Completed(clock)) if outcome.time == Some(clock))
-            && self.restored_required_worker_clock(request, trailing, visited)
+            && let Some(RequiredRemakeWorkerReap::Completed(clock)) = worker.required_reap.get()
+            && outcome.time == Some(clock)
+            && self.successful_explicit_source_refresh(&worker.required, clock)
+            && self.required_worker_clock_was_restored(worker, trailing, visited, true)
         {
             // This pass continues with the original reads. Ordinary goals
             // compare the final physical time of the completed source.
@@ -14071,7 +14091,12 @@ impl Engine {
                     || (worker.only_synthetic_tail_remains
                         && worker.required_failure_settled.get()))
                     && self.failed_declared_worker_reap(worker).is_some()
-                    && self.required_worker_clock_was_restored(worker, trailing, visited, false)
+                    && self.required_worker_clock_was_restored(
+                        worker,
+                        trailing,
+                        visited,
+                        worker.direct_reread,
+                    )
             })
     }
 
@@ -18748,7 +18773,8 @@ impl Engine {
                     .values()
                     .all(|job| job.child.is_some() && job.continuation.remake.is_none());
             if failed_dispatch && let Err(error) = &process {
-                self.stderr(&[program.as_slice(), b": ", os_error(error).as_bytes()].concat());
+                let detail = rmake_linux::filesystem::source_error_detail(error);
+                self.stderr(&[program.as_slice(), b": ", &detail].concat());
             }
             self.output.select(None);
             if let Ok((child, _)) = &process {
@@ -18896,7 +18922,8 @@ impl Engine {
                         .map_or_else(|| signal_status(status), |code| format!("Error {code}")),
                 ),
                 Err(err) => {
-                    self.stderr(&[program.as_slice(), b": ", os_error(&err).as_bytes()].concat());
+                    let detail = rmake_linux::filesystem::source_error_detail(&err);
+                    self.stderr(&[program.as_slice(), b": ", &detail].concat());
                     // GNU rechecks the last successfully spawned command
                     // when the next executable lookup fails.
                     if executable_launch_failed
@@ -18913,14 +18940,8 @@ impl Engine {
                         && let Some(path) = previous_executable.as_ref()
                         && let Err(error) = std::fs::metadata(path)
                     {
-                        self.stderr(
-                            &[
-                                path.as_os_str().as_bytes(),
-                                b": ",
-                                os_error(&error).as_bytes(),
-                            ]
-                            .concat(),
-                        );
+                        let detail = rmake_linux::filesystem::source_error_detail(&error);
+                        self.stderr(&[path.as_os_str().as_bytes(), b": ", &detail].concat());
                     }
                     Some("Error 127".to_owned())
                 }
