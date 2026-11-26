@@ -642,8 +642,12 @@ struct RequiredRemakeWorkerPair<'a> {
     second_identity: u64,
     second_before: SystemTime,
     second_failure: Option<Rc<Cell<Option<SystemTime>>>>,
-    third: Option<RemakeChild<'a>>,
-    third_failure: Option<Rc<Cell<Option<SystemTime>>>>,
+    trailing: Vec<RequiredRemakeWorker<'a>>,
+}
+
+struct RequiredRemakeWorker<'a> {
+    child: RemakeChild<'a>,
+    failure: Option<Rc<Cell<Option<SystemTime>>>>,
 }
 
 struct TrailingOptionalWorker {
@@ -8863,9 +8867,11 @@ impl Engine {
                     if self.options.keep_going {
                         pair.second_failure =
                             self.track_required_pair_failure(pair.second, pair.second_identity);
-                        pair.third_failure = pair.third.as_ref().and_then(|third| {
-                            self.track_required_pair_failure(third.name, third.identity)
-                        });
+                        for worker in &mut pair.trailing {
+                            let child = &worker.child;
+                            worker.failure =
+                                self.track_required_pair_failure(child.name, child.identity);
+                        }
                     }
                 }
                 if request.trace_synthetic_reap
@@ -14681,6 +14687,8 @@ impl Engine {
             || !self.unruled_remake_source(&primary.name)
             || !std::ptr::eq(first.file, first_source)
             || !std::ptr::eq(second.file, second_source)
+            || trailing_sources.len() != trailing_requests.len()
+            || trailing_requests.len() > 4
         {
             return None;
         }
@@ -14688,22 +14696,25 @@ impl Engine {
             self.held_direct_required_remake_job(first, visited)?;
         let (second_identity, second_before, second_branch) =
             self.held_direct_required_remake_job(second, visited)?;
-        let third = match (trailing_sources, trailing_requests) {
-            ([], []) => None,
-            ([(source, false)], [request]) if std::ptr::eq(request.file, source) => {
-                let (identity, before, branch) =
-                    self.held_direct_required_remake_job(request, visited)?;
-                if branch.is_some() {
-                    return None;
-                }
-                Some(RemakeChild {
+        let mut trailing = Vec::with_capacity(trailing_requests.len());
+        for ((source, skip), request) in trailing_sources.iter().zip(trailing_requests) {
+            if *skip || !std::ptr::eq(request.file, source) {
+                return None;
+            }
+            let (identity, before, branch) =
+                self.held_direct_required_remake_job(request, visited)?;
+            if branch.is_some() {
+                return None;
+            }
+            trailing.push(RequiredRemakeWorker {
+                child: RemakeChild {
                     name: &request.file.name,
                     identity,
                     before,
-                })
-            }
-            _ => return None,
-        };
+                },
+                failure: None,
+            });
+        }
         second_branch.is_none().then(|| {
             Box::new(RequiredRemakeWorkerPair {
                 first_identity,
@@ -14714,8 +14725,7 @@ impl Engine {
                 second_identity,
                 second_before,
                 second_failure: None,
-                third,
-                third_failure: None,
+                trailing,
             })
         })
     }
@@ -14780,23 +14790,22 @@ impl Engine {
         &self,
         pair: &RequiredRemakeWorkerPair<'_>,
     ) -> bool {
-        match &pair.third {
-            Some(third)
-                if self
-                    .parallel_jobs
-                    .get(third.name, third.identity)
-                    .is_some_and(|job| job.child.is_some()) =>
+        // The original second worker is still active at the observation.
+        let mut live = 1;
+        for worker in &pair.trailing {
+            let child = &worker.child;
+            if self
+                .parallel_jobs
+                .get(child.name, child.identity)
+                .is_some_and(|job| job.child.is_some())
             {
-                self.parallel_jobs.len() == 2
+                live += 1;
+            } else if !self.settled_required_remake_worker_clock(child.name, child.before, None) {
+                // A worker settled before the first clock must have succeeded.
+                return false;
             }
-            Some(third) => {
-                // A third worker that settled before the first clock was
-                // observed must have succeeded.
-                self.parallel_jobs.len() == 1
-                    && self.settled_required_remake_worker_clock(third.name, third.before, None)
-            }
-            None => self.parallel_jobs.len() == 1,
         }
+        self.parallel_jobs.len() == live
     }
 
     fn track_required_pair_failure(
@@ -14879,11 +14888,12 @@ impl Engine {
                 pair.second_before,
                 pair.second_failure.as_deref(),
             )
-            && pair.third.as_ref().is_none_or(|third| {
+            && pair.trailing.iter().all(|worker| {
+                let child = &worker.child;
                 self.settled_required_remake_worker_clock(
-                    third.name,
-                    third.before,
-                    pair.third_failure.as_deref(),
+                    child.name,
+                    child.before,
+                    worker.failure.as_deref(),
                 )
             })
     }
