@@ -13288,15 +13288,19 @@ impl Engine {
         let trailing_current = match trailing {
             [] => None,
             [(trailing, false)]
-                if trailing.optional
-                    && !trailing.missing
-                    && trailing.location.is_some()
-                    && self.unruled_remake_source(&trailing.name) =>
+                if trailing.optional && !trailing.missing && trailing.location.is_some() =>
             {
+                let kind = if self.unruled_remake_source(&trailing.name) {
+                    TrailingOptionalKind::Unruled
+                } else if self.declared_optional_remake_source(&trailing.name) {
+                    TrailingOptionalKind::Declared
+                } else {
+                    return None;
+                };
                 Some(TrailingOptionalRemake {
                     required,
                     neighbor: &trailing.name,
-                    kind: TrailingOptionalKind::Unruled,
+                    kind,
                 })
             }
             _ => return None,
@@ -13319,7 +13323,11 @@ impl Engine {
                 .get(name)
                 .zip(self.file_traversals.outcome(name))
                 .is_some_and(|((before, _), result)| {
-                    self.settled_trailing_optional_remake(trailing, *before, *result, false)
+                    // A declared trailing source must settle without expanding
+                    // a recipe, even if expansion would leave its clock intact.
+                    (trailing.kind != TrailingOptionalKind::Declared
+                        || result.completion == CompletionTime::Unchanged)
+                        && self.settled_trailing_optional_remake(trailing, *before, *result, false)
                         && fs::symlink_metadata(os(name))
                             .is_ok_and(|file| file.is_file() && file.modified().ok() == *before)
                 })
