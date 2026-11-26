@@ -50,17 +50,16 @@ pub(crate) fn unlink(
     if let Some(source) = source
         && let Err(error) = source.unlink()
     {
-        output.write_parts(
-            true,
-            &[
-                program,
-                b": unlink (temporary file): ",
-                source.path().as_os_str().as_bytes(),
-                b": ",
-                crate::engine::os_error(&error).as_bytes(),
-                b"\n",
-            ],
-        );
+        let key = c"unlink (temporary file): ";
+        let action =
+            rmake_linux::messages::lookup_static(key).unwrap_or_else(|_| key.to_bytes().to_vec());
+        let detail = rmake_linux::filesystem::source_error_detail(&error);
+        let body = crate::messages::system(Message::OsError {
+            action: &action,
+            path: source.path().as_os_str().as_bytes(),
+            detail: &detail,
+        });
+        output.write_parts(true, &[program, b": ", &body, b"\n"]);
     }
 }
 

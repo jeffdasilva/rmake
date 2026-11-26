@@ -3511,6 +3511,185 @@
         "stderr_hex": "",
         "seen_hex": "616e63686f720a7265616465720a72756e0a"
       }
+    },
+    {
+      "id": "nls-stdin-unlink-ordinary-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--temp-stdin=owned.mk",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "modules": [],
+      "errno_fact": [
+        "EISDIR",
+        "C"
+      ],
+      "files": {
+        "owned.mk": "2428696e666f2052455348415045443d5b24287368656c6c206d76202d2d20276f776e65642e6d6b27206f726967696e616c2e6d6b202626206d6b646972202d6d20373535202d2d20276f776e65642e6d6b27202626207072696e746620796573295d290a242866696c65203e3e7365656e2c72656164290a616c6c3a203b2040242866696c65203e3e7365656e2c676f616c297072696e74662022474f414c5c6e220a",
+        "seen": "616e63686f720a"
+      },
+      "directory_replacements": [
+        "owned.mk"
+      ],
+      "updates": {
+        "original.mk": "2428696e666f2052455348415045443d5b24287368656c6c206d76202d2d20276f776e65642e6d6b27206f726967696e616c2e6d6b202626206d6b646972202d6d20373535202d2d20276f776e65642e6d6b27202626207072696e746620796573295d290a242866696c65203e3e7365656e2c72656164290a616c6c3a203b2040242866696c65203e3e7365656e2c676f616c297072696e74662022474f414c5c6e220a"
+      },
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "52455348415045443d5b7965735d0a6d616b653a20756e6c696e6b202874656d706f726172792066696c65293a206f776e65642e6d6b3a20404f535f44455441494c400a474f414c0a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a726561640a676f616c0a"
+      }
+    },
+    {
+      "id": "nls-stdin-unlink-ordinary-raw-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--temp-stdin=raw-\udcff.mk",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "errno_fact": [
+        "EISDIR",
+        "fr_FR.UTF-8"
+      ],
+      "files": {
+        "raw-\udcff.mk": "2428696e666f2052455348415045443d5b24287368656c6c206d76202d2d20277261772dff2e6d6b27206f726967696e616c2e6d6b202626206d6b646972202d6d20373535202d2d20277261772dff2e6d6b27202626207072696e746620796573295d290a242866696c65203e3e7365656e2c72656164290a616c6c3a203b2040242866696c65203e3e7365656e2c676f616c297072696e74662022474f414c5c6e220a",
+        "seen": "616e63686f720a"
+      },
+      "directory_replacements": [
+        "raw-\udcff.mk"
+      ],
+      "updates": {
+        "original.mk": "2428696e666f2052455348415045443d5b24287368656c6c206d76202d2d20277261772dff2e6d6b27206f726967696e616c2e6d6b202626206d6b646972202d6d20373535202d2d20277261772dff2e6d6b27202626207072696e746620796573295d290a242866696c65203e3e7365656e2c72656164290a616c6c3a203b2040242866696c65203e3e7365656e2c676f616c297072696e74662022474f414c5c6e220a"
+      },
+      "output": "merged",
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "52455348415045443d5b7965735d0a6d616b653a20756e6c696e6b2028666963686965722074656d706f726169726529c2a03ac2a07261772dff2e6d6b203a20404f535f44455441494c400a474f414c0a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a726561640a676f616c0a"
+      }
+    },
+    {
+      "id": "nls-stdin-unlink-fatal-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--temp-stdin=owned.mk",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "modules": [],
+      "errno_fact": [
+        "EISDIR",
+        "fr_FR.UTF-8"
+      ],
+      "files": {
+        "owned.mk": "2428696e666f2052455348415045443d5b24287368656c6c206d76202d2d20276f776e65642e6d6b27206f726967696e616c2e6d6b202626206d6b646972202d6d20373535202d2d20276f776e65642e6d6b27202626207072696e746620796573295d290a242866696c65203e3e7365656e2c72656164290a24286572726f72207265616465722d73746f70290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "directory_replacements": [
+        "owned.mk"
+      ],
+      "updates": {
+        "original.mk": "2428696e666f2052455348415045443d5b24287368656c6c206d76202d2d20276f776e65642e6d6b27206f726967696e616c2e6d6b202626206d6b646972202d6d20373535202d2d20276f776e65642e6d6b27202626207072696e746620796573295d290a242866696c65203e3e7365656e2c72656164290a24286572726f72207265616465722d73746f70290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a"
+      },
+      "output": "merged",
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "52455348415045443d5b7965735d0a6f776e65642e6d6b3a333a202a2a2a207265616465722d73746f702e2020e4b8ade6ada22e0a6d616b653a20756e6c696e6b2028e4b880e69982e38395e382a1e382a4e383ab293a206f776e65642e6d6b3a20404f535f44455441494c400a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-stdin-unlink-fatal-raw-pl",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--temp-stdin=raw-\udcff.mk",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "modules": [],
+      "errno_fact": [
+        "EISDIR",
+        "fr_FR.UTF-8"
+      ],
+      "files": {
+        "raw-\udcff.mk": "2428696e666f2052455348415045443d5b24287368656c6c206d76202d2d20277261772dff2e6d6b27206f726967696e616c2e6d6b202626206d6b646972202d6d20373535202d2d20277261772dff2e6d6b27202626207072696e746620796573295d290a242866696c65203e3e7365656e2c72656164290a24286572726f72207265616465722d73746f70290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "directory_replacements": [
+        "raw-\udcff.mk"
+      ],
+      "updates": {
+        "original.mk": "2428696e666f2052455348415045443d5b24287368656c6c206d76202d2d20277261772dff2e6d6b27206f726967696e616c2e6d6b202626206d6b646972202d6d20373535202d2d20277261772dff2e6d6b27202626207072696e746620796573295d290a242866696c65203e3e7365656e2c72656164290a24286572726f72207265616465722d73746f70290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a"
+      },
+      "output": "merged",
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "52455348415045443d5b7965735d0a7261772dff2e6d6b3a333a202a2a2a207265616465722d73746f702e2053746f702e0a6d616b653a20756e6c696e6b2028706c696b2074796d637a61736f7779293a207261772dff2e6d6b3a20404f535f44455441494c400a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-stdin-unlink-help-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "--temp-stdin=owned.mk",
+        "--help"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "errno_fact": [
+        "EISDIR",
+        "fr_FR.UTF-8"
+      ],
+      "owned_stdin_help_control": true,
+      "files": {
+        "owned.mk/sentinel": "6b6565700a",
+        "seen": "616e63686f720a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "",
+        "stderr_hex": "6d616b653a20756e6c696e6b2028666963686965722074656d706f726169726529c2a03ac2a06f776e65642e6d6b203a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a"
+      }
     }
   ]
 }
