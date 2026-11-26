@@ -18,8 +18,8 @@ use crate::reader::{
     strip_comment, strip_recipe_continuation_prefix,
 };
 use crate::variables::{
-    Assignment, ConditionalFlagBinding, ExpandError, Flavor, MAX_OUTPUT, Origin, Pattern,
-    PatternVariable, TargetScope, VariableStore, reference_end,
+    Assignment, ConditionalFlagBinding, DefinitionLookup, ExpandError, Flavor, MAX_OUTPUT, Origin,
+    Pattern, PatternVariable, TargetScope, VariableStore, reference_end,
 };
 use std::borrow::Cow;
 use std::cell::{Cell, OnceCell};
@@ -3307,7 +3307,7 @@ impl Database {
                 definition,
                 context.reborrow(),
                 append_base.as_ref(),
-                lookup_scope.as_ref(),
+                DefinitionLookup::Visible(lookup_scope.as_ref()),
                 |variables, bytes, shell, context| {
                     std::mem::swap(variables, &mut self.variables);
                     let result = if shell {
@@ -4056,7 +4056,7 @@ impl Database {
                     Some(location),
                     context,
                     None,
-                    None,
+                    DefinitionLookup::Target,
                     |read, bytes, shell, context| {
                         if shell {
                             crate::variables::shell_scoped_database(database, read, bytes, context)
@@ -6219,17 +6219,11 @@ impl Database {
                 root.record_only = false;
                 if occupied && root.double_colon.is_some() != double_colon {
                     self.retain_native_reader_error(closing_location, context);
-                    return Err(ParseError {
-                        unlocated: false,
-                        location: location.clone(),
-                        message: [
-                            b"target file '".as_slice(),
-                            target,
-                            b"' has both : and :: entries",
-                        ]
-                        .concat()
-                        .into(),
-                    });
+                    return Err(ParseError::system(
+                        location.clone(),
+                        Message::MixedRuleColons(target),
+                        context,
+                    ));
                 }
                 if double_colon {
                     let branches = root.double_colon.get_or_insert_with(Vec::new);
@@ -6412,13 +6406,7 @@ impl Database {
                 }
                 declaration.warnings.push((
                     location.clone(),
-                    [
-                        b"target '".as_slice(),
-                        target,
-                        b"' given more than once in the same rule",
-                    ]
-                    .concat()
-                    .into(),
+                    Diagnostic::system(Message::RepeatedRuleTarget(target)),
                 ));
             } else if has_recipes {
                 let recipes = if single_target {
@@ -6430,18 +6418,14 @@ impl Database {
             }
             if target == b".WAIT" {
                 for (mask, present, message) in [
-                    (
-                        1,
-                        !rule.dependencies.is_empty(),
-                        ".WAIT should not have prerequisites",
-                    ),
-                    (2, rule.recipes.is_some(), ".WAIT should not have commands"),
+                    (1, !rule.dependencies.is_empty(), Message::WaitPrerequisites),
+                    (2, rule.recipes.is_some(), Message::WaitCommands),
                 ] {
                     if present && self.wait_warnings & mask == 0 {
                         self.wait_warnings |= mask;
                         declaration
                             .warnings
-                            .push((location.clone(), message.into()));
+                            .push((location.clone(), Diagnostic::system(message)));
                     }
                 }
             }

@@ -117,6 +117,12 @@ pub enum Assignment {
     Shell,
 }
 
+/// The set used by the pre-definition lookup for an assignment.
+pub(crate) enum DefinitionLookup<'a> {
+    Visible(Option<&'a VariableStore>),
+    Target,
+}
+
 #[derive(Clone, Copy)]
 pub(crate) enum ConditionalFlagBinding {
     Ordinary,
@@ -922,15 +928,27 @@ impl VariableStore {
     }
 
     fn database_lookup_from(&self, name: &[u8]) -> Option<(usize, &Variable)> {
-        let mut inherited = false;
-        let mut previous: Option<&crate::database::TableHistory> = None;
+        self.database_lookup_chain(name, 0, None)
+    }
+
+    fn database_append_outer(&self, name: &[u8], layer: usize) -> Option<(usize, &Variable)> {
+        // Runtime locals and declarations can share a logical table. Continue
+        // the append lookup without counting that table again at the boundary.
+        self.database_lookup_chain(name, layer + 1, self.history_for_layer(layer))
+    }
+
+    fn database_lookup_chain<'a>(
+        &'a self,
+        name: &[u8],
+        start: usize,
+        mut previous: Option<&'a TableHistory>,
+    ) -> Option<(usize, &'a Variable)> {
         for (index, variables) in std::iter::once(&self.variables)
             .chain(self.layers.iter().map(|layer| &layer.variables))
             .enumerate()
+            .skip(start)
         {
-            if index != 0 {
-                inherited = self.layers[index - 1].inherited;
-            }
+            let inherited = index != 0 && self.layers[index - 1].inherited;
             if let Some(history) = &variables.database_history {
                 if previous.is_none_or(|old| !old.same_table(history)) {
                     history.lookup(name);
@@ -2361,7 +2379,7 @@ impl VariableStore {
             definition,
             context,
             None,
-            None,
+            DefinitionLookup::Visible(None),
             |store, bytes, shell, context| {
                 if shell {
                     store.shell_with(bytes, context)
@@ -2425,7 +2443,7 @@ impl VariableStore {
         definition: Option<&Location>,
         mut context: ExpansionContext<'_>,
         append_base: Option<&std::cell::RefCell<Variable>>,
-        lookup_scope: Option<&VariableStore>,
+        lookup: DefinitionLookup<'_>,
         mut expand: impl FnMut(
             &mut VariableStore,
             &[u8],
@@ -2436,7 +2454,15 @@ impl VariableStore {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
-        if matches!(assignment, Assignment::Append | Assignment::Conditional) {
+        let lookup_scope = match lookup {
+            DefinitionLookup::Visible(scope) => scope,
+            DefinitionLookup::Target => None,
+        };
+        if assignment == Assignment::Append && matches!(lookup, DefinitionLookup::Target) {
+            // The previous definition of a target append is selected in its
+            // own table. Inheritance is resolved only when the value is read.
+            self.database_definition_lookup(name);
+        } else if matches!(assignment, Assignment::Append | Assignment::Conditional) {
             lookup_scope.unwrap_or(self).record_database_lookup(name);
         }
         if matches!(assignment, Assignment::Append | Assignment::Conditional)
@@ -2836,12 +2862,12 @@ impl VariableStore {
             // GNU constructs an inherited append by searching the entire file
             // context again. Environment selection may have skipped a private
             // pattern binding that this second, ordinary lookup can see.
-            let Some((first_layer, first)) = self.lookup_from(name, 0) else {
+            let Some((first_layer, first)) = self.database_lookup_from(name) else {
                 return Ok(Vec::new());
             };
             expansion.active.push((name.to_vec(), Some(layer)));
             expansion.binding_context = Some(variable.definition.clone());
-            expansion.expand_layer(name, first, Some(first_layer))
+            expansion.expand_layer(name, first, Some(first_layer), true)
         } else {
             expansion.selected_variable(name, variable, Some(layer))
         }
@@ -2876,13 +2902,13 @@ impl VariableStore {
             // GNU constructs an inherited append by searching the entire file
             // context again. Environment selection may have skipped a private
             // pattern binding that this second, ordinary lookup can see.
-            let Some((first_layer, first)) = expansion.store.lookup_from(name, 0) else {
+            let Some((first_layer, first)) = expansion.store.database_lookup_from(name) else {
                 return Ok(Vec::new());
             };
             let first = first.clone();
             expansion.active.push((name.to_vec(), Some(layer)));
             expansion.binding_context = Some(variable.definition.clone());
-            expansion.expand_layer(name, &first, Some(first_layer))
+            expansion.expand_layer(name, &first, Some(first_layer), true)
         } else {
             expansion.selected_variable(name, variable, Some(layer))
         }
@@ -3426,7 +3452,7 @@ impl TargetScope {
                 prepared.definition.as_deref(),
                 context,
                 None,
-                None,
+                DefinitionLookup::Target,
                 |scope, bytes, shell, context| expand(globals, scope, bytes, shell, context),
             )?;
             if !conditional_exists
@@ -3542,7 +3568,7 @@ impl TargetScope {
             definition,
             context,
             None,
-            None,
+            DefinitionLookup::Target,
             |store, bytes, shell, context| expand(globals, store, bytes, shell, context),
         )?;
         let variable = Arc::make_mut(&mut scope.variables).get_mut(name).unwrap();
@@ -3897,11 +3923,11 @@ pub(crate) fn expand_environment_database(
             .outer_append_start(layer, name, variable)
             .is_some()
     {
-        if let Some((first_layer, first)) = expansion.store.lookup_from(name, 0) {
+        if let Some((first_layer, first)) = expansion.store.database_lookup_from(name) {
             let first = first.clone();
             expansion.active.push((name.to_vec(), Some(layer)));
             expansion.binding_context = Some(variable.definition.clone());
-            expansion.expand_layer(name, &first, Some(first_layer))
+            expansion.expand_layer(name, &first, Some(first_layer), true)
         } else {
             Ok(Vec::new())
         }
@@ -4403,7 +4429,7 @@ impl Expansion<'_, '_> {
             return self.recursive_binding(name, variable);
         }
         self.active.push((name.to_vec(), layer));
-        let result = self.expand_layer(name, variable, layer);
+        let result = self.expand_layer(name, variable, layer, false);
         self.active.pop();
         result
     }
@@ -4427,13 +4453,14 @@ impl Expansion<'_, '_> {
         name: &[u8],
         variable: &Variable,
         layer: Option<usize>,
+        append_started: bool,
     ) -> Result<Vec<u8>, ExpandError> {
         if variable.scope.variable_names {
             // Outer metadata uses its stored snapshot, without a second lookup.
             let mut dynamic = variable.clone();
             dynamic.scope.variable_names = false;
             dynamic.value = self.store.variable_names(false)?;
-            return self.expand_layer(name, &dynamic, layer);
+            return self.expand_layer(name, &dynamic, layer, append_started);
         }
         let mut value = Vec::new();
         let mut selected =
@@ -4441,6 +4468,9 @@ impl Expansion<'_, '_> {
         if selected.is_none() {
             self.append_layer_body(&mut value, variable)?;
             return Ok(value);
+        }
+        if !append_started {
+            self.store.record_database_lookup(name);
         }
         // Select the append chain before any body effects. Keep its values
         // owned, but resume pending target parts from any newly published
@@ -4452,7 +4482,7 @@ impl Expansion<'_, '_> {
             if self.context.is_cancelled() {
                 return Err(ExpandError::Cancelled);
             }
-            let Some((outer_layer, outer)) = self.store.lookup_from(name, index + 1) else {
+            let Some((outer_layer, outer)) = self.store.database_append_outer(name, index) else {
                 break;
             };
             let mut outer = outer.clone();
@@ -4546,7 +4576,7 @@ impl Expansion<'_, '_> {
                 .outer_append_start(layer, name, variable)
                 .is_some()
         {
-            let Some((first_layer, first)) = self.store.lookup_from(name, 0) else {
+            let Some((first_layer, first)) = self.store.database_lookup_from(name) else {
                 if tracked {
                     self.store.database_mut().unwrap().exporting.pop();
                 }
@@ -4555,7 +4585,7 @@ impl Expansion<'_, '_> {
             let first = first.clone();
             self.active.push((name.to_vec(), Some(layer)));
             let prior = self.binding_context.replace(variable.definition.clone());
-            let result = self.expand_layer(name, &first, Some(first_layer));
+            let result = self.expand_layer(name, &first, Some(first_layer), true);
             self.binding_context = prior;
             self.active.pop();
             result

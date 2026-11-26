@@ -75,7 +75,10 @@ NUL boundaries, rebinding and cancellation.
   rule evaluates its simple suffix before origin precedence preserves the
   automatic value. This also applies to explicit single-colon groups without
   filename aliases when the named peer has its own automatic binding. The
-  database models check suffix effects and lookup counts.
+  database models check suffix effects and lookup counts. A first named or
+  pattern append checks the binding's own table before storing its deferred
+  suffix. Expanding an inherited append in a recipe or environment starts
+  a fresh lookup and records the logical tables visited as it finds each part.
 - [Variable metadata](variable-metadata.md), [POSIX mode](posix-mode.md),
   [late built-in disabling](late-builtins.md) and
   [byte-preserving child environments](environment-vectors.md).
@@ -361,10 +364,17 @@ The selected two-worker cases retain the optional child's successful completion
 while the required child is still pending and both files keep their timestamps.
 This also covers the three-source layout with a single trailing optional worker
 and an explicit required refresh before the later missing synthetic rule.
+The required synthetic failure can also settle before the optional worker
+finishes. Both worker orders preserve the optional failure for ordinary
+dependents when the worker exits unsuccessfully and both timestamps stay fixed.
+When the optional worker leaves a new timestamp that stays current, a
+successful remake can reread the source, and an unsuccessful remake preserves
+the ordinary dependency error without causing a reread.
 For the qualified inline refresh without a relevant time assumption, a trailing
 file changed and then restored by the required worker uses its final timestamp
 for the restart decision and ordinary goal visits.
-Other completion orders and changed worker clocks still need qualification.
+Restoration after a separate worker completes and other completion orders still
+need qualification.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
