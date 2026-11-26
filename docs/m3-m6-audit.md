@@ -439,6 +439,9 @@ and the set of newer prerequisites in the original pass.
 A genuine declared required failure can also expose a rewritten clock
 before restoration. The held reread cases retain the actual recipe
 failure and any matching assumed branch diagnostic in order.
+When both actual workers fail, the same observed restoration can produce
+a reread in current and sole layouts. Ordinary dependents still see the
+appropriate cached failures when the original pass proceeds.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 

@@ -9642,9 +9642,14 @@ impl Engine {
                         .get(&worker.required, worker.required_identity)
                         .is_some_and(|required| required.child.is_some())
                     || (worker.no_required_tail_remains
-                        && worker.required_reap.get().is_some()
-                        && !report_error
-                        && job.before == Some(clock)))
+                        && job.before == Some(clock)
+                        && match worker.required_reap.get() {
+                            Some(_) if !report_error => true,
+                            Some(RequiredRemakeWorkerReap::FailedDeclaredTail { .. }) => {
+                                failed_source_recipe && optional_failure
+                            }
+                            _ => false,
+                        }))
                 && Self::regular_remake_clock(&target) == Some(clock)
             {
                 if !report_error && Self::same_clock_optional_remake_outcome(Some(clock), cached) {
@@ -14057,10 +14062,6 @@ impl Engine {
                     || (worker.only_synthetic_tail_remains
                         && worker.required_failure_settled.get()))
                     && self.failed_declared_worker_reap(worker).is_some()
-                    && matches!(
-                        worker.result.get(),
-                        Some(TrailingOptionalWorkerResult::Completed(_))
-                    )
                     && self.required_worker_clock_was_restored(worker, trailing, visited)
             })
     }
