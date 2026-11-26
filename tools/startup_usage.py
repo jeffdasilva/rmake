@@ -79,6 +79,50 @@ def models():
                 status=0, usage=False, version=True, seen=b'cli-effect\n')
     yield Model('inherited-output-mode-error-before-explicit-version', (b'--version', CLI),
                 OUTPUT_MODE_ERROR, makeflags=OUTPUT_MODE, usage=False)
+    gnu_first = rb'FIRST:=$$(file\ >>seen,gnu-first)'
+    gnu_last = rb'LAST:=$$(file\ >>seen,gnu-last)'
+    make_first = rb'FIRST:=$$(file\ >>seen,make-first)'
+    make_last = rb'LAST:=$$(file\ >>seen,make-last)'
+    next_source = b'$(file >>seen,next-source)'
+    valid_mode = b'--output-sync=none'
+    mutex = b'--sync-mutex=fnm:missing/lock'
+    invalid_debug = b'--debug=unknown'
+    yield Model('inherited-gnu-output-mode-version', (CLI,), OUTPUT_MODE_ERROR,
+                gnumakeflags=b' '.join((b'--version', gnu_first, OUTPUT_MODE, gnu_last)),
+                makeflags=b' '.join((next_source, invalid_debug)),
+                usage=False, version=True, seen=b'gnu-first\ngnu-last\n')
+    yield Model('fr-inherited-make-output-mode-version', (CLI,), FR_OUTPUT_MODE_ERROR,
+                gnumakeflags=gnu_first,
+                makeflags=b' '.join((OUTPUT_MODE, make_first, make_last, b'--version')),
+                usage=False, version=True, seen=b'gnu-first\nmake-first\nmake-last\n', french=True)
+    yield Model('inherited-version-then-make-output-mode', (CLI,), OUTPUT_MODE_ERROR,
+                gnumakeflags=b' '.join((b'--version', gnu_first)),
+                makeflags=b' '.join((make_first, OUTPUT_MODE, make_last)),
+                usage=False, version=True, seen=b'gnu-first\nmake-first\nmake-last\n')
+    yield Model('inherited-gnu-output-mode-before-later-version', (CLI,), OUTPUT_MODE_ERROR,
+                gnumakeflags=b' '.join((gnu_first, OUTPUT_MODE, gnu_last)),
+                makeflags=b' '.join((next_source, b'--version', valid_mode)),
+                usage=False, seen=b'gnu-first\ngnu-last\n')
+    yield Model('inherited-gnu-output-mode-version-with-mutex', (CLI,), OUTPUT_MODE_ERROR,
+                gnumakeflags=b' '.join((gnu_first, b'--version', mutex, OUTPUT_MODE, gnu_last)),
+                makeflags=next_source, usage=False, version=True, seen=b'gnu-first\ngnu-last\n')
+    yield Model('fr-inherited-make-output-mode-version-with-mutex', (CLI,), FR_OUTPUT_MODE_ERROR,
+                gnumakeflags=gnu_first,
+                makeflags=b' '.join((make_first, b'--version', mutex, OUTPUT_MODE, make_last)),
+                usage=False, version=True, seen=b'gnu-first\nmake-first\nmake-last\n', french=True)
+    yield Model('inherited-gnu-output-mode-overridden-within-source',
+                (b'SIDE:=$(file >>seen,cli-effect)',),
+                gnumakeflags=b' '.join((gnu_first, b'--version', OUTPUT_MODE, gnu_last, valid_mode)),
+                makeflags=b' '.join((next_source, make_last)), status=0, usage=False, version=True,
+                seen=b'gnu-first\ngnu-last\nnext-source\nmake-last\ncli-effect\n')
+    yield Model('inherited-lexical-error-before-output-mode', (CLI,), SHORT.replace(b'{argv}', b''),
+                gnumakeflags=b' '.join((gnu_first, b'--version', b'-z', OUTPUT_MODE, gnu_last)),
+                makeflags=next_source, version=True, seen=b'gnu-first\ngnu-last\n')
+    yield Model('inherited-debug-error-before-output-mode', (CLI,),
+                b"make: *** unknown debug level specification 'unknown'.  Stop.\n",
+                gnumakeflags=b' '.join((gnu_first, invalid_debug, OUTPUT_MODE, gnu_last)),
+                makeflags=b' '.join((next_source, b'--version')),
+                usage=False, seen=b'gnu-first\ngnu-last\n')
     yield Model('unknown-debug', (b'--debug=unknown',),
                 b"make: *** unknown debug level specification 'unknown'.  Stop.\n", usage=False)
     yield Model('invalid-then-assignment', (b'-z', CLI), SHORT, seen=b'cli-effect\n')
