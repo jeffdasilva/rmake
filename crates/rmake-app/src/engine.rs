@@ -3009,6 +3009,16 @@ impl Engine {
         self.fatal_with_owner(location, message, false);
     }
 
+    fn fatal_no_targets(&self) -> u8 {
+        let makefile_found = self
+            .database
+            .variables
+            .database_lookup(b"MAKEFILE_LIST")
+            .is_some_and(|variable| !variable.raw_value().is_empty());
+        self.fatal_system(rmake_core::messages::Message::NoTargets { makefile_found });
+        2
+    }
+
     fn fatal_system(&self, message: rmake_core::messages::Message<'_>) {
         self.fatal(None, &crate::messages::system(message));
     }
@@ -3095,14 +3105,14 @@ impl Engine {
         name
     }
 
-    fn read_startup_makefiles(&mut self) -> Result<bool, ()> {
+    fn read_startup_makefiles(&mut self) -> Result<(), ()> {
         if self
             .database
             .variables
             .database_lookup(b"MAKEFILES")
             .is_none_or(|value| value.raw_value().is_empty())
         {
-            return Ok(false);
+            return Ok(());
         }
         let names = match self.expand_global(b"$(MAKEFILES)", None) {
             Ok(names) => names,
@@ -3111,7 +3121,6 @@ impl Engine {
                 return Err(());
             }
         };
-        let mut found = false;
         // MAKEFILES uses ordinary words: no globbing or backslash filename list
         // decoding. Freeze the expanded list before any preload changes it.
         for spelling in words(&names) {
@@ -3180,7 +3189,6 @@ impl Engine {
                 }
             };
             let filename = self.enter_preload_file(&file.name);
-            found = true;
             self.database.makefiles.push(Makefile {
                 name: filename.to_vec(),
                 optional: true,
@@ -3229,7 +3237,7 @@ impl Engine {
                 return Err(());
             }
         }
-        Ok(found)
+        Ok(())
     }
 
     pub fn run_retained(&mut self) -> u8 {
@@ -3507,7 +3515,6 @@ impl Engine {
         if self.interrupt.is_some() {
             return 2;
         }
-        let mut found_makefile;
         self.database.activate_runtime_metadata();
         // Empty command eval initializes this binding before ordinary reading;
         // nonempty eval retains its separate reader boundary below.
@@ -3543,10 +3550,9 @@ impl Engine {
             let entry_no_variables = self.options.no_variables;
             self.flag_entry_jobs = self.options.jobs;
             self.flag_state.refresh(&self.options);
-            let startup_found = match self.read_startup_makefiles() {
-                Ok(found) => found,
-                Err(()) => return 2,
-            };
+            if self.read_startup_makefiles().is_err() {
+                return 2;
+            }
             let files = self.options.files.clone();
             let mut default_file = None;
             if files.is_empty() {
@@ -3584,11 +3590,6 @@ impl Engine {
                 .iter()
                 .map(std::path::PathBuf::as_path)
                 .chain(default_file);
-            found_makefile = startup_found
-                || files
-                    .clone()
-                    .enumerate()
-                    .any(|(index, _)| self.options.temp_stdin_file != Some(index));
             for file in files {
                 if let Some(history) = self.database.database_history() {
                     history.intern(file.as_os_str().as_bytes());
@@ -3645,7 +3646,6 @@ impl Engine {
                         continue;
                     }
                 };
-                found_makefile = true;
                 if file != Path::new("-") {
                     self.database.makefiles.push(Makefile {
                         name: file.as_os_str().as_bytes().to_vec(),
@@ -6365,10 +6365,7 @@ impl Engine {
                             }
                         };
                         if goals.is_empty() {
-                            self.fatal_system(rmake_core::messages::Message::NoTargets {
-                                makefile_found: found_makefile,
-                            });
-                            return 2;
+                            return self.fatal_no_targets();
                         }
                         if goals.len() > 1 {
                             self.fatal_system(rmake_core::messages::Message::MultipleDefaultGoals);
@@ -6377,12 +6374,7 @@ impl Engine {
                         goals
                     }
                 }
-                Ok(_) => {
-                    self.fatal_system(rmake_core::messages::Message::NoTargets {
-                        makefile_found: found_makefile,
-                    });
-                    return 2;
-                }
+                Ok(_) => return self.fatal_no_targets(),
                 Err(err) => {
                     self.expansion_error(None, &err);
                     return 2;
