@@ -5044,7 +5044,7 @@ impl Expansion<'_, '_> {
         result
     }
 
-    fn retain_native_user_error(&mut self) {
+    fn retain_native_fatal_expansion(&mut self) {
         if !self.context.needs_fatal_expansion_context() {
             return;
         }
@@ -5304,7 +5304,7 @@ impl Expansion<'_, '_> {
             b"error" => args.first().map_or_else(
                 || Ok(Vec::new()),
                 |message| {
-                    self.retain_native_user_error();
+                    self.retain_native_fatal_expansion();
                     Err(match &self.binding_context {
                         Some(location) => ExpandError::ContextualUserError {
                             message: message.clone(),
@@ -5370,6 +5370,7 @@ impl Expansion<'_, '_> {
             b"word" => {
                 let index = word_index(first, WordIndexOperand::WordFirst)?;
                 if index <= 0 {
+                    self.retain_native_fatal_expansion();
                     return Err(ExpandError::WordIndexZero);
                 }
                 Ok(words(&args[1])
