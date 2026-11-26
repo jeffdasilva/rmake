@@ -341,8 +341,10 @@ enum DatabaseResult {
     MergedArchiveContainer,
     // A completed ordinary source whose visited destination kept its file stem.
     MergedVisitedFile,
-    // A stopping missing-rule diagnostic precedes update completion.
-    UnfinishedMissingRule,
+    // A stopping diagnostic interrupted the file's update.
+    UnfinishedUpdate,
+    // This recipe completed, then its failure stopped ordinary traversal.
+    StoppedAfterChildFailure,
 }
 
 impl DatabaseResult {
@@ -13712,7 +13714,7 @@ impl Engine {
             let result = Outcome {
                 failed: true,
                 database_result: if stopping_missing_rule {
-                    DatabaseResult::UnfinishedMissingRule
+                    DatabaseResult::UnfinishedUpdate
                 } else {
                     DatabaseResult::Outcome
                 },
@@ -17050,8 +17052,10 @@ impl Engine {
                 continue;
             };
             merge_child(&mut outcome, child);
-            if child.database_result == DatabaseResult::UnfinishedMissingRule
-                && !self.remaking
+            if matches!(
+                child.database_result,
+                DatabaseResult::UnfinishedUpdate | DatabaseResult::StoppedAfterChildFailure
+            ) && !self.remaking
                 && !self.parallel_graph()
                 && !self.options.keep_going
                 && branch.is_none()
@@ -17059,9 +17063,9 @@ impl Engine {
                 && rmake_core::filenames::archive_parts(target).is_none()
                 && rmake_core::filenames::archive_parts(dependency).is_none()
             {
-                // The missing-rule stop interrupts each waiting ancestor
-                // before GNU would finish its file update.
-                outcome.database_result = DatabaseResult::UnfinishedMissingRule;
+                // The stop interrupts each waiting ancestor before GNU
+                // would finish its file update.
+                outcome.database_result = DatabaseResult::UnfinishedUpdate;
             }
             let order_only = !all_normal && !normal_names.contains(dependency.as_slice());
             let inspected_stale = intermediate_stale
@@ -17442,6 +17446,10 @@ impl Engine {
                 }
                 if execution.simulated_completion_time {
                     outcome.database_result = DatabaseResult::SimulatedRecipeCompletion;
+                } else if execution.stopped_after_child_failure
+                    && execution.status == Status::Failure
+                {
+                    outcome.database_result = DatabaseResult::StoppedAfterChildFailure;
                 } else if execution.expansion_failed {
                     outcome.database_result = DatabaseResult::UnfinishedRecipeExpansion;
                 } else if rule.grouped_double_id().is_some()
@@ -19187,14 +19195,17 @@ impl Engine {
                 Ok(status) => status.code().filter(|code| *code != 0),
                 Err(_) => Some(127),
             };
-            let serial_recipe_failure = !ignore
-                && (executable_launch_failed || (result.is_ok() && error_code.is_some()))
+            let failed_child = result.as_ref().is_ok_and(|status| !status.success());
+            let serial_ordinary_failure = !ignore
+                && (executable_launch_failed || failed_child)
                 && !parallel
                 && !self.remaking
                 && remake.is_none()
                 && branch.is_none()
                 && !self.running_groups.contains_key(target)
                 && rmake_core::filenames::archive_parts(target).is_none();
+            let serial_recipe_failure =
+                serial_ordinary_failure && (executable_launch_failed || error_code.is_some());
             let simulated_completion_time = serial_recipe_failure
                 && !phony
                 && flow.has_ordinary()
@@ -19284,6 +19295,8 @@ impl Engine {
                         .with_recursion(!flow.has_ordinary());
                     execution.launch_failed = !launched;
                     execution.simulated_completion_time = simulated_completion_time;
+                    execution.stopped_after_child_failure =
+                        failed_child && !self.options.keep_going && serial_ordinary_failure;
                     if executable_launch_failed && serial_recipe_failure {
                         self.record_delete_on_error_lookup();
                         if !phony && !simulated_completion_time {
@@ -19782,7 +19795,7 @@ mod tests {
             );
             assert_eq!(outcome.failed, time.is_none());
             assert!(
-                (outcome.database_result == DatabaseResult::UnfinishedMissingRule)
+                (outcome.database_result == DatabaseResult::UnfinishedUpdate)
                     == (time.is_none() && !keep_going),
             );
             assert_eq!(outcome.time, time);
