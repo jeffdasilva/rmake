@@ -71,6 +71,9 @@ NUL boundaries, rebinding and cancellation.
 - [Target scopes](target-scopes.md), [pattern scopes](pattern-scopes.md) and
   [conditional delimiters](conditional-whitespace.md). The target gate includes
   recipe-time `eval` in the active file scope, nested declarations and shell status.
+  A named append to an existing file-local automatic in an ordinary ungrouped
+  rule evaluates its simple suffix before origin precedence preserves the
+  automatic value. The database models check the suffix effect and lookup counts.
 - [Variable metadata](variable-metadata.md), [POSIX mode](posix-mode.md),
   [late built-in disabling](late-builtins.md) and
   [byte-preserving child environments](environment-vectors.md).

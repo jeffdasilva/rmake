@@ -2483,19 +2483,29 @@ impl VariableStore {
                 // GNU evaluates immediate assignments even when their result is
                 // discarded. An append is immediate only for a simple binding
                 // already present in this store; recursive appends stay deferred.
-                if matches!(
-                    assignment,
-                    Assignment::Simple | Assignment::ImmediateRecursive | Assignment::Shell
-                ) || (assignment == Assignment::Append
+                let simple_append = assignment == Assignment::Append
                     && append_base.map_or(old.flavor, |base| base.borrow().flavor)
-                        == Flavor::Simple)
+                        == Flavor::Simple;
+                if simple_append
+                    || matches!(
+                        assignment,
+                        Assignment::Simple | Assignment::ImmediateRecursive | Assignment::Shell
+                    )
                 {
-                    expand(
+                    let expanded = expand(
                         self,
                         value,
                         assignment == Assignment::Shell,
                         context.reborrow(),
                     )?;
+                    if simple_append
+                        && self.file_locals
+                        && old_origin == Origin::Automatic
+                        && expanded.is_empty()
+                    {
+                        // An empty suffix finishes after lookup and expansion.
+                        return Ok(());
+                    }
                 }
                 self.database_definition_lookup(name);
                 if promote_environment {
