@@ -112,10 +112,11 @@ pub enum MessageId {
     StaticTargetMismatch,
     GroupRecipeRequired,
     InsufficientArguments,
+    StdinTemporaryWrite,
 }
 
 impl MessageId {
-    pub const ALL: [Self; 105] = [
+    pub const ALL: [Self; 106] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -221,6 +222,7 @@ impl MessageId {
         Self::StaticTargetMismatch,
         Self::GroupRecipeRequired,
         Self::InsufficientArguments,
+        Self::StdinTemporaryWrite,
     ];
 
     pub(crate) fn is_unlocated(self) -> bool {
@@ -467,6 +469,10 @@ impl MessageId {
                 count: 1,
                 function: b"word",
             },
+            Self::StdinTemporaryWrite => Message::StdinTemporaryWrite {
+                path: b"Gm123456",
+                detail: b"File too large",
+            },
         }
     }
     pub fn msgid(self) -> &'static CStr {
@@ -612,6 +618,7 @@ impl MessageId {
             Self::InsufficientArguments => {
                 c"insufficient number of arguments (%u) to function '%s'"
             }
+            Self::StdinTemporaryWrite => c"fwrite: temporary file %s: %s",
         }
     }
 }
@@ -829,6 +836,10 @@ pub enum Message<'a> {
         count: usize,
         function: &'a [u8],
     },
+    StdinTemporaryWrite {
+        path: &'a [u8],
+        detail: &'a [u8],
+    },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -988,6 +999,7 @@ impl<'a> Message<'a> {
             Self::StaticTargetMismatch(_) => MessageId::StaticTargetMismatch,
             Self::GroupRecipeRequired => MessageId::GroupRecipeRequired,
             Self::InsufficientArguments { .. } => MessageId::InsufficientArguments,
+            Self::StdinTemporaryWrite { .. } => MessageId::StdinTemporaryWrite,
             Self::InvalidWordIndex { operand, problem } => match (operand, problem) {
                 (WordIndexOperand::WordFirst, WordIndexProblem::Invalid(_)) => {
                     MessageId::WordFirstInvalid
@@ -1148,7 +1160,7 @@ impl<'a> Message<'a> {
                 push(Argument::Bytes(from));
                 push(Argument::Bytes(to));
             }
-            Self::SourceError { path, detail } => {
+            Self::SourceError { path, detail } | Self::StdinTemporaryWrite { path, detail } => {
                 push(Argument::Bytes(path));
                 push(Argument::Bytes(detail));
             }

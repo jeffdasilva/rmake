@@ -3254,16 +3254,11 @@ impl Engine {
                 Ok(source) => source,
                 Err(_) if rmake_linux::signals::pending().is_some() => return Err(()),
                 Err(rmake_linux::stdin_source::CopyError::Write { path, error }) => {
-                    self.fatal(
-                        None,
-                        &[
-                            b"fwrite: temporary file ".as_slice(),
-                            path.as_os_str().as_bytes(),
-                            b": ",
-                            os_error(&error).as_bytes(),
-                        ]
-                        .concat(),
-                    );
+                    let detail = rmake_linux::filesystem::source_error_detail(&error);
+                    self.fatal_system(Message::StdinTemporaryWrite {
+                        path: path.as_os_str().as_bytes(),
+                        detail: &detail,
+                    });
                     return Err(());
                 }
                 Err(rmake_linux::stdin_source::CopyError::Storage) => {
