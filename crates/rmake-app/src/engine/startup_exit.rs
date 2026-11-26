@@ -97,6 +97,7 @@ impl NativeExit {
 pub struct Host {
     pub(super) stdin_source: Option<rmake_linux::stdin_source::Source>,
     pub(super) database: Database,
+    pub(super) command_goals: HashSet<FileRecordId>,
     pub(super) filesystem: RefCell<FilesystemRuntime>,
     pub(super) output: crate::output::Controller,
     pub(super) warnings: Cell<bool>,

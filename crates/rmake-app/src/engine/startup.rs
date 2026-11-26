@@ -16,6 +16,8 @@ pub(super) struct Runtime<'a> {
 pub(super) struct Seed {
     /// Unique names already applied by the ordered argument decoder.
     pub(super) commands: Vec<Vec<u8>>,
+    /// File records selected by command-line goals before startup completed.
+    pub(super) command_goals: HashSet<FileRecordId>,
 }
 
 pub(super) fn include_metadata(

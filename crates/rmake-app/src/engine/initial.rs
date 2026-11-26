@@ -514,6 +514,7 @@ impl Plan {
                         startup_exit::Host {
                             stdin_source,
                             database: state.database,
+                            command_goals: state.seed.command_goals,
                             filesystem: state.filesystem,
                             output: state.output,
                             warnings: state.warnings,
@@ -724,6 +725,9 @@ impl State {
                         history.intern(name);
                     }
                     self.database.file_records.insert(name);
+                    if let Some(id) = self.database.file_records.id(name) {
+                        self.seed.command_goals.insert(id);
+                    }
                     let previous = self.database.variables.database_lookup(b"MAKECMDGOALS");
                     let had_previous = previous.is_some();
                     let mut value = previous.map(|v| v.raw_value().to_vec()).unwrap_or_default();

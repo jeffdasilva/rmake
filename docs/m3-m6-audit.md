@@ -43,6 +43,8 @@ at the end of this audit.
   The startup preload list uses one expansion of `MAKEFILES` after command-line
   eval. An absent binding can warn at that point, while a defined empty binding
   leaves the preload list empty.
+  Startup failure dumps mark the file records already selected by command-line
+  goals, including when a command assignment supersedes `MAKECMDGOALS`.
   An exact duplicate temporary stdin operand leaves ownership with the
   earlier source record.
   Repeated assumed-old operands check prepared names before expanding HOME

@@ -1896,6 +1896,7 @@ impl Invocation {
             startup_exit::Host {
                 stdin_source: prepared.plan.stdin_source.take(),
                 database: prepared.database,
+                command_goals: prepared.seed.command_goals,
                 filesystem: prepared.filesystem,
                 output: prepared.output,
                 reader_output: prepared.reader_output,
@@ -1978,6 +1979,7 @@ impl Engine {
                                 startup_exit::Host {
                                     stdin_source: plan.stdin_source.take(),
                                     database,
+                                    command_goals: seed.command_goals,
                                     filesystem,
                                     output,
                                     reader_output,
