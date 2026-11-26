@@ -146,7 +146,8 @@ search and live options. Keep declaration order and actual filesystem observatio
 in the expected behavior.
 
 Wider combinations of pattern scope, runtime metadata and rule selection
-still need qualification. The
+still need qualification, including combined late registration, unusual
+search spellings and blocked visits. The
 [makefile remake work](#parallel-modes-makefile-remakes-and-jobserver-paths)
 covers mixed required and optional failure policies.
 
@@ -166,6 +167,20 @@ covers mixed required and optional failure policies.
   describes variable inheritance.
 - [Implicit prerequisite spelling](implicit-prerequisite-spelling.md) covers
   directory and read phases, byte/backslash cases and negative rule selection.
+- Late GPATH cases cover queued summaries for raw and canonical operands,
+  named and unnamed visited destinations with prerequisite ancestry, and a
+  separate row for a recreated raw spelling. Unvisited canonical rows preserve
+  their own status and stem. The models cover runtime bindings imported into a
+  predeclared canonical table and eager declarations
+  after vacant and mention-only renames. Archive cases cover absent containers
+  and permanent moves into vacant or pre-entered destinations.
+  [Goal fixtures](../tests/cases/gpath-late-merge-visited-destination-status/) ·
+  [Database models](../tests/database-output/search-spelling.json)
+- With `-p`, the tested ordinary serial ungrouped single-colon recipes for
+  non-archive files retain expansion effects, including `.SHELLSTATUS`. The
+  database reports an unattempted file when line expansion fails before dispatch.
+  Archive and remake paths, missing executable timestamps and variable lookups,
+  and wider scheduler combinations still need qualification. [Database phase models](../tests/database-output/phases.json)
 - [Old and what-if file records](assumed-files.md) cover logical ages, physical
   timestamp witnesses, recursion, VPATH and Makefile remakes.
 - [Shuffle traversal](shuffle.md) covers ordinary, grouped and double-colon rules,
@@ -206,8 +221,13 @@ including a [later ordinary-goal visit](../tests/cases/retained-failure-parent-l
 while variable inheritance keeps its first owner. An explicit visit to a
 settled optional double-colon makefile now repeats its retained diagnostic for
 each declared branch. The [verbose replay fixture](../tests/cases/optional-double-colon-goal-replay-repeated-verbose/Makefile)
-checks the order of those diagnostics and the cached branch reports. Parallel
-startup diagnostics and combinations with `-W` still need work.
+checks the order of those diagnostics and the cached branch reports.
+Current parallel double-colon sources have consideration and same-pass pruning
+coverage for repeated includes and earlier prerequisite visits. The held
+synthetic cases check consideration before implicit search, cached declaration
+checks after reap and the owned jobserver drain message before restart. Wider
+combinations with load limits, diagnostic masks and `-W` remain open.
+[Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
 Local jobserver acceptance also needs broader combinations of transports,
 recursive builds, restarts, loaded modules and resource pressure. Preserve the
@@ -297,6 +317,21 @@ A forced continuation retains that mode through its own child completion.
 The held observer checks the command line while the second child is live and
 the source clock after it exits.
 
+Under parallel keep-going, the held models cover trailing optional reads that
+find a missing source, run a worker or inline command, or reuse a cached
+completion. A cached optional refresh can trigger a reread after a synthetic
+worker restores the original timestamp.
+Other models preserve the successful read head through a failed declared tail
+and a later assumed branch. After a successful explicit refresh, a current
+synthetic declaration can propagate the logical clock. A delayed missing
+synthetic rule retains its diagnostic while the successful read head allows
+independent goals to proceed after a passive optional visit or a verified
+inline optional refresh while the explicit worker is live. The actual failures
+remain visible to ordinary dependents. The two-worker optional cases and
+combinations with earlier optional failures still need qualification.
+[Held remake campaign](../tools/remake_parallel.py) ·
+[Structured remake models](../tests/debug-output/remake-cache-phase.toml)
+
 The [composed validation from PR #374](https://github.com/jeffdasilva/rmake/pull/374)
 and [grouped double-colon database models](../tools/database_grouped_double_output.py)
 record secondary prerequisites, stems, branch ownership, physical timestamps,
@@ -319,12 +354,19 @@ The database now records accepted implicit rules before a recipe enables
 `-p`, including earlier goals that selected a rule. A small case such as
 `%.out: ; @$(eval MAKEFLAGS += -p):` can check this behavior. Other late-print
 cases still differ. Keep the original goal order when reporting one, since
-earlier goals can contribute to the lookup counters.
+earlier goals can contribute to the lookup counters. The database cases also
+cover ordinary touch timestamps and when a later prerequisite observes a
+forced recipe's physical timestamp after an earlier failure.
 
-Broader locale work includes native and Guile callbacks, diagnostic producers,
-cache history and resource failures. The x86-64/glibc results and selected
-C/C.UTF8/private French cases retain their recorded scope. Wider Linux profiles
-need separate acceptance.
+The native AArch64 glibc gate covers three C and C.UTF-8 locale cases. Its
+French lane verified the startup debug-option diagnostic in C and a pinned
+French locale. The retained GNU2 and optimized reports cover the exact native
+run. The
+dynamic musl gate has one C.UTF-8 wildcard byte-width case. Broader diagnostic
+producers, native and Guile callbacks, cache history, resource failures and
+musl NLS remain open. See the
+[native AArch64](../.github/workflows/native-aarch64.yml) and
+[dynamic musl](../.github/workflows/native-musl.yml) workflows.
 
 **Evidence**
 
@@ -405,12 +447,16 @@ continues to be required alongside application comparisons.
   [parallel descriptor pressure](../tests/guile-parallel-pressure/README.md).
 
 The [native AArch64 glibc workflow](../.github/workflows/native-aarch64.yml)
-covers host metadata, jobserver behavior, native standard streams, developer
-workflows, and deep evaluation. The [dynamic musl workflow](../.github/workflows/native-musl.yml)
-covers selected optimized x86-64 cases in the C locale and a C.UTF-8 wildcard
-case. Translated diagnostics and broader third-party integration still need
-qualification on these platform combinations. Guile qualification uses the
-separate x86-64 glibc profile.
+covers host metadata, jobservers, native standard streams, developer flows,
+deep evaluation and five optimized file and archive ownership cases. The
+[dynamic musl workflow](../.github/workflows/native-musl.yml) covers selected
+optimized x86-64 cases, including native module setup, process restart and an
+inherited jobserver pipe.
+
+A separate hosted ARM job verified the pinned GNU Make 4.4.1 Guile feature and
+a Scheme scalar result. The enabled rmake application and component gates use
+the x86-64 glibc SDK. See the
+[AArch64 GNU reference workflow](../.github/workflows/guile-aarch64-reference.yml).
 
 ## Integration and performance
 
@@ -427,7 +473,11 @@ interfaces retain their separate compatibility and correctness requirements.
 The [pinned project corpus](project-integration.md) includes serial leaf builds,
 recursive builds and shared jobservers. It covers xxHash, zlib, Lua, GNU gzip,
 GNU Patch and GNU Make itself, with exact comparisons across build, no-op and
-header-rebuild phases and independent executable checks.
+header-rebuild phases and independent executable checks. All 18 pinned
+optimized project comparisons passed after the visited GPATH ownership changes.
+The hosted AArch64 glibc and x86-64 dynamic musl gates also run these phases and
+the checksum check for pinned xxHash 0.8.3.
+[Project comparison evidence](https://github.com/jeffdasilva/rmake/pull/775)
 
 The [developer-flow gate](../tests/developer-flows/README.md) exercises the actual
 top-level flows under GNU Make and rmake. It covers warm oracle bootstrap,
