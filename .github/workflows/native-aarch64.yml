@@ -127,6 +127,27 @@ jobs:
               --locale-root .tools/locale-data-arm64 \
               --report "artifacts/locales/aarch64-build-diagnostics-$kind.json"
           done
+      - name: Check localized parser and stdin diagnostics
+        timeout-minutes: 3
+        run: |
+          set -- \
+            --case nls-static-target-mismatch-raw-order-ja \
+            --case nls-group-recipe-required-conditional-before-home-pl \
+            --case nls-builtin-arity-direct-word-de \
+            --case nls-builtin-arity-direct-word-fr \
+            --case nls-builtin-arity-call-wordlist-pl \
+            --case nls-stdin-unlink-ordinary-raw-fr \
+            --case nls-stdin-unlink-fatal-ja \
+            --case nls-stdin-unlink-fatal-raw-pl \
+            --case nls-stdin-unlink-help-fr
+          for kind in debug release; do
+            python3 tools/nls_diagnostics.py "$@" --candidate "target/$kind/rmake" \
+              --locale-root .tools/locale-data-arm64 \
+              --report "artifacts/locales/aarch64-parser-stdin-$kind.json"
+            python3 tools/resource_file_size.py --localized --candidate "target/$kind/rmake" \
+              --locale-root .tools/locale-data-arm64 \
+              --report "artifacts/locales/aarch64-stdin-file-size-$kind.json"
+          done
       - name: Check the pinned xxHash project
         timeout-minutes: 5
         run: |

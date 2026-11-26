@@ -463,6 +463,8 @@ locale. It runs the startup usage and getopt models on both build profiles
 using the same locale data. It also checks selected filesystem and build
 diagnostics in C, French, German and Japanese on both builds, including raw
 paths and warning order. The reports retain the native comparisons.
+The native gate also exercises localized parser diagnostics, adopted
+stdin cleanup, and temporary-file write errors on both builds.
 Localized built-in arity reports preserve each evaluated argument effect before
 the error and retain the original function name, argument count and location.
 Adopted stdin cleanup reports the localized action and errno with the raw
