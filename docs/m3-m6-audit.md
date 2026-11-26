@@ -345,6 +345,9 @@ required worker is reaped. The declared cases check that the recipe stays
 unexpanded. An unruled trailing source can also settle through a direct
 missing-rule visit. That failure remains available to ordinary dependents
 while an independent goal can still proceed.
+The trailing declaration can also run inline while the required worker is
+active when its completion and final physical timestamp both match the
+original timestamp.
 Two-worker optional cases and other kinds of trailing optional visits still
 need qualification.
 [Held remake campaign](../tools/remake_parallel.py) ·

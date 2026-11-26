@@ -618,6 +618,7 @@ struct PendingMakefileRemake<'a> {
     initial: Outcome,
     trace_synthetic_reap: bool,
     optional_visit_settled: bool,
+    same_clock_inline_optional_settled: bool,
     trailing_prerequisite_child: Option<Box<RemakePrerequisiteChild<'a>>>,
     trailing_prerequisite_changed: bool,
 }
@@ -4170,60 +4171,62 @@ impl Engine {
                         &source.name,
                     ))
             };
-            let source_outcome =
-                |engine: &Self,
-                 source: &Makefile,
-                 mut outcome: Outcome,
-                 prior_visits: Option<(&MakefileVisits<'_>, bool)>| {
-                    // Keep each branch failure for ordinary prerequisite visits.
-                    // The remake pass uses the original successful source head.
-                    let declared_tail_failed = matches!(
+            let source_outcome = |engine: &Self,
+                                  source: &Makefile,
+                                  mut outcome: Outcome,
+                                  prior_visits: Option<(
+                &MakefileVisits<'_>,
+                &PendingMakefileRemake<'_>,
+            )>| {
+                // Keep each branch failure for ordinary prerequisite visits.
+                // The remake pass uses the original successful source head.
+                let declared_tail_failed = matches!(
+                    outcome.remake_failure,
+                    RemakeFailure::RequiredDeclaredTailRecipe
+                ) && !outcome.fatal
+                    && !outcome.question_outdated;
+                let explicit_refresh = outcome.ran
+                    && outcome.completion == CompletionTime::Refresh
+                    && !outcome.fatal
+                    && !outcome.blocked;
+                let missing_after_leading_failure = explicit_refresh
+                    && matches!(
                         outcome.remake_failure,
-                        RemakeFailure::RequiredDeclaredTailRecipe
-                    ) && !outcome.fatal
-                        && !outcome.question_outdated;
-                    let explicit_refresh = outcome.ran
-                        && outcome.completion == CompletionTime::Refresh
-                        && !outcome.fatal
-                        && !outcome.blocked;
-                    let missing_after_leading_failure = explicit_refresh
-                        && matches!(
-                            outcome.remake_failure,
-                            RemakeFailure::RequiredSyntheticInput
-                        )
-                        && prior_visits.is_some_and(|(visited, settled)| {
-                            settled
-                                && failed_leading_optional.as_ref().is_some_and(|leading| {
-                                    std::ptr::eq(leading.required, source)
-                                        && leading.trailing.as_ref().is_none_or(|trailing| {
-                                            engine.settled_trailing_after_leading_failure(
-                                                trailing, visited,
-                                            )
-                                        })
-                                })
-                        });
-                    if declared_tail_failed
-                        || missing_after_leading_failure
-                        || (matches!(
-                            outcome.remake_failure,
-                            RemakeFailure::RequiredSyntheticInput
-                                | RemakeFailure::RequiredSyntheticRecipe
-                        ) && (uses_declared_synthetic_head(engine, source)
-                            || trailing_optional_source.as_ref().is_some_and(|trailing| {
-                                std::ptr::eq(trailing.required, source)
-                                    && match outcome.remake_failure {
-                                        // The child can set this verdict only after
-                                        // the optional visit settles.
-                                        RemakeFailure::RequiredSyntheticRecipe => true,
-                                        RemakeFailure::RequiredSyntheticInput => {
-                                            if let Some((visited, optional_visit_settled)) =
-                                                prior_visits
-                                            {
-                                                // A real explicit recipe can finish
-                                                // after the optional source settles,
-                                                // then discover the missing rule.
-                                                explicit_refresh
-                                                && (optional_visit_settled
+                        RemakeFailure::RequiredSyntheticInput
+                    )
+                    && prior_visits.is_some_and(|(visited, request)| {
+                        request.optional_visit_settled
+                            && failed_leading_optional.as_ref().is_some_and(|leading| {
+                                std::ptr::eq(leading.required, source)
+                                    && leading.trailing.as_ref().is_none_or(|trailing| {
+                                        engine.settled_trailing_after_leading_failure(
+                                            trailing,
+                                            visited,
+                                            request.same_clock_inline_optional_settled,
+                                        )
+                                    })
+                            })
+                    });
+                if declared_tail_failed
+                    || missing_after_leading_failure
+                    || (matches!(
+                        outcome.remake_failure,
+                        RemakeFailure::RequiredSyntheticInput
+                            | RemakeFailure::RequiredSyntheticRecipe
+                    ) && (uses_declared_synthetic_head(engine, source)
+                        || trailing_optional_source.as_ref().is_some_and(|trailing| {
+                            std::ptr::eq(trailing.required, source)
+                                && match outcome.remake_failure {
+                                    // The child can set this verdict only after
+                                    // the optional visit settles.
+                                    RemakeFailure::RequiredSyntheticRecipe => true,
+                                    RemakeFailure::RequiredSyntheticInput => {
+                                        if let Some((visited, request)) = prior_visits {
+                                            // A real explicit recipe can finish
+                                            // after the optional source settles,
+                                            // then discover the missing rule.
+                                            explicit_refresh
+                                                && (request.optional_visit_settled
                                                     || visited
                                                         .get(trailing.neighbor)
                                                         .zip(
@@ -4236,33 +4239,32 @@ impl Engine {
                                                                 trailing, *before, *optional, false,
                                                             )
                                                         }))
-                                            } else {
-                                                // A synchronous no-rule result
-                                                // can precede the optional visit.
-                                                trailing.kind == TrailingOptionalKind::Unruled
-                                                    && !engine
-                                                        .file_traversals
-                                                        .has_outcome(trailing.neighbor)
-                                                    && !engine.pending(trailing.neighbor)
-                                                    && engine
-                                                        .unruled_remake_source(trailing.neighbor)
-                                                    && !engine
-                                                        .database
-                                                        .rules
-                                                        .contains_key(b".DEFAULT".as_slice())
-                                                    && fs::symlink_metadata(os(trailing.neighbor))
-                                                        .is_ok_and(|file| file.is_file())
-                                            }
+                                        } else {
+                                            // A synchronous no-rule result
+                                            // can precede the optional visit.
+                                            trailing.kind == TrailingOptionalKind::Unruled
+                                                && !engine
+                                                    .file_traversals
+                                                    .has_outcome(trailing.neighbor)
+                                                && !engine.pending(trailing.neighbor)
+                                                && engine.unruled_remake_source(trailing.neighbor)
+                                                && !engine
+                                                    .database
+                                                    .rules
+                                                    .contains_key(b".DEFAULT".as_slice())
+                                                && fs::symlink_metadata(os(trailing.neighbor))
+                                                    .is_ok_and(|file| file.is_file())
                                         }
-                                        _ => false,
                                     }
-                            })))
-                    {
-                        outcome.failed = false;
-                        outcome.first_branch_verdict = None;
-                    }
-                    outcome
-                };
+                                    _ => false,
+                                }
+                        })))
+                {
+                    outcome.failed = false;
+                    outcome.first_branch_verdict = None;
+                }
+                outcome
+            };
             let mut loaded_prerequisite_times = HashMap::new();
             if !parallel_remakes {
                 let has_implicit_recipes = !self.database.database_implicit_rules().is_empty();
@@ -4395,6 +4397,7 @@ impl Engine {
                                     initial: Outcome::default(),
                                     trace_synthetic_reap: false,
                                     optional_visit_settled: false,
+                                    same_clock_inline_optional_settled: false,
                                     trailing_prerequisite_child: None,
                                     trailing_prerequisite_changed: false,
                                 });
@@ -4733,12 +4736,18 @@ impl Engine {
                     request.trailing_prerequisite_child = self
                         .trailing_remake_prerequisite_child(trailing, &read_files[..source_index]);
                 }
-                let inline_optional_dispatch =
-                    (trailing_optional_source.as_ref().is_some_and(|trailing| {
+                let mixed_trailing_source = failed_leading_optional
+                    .as_ref()
+                    .and_then(|leading| leading.trailing.as_ref());
+                let inline_optional_dispatch = (trailing_optional_source
+                    .as_ref()
+                    .or(mixed_trailing_source)
+                    .is_some_and(|trailing| {
                         name == trailing.neighbor && trailing.kind == TrailingOptionalKind::Declared
-                    }) && !pending_peer
-                        && !self.file_traversals.has_outcome(self.aliases.resolve(name)))
-                    .then_some(self.next_job);
+                    })
+                    && !pending_peer
+                    && !self.file_traversals.has_outcome(self.aliases.resolve(name)))
+                .then_some(self.next_job);
                 let mut result = self.build_recording_initial_time(
                     name,
                     None,
@@ -5039,6 +5048,7 @@ impl Engine {
                         initial: result,
                         trace_synthetic_reap,
                         optional_visit_settled,
+                        same_clock_inline_optional_settled: false,
                         trailing_prerequisite_child: None,
                         trailing_prerequisite_changed: false,
                     });
@@ -5068,6 +5078,25 @@ impl Engine {
                         // worker is alive. The later missing rule has no job.
                         request.optional_visit_settled = true;
                     }
+                }
+                if let Some(trailing) = mixed_trailing_source
+                    && trailing.kind == TrailingOptionalKind::Declared
+                    && name == trailing.neighbor
+                    && self.options.keep_going
+                    && inline_completion
+                    && Self::same_clock_inline_optional_outcome(before, result)
+                    && fs::symlink_metadata(os(name))
+                        .is_ok_and(|file| file.is_file() && file.modified().ok() == before)
+                    && self.settled_trailing_optional_remake(trailing, before, result, true)
+                    && self.pending_explicit_remake_recipe(&trailing.required.name)
+                    && let Some(request) = pending.iter_mut().find(|request| {
+                        !request.duplicate
+                            && request.optional_visit_settled
+                            && std::ptr::eq(request.file, trailing.required)
+                    })
+                {
+                    // Record the inline clock before the required worker can change it.
+                    request.same_clock_inline_optional_settled = true;
                 }
                 let deferred_peer_failure = deferred_peer_failure
                     || (pending_peer
@@ -5459,12 +5488,8 @@ impl Engine {
                             .outcome(self.aliases.resolve(name))
                             .copied()
                             .unwrap_or(remake.initial);
-                        let result = source_outcome(
-                            self,
-                            remake.file,
-                            result,
-                            Some((&visited, remake.optional_visit_settled)),
-                        );
+                        let result =
+                            source_outcome(self, remake.file, result, Some((&visited, &remake)));
                         if remake.duplicate && (remake.file.optional || !result.failed) {
                             continue;
                         }
@@ -13324,10 +13349,22 @@ impl Engine {
         })
     }
 
+    fn same_clock_inline_optional_outcome(before: Option<SystemTime>, result: Outcome) -> bool {
+        before.is_some()
+            && result.time == before
+            && result.ran
+            && !result.failed
+            && !result.fatal
+            && !result.blocked
+            && !result.question_outdated
+            && result.completion == CompletionTime::Refresh
+    }
+
     fn settled_trailing_after_leading_failure(
         &self,
         trailing: &TrailingOptionalRemake<'_>,
         visited: &MakefileVisits<'_>,
+        same_clock_inline_optional_settled: bool,
     ) -> bool {
         let name = trailing.neighbor;
         self.options.keep_going
@@ -13335,15 +13372,20 @@ impl Engine {
                 .get(name)
                 .zip(self.file_traversals.outcome(name))
                 .is_some_and(|((before, _), result)| {
-                    // A declared trailing source must settle without expanding
-                    // a recipe, even if expansion would leave its clock intact.
-                    (trailing.kind != TrailingOptionalKind::Declared
-                        || result.completion == CompletionTime::Unchanged)
-                        && self.settled_trailing_optional_remake(trailing, *before, *result, false)
-                        // The missing outcome already checks that the path is absent.
+                    let settled = if same_clock_inline_optional_settled {
+                        Self::same_clock_inline_optional_outcome(*before, *result)
+                    } else {
+                        (trailing.kind != TrailingOptionalKind::Declared
+                            || result.completion == CompletionTime::Unchanged)
+                            && self
+                                .settled_trailing_optional_remake(trailing, *before, *result, false)
+                    };
+                    // The missing outcome already checks that the path is absent.
+                    settled
                         && (trailing.kind == TrailingOptionalKind::Missing
-                            || fs::symlink_metadata(os(name))
-                                .is_ok_and(|file| file.is_file() && file.modified().ok() == *before))
+                            || fs::symlink_metadata(os(name)).is_ok_and(|file| {
+                                file.is_file() && file.modified().ok() == *before
+                            }))
                 })
     }
 
