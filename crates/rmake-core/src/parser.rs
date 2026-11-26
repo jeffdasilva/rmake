@@ -3766,7 +3766,7 @@ impl Database {
                         None
                     };
                     let pattern_owner = if record_active {
-                        read.local_pattern_binding_scope(&name)
+                        read.activated_pattern_binding_scope(&name)
                     } else {
                         None
                     };

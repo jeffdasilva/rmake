@@ -1470,10 +1470,13 @@ impl VariableStore {
         true
     }
 
-    pub(crate) fn local_pattern_binding_scope(&self, name: &[u8]) -> Option<(usize, TargetScope)> {
+    pub(crate) fn activated_pattern_binding_scope(
+        &self,
+        name: &[u8],
+    ) -> Option<(usize, TargetScope)> {
         let (index, _) = self.lookup_from(name, 0)?;
         let layer = self.layers.get(index.checked_sub(1)?)?;
-        if !layer.pattern || layer.inherited {
+        if !layer.pattern {
             return None;
         }
         let identity = layer.variables.database_history.as_ref()?.identity();
