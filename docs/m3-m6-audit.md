@@ -333,8 +333,10 @@ independent goals to proceed after a passive optional visit or a verified
 inline optional refresh while the explicit worker is live. The actual failures
 remain visible to ordinary dependents. The held earlier-only cases cover an
 absent optional source and a declared optional with a missing prerequisite.
-Two-worker optional cases and combinations of earlier failures with a
-trailing optional visit still need qualification.
+An earlier failure can also coexist with a trailing read of an unruled source
+that has settled at its original clock before the required worker is reaped.
+Two-worker optional cases and other kinds of trailing optional visits still
+need qualification.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
