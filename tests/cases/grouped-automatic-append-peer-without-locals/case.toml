@@ -1,0 +1,12 @@
+id = "grouped-automatic-append-peer-without-locals"
+requirement = "rules.grouped"
+candidate = "required"
+description = "A grouped peer without automatic locals keeps its named append deferred."
+provenance = "Original independently asserted GNU Make 4.4.1 fixture based on grouped-scope."
+args = ["-rR", "--no-print-directory", "-j1"]
+timeout_seconds = 8
+
+[expected]
+exit_code = 0
+stdout = "effect=[]\nactive=[a|a|a|automatic|simple]\nA\n"
+stderr = ""
