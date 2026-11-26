@@ -98,10 +98,20 @@ pub enum MessageId {
     NativeMinimumArguments,
     NativeMaximumArguments,
     UnsupportedArchiveSymbol,
+    WordIndexZero,
+    WordFirstInvalid,
+    WordFirstEmpty,
+    WordFirstOutOfRange,
+    WordlistFirstInvalid,
+    WordlistFirstEmpty,
+    WordlistFirstOutOfRange,
+    WordlistSecondInvalid,
+    WordlistSecondEmpty,
+    WordlistSecondOutOfRange,
 }
 
 impl MessageId {
-    pub const ALL: [Self; 91] = [
+    pub const ALL: [Self; 101] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -193,6 +203,16 @@ impl MessageId {
         Self::NativeMinimumArguments,
         Self::NativeMaximumArguments,
         Self::UnsupportedArchiveSymbol,
+        Self::WordIndexZero,
+        Self::WordFirstInvalid,
+        Self::WordFirstEmpty,
+        Self::WordFirstOutOfRange,
+        Self::WordlistFirstInvalid,
+        Self::WordlistFirstEmpty,
+        Self::WordlistFirstOutOfRange,
+        Self::WordlistSecondInvalid,
+        Self::WordlistSecondEmpty,
+        Self::WordlistSecondOutOfRange,
     ];
 
     pub(crate) fn is_unlocated(self) -> bool {
@@ -395,6 +415,43 @@ impl MessageId {
                 name: b"function",
             },
             Self::UnsupportedArchiveSymbol => Message::UnsupportedArchiveSymbol(b"lib.a((symbol))"),
+            Self::WordIndexZero => Message::WordIndexZero,
+            Self::WordFirstInvalid => Message::InvalidWordIndex {
+                operand: WordIndexOperand::WordFirst,
+                problem: WordIndexProblem::Invalid(b"value"),
+            },
+            Self::WordFirstEmpty => Message::InvalidWordIndex {
+                operand: WordIndexOperand::WordFirst,
+                problem: WordIndexProblem::Empty,
+            },
+            Self::WordFirstOutOfRange => Message::InvalidWordIndex {
+                operand: WordIndexOperand::WordFirst,
+                problem: WordIndexProblem::OutOfRange(b"9223372036854775808"),
+            },
+            Self::WordlistFirstInvalid => Message::InvalidWordIndex {
+                operand: WordIndexOperand::WordlistFirst,
+                problem: WordIndexProblem::Invalid(b"value"),
+            },
+            Self::WordlistFirstEmpty => Message::InvalidWordIndex {
+                operand: WordIndexOperand::WordlistFirst,
+                problem: WordIndexProblem::Empty,
+            },
+            Self::WordlistFirstOutOfRange => Message::InvalidWordIndex {
+                operand: WordIndexOperand::WordlistFirst,
+                problem: WordIndexProblem::OutOfRange(b"9223372036854775808"),
+            },
+            Self::WordlistSecondInvalid => Message::InvalidWordIndex {
+                operand: WordIndexOperand::WordlistSecond,
+                problem: WordIndexProblem::Invalid(b"value"),
+            },
+            Self::WordlistSecondEmpty => Message::InvalidWordIndex {
+                operand: WordIndexOperand::WordlistSecond,
+                problem: WordIndexProblem::Empty,
+            },
+            Self::WordlistSecondOutOfRange => Message::InvalidWordIndex {
+                operand: WordIndexOperand::WordlistSecond,
+                problem: WordIndexProblem::OutOfRange(b"9223372036854775808"),
+            },
         }
     }
     pub fn msgid(self) -> &'static CStr {
@@ -514,6 +571,26 @@ impl MessageId {
             Self::NativeMinimumArguments => c"Invalid minimum argument count (%u) for function %s",
             Self::NativeMaximumArguments => c"Invalid maximum argument count (%u) for function %s",
             Self::UnsupportedArchiveSymbol => c"attempt to use unsupported feature: '%s'",
+            Self::WordIndexZero => c"first argument to 'word' function must be greater than 0",
+            Self::WordFirstInvalid => c"invalid first argument to 'word' function: '%s'",
+            Self::WordFirstEmpty => c"invalid first argument to 'word' function: empty value",
+            Self::WordFirstOutOfRange => {
+                c"invalid first argument to 'word' function: '%s' out of range"
+            }
+            Self::WordlistFirstInvalid => c"invalid first argument to 'wordlist' function: '%s'",
+            Self::WordlistFirstEmpty => {
+                c"invalid first argument to 'wordlist' function: empty value"
+            }
+            Self::WordlistFirstOutOfRange => {
+                c"invalid first argument to 'wordlist' function: '%s' out of range"
+            }
+            Self::WordlistSecondInvalid => c"invalid second argument to 'wordlist' function: '%s'",
+            Self::WordlistSecondEmpty => {
+                c"invalid second argument to 'wordlist' function: empty value"
+            }
+            Self::WordlistSecondOutOfRange => {
+                c"invalid second argument to 'wordlist' function: '%s' out of range"
+            }
         }
     }
 }
@@ -719,7 +796,27 @@ pub enum Message<'a> {
         name: &'a [u8],
     },
     UnsupportedArchiveSymbol(&'a [u8]),
+    WordIndexZero,
+    InvalidWordIndex {
+        operand: WordIndexOperand,
+        problem: WordIndexProblem<'a>,
+    },
 }
+
+#[derive(Clone, Copy, Debug)]
+pub enum WordIndexOperand {
+    WordFirst,
+    WordlistFirst,
+    WordlistSecond,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum WordIndexProblem<'a> {
+    Invalid(&'a [u8]),
+    Empty,
+    OutOfRange(&'a [u8]),
+}
+
 impl<'a> Message<'a> {
     pub fn id(self) -> MessageId {
         match self {
@@ -858,6 +955,34 @@ impl<'a> Message<'a> {
             Self::NativeArgumentCount { minimum: true, .. } => MessageId::NativeMinimumArguments,
             Self::NativeArgumentCount { minimum: false, .. } => MessageId::NativeMaximumArguments,
             Self::UnsupportedArchiveSymbol(_) => MessageId::UnsupportedArchiveSymbol,
+            Self::WordIndexZero => MessageId::WordIndexZero,
+            Self::InvalidWordIndex { operand, problem } => match (operand, problem) {
+                (WordIndexOperand::WordFirst, WordIndexProblem::Invalid(_)) => {
+                    MessageId::WordFirstInvalid
+                }
+                (WordIndexOperand::WordFirst, WordIndexProblem::Empty) => MessageId::WordFirstEmpty,
+                (WordIndexOperand::WordFirst, WordIndexProblem::OutOfRange(_)) => {
+                    MessageId::WordFirstOutOfRange
+                }
+                (WordIndexOperand::WordlistFirst, WordIndexProblem::Invalid(_)) => {
+                    MessageId::WordlistFirstInvalid
+                }
+                (WordIndexOperand::WordlistFirst, WordIndexProblem::Empty) => {
+                    MessageId::WordlistFirstEmpty
+                }
+                (WordIndexOperand::WordlistFirst, WordIndexProblem::OutOfRange(_)) => {
+                    MessageId::WordlistFirstOutOfRange
+                }
+                (WordIndexOperand::WordlistSecond, WordIndexProblem::Invalid(_)) => {
+                    MessageId::WordlistSecondInvalid
+                }
+                (WordIndexOperand::WordlistSecond, WordIndexProblem::Empty) => {
+                    MessageId::WordlistSecondEmpty
+                }
+                (WordIndexOperand::WordlistSecond, WordIndexProblem::OutOfRange(_)) => {
+                    MessageId::WordlistSecondOutOfRange
+                }
+            },
         }
     }
     fn arguments(self) -> ([Argument<'a>; 6], usize) {
@@ -898,7 +1023,8 @@ impl<'a> Message<'a> {
             | Self::NulReaderWarning
             | Self::MissingFileName
             | Self::ExtraFileArgument
-            | Self::EmptyNativeFunction => {}
+            | Self::EmptyNativeFunction
+            | Self::WordIndexZero => {}
             Self::RecursiveVariable(name)
             | Self::DuplicateRecipe { target: name, .. }
             | Self::OverrideGroupMembership(name)
@@ -1002,6 +1128,12 @@ impl<'a> Message<'a> {
             }
             Self::InvalidIntcmp { empty: true, .. } => {}
             Self::InvalidIntcmp { value, .. } => push(Argument::Bytes(value)),
+            Self::InvalidWordIndex { problem, .. } => match problem {
+                WordIndexProblem::Invalid(value) | WordIndexProblem::OutOfRange(value) => {
+                    push(Argument::Bytes(value));
+                }
+                WordIndexProblem::Empty => {}
+            },
             Self::UndefinedVariable(name) => {
                 push(Argument::Unsigned(name.len() as u64));
                 push(Argument::Bytes(name));
@@ -1360,6 +1492,59 @@ impl MessageRef<'_> {
         match self {
             Self::Borrowed(value) => value.render(template),
             Self::Owned(value) => value.render(template),
+        }
+    }
+
+    /// Render the active catalog's message, including GNU's separately
+    /// translated labels and templates for numeric operands.
+    pub fn render_localized(
+        self,
+        lookup: impl Fn(&'static CStr) -> Result<Vec<u8>, FormatError>,
+    ) -> Result<Vec<u8>, FormatError> {
+        let id = self.id();
+        let label = match id {
+            MessageId::IntcmpFirst | MessageId::IntcmpFirstEmpty => {
+                c"non-numeric first argument to 'intcmp' function"
+            }
+            MessageId::IntcmpSecond | MessageId::IntcmpSecondEmpty => {
+                c"non-numeric second argument to 'intcmp' function"
+            }
+            MessageId::WordFirstInvalid
+            | MessageId::WordFirstEmpty
+            | MessageId::WordFirstOutOfRange => c"invalid first argument to 'word' function",
+            MessageId::WordlistFirstInvalid
+            | MessageId::WordlistFirstEmpty
+            | MessageId::WordlistFirstOutOfRange => {
+                c"invalid first argument to 'wordlist' function"
+            }
+            MessageId::WordlistSecondInvalid
+            | MessageId::WordlistSecondEmpty
+            | MessageId::WordlistSecondOutOfRange => {
+                c"invalid second argument to 'wordlist' function"
+            }
+            _ => return self.render(&lookup(id.msgid())?),
+        };
+        let label = lookup(label)?;
+        let label = Argument::Bytes(&label);
+        if matches!(
+            id,
+            MessageId::IntcmpFirstEmpty
+                | MessageId::IntcmpSecondEmpty
+                | MessageId::WordFirstEmpty
+                | MessageId::WordlistFirstEmpty
+                | MessageId::WordlistSecondEmpty
+        ) {
+            return checked_format(&lookup(c"%s: empty value")?, &[label]);
+        }
+        let value = self.render(b"%s")?;
+        let arguments = [label, Argument::Bytes(&value)];
+        match id {
+            MessageId::WordFirstOutOfRange
+            | MessageId::WordlistFirstOutOfRange
+            | MessageId::WordlistSecondOutOfRange => {
+                checked_format(&lookup(c"%s: '%s' out of range")?, &arguments)
+            }
+            _ => checked_format(b"%s: '%s'", &arguments),
         }
     }
 }

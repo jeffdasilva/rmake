@@ -2352,6 +2352,464 @@
         "stderr_hex": "",
         "seen_hex": "616e63686f720a72756e0a"
       }
+    },
+    {
+      "id": "nls-word-index-direct-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a56414c5545203a3d202428776f726420302c6f6e652074776f290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a206c65207072656d69657220617267756d656e74206465206c6120666f6e6374696f6e20c2abc2a0776f7264c2a0c2bb20646f697420c3aa74726520737570c3a9726965757220c3a020302e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-word-index-direct-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a56414c5545203a3d202428776f726420302c6f6e652074776f290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20666972737420617267756d656e7420746f2027776f7264272066756e6374696f6e206d7573742062652067726561746572207468616e20302e202053746f702e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-word-index-signed-zero-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a56414c5545203a3d202428776f7264202d302c6f6e652074776f290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a2044617320657273746520417267756d656e74206465722046756e6b74696f6e20e2809e776f7264e2809c206d757373206772c3b6c39f657220616c732030207365696e2e20205363686c7573732e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-word-index-negative-pl",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a56414c5545203a3d202428776f7264202d312c6f6e652074776f290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a207069657277737a7920617267756d656e742066756e6b636a692027776f726427206d757369206279c487207769c4996b737a79206f6420302e2053746f702e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-word-index-nested-operand-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a524553554c54203a3d202428696e74636d7020696e76616c69642c2428776f7264202b302c242866696c65203e3e7365656e2c617267756d656e742974776f292c4c2c452c47290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a2027776f72642720e996a2e695b0e381b8e381aee7acac31e5bc95e695b0e381af203020e38288e3828ae5a4a7e3818de3818fe381aae38191e3828ce381b0e381aae3828ae381bee3819be382932e2020e4b8ade6ada22e0a",
+        "seen_hex": "616e63686f720a726561640a617267756d656e740a"
+      }
+    },
+    {
+      "id": "nls-word-index-recipe-definition-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a42524f4b454e203d202428776f7264202d312c242866696c65203e3e7365656e2c617267756d656e7429616c7068612062657461290a616c6c3a0a0940242866696c65203e3e7365656e2c6561726c6965722d657870616e64297072696e746620666f7262696464656e0a0940242842524f4b454e290a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a2044617320657273746520417267756d656e74206465722046756e6b74696f6e20e2809e776f7264e2809c206d757373206772c3b6c39f657220616c732030207365696e2e20205363686c7573732e0a",
+        "seen_hex": "616e63686f720a726561640a6561726c6965722d657870616e640a617267756d656e740a"
+      }
+    },
+    {
+      "id": "nls-word-index-valid-selected-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a524553554c54203a3d202428696e74636d7020312c322c2428776f726420322c6f6e652074776f292c2428776f7264202d312c6f6e652074776f292c47290a616c6c3a203b2040242866696c65203e3e7365656e2c72756e296563686f202428524553554c54290a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "74776f0a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a726561640a72756e0a"
+      }
+    },
+    {
+      "id": "nls-word-index-compound-word-invalid-raw-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a56414c5545203a3d202428776f726420ff32252c6f6e652074776f290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20e784a1e58ab9e381aae7acac31e5bc95e695b0e3818c2027776f72642720e996a2e695b0e381abe4b88ee38188e38289e3828ce381bee38197e3819f3a2027ff3225272e2020e4b8ade6ada22e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-word-index-compound-word-empty-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a56414c5545203a3d202428776f7264202c6f6e652074776f290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a2044617320657273746520417267756d656e74206465722046756e6b74696f6e20e2809e776f7264e2809c2069737420756e67c3bc6c7469673a206c656572657220576572742e20205363686c7573732e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-word-index-compound-word-range-whitespace-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de",
+        "I": " \t+9223372036854775808\u000b "
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a56414c5545203a3d202428776f726420242849292c6f6e652074776f290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a2044617320657273746520417267756d656e74206465722046756e6b74696f6e20e2809e776f7264e2809c2069737420756e67c3bc6c7469673a20e2809e20092b393232333337323033363835343737353830380b20e2809c206175c39f657268616c62206465732042657265696368732e20205363686c7573732e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-word-index-compound-word-range-whitespace-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr",
+        "I": " \t+9223372036854775808\u000b "
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a56414c5545203a3d202428776f726420242849292c6f6e652074776f290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20696e76616c696420666972737420617267756d656e7420746f2027776f7264272066756e6374696f6e3a202720092b393232333337323033363835343737353830380b2027206f7574206f662072616e67652e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-word-index-compound-wordlist-first-signed-zero-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a56414c5545203a3d202428776f72646c697374202d302c242866696c65203e3e7365656e2c7365636f6e64296261642c242866696c65203e3e7365656e2c7468697264296f6e652074776f290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a2044617320657273746520417267756d656e74206465722046756e6b74696f6e20e2809e776f72646c697374e2809c2069737420756e67c3bc6c7469673a202730272e20205363686c7573732e0a",
+        "seen_hex": "616e63686f720a726561640a7365636f6e640a74686972640a"
+      }
+    },
+    {
+      "id": "nls-word-index-compound-wordlist-first-signed-zero-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a56414c5545203a3d202428776f72646c697374202d302c6261642c6f6e652074776f290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20696e76616c696420666972737420617267756d656e7420746f2027776f72646c697374272066756e6374696f6e3a202730272e202053746f702e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-word-index-compound-wordlist-first-empty-pl",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a56414c5545203a3d202428776f72646c697374202c322c6f6e652074776f290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a2062c582c499646e79207069657277737a7920617267756d656e742066756e6b636a692027776f72646c697374273a20707573746120776172746fc59bc4872e2053746f702e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-word-index-compound-wordlist-first-range-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a56414c5545203a3d202428776f72646c6973742039323233333732303336383534373735383038782c322c6f6e652074776f290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20e784a1e58ab9e381aae7acac31e5bc95e695b0e3818c2027776f72646c6973742720e996a2e695b0e381abe4b88ee38188e38289e3828ce381bee38197e3819f3a202739323233333732303336383534373735383038782720e381afe7af84e59bb2e5a496e381a7e381992e2020e4b8ade6ada22e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-word-index-compound-wordlist-second-invalid-recipe-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a424144203d202428776f72646c69737420312c32fe2c6f6e652074776f290a616c6c3a0a0940242866696c65203e3e7365656e2c66697273742d657870616e64297072696e746620666f7262696464656e0a09402428424144290a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20e784a1e58ab9e381aae7acac32e5bc95e695b0e3818c2027776f72646c6973742720e996a2e695b0e381abe4b88ee38188e38289e3828ce381bee38197e3819f3a202732fe272e2020e4b8ade6ada22e0a",
+        "seen_hex": "616e63686f720a726561640a66697273742d657870616e640a"
+      }
+    },
+    {
+      "id": "nls-word-index-compound-wordlist-second-empty-pl",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a56414c5545203a3d202428776f72646c69737420312c2c6f6e652074776f290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a2062c582c499646e7920647275676920617267756d656e742066756e6b636a692027776f72646c697374273a20707573746120776172746fc59bc4872e2053746f702e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-word-index-compound-wordlist-second-range-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a56414c5545203a3d202428776f72646c69737420312c2d39323233333732303336383534373735383039782c6f6e652074776f290a616c6c3a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a323a202a2a2a20446173207a776569746520417267756d656e74206465722046756e6b74696f6e20e2809e776f72646c697374e2809c2069737420756e67c3bc6c7469673a20e2809e2d3932323333373230333638353437373538303978e2809c206175c39f657268616c62206465732042657265696368732e20205363686c7573732e0a",
+        "seen_hex": "616e63686f720a726561640a"
+      }
+    },
+    {
+      "id": "nls-word-index-compound-valid-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c72656164290a616c6c3a203b2040242866696c65203e3e7365656e2c72756e297072696e746620225b25735d205b25735d5c6e2220222428776f726420312c6f6e652074776f292220222428776f72646c69737420312c302c6f6e652074776f29220a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "5b6f6e655d205b5d0a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a726561640a72756e0a"
+      }
     }
   ]
 }

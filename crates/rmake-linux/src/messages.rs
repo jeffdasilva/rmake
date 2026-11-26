@@ -2,7 +2,7 @@
 // Copyright 2026 Jeff DaSilva
 //! Public gettext adapter. The initial domain owns its assets; explicit native
 //! textdomain/bindtextdomain changes retain their public libc behavior.
-use rmake_core::messages::{Argument, FormatError, MessageId, MessageRef, checked_format};
+use rmake_core::messages::{Argument, FormatError, MessageRef, checked_format};
 use std::ffi::{CStr, CString, c_char};
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
@@ -52,28 +52,7 @@ fn lookup(key: &'static CStr, domain: Option<&'static CStr>) -> Result<Vec<u8>, 
 }
 
 pub fn render_ref(message: MessageRef<'_>) -> Result<Vec<u8>, FormatError> {
-    let id = message.id();
-    let label = match id {
-        MessageId::IntcmpFirst | MessageId::IntcmpFirstEmpty => {
-            c"non-numeric first argument to 'intcmp' function"
-        }
-        MessageId::IntcmpSecond | MessageId::IntcmpSecondEmpty => {
-            c"non-numeric second argument to 'intcmp' function"
-        }
-        _ => return message.render(&lookup_static(id.msgid())?),
-    };
-    // GNU translates the operand label before formatting the value detail.
-    let label = lookup_static(label)?;
-    let label = Argument::Bytes(&label);
-    if matches!(
-        id,
-        MessageId::IntcmpFirstEmpty | MessageId::IntcmpSecondEmpty
-    ) {
-        render_format(c"%s: empty value", &[label])
-    } else {
-        let value = message.render(b"%s")?;
-        checked_format(b"%s: '%s'", &[label, Argument::Bytes(&value)])
-    }
+    message.render_localized(lookup_static)
 }
 
 /// Render a static protocol key with checked byte and numeric arguments.
