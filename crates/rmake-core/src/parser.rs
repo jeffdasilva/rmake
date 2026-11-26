@@ -3677,12 +3677,37 @@ impl Database {
             } else {
                 scope
             };
+            let mut active_conditional = None;
             let scope = if kind == Assignment::Conditional
                 && (self.evaluation_scope.is_some()
                     || self.target_read.is_some()
                     || context.target_reads.is_some())
             {
                 let declarations = scope.context(&self.variables);
+                let record_active = self.target_read.is_none()
+                    && declaration.head.is_none()
+                    && !matches!(
+                        name.as_slice(),
+                        b"MAKEFLAGS" | b".SHELLSTATUS" | b".VARIABLES"
+                    )
+                    && self
+                        .rules
+                        .get(target)
+                        .is_none_or(|rule| rule.double_colon.is_none() && rule.group.is_none())
+                    && self.evaluation_scope.as_ref().is_some_and(|caller| {
+                        caller
+                            .ordinary_file_locals_identity()
+                            .is_some_and(|identity| {
+                                !self.detached_history_owners.contains_key(&identity)
+                            })
+                            && (caller.is_file_read_context(target)
+                                || caller.get(&name).is_none_or(|value| {
+                                    !matches!(
+                                        value.origin(),
+                                        Origin::CommandLine | Origin::EnvironmentOverride
+                                    )
+                                }))
+                    });
                 if let Some((owner, mut read)) = self.existing_target_read(
                     target,
                     &declarations,
@@ -3690,21 +3715,36 @@ impl Database {
                     context,
                 ) {
                     self.refresh_target_read(&owner, &mut read, &declarations);
+                    if record_active {
+                        active_conditional = Self::record_active_named_conditional(&read, &name);
+                    }
                     if read.qualify_ancestor_or_pattern(
                         &name,
                         assignment.private,
                         assignment.export,
                     ) {
+                        self.record_active_named_conditional_caller(&name, active_conditional);
                         self.publish_target_scope(declaration, &name);
                         continue;
                     }
+                } else if record_active {
+                    active_conditional =
+                        Self::record_active_named_conditional(&declarations, &name);
                 }
-                declaration
+                let scope = declaration
                     .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
-                    .expect("target declaration")
+                    .expect("target declaration");
+                if active_conditional.is_some() {
+                    scope.retain_read_bindings(&declarations);
+                }
+                scope
             } else {
                 scope
             };
+            let global_caller = self.evaluation_scope.is_none()
+                && self.evaluation_bindings.is_empty()
+                && self.target_read.is_none()
+                && context.target_reads.is_none();
             let immediate = matches!(kind, Assignment::Simple | Assignment::ImmediateRecursive)
                 || (kind == Assignment::Append
                     && scope
@@ -3723,6 +3763,7 @@ impl Database {
                     assignment.export,
                     Some(location),
                     context.at(Some(location)),
+                    global_caller,
                     |globals, scope, bytes, shell, context| {
                         std::mem::swap(globals, &mut self.variables);
                         let result = self.expand_target_read(target, scope, bytes, shell, context);
@@ -3748,10 +3789,12 @@ impl Database {
                     assignment.export,
                     Some(location),
                     context.at(Some(location)),
+                    global_caller,
                     |_, scope, bytes, _, context| scope.expand_mut_with(bytes, context),
                 )
             };
             let lookup_origin = result.map_err(parse_error)?;
+            self.record_active_named_conditional_caller(&name, active_conditional);
             self.publish_target_scope(declaration, &name);
             if lookup_origin
                 && !self
@@ -3774,6 +3817,29 @@ impl Database {
             }
         }
         Ok(has_targets)
+    }
+
+    fn record_active_named_conditional(read: &VariableStore, name: &[u8]) -> Option<Origin> {
+        let selected = read.get(name)?;
+        if selected.origin() == Origin::Automatic {
+            return None;
+        }
+        read.record_database_lookup(name);
+        Some(selected.origin())
+    }
+
+    fn record_active_named_conditional_caller(&self, name: &[u8], selected: Option<Origin>) {
+        if selected.is_some_and(|origin| origin != Origin::Override)
+            && !self
+                .evaluation_bindings
+                .iter()
+                .rev()
+                .any(|frame| frame.contains_key(name))
+            && let Some(caller) = &self.evaluation_scope
+        {
+            // Qualifiers have already been applied to the selected binding.
+            caller.record_database_lookup(name);
+        }
     }
 
     fn replay_named_flags(

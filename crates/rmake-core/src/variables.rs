@@ -2101,6 +2101,16 @@ impl VariableStore {
         Some(read)
     }
 
+    pub(crate) fn ordinary_file_locals_identity(&self) -> Option<usize> {
+        if !self.file_locals || self.double_colon_ordinal != 0 {
+            return None;
+        }
+        self.variables
+            .database_history
+            .as_ref()
+            .map(TableHistory::identity)
+    }
+
     pub(crate) fn file_read_table_identity(&self) -> Option<usize> {
         self.layers
             .first()
@@ -3528,6 +3538,7 @@ impl TargetScope {
             export,
             definition,
             context,
+            true,
             |_, store, bytes, shell, context| {
                 if shell {
                     store.shell_with(bytes, context)
@@ -3554,6 +3565,7 @@ impl TargetScope {
         export: Option<bool>,
         definition: Option<&Location>,
         context: ExpansionContext<'_>,
+        global_caller: bool,
         mut expand: impl FnMut(
             &mut VariableStore,
             &mut VariableStore,
@@ -3573,7 +3585,14 @@ impl TargetScope {
         {
             globals.variable_names(true)?;
         }
-        if assignment == Assignment::Conditional && scope.get(name).is_some() {
+        if assignment == Assignment::Conditional
+            && let Some(selected) = scope.get(name)
+        {
+            let origin = selected.origin;
+            if global_caller {
+                scope.record_database_lookup(name);
+                self.variables = scope.variables;
+            }
             // GNU's suppressed conditional returns the existing binding itself.
             // Qualifiers can consequently mutate even global binding metadata.
             let variable = if self.variables.contains_key(name) {
@@ -3583,6 +3602,9 @@ impl TargetScope {
             };
             if let Some(variable) = variable {
                 variable.scope.set_target_qualifiers(private, export);
+            }
+            if global_caller && origin != Origin::Override {
+                globals.record_database_lookup(name);
             }
             return Ok(false);
         }

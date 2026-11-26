@@ -82,6 +82,11 @@ NUL boundaries, rebinding and cancellation.
   pattern append checks the binding's own table before storing its deferred
   suffix. Expanding an inherited append in a recipe or environment starts
   a fresh lookup and records the logical tables visited as it finds each part.
+  A suppressed named conditional read from global scope retains the file's
+  variable table and records the caller lookup if the selected origin permits it.
+  An ordinary active recipe eval probes the named file's visible variable
+  chain before applying qualifiers. The caller's later lookup sees those
+  qualifiers and can stop at a lexical binding.
   Standalone export and unexport lists record the visible-scope lookup for
   each name before updating its policy or creating an empty global binding.
   A list lookup refreshes the global .VARIABLES cache when that special
