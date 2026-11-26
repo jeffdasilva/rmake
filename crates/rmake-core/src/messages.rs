@@ -43,6 +43,10 @@ pub enum MessageId {
     OverrideRecipe,
     IgnoreOldRecipe,
     OverrideGroupMembership,
+    MixedRuleColons,
+    RepeatedRuleTarget,
+    WaitPrerequisites,
+    WaitCommands,
     EnterDirectory,
     LeaveDirectory,
     EnterUnknownDirectory,
@@ -93,7 +97,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 83] = [
+    pub const ALL: [Self; 87] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -130,6 +134,10 @@ impl MessageId {
         Self::OverrideRecipe,
         Self::IgnoreOldRecipe,
         Self::OverrideGroupMembership,
+        Self::MixedRuleColons,
+        Self::RepeatedRuleTarget,
+        Self::WaitPrerequisites,
+        Self::WaitCommands,
         Self::EnterDirectory,
         Self::LeaveDirectory,
         Self::EnterUnknownDirectory,
@@ -246,6 +254,10 @@ impl MessageId {
                 target: b"target",
             },
             Self::OverrideGroupMembership => Message::OverrideGroupMembership(b"target"),
+            Self::MixedRuleColons => Message::MixedRuleColons(b"target"),
+            Self::RepeatedRuleTarget => Message::RepeatedRuleTarget(b"target"),
+            Self::WaitPrerequisites => Message::WaitPrerequisites,
+            Self::WaitCommands => Message::WaitCommands,
             Self::EnterDirectory
             | Self::LeaveDirectory
             | Self::EnterUnknownDirectory
@@ -409,6 +421,10 @@ impl MessageId {
             Self::OverrideGroupMembership => {
                 c"warning: overriding group membership for target '%s'"
             }
+            Self::MixedRuleColons => c"target file '%s' has both : and :: entries",
+            Self::RepeatedRuleTarget => c"target '%s' given more than once in the same rule",
+            Self::WaitPrerequisites => c".WAIT should not have prerequisites",
+            Self::WaitCommands => c".WAIT should not have commands",
             Self::EnterDirectory => c"%s: Entering directory '%s'\n",
             Self::LeaveDirectory => c"%s: Leaving directory '%s'\n",
             Self::EnterUnknownDirectory => c"%s: Entering an unknown directory\n",
@@ -579,6 +595,10 @@ pub enum Message<'a> {
         target: &'a [u8],
     },
     OverrideGroupMembership(&'a [u8]),
+    MixedRuleColons(&'a [u8]),
+    RepeatedRuleTarget(&'a [u8]),
+    WaitPrerequisites,
+    WaitCommands,
     Directory {
         entering: bool,
         program: &'a [u8],
@@ -723,6 +743,10 @@ impl<'a> Message<'a> {
                 ..
             } => MessageId::IgnoreOldRecipe,
             Self::OverrideGroupMembership(_) => MessageId::OverrideGroupMembership,
+            Self::MixedRuleColons(_) => MessageId::MixedRuleColons,
+            Self::RepeatedRuleTarget(_) => MessageId::RepeatedRuleTarget,
+            Self::WaitPrerequisites => MessageId::WaitPrerequisites,
+            Self::WaitCommands => MessageId::WaitCommands,
             Self::Directory {
                 entering,
                 depth,
@@ -811,6 +835,8 @@ impl<'a> Message<'a> {
             | Self::LoadLimitUnsupported
             | Self::LoadLimitErrorPrefix
             | Self::WaitForJobs
+            | Self::WaitPrerequisites
+            | Self::WaitCommands
             | Self::ClockSkew
             | Self::IntermediatePolicyConflict
             | Self::SuffixRulePrerequisites
@@ -826,6 +852,8 @@ impl<'a> Message<'a> {
             Self::RecursiveVariable(name)
             | Self::DuplicateRecipe { target: name, .. }
             | Self::OverrideGroupMembership(name)
+            | Self::MixedRuleColons(name)
+            | Self::RepeatedRuleTarget(name)
             | Self::IntermediateTargetConflict { target: name, .. }
             | Self::NothingToBeDone(name)
             | Self::UpToDate(name)
