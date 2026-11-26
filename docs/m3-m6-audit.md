@@ -411,6 +411,9 @@ optional file's timestamp.
 When the trailing worker fails and its timestamp is restored, its cached
 failure remains available to ordinary dependents. The required synthetic
 failure still reports its missing rule and independent goals can proceed.
+A successful declared required worker can supply a new physical clock to
+the source decision before the sole tagged synthetic branch fails. The
+held cases cover both reaping orders and a genuine required-worker failure.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 

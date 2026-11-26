@@ -8603,7 +8603,7 @@ impl Engine {
                     && request.initial.ran_refresh()
                     && request.initial.failed
                     && !request.initial.question_outdated
-                    && Self::regular_remake_clock(name) == Some(worker.required_before)
+                    && self.settled_required_worker_clock(worker).is_some()
                     && self
                         .parallel_jobs
                         .get(name, worker.required_identity)
@@ -13778,6 +13778,14 @@ impl Engine {
                 .is_some_and(Option::is_none)
     }
 
+    fn settled_required_worker_clock(&self, worker: &TrailingOptionalWorker) -> Option<SystemTime> {
+        let clock = Self::regular_remake_clock(&worker.required)?;
+        (clock == worker.required_before
+            || (worker.only_synthetic_tail_remains
+                && self.successful_explicit_source_refresh(&worker.required, clock)))
+        .then_some(clock)
+    }
+
     fn settled_trailing_optional_worker(
         &self,
         request: &PendingMakefileRemake<'_>,
@@ -13809,17 +13817,20 @@ impl Engine {
         if !settled {
             return false;
         }
+        let Some(required_clock) = self.settled_required_worker_clock(worker) else {
+            return false;
+        };
         let current_clock = Self::regular_remake_clock(trailing.neighbor);
-        // A later restoration leaves the optional recipe's failure in place.
-        // The source pass still decides reread from its own visit and clock.
-        (current_clock == Some(clock)
-            || (matches!(result, TrailingOptionalWorkerResult::Failed(_))
+        // A later restoration leaves the optional failure in place. A
+        // required rewrite supplies its own reread clock after either result.
+        current_clock == Some(clock)
+            || ((matches!(result, TrailingOptionalWorkerResult::Failed(_))
+                || required_clock != worker.required_before)
                 && worker.only_synthetic_tail_remains
                 && !worker.required_failure_settled.get()
                 && visited
                     .get(trailing.neighbor)
-                    .is_some_and(|(before, _)| before.is_some() && *before == current_clock)))
-            && Self::regular_remake_clock(&worker.required) == Some(worker.required_before)
+                    .is_some_and(|(before, _)| before.is_some() && *before == current_clock))
     }
 
     fn retained_trailing_worker_clock(
@@ -14585,7 +14596,7 @@ impl Engine {
         })
     }
 
-    fn successful_explicit_source_refresh(&self, target: &[u8], before: SystemTime) -> bool {
+    fn successful_explicit_source_refresh(&self, target: &[u8], clock: SystemTime) -> bool {
         let Some(declarations) = self
             .database
             .rules
@@ -14616,7 +14627,7 @@ impl Engine {
             refreshed |= branch.ran
                 && branch.completion == CompletionTime::Refresh
                 && branch.database_result == DatabaseResult::Outcome
-                && branch.time == Some(before);
+                && branch.time == Some(clock);
         }
         refreshed
     }
