@@ -114,10 +114,11 @@ pub enum MessageId {
     InsufficientArguments,
     StdinTemporaryWrite,
     RestartOriginalDirectory,
+    StdinTemporaryStorage,
 }
 
 impl MessageId {
-    pub const ALL: [Self; 107] = [
+    pub const ALL: [Self; 108] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -225,6 +226,7 @@ impl MessageId {
         Self::InsufficientArguments,
         Self::StdinTemporaryWrite,
         Self::RestartOriginalDirectory,
+        Self::StdinTemporaryStorage,
     ];
 
     pub(crate) fn is_unlocated(self) -> bool {
@@ -476,6 +478,7 @@ impl MessageId {
                 detail: b"File too large",
             },
             Self::RestartOriginalDirectory => Message::RestartOriginalDirectory,
+            Self::StdinTemporaryStorage => Message::StdinTemporaryStorage,
         }
     }
     pub fn msgid(self) -> &'static CStr {
@@ -623,6 +626,7 @@ impl MessageId {
             }
             Self::StdinTemporaryWrite => c"fwrite: temporary file %s: %s",
             Self::RestartOriginalDirectory => c"Couldn't change back to original directory",
+            Self::StdinTemporaryStorage => c"cannot store makefile from stdin to a temporary file",
         }
     }
 }
@@ -845,6 +849,7 @@ pub enum Message<'a> {
         detail: &'a [u8],
     },
     RestartOriginalDirectory,
+    StdinTemporaryStorage,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -1006,6 +1011,7 @@ impl<'a> Message<'a> {
             Self::InsufficientArguments { .. } => MessageId::InsufficientArguments,
             Self::StdinTemporaryWrite { .. } => MessageId::StdinTemporaryWrite,
             Self::RestartOriginalDirectory => MessageId::RestartOriginalDirectory,
+            Self::StdinTemporaryStorage => MessageId::StdinTemporaryStorage,
             Self::InvalidWordIndex { operand, problem } => match (operand, problem) {
                 (WordIndexOperand::WordFirst, WordIndexProblem::Invalid(_)) => {
                     MessageId::WordFirstInvalid
@@ -1077,7 +1083,8 @@ impl<'a> Message<'a> {
             | Self::WordIndexZero
             | Self::PrerequisitesInRecipe
             | Self::GroupRecipeRequired
-            | Self::RestartOriginalDirectory => {}
+            | Self::RestartOriginalDirectory
+            | Self::StdinTemporaryStorage => {}
             Self::RecursiveVariable(name)
             | Self::DuplicateRecipe { target: name, .. }
             | Self::OverrideGroupMembership(name)

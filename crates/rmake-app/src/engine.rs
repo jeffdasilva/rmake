@@ -3374,11 +3374,21 @@ impl Engine {
                     });
                     return Err(());
                 }
-                Err(rmake_linux::stdin_source::CopyError::Storage) => {
-                    self.fatal(
-                        None,
-                        b"cannot store makefile from stdin to a temporary file",
+                Err(rmake_linux::stdin_source::CopyError::Create { path, error }) => {
+                    let message = crate::output::temporary_creation_message(&path, &error);
+                    emit_output(
+                        &self.output,
+                        &self.program,
+                        Output::Warning {
+                            location: None,
+                            message: &message,
+                        },
                     );
+                    self.fatal_system(Message::StdinTemporaryStorage);
+                    return Err(());
+                }
+                Err(rmake_linux::stdin_source::CopyError::Storage) => {
+                    self.fatal_system(Message::StdinTemporaryStorage);
                     return Err(());
                 }
             };

@@ -52,6 +52,7 @@ pub struct Source {
 
 pub enum CopyError {
     Storage,
+    Create { path: PathBuf, error: io::Error },
     Write { path: PathBuf, error: io::Error },
 }
 
@@ -80,12 +81,14 @@ impl Source {
         .map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?
         .into_bytes_with_nul();
         let descriptor = unsafe { rm_stdin_create(name.as_mut_ptr().cast()) };
-        if descriptor < 0 {
-            return Err(CopyError::Storage);
-        }
+        let error = (descriptor < 0).then(io::Error::last_os_error);
         name.pop();
+        let path = PathBuf::from(OsString::from_vec(name));
+        if let Some(error) = error {
+            return Err(CopyError::Create { path, error });
+        }
         let source = Self {
-            path: PathBuf::from(OsString::from_vec(name)),
+            path,
             published: Cell::new(false),
         };
         let file = crate::process::private_descriptor(unsafe { File::from_raw_fd(descriptor) })?;
