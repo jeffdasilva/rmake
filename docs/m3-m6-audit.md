@@ -124,6 +124,8 @@ NUL boundaries, rebinding and cancellation.
   context. An ordinary lookup can refresh the stored bytes as names change.
   An inactive pattern override preserves the stored global `.VARIABLES` value
   for the reader and recipe environments.
+  An explicit single-colon group with an activated pattern binding can also
+  receive a stronger caller command-line value during conditional eval.
   An undefine probes the global definition table before checking origin.
   User-defined calls record the initial body lookup and the lookup in the
   argument frame when a literal callee has a body. An empty callee still

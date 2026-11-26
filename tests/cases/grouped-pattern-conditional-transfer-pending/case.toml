@@ -1,0 +1,12 @@
+id = "grouped-pattern-conditional-transfer-pending"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "A conditional assignment transfers the caller command value into a pending grouped target pattern."
+provenance = "Original fixtures and stream/status anchors checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "X=cli", "one.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6561726c793d5b7061747465726e7c66696c655d0a6c6174653d5b636c697c636f6d6d616e64206c696e655d0a706172656e743d5b636c697c636f6d6d616e64206c696e655d0a"
+stderr_hex = ""
