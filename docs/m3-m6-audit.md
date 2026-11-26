@@ -179,8 +179,9 @@ covers mixed required and optional failure policies.
 - With `-p`, the tested ordinary serial ungrouped single-colon recipes for
   non-archive files retain expansion effects, including `.SHELLSTATUS`. The
   database reports an unattempted file when line expansion fails before dispatch.
-  The tested unignored serial direct-launch errors record the first cleanup-policy
-  lookup in the file table and invalidate the displayed nonphony timestamp.
+  The tested unignored serial launch errors record the first cleanup-policy
+  lookup in the file table and invalidate the displayed nonphony timestamp
+  when a direct executable or the configured recipe shell fails to start.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)

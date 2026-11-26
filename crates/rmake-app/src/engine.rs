@@ -17392,7 +17392,6 @@ impl Engine {
             if crate::recipe_flow::optimized_noop(&invocation) {
                 continue;
             }
-            let direct = matches!(invocation, crate::process::Invocation::Direct { .. });
             let (program, arguments) = match invocation {
                 crate::process::Invocation::Direct { program, args }
                 | crate::process::Invocation::Shell { program, args } => (program, args),
@@ -17903,7 +17902,6 @@ impl Engine {
                         .with_recursion(!flow.has_ordinary());
                     execution.launch_failed = !launched;
                     if executable_launch_failed
-                        && direct
                         && !parallel
                         && !self.remaking
                         && remake.is_none()
