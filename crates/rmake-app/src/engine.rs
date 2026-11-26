@@ -25,7 +25,7 @@ use rmake_core::parser::{
     Database, Dependency, Location, Makefile, Recipe, RecipeSource, Rule, words,
 };
 use rmake_core::variables::{
-    Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, VariableStore,
+    Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, Variable, VariableStore,
 };
 use rmake_linux::jobserver::{Jobserver, Permit};
 use std::borrow::Cow;
@@ -636,8 +636,14 @@ struct TrailingOptionalWorker {
     no_required_tail_remains: bool,
     only_synthetic_tail_remains: bool,
     required_failure_settled: Cell<bool>,
-    required_reap_clock: Cell<Option<SystemTime>>,
+    required_reap: Cell<Option<RequiredRemakeWorkerReap>>,
     result: Cell<Option<TrailingOptionalWorkerResult>>,
+}
+
+#[derive(Clone, Copy)]
+enum RequiredRemakeWorkerReap {
+    Completed(SystemTime),
+    FailedDeclaredTail { ordinal: usize, clock: SystemTime },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -741,26 +747,40 @@ fn export_selected(
     name: &[u8],
     export_all: bool,
 ) -> bool {
-    environment.resolve_export_policy(name).unwrap_or_else(|| {
-        let default_export = || {
-            automatic_export_name(name)
-                && environment.get(name).is_some_and(|variable| {
-                    !matches!(variable.origin(), Origin::Default | Origin::Automatic)
-                        && (export_all
-                            || matches!(
-                                variable.origin(),
-                                Origin::Environment
-                                    | Origin::EnvironmentOverride
-                                    | Origin::CommandLine
-                            ))
-                })
-        };
+    environment.get(name).is_some_and(|variable| {
+        export_selected_binding(
+            globals,
+            unexports,
+            name,
+            variable,
+            environment.resolve_export_policy(name),
+            export_all,
+        )
+    })
+}
+
+fn export_selected_binding(
+    globals: &VariableStore,
+    unexports: &HashSet<Vec<u8>>,
+    name: &[u8],
+    variable: &Variable,
+    policy: Option<bool>,
+    export_all: bool,
+) -> bool {
+    policy.unwrap_or_else(|| {
+        let default_export = automatic_export_name(name)
+            && !matches!(variable.origin(), Origin::Default | Origin::Automatic)
+            && (export_all
+                || matches!(
+                    variable.origin(),
+                    Origin::Environment | Origin::EnvironmentOverride | Origin::CommandLine
+                ));
         // A reset or private global no longer supplies export policy.
-        // Evaluate default eligibility from the visible target binding.
+        // Evaluate default eligibility from the selected target binding.
         let ignore_global_policy = globals
             .get(name)
             .is_some_and(|variable| variable.export_default_reset() || variable.is_private());
-        (ignore_global_policy || !unexports.contains(name)) && default_export()
+        (ignore_global_policy || !unexports.contains(name)) && default_export
     })
 }
 
@@ -3312,11 +3332,12 @@ impl Engine {
                 match std::env::set_current_dir(directory) {
                     Ok(()) => true,
                     Err(error) => {
-                        self.stderr(
-                            [b"chdir: ".as_slice(), os_error(&error).as_bytes()]
-                                .concat()
-                                .as_slice(),
-                        );
+                        let detail = rmake_linux::filesystem::source_error_detail(&error);
+                        self.stderr(&crate::messages::system(Message::OsError {
+                            action: b"chdir",
+                            path: b"",
+                            detail: &detail,
+                        }));
                         false
                     }
                 }
@@ -3324,7 +3345,7 @@ impl Engine {
                 false
             };
             if !restored {
-                self.fatal(None, b"Couldn't change back to original directory");
+                self.fatal_system(Message::RestartOriginalDirectory);
                 if let Some(slots) = retired_slots {
                     self.stderr(format!("INTERNAL: Exiting with 1 jobserver tokens available; should be {slots}!").as_bytes());
                 }
@@ -5178,6 +5199,13 @@ impl Engine {
                                 .settled_current_leading_optional(&leading.neighbor.name, &visited))
                         .then_some(trailing)
                     });
+                    let settled_failed_leading_trailing =
+                        deferred_trailing_layout.and_then(|leading| {
+                            let trailing = leading.trailing.as_ref()?;
+                            (name == trailing.neighbor
+                                && self.settled_leading_optional_visit_failure(leading, &visited))
+                            .then_some(trailing)
+                        });
                     let trailing_worker_source = ordinary_trailing_optional
                         .or(current_leading_trailing)
                         .or_else(|| {
@@ -5190,18 +5218,7 @@ impl Engine {
                                         .as_ref()
                                         .filter(|_| read_files.len() == 3)
                                 })
-                                .or_else(|| {
-                                    let leading = deferred_trailing_layout?;
-                                    let trailing = leading.trailing.as_ref()?;
-                                    let (before, _) =
-                                        visited.get(leading.neighbor.name.as_slice())?;
-                                    (name == trailing.neighbor
-                                        && self.settled_leading_optional_failure(
-                                            leading.neighbor,
-                                            *before,
-                                        ))
-                                    .then_some(trailing)
-                                })
+                                .or(settled_failed_leading_trailing)
                         });
                     if let Some(trailing) = trailing_worker_source
                         && name == trailing.neighbor
@@ -5221,7 +5238,9 @@ impl Engine {
                     {
                         let retain_required_clock = ordinary_trailing_optional.is_some()
                             || current_leading_trailing.is_some()
-                            || (read_files.len() == 3 && trailing_optional_source.is_some());
+                            || (read_files.len() == 3 && trailing_optional_source.is_some())
+                            || (settled_failed_leading_trailing.is_some()
+                                && !self.has_assumed_double_colon_entry(&trailing.required.name));
                         request.trailing_optional_worker = self.track_trailing_optional_worker(
                             trailing,
                             before,
@@ -5715,7 +5734,7 @@ impl Engine {
                     if let Some(leading) = deferred_trailing_layout {
                         self.publish_restored_trailing_worker_clock(leading, &visited, &pending);
                     }
-                    for remake in pending {
+                    for remake in &pending {
                         changed |= remake.trailing_prerequisite_changed;
                         let name = remake.file.name.as_slice();
                         let before = visited[name].0;
@@ -5747,10 +5766,55 @@ impl Engine {
                             changed |= self
                                 .restored_trailing_worker_outcome(worker, trailing.neighbor, before)
                                 .is_some()
-                                || self.restored_required_worker_clock(&remake, trailing, &visited);
+                                || self.restored_required_worker_clock(remake, trailing, &visited);
+                        }
+                        if !changed
+                            && self.options.keep_going
+                            && !remake.duplicate
+                            && !remake.modes.active()
+                            && !MakefileModes::from_options(&self.options).active()
+                            && self.parallel_jobs.is_empty()
+                            && result.ran_refresh()
+                            && result.failed
+                            && !result.question_outdated
+                            && matches!(
+                                result.remake_failure,
+                                RemakeFailure::RequiredDeclaredTailRecipe
+                            )
+                        {
+                            let trailing = ordinary_trailing_optional
+                                .filter(|_| {
+                                    ordinary_current_leading.is_none_or(|leading| {
+                                        self.settled_current_leading_optional(
+                                            &leading.neighbor.name,
+                                            &visited,
+                                        )
+                                    })
+                                })
+                                .or_else(|| {
+                                    trailing_optional_source
+                                        .as_ref()
+                                        .filter(|_| read_files.len() == 3)
+                                        .or_else(|| {
+                                            assumed_current_leading
+                                                .filter(|leading| {
+                                                    self.settled_current_leading_optional(
+                                                        &leading.neighbor.name,
+                                                        &visited,
+                                                    )
+                                                })
+                                                .and_then(|leading| leading.trailing.as_ref())
+                                        })
+                                });
+                            changed |= trailing.is_some_and(|trailing| {
+                                std::ptr::eq(remake.file, trailing.required)
+                                    && self.restored_failed_required_worker_clock(
+                                        remake, trailing, &visited,
+                                    )
+                            });
                         }
                         let (result, retained_worker_restart) =
-                            source_outcome(self, remake.file, result, Some((&visited, &remake)));
+                            source_outcome(self, remake.file, result, Some((&visited, remake)));
                         if remake.duplicate && (remake.file.optional || !result.failed) {
                             continue;
                         }
@@ -6048,6 +6112,14 @@ impl Engine {
                 self.wait_all_jobs();
                 self.remove_intermediates();
                 return 2;
+            }
+            if !changed
+                && !remake_question
+                && !modes.active()
+                && self.parallel_jobs.is_empty()
+                && let Some(leading) = deferred_trailing_layout
+            {
+                self.publish_restored_required_worker_clock(leading, &visited, &pending);
             }
             if ran_remake_recipe || self.recipe_reaps != initial_reaps {
                 // Keep the cached outcomes and timestamps, but report ordinary
@@ -8602,14 +8674,24 @@ impl Engine {
                     && !request.active
                     && self.options.keep_going
                     && !MakefileModes::from_options(&self.options).active()
-                    && matches!(
-                        request.initial.remake_failure,
-                        RemakeFailure::RequiredSyntheticInput
-                    )
                     && request.initial.ran_refresh()
                     && request.initial.failed
                     && !request.initial.question_outdated
-                    && self.settled_required_worker_clock(worker).is_some()
+                    && match request.initial.remake_failure {
+                        RemakeFailure::RequiredSyntheticInput => {
+                            self.settled_required_worker_clock(worker).is_some()
+                        }
+                        RemakeFailure::RequiredDeclaredTailRecipe => self
+                            .failed_declared_worker_reap(worker)
+                            .is_some_and(|(ordinal, clock)| {
+                                self.no_remake_recipe_fallback()
+                                    && !self
+                                        .database_branch_outcomes
+                                        .contains_key(&(name.to_vec(), ordinal + 1))
+                                    && Self::regular_remake_clock(name) == Some(clock)
+                            }),
+                        _ => false,
+                    }
                     && self
                         .parallel_jobs
                         .get(name, worker.required_identity)
@@ -9526,9 +9608,7 @@ impl Engine {
             && let Some(clock) = cached.time
         {
             if job.identity == worker.required_identity
-                && !report_error
                 && cached.ran_refresh()
-                && cached.goal_verdict().is_none()
                 && clock != worker.required_before
                 && self.parallel_jobs.len() == 1
                 && self.parallel_jobs.values().any(|optional| {
@@ -9536,7 +9616,25 @@ impl Engine {
                 })
                 && Self::regular_remake_clock(&target) == Some(clock)
             {
-                worker.required_reap_clock.set(Some(clock));
+                if !report_error && cached.goal_verdict().is_none() {
+                    worker
+                        .required_reap
+                        .set(Some(RequiredRemakeWorkerReap::Completed(clock)));
+                } else if failed_source_recipe
+                    && cached.failed
+                    && matches!(
+                        cached.remake_failure,
+                        RemakeFailure::RequiredDeclaredTailRecipe
+                    )
+                    && let Some(ordinal) = recipe_branch
+                {
+                    worker
+                        .required_reap
+                        .set(Some(RequiredRemakeWorkerReap::FailedDeclaredTail {
+                            ordinal,
+                            clock,
+                        }));
+                }
             } else if job.identity == worker.optional_identity
                 && (worker.required_failure_settled.get()
                     || self
@@ -9544,7 +9642,7 @@ impl Engine {
                         .get(&worker.required, worker.required_identity)
                         .is_some_and(|required| required.child.is_some())
                     || (worker.no_required_tail_remains
-                        && worker.required_reap_clock.get().is_some()
+                        && worker.required_reap.get().is_some()
                         && !report_error
                         && job.before == Some(clock)))
                 && Self::regular_remake_clock(&target) == Some(clock)
@@ -13762,17 +13860,64 @@ impl Engine {
                 .file_traversals
                 .outcome(&worker.required)
                 .is_some_and(|outcome| self.settled_required_worker_refresh(*outcome))
-            && visited
-                .get(leading.neighbor.name.as_slice())
-                .is_some_and(|(before, _)| {
-                    self.settled_leading_optional_failure(leading.neighbor, *before)
-                })
+            && self.settled_leading_optional_visit_failure(leading, visited)
             && let Some(outcome) = self.restored_trailing_worker_outcome(worker, name, before)
         {
             // The earlier failure deferred the optional read's clock sample.
             // Ordinary consumers use that final sample after restoration.
             self.publish_optional_remake_clock(name, outcome, before, before);
         }
+    }
+
+    fn publish_restored_required_worker_clock(
+        &mut self,
+        leading: &LeadingOptionalRemake<'_>,
+        visited: &MakefileVisits<'_>,
+        pending: &[PendingMakefileRemake<'_>],
+    ) {
+        let name = leading.required.name.as_slice();
+        if self.has_assumed_double_colon_entry(name)
+            || !self.settled_leading_optional_visit_failure(leading, visited)
+        {
+            return;
+        }
+        let Some(trailing) = leading.trailing.as_ref() else {
+            return;
+        };
+        if let Some(request) = pending.iter().find(|request| {
+            !request.duplicate
+                && !request.modes.active()
+                && std::ptr::eq(request.file, trailing.required)
+        }) && let Some(worker) = request.trailing_optional_worker.as_deref()
+            && worker.no_required_tail_remains
+            && matches!(
+                worker.result.get(),
+                Some(TrailingOptionalWorkerResult::Completed(_))
+            )
+            && let Some(mut outcome) = self.file_traversals.outcome(name).copied()
+            && outcome.ran_refresh()
+            && outcome.goal_verdict().is_none()
+            && matches!(worker.required_reap.get(),
+                Some(RequiredRemakeWorkerReap::Completed(clock)) if outcome.time == Some(clock))
+            && self.restored_required_worker_clock(request, trailing, visited)
+        {
+            // This pass continues with the original reads. Ordinary goals
+            // compare the final physical time of the completed source.
+            outcome.time = Some(worker.required_before);
+            self.file_traversals.set_outcome(name, outcome);
+        }
+    }
+
+    fn settled_leading_optional_visit_failure(
+        &self,
+        leading: &LeadingOptionalRemake<'_>,
+        visited: &MakefileVisits<'_>,
+    ) -> bool {
+        visited
+            .get(leading.neighbor.name.as_slice())
+            .is_some_and(|(before, _)| {
+                self.settled_leading_optional_failure(leading.neighbor, *before)
+            })
     }
 
     fn same_clock_optional_remake_outcome(before: Option<SystemTime>, result: Outcome) -> bool {
@@ -13865,19 +14010,73 @@ impl Engine {
         trailing: &TrailingOptionalRemake<'_>,
         visited: &MakefileVisits<'_>,
     ) -> bool {
-        let (Some(worker), Some(&(Some(before), _))) = (
-            &request.trailing_optional_worker,
-            visited.get(trailing.neighbor),
-        ) else {
+        let Some(worker) = request.trailing_optional_worker.as_deref() else {
             return false;
         };
         // Reread from the recorded explicit refresh when the second worker
         // restores the source clock before this pass reaches its final check.
-        worker.required_reap_clock.get().is_some_and(|clock| {
-            Self::regular_remake_clock(&worker.required) == Some(worker.required_before)
-                && self.successful_explicit_source_refresh(&worker.required, clock)
-                && Self::regular_remake_clock(trailing.neighbor) == Some(before)
-                && self.settled_optional_worker_clock(worker, trailing.neighbor) == Some(before)
+        matches!(worker.required_reap.get(), Some(RequiredRemakeWorkerReap::Completed(clock))
+            if self.successful_explicit_source_refresh(&worker.required, clock)
+                && self.required_worker_clock_was_restored(worker, trailing, visited))
+    }
+
+    fn failed_declared_worker_reap(
+        &self,
+        worker: &TrailingOptionalWorker,
+    ) -> Option<(usize, SystemTime)> {
+        let RequiredRemakeWorkerReap::FailedDeclaredTail { ordinal, clock } =
+            worker.required_reap.get()?
+        else {
+            return None;
+        };
+        let branch = self
+            .database_branch_outcomes
+            .get(&(worker.required.clone(), ordinal))?;
+        (branch.ran_refresh()
+            && branch.failed
+            && !branch.question_outdated
+            && branch.time == Some(clock)
+            && matches!(
+                branch.remake_failure,
+                RemakeFailure::RequiredDeclaredTailRecipe
+            ))
+        .then_some((ordinal, clock))
+    }
+
+    fn restored_failed_required_worker_clock(
+        &self,
+        request: &PendingMakefileRemake<'_>,
+        trailing: &TrailingOptionalRemake<'_>,
+        visited: &MakefileVisits<'_>,
+    ) -> bool {
+        request
+            .trailing_optional_worker
+            .as_deref()
+            .is_some_and(|worker| {
+                (worker.no_required_tail_remains
+                    || (worker.only_synthetic_tail_remains
+                        && worker.required_failure_settled.get()))
+                    && self.failed_declared_worker_reap(worker).is_some()
+                    && matches!(
+                        worker.result.get(),
+                        Some(TrailingOptionalWorkerResult::Completed(_))
+                    )
+                    && self.required_worker_clock_was_restored(worker, trailing, visited)
+            })
+    }
+
+    fn required_worker_clock_was_restored(
+        &self,
+        worker: &TrailingOptionalWorker,
+        trailing: &TrailingOptionalRemake<'_>,
+        visited: &MakefileVisits<'_>,
+    ) -> bool {
+        let name = trailing.neighbor;
+        visited.get(name).is_some_and(|&(before, _)| {
+            before.is_some()
+                && Self::regular_remake_clock(&worker.required) == Some(worker.required_before)
+                && Self::regular_remake_clock(name) == before
+                && self.settled_optional_worker_clock(worker, name) == before
         })
     }
 
@@ -14276,7 +14475,7 @@ impl Engine {
             no_required_tail_remains,
             only_synthetic_tail_remains,
             required_failure_settled: Cell::new(false),
-            required_reap_clock: Cell::new(None),
+            required_reap: Cell::new(None),
             result: Cell::new(None),
         });
         optional.trailing_optional_worker = Some(Rc::clone(&worker));
@@ -18248,6 +18447,10 @@ impl Engine {
                 }
                 let exports =
                     environment_variables.environment_order(|name, _| eligible.contains(name));
+                let selected: Vec<_> = exports
+                    .iter()
+                    .map(|name| (name, environment_variables.select_environment_binding(name)))
+                    .collect();
                 let mut emitted_order = Vec::new();
                 let mut inherited_mflags = false;
                 let direct_heads = self.direct_named_head_reads();
@@ -18261,20 +18464,23 @@ impl Engine {
                     branches: &mut self.database_branch_contexts,
                     direct_heads,
                 };
-                for name in &exports {
+                for (name, selection) in selected {
                     self.database.refresh_scoped_variables(variables);
-                    let environment_variables = variables.for_environment();
-                    if !export_selected(
-                        &environment_variables,
-                        &self.database.variables,
-                        &self.database.unexports,
-                        name,
-                        export_all,
-                    ) {
-                        child.env_remove(os(name));
-                        continue;
-                    }
-                    if let Some(variable) = environment_variables.get(name) {
+                    let current = variables.for_environment();
+                    if let Some(selection) = selection
+                        && let Some(variable) = current.environment_binding(selection)
+                    {
+                        if !export_selected_binding(
+                            &self.database.variables,
+                            &self.database.unexports,
+                            name,
+                            variable,
+                            current.resolve_environment_export_policy(selection, variable),
+                            export_all,
+                        ) {
+                            child.env_remove(os(name));
+                            continue;
+                        }
                         if name == b"MFLAGS" {
                             inherited_mflags = variable.origin() == Origin::Environment;
                         }
@@ -18290,9 +18496,9 @@ impl Engine {
                             emitted_order.push(name.clone());
                             continue;
                         }
-                        match self.database.expand_environment_in(
+                        match self.database.expand_selected_environment_in(
                             variables,
-                            name,
+                            selection,
                             runtime_context(
                                 variable.definition(),
                                 &mut RuntimeOutput::new(

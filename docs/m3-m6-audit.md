@@ -97,6 +97,12 @@ NUL boundaries, rebinding and cancellation.
   A selected activated pattern slot can also receive a command value.
   An inherited lookup updates the first visible pattern table it selects.
   Cached reads share the replacement through that table's identity.
+  The database prints a pattern declaration with the flavor adopted from a
+  command-line or environment-override binding. Activation uses the original
+  assignment operator.
+  A recipe or shell environment keeps the binding selected for each name
+  during assembly. Later export expansion sees changes to that binding and
+  reads its dependencies in the live scope.
   Standalone export and unexport lists record the visible-scope lookup for
   each name before updating its policy or creating an empty global binding.
   A list lookup refreshes the global .VARIABLES cache when that special
@@ -425,6 +431,12 @@ A successfully reaped required worker can leave a reread pending when a
 trailing optional worker later restores the required file’s timestamp.
 The held cases retain the tagged missing-rule diagnostic and check the
 final physical clock used by ordinary goals.
+With an earlier blocked or absent optional read under keep-going, a
+restored required timestamp can govern ordinary prerequisite freshness
+and the set of newer prerequisites in the original pass.
+A genuine declared required failure can also expose a rewritten clock
+before restoration. The held reread cases retain the actual recipe
+failure and any matching assumed branch diagnostic in order.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
@@ -460,6 +472,8 @@ locale. It runs the startup usage and getopt models on both build profiles
 using the same locale data. It also checks selected filesystem and build
 diagnostics in C, French, German and Japanese on both builds, including raw
 paths and warning order. The reports retain the native comparisons.
+The native gate also exercises localized parser diagnostics, adopted
+stdin cleanup, and temporary-file write errors on both builds.
 Localized built-in arity reports preserve each evaluated argument effect before
 the error and retain the original function name, argument count and location.
 Adopted stdin cleanup reports the localized action and errno with the raw
@@ -469,6 +483,8 @@ startup, using the recorded temporary name, retained bytes, and file mode.
 Recipe cleanup uses the localized unlink report when an owned changed
 target cannot be removed. The NLS checks cover raw paths and retain the
 recipe diagnostic, deletion announcement, and filesystem outcome in order.
+A restart that cannot return to the original directory emits the localized
+system warning and fatal message in order, with existing token cleanup.
 The dynamic musl gate checks C.UTF-8 wildcard byte widths and a C raw-target
 diagnostic beside a user warning. Broader diagnostic producers, native and
 Guile callbacks, cache history, resource failures and musl NLS remain open. See the
@@ -530,7 +546,9 @@ handling across startup phases, profiles and resource failures. Preserve
 registration, allocator and callback ownership through those combinations.
 When a remake pass returns a query verdict, unloaded modules stay closed.
 The [native lifecycle gate](native-modules.md) checks query, dry-run and
-ordinary reload behavior.
+ordinary reload behavior. Terminal load diagnostics in the reader keep
+their original error text and give existing finalizers the selected file
+and active lexical scope.
 GNU Make remains an external test reference and cannot serve as a runtime
 implementation fallback.
 

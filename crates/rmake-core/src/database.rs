@@ -20,6 +20,7 @@ pub struct PatternVariableView<'a> {
     pub name: &'a [u8],
     pub value: &'a [u8],
     pub assignment: Assignment,
+    pub flavor: Flavor,
     pub origin: Origin,
     pub private: bool,
     pub export: Option<bool>,
@@ -401,14 +402,14 @@ fn write_pattern_variables_with_presentation(
             variable.definition,
             presentation,
         )?;
-        // The declaration record has not become a target-local binding. Its
-        // observable database representation is simple even for a deferred RHS.
+        // The stored flavor controls printing independently of the assignment
+        // operation used when a file activates the pattern.
         write_value(
             output,
             b"# ",
             variable.name,
             variable.value,
-            Flavor::Simple,
+            variable.flavor,
             false,
         )?;
     }

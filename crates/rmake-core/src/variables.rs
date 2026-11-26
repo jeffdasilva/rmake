@@ -816,6 +816,14 @@ struct VariableLayer {
     pattern: bool,
 }
 
+/// One name selected while assembling a child environment. A scoped refresh
+/// replaces binding tables in place, preserving the selected layer index.
+#[derive(Clone, Copy)]
+pub struct EnvironmentBinding<'a> {
+    name: &'a [u8],
+    layer: usize,
+}
+
 /// Snapshots share the ordered layers until a binding or visibility changes.
 /// The unscoped store needs no layer allocation.
 #[derive(Clone, Debug, Default)]
@@ -867,6 +875,7 @@ pub struct PatternVariable {
     name: Vec<u8>,
     value: Vec<u8>,
     assignment: Assignment,
+    database_flavor: Flavor,
     origin: Origin,
     private: bool,
     export: Option<bool>,
@@ -2251,6 +2260,25 @@ impl VariableStore {
         environment
     }
 
+    /// Select a name in the environment view before expanding any exports.
+    pub fn select_environment_binding<'a>(&self, name: &'a [u8]) -> Option<EnvironmentBinding<'a>> {
+        self.lookup_from(name, 0)
+            .map(|(layer, _)| EnvironmentBinding { name, layer })
+    }
+
+    /// Fetch the live binding from the selected layer after a scoped refresh.
+    pub fn environment_binding(&self, selection: EnvironmentBinding<'_>) -> Option<&Variable> {
+        self.bindings_at_layer(selection.layer)?.get(selection.name)
+    }
+
+    pub fn resolve_environment_export_policy(
+        &self,
+        selection: EnvironmentBinding<'_>,
+        variable: &Variable,
+    ) -> Option<bool> {
+        self.resolve_selected_export_policy(selection.name, selection.layer, variable, true)
+    }
+
     fn global_layer(&self, layer: usize) -> bool {
         if layer == 0 {
             !self.scoped
@@ -2384,7 +2412,16 @@ impl VariableStore {
         local_private: bool,
         if_set: impl Fn() -> bool,
     ) -> Option<bool> {
-        let mut start = 0;
+        self.export_policy_from(name, 0, local_private, if_set)
+    }
+
+    fn export_policy_from(
+        &self,
+        name: &[u8],
+        mut start: usize,
+        local_private: bool,
+        if_set: impl Fn() -> bool,
+    ) -> Option<bool> {
         while let Some((index, value)) = self.lookup_from_visible(name, start, local_private) {
             if let Some(policy) = value
                 .scope
@@ -2407,19 +2444,29 @@ impl VariableStore {
     }
 
     fn resolve_export_policy_visible(&self, name: &[u8], local_private: bool) -> Option<bool> {
-        let selected = self
-            .lookup_from_visible(name, 0, local_private)
-            .map(|(_, variable)| variable);
-        let policy = self.export_policy_for(name, local_private, || {
-            selected.is_some_and(|variable| variable.origin != Origin::Default)
-        });
-        selected.map_or(policy, |variable| {
-            if variable.scope.export_if_set && variable.scope.export.get().is_none() {
-                policy
-            } else {
-                variable.scope.export.resolve(policy)
-            }
-        })
+        let (layer, variable) = self.lookup_from_visible(name, 0, local_private)?;
+        self.resolve_selected_export_policy(name, layer, variable, local_private)
+    }
+
+    fn resolve_selected_export_policy(
+        &self,
+        name: &[u8],
+        layer: usize,
+        variable: &Variable,
+        local_private: bool,
+    ) -> Option<bool> {
+        let if_set = || variable.origin != Origin::Default;
+        let policy = variable
+            .scope
+            .export
+            .get()
+            .or_else(|| variable.scope.export_if_set.then(if_set))
+            .or_else(|| self.export_policy_from(name, layer + 1, local_private, if_set));
+        if variable.scope.export_if_set && variable.scope.export.get().is_none() {
+            policy
+        } else {
+            variable.scope.export.resolve(policy)
+        }
     }
 
     /// Define an already-expanded name. Conditional assignment skips an existing
@@ -3081,6 +3128,7 @@ impl PatternVariable {
         {
             globals.variable_names(true)?;
         }
+        let mut database_flavor = Flavor::Simple;
         if origin != Origin::Override
             && let Some(global) = globals.get(name)
             && matches!(
@@ -3090,11 +3138,13 @@ impl PatternVariable {
         {
             value = global.value.clone();
             origin = global.origin;
+            database_flavor = global.flavor;
         }
         Ok(Self {
             name: name.to_vec(),
             value,
             assignment,
+            database_flavor,
             origin,
             private,
             export,
@@ -3125,6 +3175,7 @@ impl PatternVariable {
             name: &self.name,
             value: &self.value,
             assignment: self.assignment,
+            flavor: self.database_flavor,
             origin: self.origin,
             private: self.private,
             export: self.export,
@@ -3999,55 +4050,15 @@ fn scoped_database_expansion<'a, 'b>(
 pub(crate) fn expand_environment_database(
     db: &mut crate::parser::Database,
     variables: &mut VariableStore,
-    name: &[u8],
+    selection: EnvironmentBinding<'_>,
     context: ExpansionContext<'_>,
 ) -> Result<Vec<u8>, ExpandError> {
-    let environment = variables.for_environment();
-    let Some((layer, variable)) = environment.lookup_from(name, 0) else {
+    let snapshot = variables.clone();
+    let Some(variable) = snapshot.environment_binding(selection) else {
         return Ok(Vec::new());
     };
-    let inherited_active = db.evaluation_active.clone();
-    let bindings = std::mem::take(&mut db.evaluation_bindings);
-    let tracked = environment.global_layer(layer)
-        && variable.flavor == Flavor::Recursive
-        && variable.value.contains(&b'$');
-    if tracked {
-        db.exporting.push(name.to_vec());
-    }
-    let mut expansion = Expansion {
-        store: StoreAccess::Scoped {
-            database: db,
-            variables,
-        },
-        bindings,
-        active: Vec::new(),
-        inherited_active,
-        depth: 0,
-        logical_depth: 0,
-        machine_nesting: 0,
-        context,
-        binding_context: None,
-    };
-    let result = if variable.flavor == Flavor::Recursive
-        && expansion
-            .store
-            .outer_append_start(layer, name, variable)
-            .is_some()
-    {
-        if let Some((first_layer, first)) = expansion.store.database_lookup_from(name) {
-            let first = first.clone();
-            expansion.active.push((name.to_vec(), Some(layer)));
-            expansion.binding_context = Some(variable.definition.clone());
-            expansion.expand_layer(name, &first, Some(first_layer), true)
-        } else {
-            Ok(Vec::new())
-        }
-    } else {
-        expansion.selected_environment_variable(name, variable, layer)
-    };
-    if tracked {
-        expansion.store.database_mut().unwrap().exporting.pop();
-    }
+    let mut expansion = scoped_database_expansion(db, variables, context);
+    let result = expansion.environment_variable(selection.name, variable, selection.layer);
     expansion.finish_database_expansion(result)
 }
 
@@ -4791,26 +4802,33 @@ impl Expansion<'_, '_> {
         let snapshot = self.store.for_environment();
         // Only the innermost environment scope exposes private bindings.
         let local_private = self.bindings.is_empty();
-        let mut names =
-            snapshot.environment_order_with_lexical(&self.bindings, |name, variable| {
-                if name == b"SHELL" && variable.export_policy().is_none() {
-                    return false;
-                }
-                snapshot
-                    .resolve_export_policy_visible(name, local_private)
-                    .unwrap_or_else(|| {
-                        Self::shell_export_default(name, variable.origin, export_all)
-                    })
-            });
-        names.retain(|name| {
-            self.lexical_environment_binding(name).is_some()
-                || snapshot
-                    .lookup_from_visible(name, 0, local_private)
-                    .is_some()
+        let names = snapshot.environment_order_with_lexical(&self.bindings, |name, variable| {
+            if name == b"SHELL" && variable.export_policy().is_none() {
+                return false;
+            }
+            snapshot
+                .resolve_export_policy_visible(name, local_private)
+                .unwrap_or_else(|| Self::shell_export_default(name, variable.origin, export_all))
         });
+        let selected: Vec<_> = names
+            .into_iter()
+            .filter_map(|name| {
+                if self.lexical_environment_binding(&name).is_some() {
+                    Some((name, None))
+                } else {
+                    snapshot
+                        .lookup_from_visible(&name, 0, local_private)
+                        .map(|(layer, _)| (name, Some(layer)))
+                }
+            })
+            .collect();
         let mut environment = Vec::new();
-        for name in names {
-            if let Some(variable) = self.lexical_environment_binding(&name) {
+        for (name, layer) in selected {
+            let Some(layer) = layer else {
+                let Some(variable) = self.lexical_environment_binding(&name) else {
+                    environment.push((name, EnvironmentValue::Remove));
+                    continue;
+                };
                 let value = if variable.export_policy().unwrap_or_else(|| {
                     Self::shell_export_default(&name, variable.origin, export_all)
                 }) {
@@ -4823,24 +4841,26 @@ impl Expansion<'_, '_> {
                 };
                 environment.push((name, value));
                 continue;
-            }
+            };
             let current = self.store.for_environment();
-            let Some((layer, variable)) = current.lookup_from_visible(&name, 0, local_private)
+            let Some(variable) = current
+                .bindings_at_layer(layer)
+                .and_then(|table| table.get(name.as_slice()))
             else {
                 environment.push((name, EnvironmentValue::Remove));
                 continue;
             };
-            let variable = variable.clone();
             if name == b"SHELL" && variable.export_policy().is_none() {
                 continue;
             }
             let export = current
-                .resolve_export_policy_visible(&name, local_private)
+                .resolve_selected_export_policy(&name, layer, variable, local_private)
                 .unwrap_or_else(|| Self::shell_export_default(&name, variable.origin, export_all));
             if !export {
                 environment.push((name, EnvironmentValue::Remove));
                 continue;
             }
+            let variable = variable.clone();
             // MAKEFLAGS keeps its expansion semantics when inherited.
             let imported_raw = name != b"MAKEFLAGS"
                 && matches!(

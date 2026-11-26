@@ -180,6 +180,7 @@ def models() -> list[Model]:
     result.extend(declaration_close_finalizer_models())
     result.extend(target_empty_name_finalizer_models())
     result.extend(empty_load_symbol_finalizer_models())
+    result.extend(terminal_load_finalizer_models())
     ids = [model.id for model in result]
     if len(ids) != len(set(ids)) or any(not re.fullmatch(r'[a-z0-9][a-z0-9-]*', ident) for ident in ids):
         raise h.HarnessError('duplicate or invalid native model IDs')
@@ -2016,6 +2017,72 @@ def assess(model: Model, case: h.Case, observations: list[h.Observation]) -> dic
             'oracle_repeat_differences': repeat, 'candidate_differences': candidate,
             'bounded': bounded,
             'observations': [dict(h.observation_json(o), stdout_hex=o.stdout.hex(), stderr_hex=o.stderr.hex()) for o in observations]}
+
+
+def terminal_load_finalizer_models() -> list[Model]:
+    head = b'load fatal_scope.so\n.LOADED := global\n$(file >>seen,read)\n'
+    goal = b'.PHONY: all\nall:;@$(file >>seen,goal):\n'
+    tail = b'$(file >>seen,after)\n' + goal
+    operand = b'$(file >>seen,operand-$(.LOADED)-$(1))'
+    plain_marks = b'read\noperand-global-\n'
+    lexical_marks = b'read\noperand-lexical-arg\n'
+    global_scope = b'scope=[||file|global||]\n'
+    lexical_scope = b'scope=[||automatic|lexical|RUN|arg]\n'
+    lexical = (b'RUN = $(foreach .LOADED,lexical,$(eval $(file <payload.txt)))\n'
+               b'$(call RUN,arg)\n')
+    finalizer = Module('fatal_scope.c', 'fatal_scope.so')
+    loader = Module(defines=('PROBE_TRACE_SETUP',))
+    unlicensed = Module(defines=('plugin_is_GPL_compatible=fixture_unrelated_marker',))
+    license_failure = b'Loaded object probe_api.so is not declared to be GPL compatible'
+    symbol_failure = (b'Failed to load symbol missing_setup from probe_api.so: '
+                      b'./probe_api.so: undefined symbol: missing_setup')
+    absent_failure = b'absent_load.so: failed to load'
+    setup_failure = b'probe_api.so: failed to load'
+    direct_license = b'load ' + operand + b'probe_api.so\n'
+    direct_symbol = b'load ' + operand + b'probe_api.so(missing_setup)\n'
+    absent = b'load ' + operand + b'absent_load.so\n'
+
+    def model(name, body, *, failure=b'', location=b'Makefile:4', modules=(), files=None,
+              marks=plain_marks, scope=global_scope, no_source=False, env=None,
+              before_error=b'', later_error=b''):
+        program = goal if no_source else head + body + tail
+        args = ('--eval', (head + body + tail).decode('ascii')) if no_source else ()
+        diagnostic = before_error
+        if failure:
+            diagnostic += location + b': *** ' + failure + b'.  Stop.\n'
+        diagnostic += later_error
+        diagnostic += (location if failure else b'make') + b': finalizer-location\n'
+        return Model(
+            'native-terminal-load-finalizer-' + name,
+            {'Makefile': program, 'seen': b'anchor\n', **(files or {})},
+            {'exit_code': 2 if failure or later_error else 0, 'stdout_hex': '', 'stderr_hex': diagnostic.hex()},
+            b'anchor\n' + marks + scope,
+            (finalizer, *modules),
+            args=('-rR', '--no-print-directory', '-j1', *args, 'all'),
+            environment=env or {},
+        )
+
+    return [
+        model('license-required', direct_license, failure=license_failure, modules=(unlicensed,)),
+        model('license-optional', b'-' + direct_license, failure=license_failure, modules=(unlicensed,)),
+        model('symbol-include', b'include child.mk\n', failure=symbol_failure, location=b'child.mk:2',
+              modules=(loader,), files={'child.mk': b'# named child\n' + direct_symbol}),
+        model('symbol-named-lexical', lexical, failure=symbol_failure, location=b'Makefile:5',
+              modules=(loader,), files={'payload.txt': direct_symbol}, marks=lexical_marks, scope=lexical_scope),
+        model('license-anonymous-lexical', lexical, failure=license_failure, location=b'make',
+              modules=(unlicensed,), files={'payload.txt': direct_license}, marks=lexical_marks,
+              scope=lexical_scope, no_source=True),
+        model('object-required', absent, failure=absent_failure,
+              before_error=b'Makefile:4: absent_load.so: cannot open shared object file: No such file or directory\n'),
+        model('object-optional', b'-' + absent, marks=plain_marks + b'after\n',
+              later_error=b"make: *** No rule to make target 'absent_load.so'.  Stop.\n"),
+        model('setup-zero-required', direct_license, failure=setup_failure, modules=(loader,),
+              marks=plain_marks + b'setup\n', env={'PROBE_SETUP_ZERO': '1'}),
+        model('setup-zero-optional', b'-' + direct_license, modules=(loader,),
+              marks=plain_marks + b'setup\nafter\ngoal\n', env={'PROBE_SETUP_ZERO': '1'}),
+        model('symbol-dormant', b'$(if ,$(eval $(file <payload.txt)))\n', modules=(loader,),
+              files={'payload.txt': direct_symbol}, marks=b'read\nafter\ngoal\n'),
+    ]
 
 
 def safe_relative(name: str) -> Path:

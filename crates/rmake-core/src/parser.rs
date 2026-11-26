@@ -12,14 +12,15 @@ use crate::diagnostic::{
     Diagnostic, ExpansionContext, FilesystemEffect, FilesystemError, IncludeError, IncludeFailure,
     Output,
 };
-use crate::messages::Message;
+use crate::messages::{Message, MessageId};
 use crate::reader::{
     Input, ParserLine, ParserReader, fold_recipe_reference_continuations, has_comment,
     strip_comment, strip_recipe_continuation_prefix,
 };
 use crate::variables::{
-    Assignment, ConditionalFlagBinding, DefinitionLookup, ExpandError, Flavor, MAX_OUTPUT, Origin,
-    Pattern, PatternVariable, TargetScope, Variable, VariableStore, reference_end,
+    Assignment, ConditionalFlagBinding, DefinitionLookup, EnvironmentBinding, ExpandError, Flavor,
+    MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope, Variable, VariableStore,
+    reference_end,
 };
 use std::borrow::Cow;
 use std::cell::{Cell, OnceCell};
@@ -5090,8 +5091,22 @@ impl Database {
         context: ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ExpandError> {
         self.refresh_scoped_variables(variables);
+        let Some(selection) = variables.for_environment().select_environment_binding(name) else {
+            return Ok(Vec::new());
+        };
+        self.expand_selected_environment_in(variables, selection, context)
+    }
+
+    pub fn expand_selected_environment_in(
+        &mut self,
+        variables: &mut VariableStore,
+        selection: EnvironmentBinding<'_>,
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        self.refresh_scoped_variables(variables);
         let previous = std::mem::replace(&mut self.rules_frozen, true);
-        let result = crate::variables::expand_environment_database(self, variables, name, context);
+        let result =
+            crate::variables::expand_environment_database(self, variables, selection, context);
         self.rules_frozen = previous;
         result
     }
@@ -5970,13 +5985,31 @@ impl Database {
                         ));
                     }
                     self.load_native_with(&name, keyword == b"-load", &location, context)
-                        .map_err(|error| ParseError {
-                            unlocated: error.is_unlocated(),
-                            location: error
+                        .map_err(|error| {
+                            let location = error
                                 .diagnostic_location(Some(&location))
-                                .unwrap_or(&location)
-                                .clone(),
-                            message: error.diagnostic(),
+                                .unwrap_or(&location);
+                            // The loader freezes the diagnostic before returning. The
+                            // reader owns teardown context for these terminal failures.
+                            let cause = match &error {
+                                ExpandError::RenderedSystem { error, .. } => error.as_ref(),
+                                error => error,
+                            };
+                            if cause.system_message().is_some_and(|message| {
+                                matches!(
+                                    message.id(),
+                                    MessageId::MissingNativeLicense
+                                        | MessageId::NativeSymbolFailure
+                                        | MessageId::LoadFailed
+                                )
+                            }) {
+                                self.retain_native_reader_error(location, context);
+                            }
+                            ParseError {
+                                unlocated: error.is_unlocated(),
+                                location: location.clone(),
+                                message: error.diagnostic(),
+                            }
                         })?;
                 }
                 continue;
