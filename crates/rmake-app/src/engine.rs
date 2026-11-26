@@ -4198,14 +4198,14 @@ impl Engine {
             let ordinary_current_leading = direct_trailing_layout.filter(|leading| {
                 !self.has_assumed_double_colon_entry(&leading.required.name)
                     && !leading.neighbor.missing
-                    && self.unruled_remake_source(&leading.neighbor.name)
+                    && self.current_leading_optional_source(&leading.neighbor.name)
             });
             let assumed_current_leading = leading_optional_layout.as_ref().filter(|leading| {
                 check_leading_clock_after_reap
                     && use_failed_leading_head
                     && self.options.keep_going
                     && !leading.neighbor.missing
-                    && self.unruled_remake_source(&leading.neighbor.name)
+                    && self.current_leading_optional_source(&leading.neighbor.name)
                     && leading
                         .trailing
                         .as_ref()
@@ -13891,6 +13891,18 @@ impl Engine {
                 })
     }
 
+    fn current_leading_optional_source(&self, name: &[u8]) -> bool {
+        self.unruled_remake_source(name)
+            || (self.declared_optional_remake_source(name)
+                && !self.aliases.contains(name)
+                && self.database.implicit_candidates(name).is_empty()
+                && self
+                    .database
+                    .rules
+                    .get(name)
+                    .is_some_and(|rule| rule.recipes.is_some()))
+    }
+
     fn settled_current_leading_optional(&self, name: &[u8], visited: &MakefileVisits<'_>) -> bool {
         visited
             .get(name)
@@ -13903,7 +13915,7 @@ impl Engine {
                     && !outcome.fatal
                     && !outcome.blocked
                     && outcome.goal_verdict().is_none()
-                    && self.unruled_remake_source(name)
+                    && self.current_leading_optional_source(name)
                     && Self::regular_remake_clock(name) == *before
             })
     }
