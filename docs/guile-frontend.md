@@ -26,6 +26,12 @@ Bootstrap verifies their provenance and extracts them into a private directory.
 It does not install system packages or run package maintainer scripts. Other
 platform and resource profiles need separate validation.
 
+The [AArch64 GNU reference workflow](../.github/workflows/guile-aarch64-reference.yml)
+uses a separately [locked ARM SDK](../oracle/guile/aarch64-toolchain.json).
+On native Ubuntu 24.04 it builds the pinned GNU Make 4.4.1 reference, checks
+the Guile feature and records a Scheme scalar result. The optional rmake
+frontend and component qualification use the x86-64 SDK.
+
 With the default Makefile settings, the enabled binaries are
 `artifacts/guile-frontend/cargo-target/debug/rmake` and
 `artifacts/guile-frontend/cargo-target/release/rmake`. The gate prints a fresh
