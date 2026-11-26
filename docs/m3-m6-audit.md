@@ -138,6 +138,8 @@ NUL boundaries, rebinding and cancellation.
   An accepted reopen clears that timestamp while preserving the update verdict.
   When default makefile discovery misses, the reader interns all three
   optional remake candidate names as it enters their file records.
+  With no selected goal, the diagnostic reads the raw MAKEFILE_LIST
+  binding after default-goal expansion.
   A serial missing-rule stop occurs before completing the file update.
   The active ordinary prerequisite chain retains that state in a dump.
   A launched child retains its completed failure while its waiting ordinary
