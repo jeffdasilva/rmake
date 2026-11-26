@@ -3678,12 +3678,18 @@ impl Database {
                 scope
             };
             let mut active_conditional = None;
+            let mut transfer_command = false;
             let scope = if kind == Assignment::Conditional
                 && (self.evaluation_scope.is_some()
                     || self.target_read.is_some()
                     || context.target_reads.is_some())
             {
                 let declarations = scope.context(&self.variables);
+                let can_transfer = declarations.local_binding_slot(&name).is_some()
+                    && self.evaluation_scope.as_ref().is_some_and(|caller| {
+                        !caller.is_file_read_context(target)
+                            && caller.file_scope_history(target).is_none()
+                    });
                 let record_active = self.target_read.is_none()
                     && declaration.head.is_none()
                     && !matches!(
@@ -3700,7 +3706,8 @@ impl Database {
                             .is_some_and(|identity| {
                                 !self.detached_history_owners.contains_key(&identity)
                             })
-                            && (caller.is_file_read_context(target)
+                            && (can_transfer
+                                || caller.is_file_read_context(target)
                                 || caller.get(&name).is_none_or(|value| {
                                     !matches!(
                                         value.origin(),
@@ -3716,7 +3723,13 @@ impl Database {
                 ) {
                     self.refresh_target_read(&owner, &mut read, &declarations);
                     if record_active {
-                        active_conditional = Self::record_active_named_conditional(&read, &name);
+                        (active_conditional, transfer_command) =
+                            Self::record_active_named_conditional(
+                                &read,
+                                &declarations,
+                                &name,
+                                can_transfer,
+                            );
                     }
                     if read.qualify_ancestor_or_pattern(
                         &name,
@@ -3728,8 +3741,12 @@ impl Database {
                         continue;
                     }
                 } else if record_active {
-                    active_conditional =
-                        Self::record_active_named_conditional(&declarations, &name);
+                    (active_conditional, transfer_command) = Self::record_active_named_conditional(
+                        &declarations,
+                        &declarations,
+                        &name,
+                        can_transfer,
+                    );
                 }
                 let scope = declaration
                     .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
@@ -3794,9 +3811,11 @@ impl Database {
                 )
             };
             let lookup_origin = result.map_err(parse_error)?;
-            self.record_active_named_conditional_caller(&name, active_conditional);
+            if !transfer_command {
+                self.record_active_named_conditional_caller(&name, active_conditional);
+            }
             self.publish_target_scope(declaration, &name);
-            if lookup_origin
+            if (lookup_origin || transfer_command)
                 && !self
                     .evaluation_bindings
                     .iter()
@@ -3808,24 +3827,43 @@ impl Database {
                     .unwrap_or(&self.variables)
                     .target_command_value(&name)
                     .map_err(parse_error)?
-                && declaration
-                    .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
-                    .expect("target declaration")
-                    .adopt_target_command_value(&name, value)
             {
-                self.publish_target_scope(declaration, &name);
+                let scope = declaration
+                    .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
+                    .expect("target declaration");
+                let updated = if transfer_command {
+                    scope.transfer_target_command_value(&name, value)
+                } else {
+                    scope.adopt_target_command_value(&name, value)
+                };
+                if updated {
+                    self.publish_target_scope(declaration, &name);
+                }
             }
         }
         Ok(has_targets)
     }
 
-    fn record_active_named_conditional(read: &VariableStore, name: &[u8]) -> Option<Origin> {
-        let selected = read.get(name)?;
-        if selected.origin() == Origin::Automatic {
-            return None;
+    fn record_active_named_conditional(
+        read: &VariableStore,
+        declarations: &VariableStore,
+        name: &[u8],
+        can_transfer: bool,
+    ) -> (Option<Origin>, bool) {
+        let Some(selected) = read.get(name) else {
+            return (None, false);
+        };
+        let origin = selected.origin();
+        if origin == Origin::Automatic {
+            return (None, false);
         }
         read.record_database_lookup(name);
-        Some(selected.origin())
+        let transfer = can_transfer
+            && origin != Origin::Override
+            && declarations
+                .local_binding_slot(name)
+                .is_some_and(|(_, binding)| std::ptr::eq(binding, selected));
+        (Some(origin), transfer)
     }
 
     fn record_active_named_conditional_caller(&self, name: &[u8], selected: Option<Origin>) {

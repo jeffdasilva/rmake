@@ -87,6 +87,9 @@ NUL boundaries, rebinding and cancellation.
   An ordinary active recipe eval probes the named file's visible variable
   chain before applying qualifiers. The caller's later lookup sees those
   qualifiers and can stop at a lexical binding.
+  A command-line or environment-override binding in a separate caller can
+  replace the selected ordinary named file binding in place. The destination
+  keeps its definition location and export policy.
   Standalone export and unexport lists record the visible-scope lookup for
   each name before updating its policy or creating an empty global binding.
   A list lookup refreshes the global .VARIABLES cache when that special

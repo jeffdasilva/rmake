@@ -3636,6 +3636,21 @@ impl TargetScope {
         if value.origin <= old.origin {
             return false;
         }
+        self.transfer_target_command_value(name, value)
+    }
+
+    pub(crate) fn transfer_target_command_value(&mut self, name: &[u8], value: Variable) -> bool {
+        let Some(old) = self.variables.get(name) else {
+            return false;
+        };
+        if old.origin == Origin::Override
+            || (old.value == value.value
+                && old.origin == value.origin
+                && old.flavor == value.flavor
+                && !old.scope.append_outer)
+        {
+            return false;
+        }
         // The destination retains its definition location and binding policy.
         let target = Arc::make_mut(&mut self.variables).get_mut(name).unwrap();
         target.value = value.value;
