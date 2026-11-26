@@ -85,8 +85,9 @@ NUL boundaries, rebinding and cancellation.
   A suppressed named conditional read from global scope retains the file's
   variable table and records the caller lookup if the selected origin permits it.
   An ordinary active recipe eval probes the named file's visible variable
-  chain before applying qualifiers. The caller's later lookup sees those
-  qualifiers and can stop at a lexical binding.
+  chain before applying qualifiers. It publishes updated privacy before the
+  caller's origin lookup, including when the caller inherits that named file.
+  A lexical binding can stop the caller lookup.
   A command-line or environment-override binding in a separate caller can
   replace the selected ordinary named file binding in place. The destination
   keeps its definition location and export policy.
