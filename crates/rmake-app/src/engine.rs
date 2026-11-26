@@ -18764,7 +18764,8 @@ impl Engine {
                     .values()
                     .all(|job| job.child.is_some() && job.continuation.remake.is_none());
             if failed_dispatch && let Err(error) = &process {
-                self.stderr(&[program.as_slice(), b": ", os_error(error).as_bytes()].concat());
+                let detail = rmake_linux::filesystem::source_error_detail(error);
+                self.stderr(&[program.as_slice(), b": ", &detail].concat());
             }
             self.output.select(None);
             if let Ok((child, _)) = &process {
