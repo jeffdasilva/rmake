@@ -3246,7 +3246,7 @@ impl Engine {
                 continue;
             }
             if self.options.temp_stdin_file.is_some() {
-                self.fatal(None, b"Makefile from standard input specified twice");
+                self.fatal_system(Message::DuplicateStdinMakefile);
                 return Err(());
             }
             let source = match rmake_linux::stdin_source::Source::copy_stdin() {

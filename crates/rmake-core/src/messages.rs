@@ -30,6 +30,7 @@ pub enum MessageId {
     NoTargets,
     NoMakefile,
     MultipleDefaultGoals,
+    DuplicateStdinMakefile,
     OrphanRecipe,
     InvalidConditional,
     ExtraneousConditional,
@@ -52,6 +53,9 @@ pub enum MessageId {
     LeaveUnknownDirectoryAtDepth,
     OsError,
     SourceError,
+    TemporaryDirectoryOsError,
+    TemporaryDirectoryNotDirectory,
+    DefaultTemporaryDirectory,
     LoadLimitUnsupported,
     LoadLimitErrorPrefix,
     FailedMakefileRemake,
@@ -89,7 +93,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 79] = [
+    pub const ALL: [Self; 83] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -113,6 +117,7 @@ impl MessageId {
         Self::NoTargets,
         Self::NoMakefile,
         Self::MultipleDefaultGoals,
+        Self::DuplicateStdinMakefile,
         Self::OrphanRecipe,
         Self::InvalidConditional,
         Self::ExtraneousConditional,
@@ -135,6 +140,9 @@ impl MessageId {
         Self::LeaveUnknownDirectoryAtDepth,
         Self::OsError,
         Self::SourceError,
+        Self::TemporaryDirectoryOsError,
+        Self::TemporaryDirectoryNotDirectory,
+        Self::DefaultTemporaryDirectory,
         Self::LoadLimitUnsupported,
         Self::LoadLimitErrorPrefix,
         Self::FailedMakefileRemake,
@@ -223,6 +231,7 @@ impl MessageId {
                 makefile_found: self == Self::NoTargets,
             },
             Self::MultipleDefaultGoals => Message::MultipleDefaultGoals,
+            Self::DuplicateStdinMakefile => Message::DuplicateStdinMakefile,
             Self::OrphanRecipe => Message::OrphanRecipe,
             Self::InvalidConditional => Message::InvalidConditional,
             Self::ExtraneousConditional => Message::ExtraneousConditional(b"endif"),
@@ -282,6 +291,16 @@ impl MessageId {
                 path: b"Makefile",
                 detail: b"I/O error",
             },
+            Self::TemporaryDirectoryOsError => Message::TemporaryDirectoryOsError {
+                name: b"TMPDIR",
+                path: b"scratch",
+                detail: b"I/O error",
+            },
+            Self::TemporaryDirectoryNotDirectory => Message::TemporaryDirectoryNotDirectory {
+                name: b"TMPDIR",
+                path: b"scratch",
+            },
+            Self::DefaultTemporaryDirectory => Message::DefaultTemporaryDirectory(b"/tmp"),
             Self::LoadLimitUnsupported => Message::LoadLimitUnsupported,
             Self::LoadLimitErrorPrefix => Message::LoadLimitErrorPrefix,
             Self::FailedMakefileRemake => Message::FailedMakefileRemake(b"Makefile"),
@@ -375,6 +394,7 @@ impl MessageId {
             Self::NoTargets => c"No targets",
             Self::NoMakefile => c"No targets specified and no makefile found",
             Self::MultipleDefaultGoals => c".DEFAULT_GOAL contains more than one target",
+            Self::DuplicateStdinMakefile => c"Makefile from standard input specified twice",
             Self::OrphanRecipe => c"recipe commences before first target",
             Self::InvalidConditional => c"invalid syntax in conditional",
             Self::ExtraneousConditional => c"extraneous '%s'",
@@ -399,6 +419,9 @@ impl MessageId {
             Self::LeaveUnknownDirectoryAtDepth => c"%s[%u]: Leaving an unknown directory\n",
             Self::OsError => c"%s%s: %s",
             Self::SourceError => c"%s: %s",
+            Self::TemporaryDirectoryOsError => c"%s value %s: %s",
+            Self::TemporaryDirectoryNotDirectory => c"%s value %s: not a directory",
+            Self::DefaultTemporaryDirectory => c"using default temporary directory '%s'",
             Self::LoadLimitUnsupported => c"cannot enforce load limits on this operating system",
             Self::LoadLimitErrorPrefix => c"cannot enforce load limit: ",
             Self::FailedMakefileRemake => c"Failed to remake makefile '%s'.",
@@ -541,6 +564,7 @@ pub enum Message<'a> {
         makefile_found: bool,
     },
     MultipleDefaultGoals,
+    DuplicateStdinMakefile,
     OrphanRecipe,
     InvalidConditional,
     ExtraneousConditional(&'a [u8]),
@@ -570,6 +594,16 @@ pub enum Message<'a> {
         path: &'a [u8],
         detail: &'a [u8],
     },
+    TemporaryDirectoryOsError {
+        name: &'a [u8],
+        path: &'a [u8],
+        detail: &'a [u8],
+    },
+    TemporaryDirectoryNotDirectory {
+        name: &'a [u8],
+        path: &'a [u8],
+    },
+    DefaultTemporaryDirectory(&'a [u8]),
     LoadLimitUnsupported,
     LoadLimitErrorPrefix,
     FailedMakefileRemake(&'a [u8]),
@@ -670,6 +704,7 @@ impl<'a> Message<'a> {
                 makefile_found: false,
             } => MessageId::NoMakefile,
             Self::MultipleDefaultGoals => MessageId::MultipleDefaultGoals,
+            Self::DuplicateStdinMakefile => MessageId::DuplicateStdinMakefile,
             Self::OrphanRecipe => MessageId::OrphanRecipe,
             Self::InvalidConditional => MessageId::InvalidConditional,
             Self::ExtraneousConditional(_) => MessageId::ExtraneousConditional,
@@ -705,6 +740,11 @@ impl<'a> Message<'a> {
             },
             Self::OsError { .. } => MessageId::OsError,
             Self::SourceError { .. } => MessageId::SourceError,
+            Self::TemporaryDirectoryOsError { .. } => MessageId::TemporaryDirectoryOsError,
+            Self::TemporaryDirectoryNotDirectory { .. } => {
+                MessageId::TemporaryDirectoryNotDirectory
+            }
+            Self::DefaultTemporaryDirectory(_) => MessageId::DefaultTemporaryDirectory,
             Self::LoadLimitUnsupported => MessageId::LoadLimitUnsupported,
             Self::LoadLimitErrorPrefix => MessageId::LoadLimitErrorPrefix,
             Self::FailedMakefileRemake(_) => MessageId::FailedMakefileRemake,
@@ -760,6 +800,7 @@ impl<'a> Message<'a> {
             | Self::Ignored
             | Self::NoTargets { .. }
             | Self::MultipleDefaultGoals
+            | Self::DuplicateStdinMakefile
             | Self::OrphanRecipe
             | Self::InvalidConditional
             | Self::DuplicateElse
@@ -791,6 +832,7 @@ impl<'a> Message<'a> {
             | Self::LowResolutionTime(name)
             | Self::PatternPeerNotUpdated(name)
             | Self::InvalidLibraryPattern(name)
+            | Self::DefaultTemporaryDirectory(name)
             | Self::DirectiveTail(name)
             | Self::ExtraneousConditional(name)
             | Self::InvalidFileOperation(name)
@@ -852,6 +894,15 @@ impl<'a> Message<'a> {
             Self::SourceError { path, detail } => {
                 push(Argument::Bytes(path));
                 push(Argument::Bytes(detail));
+            }
+            Self::TemporaryDirectoryOsError { name, path, detail } => {
+                push(Argument::Bytes(name));
+                push(Argument::Bytes(path));
+                push(Argument::Bytes(detail));
+            }
+            Self::TemporaryDirectoryNotDirectory { name, path } => {
+                push(Argument::Bytes(name));
+                push(Argument::Bytes(path));
             }
             Self::UnterminatedFunction { name, close } => {
                 push(Argument::Bytes(name));

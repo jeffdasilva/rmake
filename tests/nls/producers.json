@@ -1,5 +1,5 @@
 {
-  "classification": "Catalog producer models, including startup directory changes, target stat diagnostics, grouped rules, suffix rules and library patterns. Input LOCPATH is supplied by the verified locale profile.",
+  "classification": "Catalog producer models for startup and build diagnostics. Input LOCPATH is supplied by the verified locale profile.",
   "original_models_sha256": "78853414ec1b9e0bec84ad5fb9d9868efe94f6c01d67e39f1c7039e51a1db646",
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
   "fixture_sha256": {
@@ -1262,6 +1262,357 @@
         "stdout_hex": "4d616b6566696c653a333a205761726e756e673a204461732052657a6570742066c3bc7220646173205a69656c20e2809e61e2809c207769726420c3bc62657273636872696562656e0a4d616b6566696c653a323a205761726e756e673a2044617320616c74652052657a6570742066c3bc7220646173205a69656c20e2809e61e2809c20776972642069676e6f72696572740a726561642d72656164790a696e646570656e64656e740a",
         "stderr": "",
         "seen_hex": "616e63686f720a7265616465720a696e646570656e64656e740a"
+      }
+    },
+    {
+      "id": "nls-tempdir-invalid-then-regular-de",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de",
+        "MAKE_TMPDIR": "missing",
+        "TMPDIR": "regular"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a616c6c3a3b40242866696c65203e3e7365656e2c726563697065293a0a",
+        "seen": "616e63686f720a",
+        "valid/anchor": "6b6565700a",
+        "regular": "6e6f742061206469726563746f72790a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "read-ready\n",
+        "stderr_hex": "6d616b653a204d414b455f544d504449522057657274206d697373696e673a20404f535f44455441494c400a6d616b653a20544d50444952205765727420726567756c61723a206b65696e205665727a656963686e69730a6d616b653a20446173207374616e646172646dc3a4c39f6967652074656d706f72c3a47265205665727a656963686e697320e2809e2f746d70e2809c20776972642076657277656e6465740a",
+        "seen": "anchor\nreader\nrecipe\n"
+      },
+      "errno_fact": [
+        "ENOENT",
+        "fr_FR.UTF-8"
+      ]
+    },
+    {
+      "id": "nls-tempdir-invalid-then-regular-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr",
+        "MAKE_TMPDIR": "missing",
+        "TMPDIR": "regular"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a616c6c3a3b40242866696c65203e3e7365656e2c726563697065293a0a",
+        "seen": "616e63686f720a",
+        "valid/anchor": "6b6565700a",
+        "regular": "6e6f742061206469726563746f72790a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "read-ready\n",
+        "stderr_hex": "6d616b653a204d414b455f544d504449522076616c7565206d697373696e673a20404f535f44455441494c400a6d616b653a20544d504449522076616c756520726567756c61723a206e6f742061206469726563746f72790a6d616b653a207573696e672064656661756c742074656d706f72617279206469726563746f727920272f746d70270a",
+        "seen": "anchor\nreader\nrecipe\n"
+      },
+      "errno_fact": [
+        "ENOENT",
+        "fr_FR.UTF-8"
+      ]
+    },
+    {
+      "id": "nls-tempdir-invalid-then-regular-c",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "",
+        "MAKE_TMPDIR": "missing",
+        "TMPDIR": "regular"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a616c6c3a3b40242866696c65203e3e7365656e2c726563697065293a0a",
+        "seen": "616e63686f720a",
+        "valid/anchor": "6b6565700a",
+        "regular": "6e6f742061206469726563746f72790a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "read-ready\n",
+        "stderr_hex": "6d616b653a204d414b455f544d504449522076616c7565206d697373696e673a20404f535f44455441494c400a6d616b653a20544d504449522076616c756520726567756c61723a206e6f742061206469726563746f72790a6d616b653a207573696e672064656661756c742074656d706f72617279206469726563746f727920272f746d70270a",
+        "seen": "anchor\nreader\nrecipe\n"
+      },
+      "errno_fact": [
+        "ENOENT",
+        "C"
+      ]
+    },
+    {
+      "id": "nls-tempdir-raw-invalid-recovers-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja",
+        "MAKE_TMPDIR": "missing-\udcff",
+        "TMPDIR": "valid"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a616c6c3a3b40242866696c65203e3e7365656e2c726563697065293a0a",
+        "seen": "616e63686f720a",
+        "valid/anchor": "6b6565700a",
+        "regular": "6e6f742061206469726563746f72790a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "read-ready\n",
+        "stderr_hex": "6d616b653a204d414b455f544d5044495220e580a4206d697373696e672dff3a20404f535f44455441494c400a",
+        "seen": "anchor\nreader\nrecipe\n"
+      },
+      "errno_fact": [
+        "ENOENT",
+        "fr_FR.UTF-8"
+      ]
+    },
+    {
+      "id": "nls-tempdir-valid-preferred-de",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de",
+        "MAKE_TMPDIR": "valid",
+        "TMPDIR": "missing"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a616c6c3a3b40242866696c65203e3e7365656e2c726563697065293a0a",
+        "seen": "616e63686f720a",
+        "valid/anchor": "6b6565700a",
+        "regular": "6e6f742061206469726563746f72790a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "read-ready\n",
+        "stderr_hex": "",
+        "seen": "anchor\nreader\nrecipe\n"
+      }
+    },
+    {
+      "id": "nls-tempdir-empty-options-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja",
+        "MAKE_TMPDIR": "",
+        "TMPDIR": ""
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a2428696e666f20726561642d7265616479290a616c6c3a3b40242866696c65203e3e7365656e2c726563697065293a0a",
+        "seen": "616e63686f720a",
+        "valid/anchor": "6b6565700a",
+        "regular": "6e6f742061206469726563746f72790a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "read-ready\n",
+        "stderr_hex": "",
+        "seen": "anchor\nreader\nrecipe\n"
+      }
+    },
+    {
+      "id": "nls-stdin-duplicate-mixed-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "E:=$(file >>seen,cli)",
+        "--eval=$(file >>seen,deferred)",
+        "-f-",
+        "--file=-",
+        "-f",
+        "unit.mk"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "unit.mk": "242866696c65203e3e7365656e2c72656164290a616c6c3a3b40242866696c65203e3e7365656e2c626f6479297072696e746620646f6e650a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** Makefile from standard input specified twice.  Stop.\n",
+        "seen": "anchor\ncli\n"
+      }
+    },
+    {
+      "id": "nls-stdin-duplicate-mixed-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "E:=$(file >>seen,cli)",
+        "--eval=$(file >>seen,deferred)",
+        "-f-",
+        "--file=-",
+        "-f",
+        "unit.mk"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "unit.mk": "242866696c65203e3e7365656e2c72656164290a616c6c3a3b40242866696c65203e3e7365656e2c626f6479297072696e746620646f6e650a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** Makefile from standard input specified twice. Arr\u00eat.\n",
+        "seen": "anchor\ncli\n"
+      }
+    },
+    {
+      "id": "nls-stdin-duplicate-attached-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "E:=$(file >>seen,cli)",
+        "--eval=$(file >>seen,deferred)",
+        "-f-",
+        "-f-",
+        "-f",
+        "unit.mk"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "unit.mk": "242866696c65203e3e7365656e2c72656164290a616c6c3a3b40242866696c65203e3e7365656e2c626f6479297072696e746620646f6e650a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** Die Makedatei wurde zweimal \u00fcber die Standardeingabe angegeben.  Schluss.\n",
+        "seen": "anchor\ncli\n"
+      }
+    },
+    {
+      "id": "nls-stdin-duplicate-long-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "E:=$(file >>seen,cli)",
+        "--eval=$(file >>seen,deferred)",
+        "--makefile=-",
+        "-f",
+        "-",
+        "-f",
+        "unit.mk"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "unit.mk": "242866696c65203e3e7365656e2c72656164290a616c6c3a3b40242866696c65203e3e7365656e2c626f6479297072696e746620646f6e650a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** \u6a19\u6e96\u5165\u529b\u304b\u3089\u306e makefile \u304c\u4e8c\u56de\u6307\u5b9a\u3055\u308c\u307e\u3057\u305f.  \u4e2d\u6b62.\n",
+        "seen": "anchor\ncli\n"
+      }
+    },
+    {
+      "id": "nls-stdin-then-named-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "E:=$(file >>seen,cli)",
+        "--eval=$(file >>seen,deferred)",
+        "-f-",
+        "-f",
+        "unit.mk"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "unit.mk": "242866696c65203e3e7365656e2c72656164290a616c6c3a3b40242866696c65203e3e7365656e2c626f6479297072696e746620646f6e650a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "done",
+        "stderr": "",
+        "seen": "anchor\ncli\ndeferred\nread\nbody\n"
+      }
+    },
+    {
+      "id": "nls-stdin-then-named-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "E:=$(file >>seen,cli)",
+        "--eval=$(file >>seen,deferred)",
+        "-f-",
+        "-f",
+        "unit.mk"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "unit.mk": "242866696c65203e3e7365656e2c72656164290a616c6c3a3b40242866696c65203e3e7365656e2c626f6479297072696e746620646f6e650a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "done",
+        "stderr": "",
+        "seen": "anchor\ncli\ndeferred\nread\nbody\n"
       }
     }
   ]

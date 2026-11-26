@@ -4,37 +4,41 @@
 //! CLI source ownership and restart argument construction contain no replay.
 use crate::cli::FileArgument;
 use crate::output::Controller;
+use rmake_core::messages::Message;
 use std::ffi::OsString;
 use std::os::unix::ffi::{OsStrExt, OsStringExt};
 use std::path::{Path, PathBuf};
 
 pub(crate) fn initialize(output: &Controller, program: &[u8]) {
     use rmake_linux::temporary::Warning;
-    for warning in rmake_linux::temporary::initialize().warnings() {
-        match warning {
-            Warning::Environment { name, value, error } => {
-                let reason = error.as_ref().map(crate::engine::os_error);
-                output.write_parts(
-                    true,
-                    &[
-                        program,
-                        b": ",
-                        name,
-                        b" value ",
-                        value.as_bytes(),
-                        b": ",
-                        reason
-                            .as_deref()
-                            .map_or(b"not a directory".as_slice(), str::as_bytes),
-                        b"\n",
-                    ],
-                );
+    let temporary = rmake_linux::temporary::initialize();
+    for warning in temporary.warnings() {
+        let body = match warning {
+            Warning::Environment {
+                name,
+                value,
+                error: Some(error),
+            } => {
+                let detail = rmake_linux::filesystem::source_error_detail(error);
+                crate::messages::system(Message::TemporaryDirectoryOsError {
+                    name,
+                    path: value.as_bytes(),
+                    detail: &detail,
+                })
             }
-            Warning::Default => output.write_parts(
-                true,
-                &[program, b": using default temporary directory '/tmp'\n"],
-            ),
-        }
+            Warning::Environment {
+                name,
+                value,
+                error: None,
+            } => crate::messages::system(Message::TemporaryDirectoryNotDirectory {
+                name,
+                path: value.as_bytes(),
+            }),
+            Warning::Default => crate::messages::system(Message::DefaultTemporaryDirectory(
+                temporary.directory().as_os_str().as_bytes(),
+            )),
+        };
+        output.write_parts(true, &[program, b": ", &body, b"\n"]);
     }
 }
 
