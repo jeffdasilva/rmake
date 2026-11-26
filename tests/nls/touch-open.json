@@ -4,6 +4,118 @@
   "fixture_sha256": {},
   "rows": [
     {
+      "id": "nls-touch-c-write-only-serial",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-B",
+        "-t",
+        "target"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "files": {
+        "Makefile": "7461726765743a0a09407072696e746620666f7262696464656e203e207265636970652d72616e0a",
+        "seen": "616e63686f720a",
+        "target": "70726573657276650a"
+      },
+      "mtimes_ns": {
+        "target": 1600000000000000000
+      },
+      "modules": [],
+      "touch_access": {
+        "mode": 128,
+        "updates_mtime": false
+      },
+      "errno_fact": [
+        "EACCES",
+        "C.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "touch target\n",
+        "stderr": "make: touch: open: target: @OS_DETAIL@\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-touch-fr-write-only-parallel-pipe",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "-Otarget",
+        "-B",
+        "-t",
+        "target"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "7461726765743a0a09407072696e746620666f7262696464656e203e207265636970652d72616e0a",
+        "seen": "616e63686f720a",
+        "target": "70726573657276650a"
+      },
+      "mtimes_ns": {
+        "target": 1600000000000000000
+      },
+      "modules": [],
+      "touch_access": {
+        "mode": 128,
+        "updates_mtime": false
+      },
+      "errno_fact": [
+        "EACCES",
+        "fr_FR.UTF-8"
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "touch target\n",
+        "stderr": "make: touch: open: target : @OS_DETAIL@\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-touch-c-readable-writable-serial",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-B",
+        "-t",
+        "target"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "files": {
+        "Makefile": "7461726765743a0a09407072696e746620666f7262696464656e203e207265636970652d72616e0a",
+        "seen": "616e63686f720a",
+        "target": "70726573657276650a"
+      },
+      "mtimes_ns": {
+        "target": 1600000000000000000
+      },
+      "modules": [],
+      "touch_access": {
+        "mode": 384,
+        "updates_mtime": true
+      },
+      "expected": {
+        "exit_code": 0,
+        "stdout": "touch target\n",
+        "stderr": "",
+        "seen": "anchor\n"
+      }
+    },
+    {
       "id": "nls-touch-fr-default-eisdir-cli",
       "args": [
         "-rR",

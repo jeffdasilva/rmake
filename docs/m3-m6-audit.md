@@ -527,6 +527,8 @@ target cannot be removed. The NLS checks cover raw paths and retain the
 recipe diagnostic, deletion announcement, and filesystem outcome in order.
 Built-in recipe failures report the translated location label for numeric
 exit and signal statuses, including ignored errors and parallel output.
+Physical touch opens ordinary targets for reading and writing. The locale
+checks retain the target's contents and timestamp after a denied open.
 A restart that cannot return to the original directory emits the localized
 system warning and fatal message in order. It reports a failed unlink of
 the owned stdin source before the jobserver token report and finalizers.

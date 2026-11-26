@@ -9,6 +9,7 @@ import json
 import os
 from dataclasses import replace
 from pathlib import Path
+import stat
 import sys
 import tempfile
 
@@ -107,7 +108,7 @@ def cases(selection):
     debug_options = json.loads((DATA / "debug-options.json").read_bytes())
     suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution,
               touch_open, cleanup, wait_notice, intermediate, file_io, output_lock, debug_options)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 182, 15, 20, 14, 13, 18, 16, 12, 26, 8, 12, 12, 8, 7):
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 182, 15, 20, 14, 13, 18, 16, 15, 26, 8, 12, 12, 8, 7):
         raise h.HarnessError("unexpected NLS model inventory")
     shuffle_option = json.loads((DATA / "shuffle-option.json").read_bytes())
     if len(shuffle_option["rows"]) != 9 or shuffle_option["fixture_sha256"]:
@@ -176,6 +177,32 @@ def prepare(row, environment):
                         tuple(row["args"]), {**row["environment"], **environment},
                         symlinks=row.get("symlinks", {}), mtimes_ns=row.get("mtimes_ns", {}),
                         output=row.get("output", "separate"))
+
+
+def observe_touch_access(case, runtime, executable, access):
+    h.reset_workspace(case, runtime, executable)
+    target = runtime / "work/target"
+    initial = target.stat()
+    argv = [str(runtime / "bin/make"), *case.args]
+    if os.geteuid() == 0:
+        argv[:0] = ["/usr/bin/setpriv", "--bounding-set=-dac_override,-dac_read_search"]
+    target.chmod(access["mode"])
+    try:
+        out, err, status, limit, leftovers = h.capture(
+            argv, runtime / "work", h.clean_environment(runtime, case.environment), case.timeout)
+        final = target.stat()
+    finally:
+        # The common byte snapshot must be able to read the target after the probe.
+        target.chmod(stat.S_IMODE(initial.st_mode))
+    files = h.snapshot({name: runtime / name for name in ("work", "home", "tmp")})
+    exact_time = final.st_mtime_ns
+    original_time = initial.st_mtime_ns
+    mode = stat.S_IMODE(final.st_mode)
+    mtime_matches = exact_time > original_time if access["updates_mtime"] else exact_time == original_time
+    evidence = {"touch_mode": mode, "original_touch_mtime_ns": original_time,
+                "observed_touch_mtime_ns": exact_time,
+                "touch_access_matches": mode == access["mode"] and mtime_matches}
+    return h.Observation(out, err, status, limit, files, leftovers), evidence
 
 
 def loader_witness(case, runtime, kind):
@@ -334,7 +361,11 @@ def main(argv=None):
                         raise h.HarnessError("isolated help output did not satisfy its control")
                     control_record["control_help_stdout_hex"] = help_output.stdout.hex()
                     expected_case = replace(case, expected={**case.expected, "stdout_hex": help_output.stdout.hex()})
-                value = h.execute(case, reset, executable, observe_streams=observer)
+                touch_record = {}
+                if (access := row.get("touch_access")) is None:
+                    value = h.execute(case, reset, executable, observe_streams=observer)
+                else:
+                    value, touch_record = observe_touch_access(case, reset, executable, access)
                 differences = h.differences(observed[0], value) if observed else []
                 if help_control is not None and index == 2:
                     differences = [field for field in differences if field != "stdout"]
@@ -344,12 +375,14 @@ def main(argv=None):
                 record["observations"].append(dict(h.observation_json(value), stdout_hex=value.stdout.hex(), stderr_hex=value.stderr.hex(),
                                                    observed_mtimes_ns=timestamps, timestamps_match=timestamps == expected_mtimes,
                                                    errors=h.expectation_errors(expected_case, value), filesystem_matches=value.filesystem == expected_files,
-                                                   differences=differences, **control_record))
+                                                   differences=differences, **control_record, **touch_record))
                 if value.limit or value.leftover_processes or value.returncode < 0:
                     record["zero_credit"] = True
                     publish()
                     raise h.HarnessError("new NLS bound/signal retained; stop without replay")
-            record["passed"] = all(not item["errors"] and item["filesystem_matches"] and item["timestamps_match"] and not item["differences"] for item in record["observations"])
+            record["passed"] = all(not item["errors"] and item["filesystem_matches"] and item["timestamps_match"]
+                                   and item.get("touch_access_matches", True) and not item["differences"]
+                                   for item in record["observations"])
             print(("PASS " if record["passed"] else "FAIL ") + row["id"], flush=True)
             publish()
     report["passed"] = all(record["passed"] for record in report["cases"])

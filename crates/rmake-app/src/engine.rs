@@ -19559,6 +19559,7 @@ impl Engine {
         }
         let file = match OpenOptions::new()
             .create(true)
+            .read(true)
             .write(true)
             .truncate(false)
             .open(os(target))
