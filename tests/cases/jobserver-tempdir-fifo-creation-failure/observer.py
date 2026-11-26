@@ -29,6 +29,16 @@ def create_collision(kind, make, *options):
     os.execv(make, [make, *options])
 
 
+def observe_pid(mode, make, *options):
+    witness = Path(os.environ['HOME']) / 'fifo-create-pid'
+    witness.write_text(f'{os.getpid()}\n')
+    witness.chmod(0o644)
+    if mode == 'collision':
+        create_collision('file', make, *options)
+    assert mode == 'exec'
+    os.execv(make, [make, *options])
+
+
 def verify_collision(path, kind):
     if kind == 'file':
         assert stat.S_ISREG(path.lstat().st_mode) and path.read_bytes() == b'preserve'
@@ -88,5 +98,7 @@ if sys.argv[1] == 'verify-pipe':
     verify_pipe()
 elif sys.argv[1] == 'create-collision':
     create_collision(*sys.argv[2:])
+elif sys.argv[1] == 'observe-pid':
+    observe_pid(*sys.argv[2:])
 else:
     verify_creation_failure(sys.argv[1])

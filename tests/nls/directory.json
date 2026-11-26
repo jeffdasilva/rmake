@@ -1,13 +1,14 @@
 {
-  "classification": "Original GNU2 directory localization models. Path slots come from the fresh workspace. Explicit errno slots come from an independent public libc call using the verified locale and original environment. The live callback rows independently witness the fixture catalog errno in the ordered seen file. Named stdin create rows get their attempted path and errno code from a passive libc observer.",
+  "classification": "Original GNU2 directory localization models. Path slots come from the fresh workspace. Explicit errno slots come from an independent public libc call using the verified locale and original environment. The live callback rows independently witness the fixture catalog errno in the ordered seen file. Named stdin create rows get their attempted path and errno code from a passive libc observer. FIFO creation rows independently witness the exec PID and verify fallback pipe tokens.",
   "original_models_sha256": "6281bc03103a311c5d968b610d9481cb0db599cea025fdae3fc85981f5aeea80",
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
   "fixture_sha256": {
     "nls_control.c": "11bfb337c609581d2a01736461a9814c100f6fb980903eaeeaba4b6de28a238e",
     "deleted_cwd.py": "4e00366df1d0b63b08de660c5f2c8e0e30ce13ac2bf3d5a301608000b156cfbf",
     "native/fatal_scope.c": "c767af0adba20f45d65eb2778b4c0703a7e62970bbc06041ea9cffddab7b9740",
-    "include_errno.c": "283299076626bf68bd3aa22e1a6fa3572403cd7de25bc43b3f9dc37bb02e0f31",
-    "stdin_create_observer.c": "ccb7fea7394926c6f59248eae883ba5e1af45cdb0313b230468ab6b39441b648"
+    "include_errno.c": "f4c9a859526f398783981acc095803173a210d1020f1df2394a9909c10d8a26c",
+    "stdin_create_observer.c": "ccb7fea7394926c6f59248eae883ba5e1af45cdb0313b230468ab6b39441b648",
+    "cases/jobserver-tempdir-fifo-creation-failure/observer.py": "340abd1b6be87ea28c664152431949150a185d69d6da54ad588b2484bf1b6cd1"
   },
   "rows": [
     {
@@ -1925,6 +1926,257 @@
         "stdout_template_hex": "7265616465720a",
         "stderr_template_hex": "6d616b653a2066696e616c697a65722d6c6f636174696f6e0a",
         "seen_template_hex": "73636f70653d5b7c7c66696c657c40574f524b402f666174616c5f73636f70652e736f7c7c5d0a"
+      }
+    },
+    {
+      "id": "nls-directory-fifo-create-fr-missing-default",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-C",
+        "shifted",
+        "-f",
+        "../worker.mk"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr",
+        "MAKE_TMPDIR": "relative-\udcff///"
+      },
+      "launch": "fifo-create",
+      "modules": [],
+      "files": {
+        "relative-\udcff/anchor": "656e7472790a",
+        "shifted/anchor": "736869667465640a",
+        "worker.mk": "242866696c65203e7265616465722c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b202b40707974686f6e33202e2e2f6669666f2d6f627365727665722e7079207665726966792d706970650a",
+        "seen": "616e63686f720a"
+      },
+      "expected_file_updates": {
+        "shifted/reader": "726561640a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stderr_template_hex": "6d616b653a206a6f62736572766572206d6b6669666f3a2072656c61746976652dff2f2f2f2f474d6669666f404649464f5f50494440203a2040454e4f454e54400a",
+        "stdout_template_hex": "766572696669656420706970650a",
+        "seen_template_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-directory-fifo-create-fr-missing-explicit",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-C",
+        "shifted",
+        "-f",
+        "../worker.mk",
+        "--jobserver-style=fifo"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr",
+        "MAKE_TMPDIR": "relative///"
+      },
+      "launch": "fifo-create",
+      "modules": [],
+      "files": {
+        "relative/anchor": "656e7472790a",
+        "shifted/anchor": "736869667465640a",
+        "worker.mk": "242866696c65203e7265616465722c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b202b40707974686f6e33202e2e2f6669666f2d6f627365727665722e7079207665726966792d706970650a",
+        "seen": "616e63686f720a"
+      },
+      "expected_file_updates": {
+        "shifted/reader": "726561640a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stderr_template_hex": "6d616b653a206a6f62736572766572206d6b6669666f3a2072656c61746976652f2f2f2f474d6669666f404649464f5f50494440203a2040454e4f454e54400a6d616b653a202a2a2a20756e6b6e6f776e206a6f627365727665722061757468207374796c6520276669666f272e20417272c3aa742e0a",
+        "stdout_template_hex": "",
+        "seen_template_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-directory-fifo-create-fr-nondir-default",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-C",
+        "shifted",
+        "-f",
+        "../worker.mk"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr",
+        "MAKE_TMPDIR": "relative-\udcff///"
+      },
+      "launch": "fifo-create",
+      "modules": [],
+      "files": {
+        "relative-\udcff/anchor": "656e7472790a",
+        "shifted/anchor": "736869667465640a",
+        "worker.mk": "242866696c65203e7265616465722c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b202b40707974686f6e33202e2e2f6669666f2d6f627365727665722e7079207665726966792d706970650a",
+        "seen": "616e63686f720a",
+        "shifted/relative-\udcff": "6f7264696e6172790a"
+      },
+      "expected_file_updates": {
+        "shifted/reader": "726561640a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stderr_template_hex": "6d616b653a206a6f62736572766572206d6b6669666f3a2072656c61746976652dff2f2f2f2f474d6669666f404649464f5f50494440203a2040454e4f54444952400a",
+        "stdout_template_hex": "766572696669656420706970650a",
+        "seen_template_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-directory-fifo-create-fr-collision-default",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-C",
+        "shifted",
+        "-f",
+        "../worker.mk"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr",
+        "MAKE_TMPDIR": "relative///"
+      },
+      "launch": "fifo-create-collision",
+      "modules": [],
+      "files": {
+        "relative/anchor": "656e7472790a",
+        "shifted/anchor": "736869667465640a",
+        "worker.mk": "242866696c65203e7265616465722c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b202b40707974686f6e33202e2e2f6669666f2d6f627365727665722e7079207665726966792d706970650a",
+        "seen": "616e63686f720a",
+        "shifted/relative/anchor": "636f6c6c6973696f6e0a"
+      },
+      "expected_file_updates": {
+        "shifted/reader": "726561640a",
+        "shifted/relative/GMfifo@FIFO_PID@": "7072657365727665"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stderr_template_hex": "6d616b653a206a6f62736572766572206d6b6669666f3a2072656c61746976652f2f2f2f474d6669666f404649464f5f50494440203a2040454558495354400a",
+        "stdout_template_hex": "766572696669656420706970650a",
+        "seen_template_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-directory-fifo-create-fr-missing-pipe",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-C",
+        "shifted",
+        "-f",
+        "../worker.mk",
+        "--jobserver-style=pipe"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr",
+        "MAKE_TMPDIR": "relative///"
+      },
+      "launch": "fifo-create",
+      "modules": [],
+      "files": {
+        "relative/anchor": "656e7472790a",
+        "shifted/anchor": "736869667465640a",
+        "worker.mk": "242866696c65203e7265616465722c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b202b40707974686f6e33202e2e2f6669666f2d6f627365727665722e7079207665726966792d706970650a",
+        "seen": "616e63686f720a"
+      },
+      "expected_file_updates": {
+        "shifted/reader": "726561640a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stderr_template_hex": "",
+        "stdout_template_hex": "766572696669656420706970650a",
+        "seen_template_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-directory-fifo-create-de-missing-explicit",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-C",
+        "shifted",
+        "-f",
+        "../worker.mk",
+        "--jobserver-style=fifo"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de",
+        "MAKE_TMPDIR": "relative///"
+      },
+      "launch": "fifo-create",
+      "modules": [],
+      "files": {
+        "relative/anchor": "656e7472790a",
+        "shifted/anchor": "736869667465640a",
+        "worker.mk": "242866696c65203e7265616465722c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b202b40707974686f6e33202e2e2f6669666f2d6f627365727665722e7079207665726966792d706970650a",
+        "seen": "616e63686f720a"
+      },
+      "expected_file_updates": {
+        "shifted/reader": "726561640a"
+      },
+      "expected": {
+        "exit_code": 2,
+        "stderr_template_hex": "6d616b653a206a6f62736572766572206d6b6669666f3a2072656c61746976652f2f2f2f474d6669666f404649464f5f504944403a2040454e4f454e54400a6d616b653a202a2a2a20756e62656b616e6e74652041757468656e746966697a696572756e677361727420e2809e6669666fe2809c2066c3bc72204a6f627365727665722e20205363686c7573732e0a",
+        "stdout_template_hex": "",
+        "seen_template_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-directory-fifo-create-c-missing-default",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-C",
+        "shifted",
+        "-f",
+        "../worker.mk"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "",
+        "MAKE_TMPDIR": "relative///"
+      },
+      "launch": "fifo-create",
+      "modules": [],
+      "files": {
+        "relative/anchor": "656e7472790a",
+        "shifted/anchor": "736869667465640a",
+        "worker.mk": "242866696c65203e7265616465722c72656164290a2e50484f4e593a20616c6c0a616c6c3a3b202b40707974686f6e33202e2e2f6669666f2d6f627365727665722e7079207665726966792d706970650a",
+        "seen": "616e63686f720a"
+      },
+      "expected_file_updates": {
+        "shifted/reader": "726561640a"
+      },
+      "expected": {
+        "exit_code": 0,
+        "stderr_template_hex": "6d616b653a206a6f62736572766572206d6b6669666f3a2072656c61746976652f2f2f2f474d6669666f404649464f5f504944403a2040454e4f454e54400a",
+        "stdout_template_hex": "766572696669656420706970650a",
+        "seen_template_hex": "616e63686f720a"
       }
     }
   ]

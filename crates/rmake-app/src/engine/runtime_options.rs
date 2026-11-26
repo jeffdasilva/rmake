@@ -738,8 +738,11 @@ impl Engine {
                     ..
                 }) => {
                     let detail = rmake_linux::filesystem::source_error_detail(&error);
-                    let message =
-                        [b"jobserver mkfifo: ".as_slice(), &path, b": ", &detail].concat();
+                    let message = crate::messages::system(Message::OsError {
+                        action: b"jobserver mkfifo: ",
+                        path: &path,
+                        detail: &detail,
+                    });
                     emit_output(
                         &self.output,
                         &self.program,

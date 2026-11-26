@@ -136,6 +136,8 @@ NUL boundaries, rebinding and cancellation.
   A serial fatal dump retains the marker from the interrupted visit.
   A scoped include during a serial goal records a failed open as a missing timestamp.
   An accepted reopen clears that timestamp while preserving the update verdict.
+  When default makefile discovery misses, the reader interns all three
+  optional remake candidate names as it enters their file records.
   A serial missing-rule stop occurs before completing the file update.
   The active ordinary prerequisite chain retains that state in a dump.
   A launched child retains its completed failure while its waiting ordinary
@@ -143,6 +145,12 @@ NUL boundaries, rebinding and cancellation.
   An ordinary serial keep-going prerequisite consumer samples the failed
   child’s local timestamp while retaining its failed update.
   A retained VPATH alias samples its existing canonical physical file.
+  When no VPATH search group applies to the resolved spelling, the first
+  prerequisite observation records a missing timestamp on the same failed
+  file record.
+  Borrowing a .DEFAULT recipe preserves the file’s target classification.
+  The post-read file policy marks .PHONY prerequisites as targets before
+  visits begin, including when a later setup diagnostic stops traversal.
 - [Eval allocation investigation](eval-allocation-profiles.md) retains experiments
   rejected after elapsed-time regressions and the selected runtime controls.
 

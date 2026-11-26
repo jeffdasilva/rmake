@@ -24,6 +24,10 @@ DATA = ROOT / "tests/nls"
 COPIED_STDIN = "@COPIED_STDIN@"
 STDIN_CREATE_RECORD = "home/stdin-create-attempt"
 STDIN_CREATE_PATH = b"@STDIN_CREATE_PATH@"
+FIFO_OBSERVER = "cases/jobserver-tempdir-fifo-creation-failure/observer.py"
+FIFO_CREATION_LAUNCHES = ("fifo-create", "fifo-create-collision")
+FIFO_PID_RECORD = "home/fifo-create-pid"
+FIFO_PID = b"@FIFO_PID@"
 
 
 def observe(case, runtime, binary, launcher, stdin_umask=None):
@@ -46,6 +50,9 @@ def observe(case, runtime, binary, launcher, stdin_umask=None):
             launch = 'umask "$1" && shift && ' + launch
             arguments.insert(0, stdin_umask)
         command = ["/bin/sh", "-c", launch, "stdin-launcher", *arguments]
+    elif launcher in FIFO_CREATION_LAUNCHES:
+        mode = "collision" if launcher == "fifo-create-collision" else "exec"
+        command = [sys.executable, "fifo-observer.py", "observe-pid", mode, executable, *case.args]
     else:
         command = [sys.executable, str(DATA / "deleted_cwd.py"), launcher,
                    str(cwd), executable, *case.args]
@@ -73,23 +80,24 @@ def load_rows(selection):
     data = json.loads((DATA / "directory.json").read_bytes())
     rows = data["rows"]
     names = {row["id"] for row in rows}
-    if len(rows) != 55 or len(names) != 55:
+    if len(rows) != 62 or len(names) != 62:
         raise h.HarnessError("unexpected NLS directory inventory")
     if set(selection) - names:
         raise h.HarnessError("unknown exact NLS directory ID")
     fixtures = data["fixture_sha256"]
     if set(fixtures) != {"nls_control.c", "deleted_cwd.py", "native/fatal_scope.c",
-                         "include_errno.c", "stdin_create_observer.c"}:
+                         "include_errno.c", "stdin_create_observer.c", FIFO_OBSERVER}:
         raise h.HarnessError("unexpected NLS directory fixture inventory")
     for name, expected in fixtures.items():
-        source = DATA.parent / name if name == "native/fatal_scope.c" else DATA / name
+        source = DATA.parent / name if "/" in name else DATA / name
         if h.sha256_file(source) != expected:
             raise h.HarnessError("NLS directory fixture identity differs: " + name)
-    module_sources = fixtures.keys() - {"deleted_cwd.py"}
+    module_sources = fixtures.keys() - {"deleted_cwd.py", FIFO_OBSERVER}
     for row in rows:
         if any(module["source"] not in module_sources for module in row["modules"]):
             raise h.HarnessError("NLS directory model uses unpinned source")
-        if row["launch"] not in (None, "initial", "after-C", "entry", "entry-stdin", "stdin-create"):
+        if row["launch"] not in (None, "initial", "after-C", "entry", "entry-stdin", "stdin-create",
+                                 *FIFO_CREATION_LAUNCHES):
             raise h.HarnessError("unknown NLS directory launch")
         if "stdin_umask" in row:
             if row["launch"] != "stdin-create" or row["stdin_umask"] not in ("022", "077"):
@@ -107,7 +115,7 @@ def make_model(row, root, locale):
     # The loaded callback witnesses the exact errno bytes in the ordered seen file.
     callback_errno = any(item["source"] == "include_errno.c" for item in row["modules"])
     cwd_failure = row["launch"] == "initial" or (row["launch"] == "after-C" and not callback_errno)
-    for name in ("ENOENT", "EISDIR", "ENOTDIR"):
+    for name in ("ENOENT", "EISDIR", "ENOTDIR", "EEXIST"):
         slot = f"@{name}@".encode()
         count = stderr.count(slot)
         if count != 0 or (name == "ENOENT" and cwd_failure):
@@ -116,8 +124,11 @@ def make_model(row, root, locale):
             errors[name] = errno_witness(root, environment, name)
             stderr = stderr.replace(slot, errors[name])
     expected["stderr_template_hex"] = stderr.hex()
+    files = {name: bytes.fromhex(value) for name, value in row["files"].items()}
+    if row["launch"] in FIFO_CREATION_LAUNCHES:
+        files["fifo-observer.py"] = (DATA.parent / FIFO_OBSERVER).read_bytes()
     model = directory.Model(
-        row["id"], {name: bytes.fromhex(value) for name, value in row["files"].items()},
+        row["id"], files,
         tuple(row["args"]), environment, expected, bytes.fromhex(expected["seen_template_hex"]),
         modules=tuple(directory.Module(
             item["source"] if "/" in item["source"] else "nls/" + item["source"],
@@ -181,6 +192,31 @@ def observe_stdin_create(value, row):
     return replace(value, stderr=stderr, filesystem=filesystem), {"path_hex": path.hex(), "errno": error}
 
 
+def observe_fifo_create(value, row):
+    sample = value.filesystem.get(FIFO_PID_RECORD)
+    if sample is None or sample.get("type") != "file" or sample.get("mode") != 0o644:
+        raise h.HarnessError("missing FIFO creation PID witness")
+    pid_data = base64.b64decode(sample["content"], validate=True)
+    if re.fullmatch(rb"[1-9][0-9]{0,9}\n", pid_data) is None:
+        raise h.HarnessError("invalid FIFO creation PID witness")
+    pid = pid_data[:-1]
+    directory_name = os.fsencode(row["environment"]["MAKE_TMPDIR"])
+    spelling = b"jobserver mkfifo: " + directory_name + b"/GMfifo"
+    filesystem = dict(value.filesystem)
+    del filesystem[FIFO_PID_RECORD]
+    if row["launch"] == "fifo-create-collision":
+        filename = b"work/shifted/" + directory_name.rstrip(b"/") + b"/GMfifo"
+        original = os.fsdecode(filename + pid)
+        if original in filesystem:
+            tokenized = os.fsdecode(filename + FIFO_PID)
+            if tokenized in filesystem:
+                raise h.HarnessError("unexpected FIFO collision witness name")
+            filesystem[tokenized] = filesystem.pop(original)
+    path = re.escape(spelling + pid) + rb"(?= ?: )"
+    stderr = re.sub(path, lambda _: spelling + FIFO_PID, value.stderr)
+    return replace(value, stderr=stderr, filesystem=filesystem), {"pid": int(pid)}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--oracle", type=Path, default=ROOT / ".tools/oracle/bin/make")
@@ -222,11 +258,13 @@ def main(argv=None):
                 expected_restart_source(filesystem, path, kind)
             record = {"id": model.id, "model": row, "compilation": compilation, "expected_filesystem": filesystem,
                       "enoent_hex": errors["ENOENT"].hex() if "ENOENT" in errors else None, "observations": []}
-            for error in ("EISDIR", "ENOTDIR"):
+            for error in ("EISDIR", "ENOTDIR", "EEXIST"):
                 if error in errors:
                     record[error.lower() + "_hex"] = errors[error].hex()
             if "stdin_create" in row:
                 record["stdin_create_observations"] = []
+            if row["launch"] in FIFO_CREATION_LAUNCHES:
+                record["fifo_create_observations"] = []
             if source_effect and path == COPIED_STDIN:
                 record["copied_stdin_observations"] = []
             report["records"].append(record)
@@ -248,6 +286,10 @@ def main(argv=None):
                 if "stdin_create" in row:
                     value, sampled = observe_stdin_create(value, row)
                     record["stdin_create_observations"].append(sampled)
+                    observed[-1] = value
+                if row["launch"] in FIFO_CREATION_LAUNCHES:
+                    value, sampled = observe_fifo_create(value, row)
+                    record["fifo_create_observations"].append(sampled)
                     observed[-1] = value
             record.update(directory.assess(model, case, runtime, filesystem, observed, [{} for _ in observed]))
             print(("PASS " if record["passed"] else "FAIL ") + model.id, flush=True)
