@@ -13655,13 +13655,16 @@ impl Engine {
             let tentative_member = self.discard_missing_archive_name(target);
             let optional = self.optional_remake();
             let keep_going = self.options.keep_going;
-            let stopping_archive_member = !optional
+            let stopping_missing_rule = !optional
                 && !keep_going
                 && (tentative_member
-                    || rmake_core::filenames::archive_parts(target).is_some_and(|(archive, _)| {
-                        self.database_unchecked_times.borrow().contains(target)
-                            || self.retained_permanent_archive(archive)
-                    }));
+                    || match rmake_core::filenames::archive_parts(target) {
+                        Some((archive, _)) => {
+                            self.database_unchecked_times.borrow().contains(target)
+                                || self.retained_permanent_archive(archive)
+                        }
+                        None => !self.remaking && !self.parallel_graph(),
+                    });
             self.missing_rule_parents
                 .insert(target.to_vec(), parent.map(|parent| parent.target.to_vec()));
             if !optional {
@@ -13676,7 +13679,7 @@ impl Engine {
             }
             let result = Outcome {
                 failed: true,
-                database_result: if stopping_archive_member {
+                database_result: if stopping_missing_rule {
                     DatabaseResult::UnfinishedMissingRule
                 } else {
                     DatabaseResult::Outcome
@@ -17008,6 +17011,19 @@ impl Engine {
                 continue;
             };
             merge_child(&mut outcome, child);
+            if child.database_result == DatabaseResult::UnfinishedMissingRule
+                && !self.remaking
+                && !self.parallel_graph()
+                && !self.options.keep_going
+                && branch.is_none()
+                && group.is_none()
+                && rmake_core::filenames::archive_parts(target).is_none()
+                && rmake_core::filenames::archive_parts(dependency).is_none()
+            {
+                // The missing-rule stop interrupts each waiting ancestor
+                // before GNU would finish its file update.
+                outcome.database_result = DatabaseResult::UnfinishedMissingRule;
+            }
             let order_only = !all_normal && !normal_names.contains(dependency.as_slice());
             let inspected_stale = intermediate_stale
                 .as_ref()
