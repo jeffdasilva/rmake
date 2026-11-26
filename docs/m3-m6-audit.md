@@ -441,7 +441,9 @@ before restoration. The held reread cases retain the actual recipe
 failure and any matching assumed branch diagnostic in order.
 When both actual workers fail, the same observed restoration can produce
 a reread in current and sole layouts. Ordinary dependents still see the
-appropriate cached failures when the original pass proceeds.
+appropriate cached failures when the original pass proceeds. A failed
+optional worker can also restore the successful required worker’s clock
+and leave a reread pending in current and sole layouts.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
