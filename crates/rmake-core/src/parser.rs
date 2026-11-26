@@ -18,8 +18,9 @@ use crate::reader::{
     strip_comment, strip_recipe_continuation_prefix,
 };
 use crate::variables::{
-    Assignment, ConditionalFlagBinding, DefinitionLookup, ExpandError, Flavor, MAX_OUTPUT, Origin,
-    Pattern, PatternVariable, TargetScope, Variable, VariableStore, reference_end,
+    Assignment, ConditionalFlagBinding, DefinitionLookup, EnvironmentBinding, ExpandError, Flavor,
+    MAX_OUTPUT, Origin, Pattern, PatternVariable, TargetScope, Variable, VariableStore,
+    reference_end,
 };
 use std::borrow::Cow;
 use std::cell::{Cell, OnceCell};
@@ -5090,8 +5091,22 @@ impl Database {
         context: ExpansionContext<'_>,
     ) -> Result<Vec<u8>, ExpandError> {
         self.refresh_scoped_variables(variables);
+        let Some(selection) = variables.for_environment().select_environment_binding(name) else {
+            return Ok(Vec::new());
+        };
+        self.expand_selected_environment_in(variables, selection, context)
+    }
+
+    pub fn expand_selected_environment_in(
+        &mut self,
+        variables: &mut VariableStore,
+        selection: EnvironmentBinding<'_>,
+        context: ExpansionContext<'_>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        self.refresh_scoped_variables(variables);
         let previous = std::mem::replace(&mut self.rules_frozen, true);
-        let result = crate::variables::expand_environment_database(self, variables, name, context);
+        let result =
+            crate::variables::expand_environment_database(self, variables, selection, context);
         self.rules_frozen = previous;
         result
     }

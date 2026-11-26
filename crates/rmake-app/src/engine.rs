@@ -25,7 +25,7 @@ use rmake_core::parser::{
     Database, Dependency, Location, Makefile, Recipe, RecipeSource, Rule, words,
 };
 use rmake_core::variables::{
-    Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, VariableStore,
+    Assignment, ExpandError, Flavor, Origin, Pattern, TargetScope, Variable, VariableStore,
 };
 use rmake_linux::jobserver::{Jobserver, Permit};
 use std::borrow::Cow;
@@ -741,26 +741,40 @@ fn export_selected(
     name: &[u8],
     export_all: bool,
 ) -> bool {
-    environment.resolve_export_policy(name).unwrap_or_else(|| {
-        let default_export = || {
-            automatic_export_name(name)
-                && environment.get(name).is_some_and(|variable| {
-                    !matches!(variable.origin(), Origin::Default | Origin::Automatic)
-                        && (export_all
-                            || matches!(
-                                variable.origin(),
-                                Origin::Environment
-                                    | Origin::EnvironmentOverride
-                                    | Origin::CommandLine
-                            ))
-                })
-        };
+    environment.get(name).is_some_and(|variable| {
+        export_selected_binding(
+            globals,
+            unexports,
+            name,
+            variable,
+            environment.resolve_export_policy(name),
+            export_all,
+        )
+    })
+}
+
+fn export_selected_binding(
+    globals: &VariableStore,
+    unexports: &HashSet<Vec<u8>>,
+    name: &[u8],
+    variable: &Variable,
+    policy: Option<bool>,
+    export_all: bool,
+) -> bool {
+    policy.unwrap_or_else(|| {
+        let default_export = automatic_export_name(name)
+            && !matches!(variable.origin(), Origin::Default | Origin::Automatic)
+            && (export_all
+                || matches!(
+                    variable.origin(),
+                    Origin::Environment | Origin::EnvironmentOverride | Origin::CommandLine
+                ));
         // A reset or private global no longer supplies export policy.
-        // Evaluate default eligibility from the visible target binding.
+        // Evaluate default eligibility from the selected target binding.
         let ignore_global_policy = globals
             .get(name)
             .is_some_and(|variable| variable.export_default_reset() || variable.is_private());
-        (ignore_global_policy || !unexports.contains(name)) && default_export()
+        (ignore_global_policy || !unexports.contains(name)) && default_export
     })
 }
 
@@ -18301,6 +18315,10 @@ impl Engine {
                 }
                 let exports =
                     environment_variables.environment_order(|name, _| eligible.contains(name));
+                let selected: Vec<_> = exports
+                    .iter()
+                    .map(|name| (name, environment_variables.select_environment_binding(name)))
+                    .collect();
                 let mut emitted_order = Vec::new();
                 let mut inherited_mflags = false;
                 let direct_heads = self.direct_named_head_reads();
@@ -18314,20 +18332,23 @@ impl Engine {
                     branches: &mut self.database_branch_contexts,
                     direct_heads,
                 };
-                for name in &exports {
+                for (name, selection) in selected {
                     self.database.refresh_scoped_variables(variables);
-                    let environment_variables = variables.for_environment();
-                    if !export_selected(
-                        &environment_variables,
-                        &self.database.variables,
-                        &self.database.unexports,
-                        name,
-                        export_all,
-                    ) {
-                        child.env_remove(os(name));
-                        continue;
-                    }
-                    if let Some(variable) = environment_variables.get(name) {
+                    let current = variables.for_environment();
+                    if let Some(selection) = selection
+                        && let Some(variable) = current.environment_binding(selection)
+                    {
+                        if !export_selected_binding(
+                            &self.database.variables,
+                            &self.database.unexports,
+                            name,
+                            variable,
+                            current.resolve_environment_export_policy(selection, variable),
+                            export_all,
+                        ) {
+                            child.env_remove(os(name));
+                            continue;
+                        }
                         if name == b"MFLAGS" {
                             inherited_mflags = variable.origin() == Origin::Environment;
                         }
@@ -18343,9 +18364,9 @@ impl Engine {
                             emitted_order.push(name.clone());
                             continue;
                         }
-                        match self.database.expand_environment_in(
+                        match self.database.expand_selected_environment_in(
                             variables,
-                            name,
+                            selection,
                             runtime_context(
                                 variable.definition(),
                                 &mut RuntimeOutput::new(

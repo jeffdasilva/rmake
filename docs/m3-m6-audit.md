@@ -100,6 +100,9 @@ NUL boundaries, rebinding and cancellation.
   The database prints a pattern declaration with the flavor adopted from a
   command-line or environment-override binding. Activation uses the original
   assignment operator.
+  A recipe or shell environment keeps the binding selected for each name
+  during assembly. Later export expansion sees changes to that binding and
+  reads its dependencies in the live scope.
   Standalone export and unexport lists record the visible-scope lookup for
   each name before updating its policy or creating an empty global binding.
   A list lookup refreshes the global .VARIABLES cache when that special
