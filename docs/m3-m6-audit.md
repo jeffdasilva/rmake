@@ -58,6 +58,8 @@ at the end of this audit.
 - [Output validation and mutex failures](output-validation-order.md) and the
   [startup output-lock gate](../tests/startup-output-mutex/README.md). Completed
   definitions and output remain observable when later validation or opening fails.
+  Inherited regular output files use append mode. The startup output gate
+  checks the original flags on pipes and devices and the flags of recipe spools.
 - [Initial inherited expansion](initial-flag-expansion.md),
   [ordered CLI startup](ordered-cli-startup.md),
   [literal startup](literal-startup.md) and

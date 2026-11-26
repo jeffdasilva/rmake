@@ -19,6 +19,7 @@ unsafe extern "C" {
     fn ttyname(descriptor: c_int) -> *mut c_char;
     fn isatty(descriptor: c_int) -> c_int;
     fn rm_register_stdout_close();
+    fn rm_set_regular_output_append(descriptor: c_int);
     fn rm_set_stdout_level(level: u32);
     fn rm_write_standard(error: c_int, bytes: *const u8, length: usize) -> usize;
 }
@@ -470,12 +471,12 @@ pub fn terminal(descriptor: c_int) -> Option<Vec<u8>> {
 /// Make appends to inherited regular output files, including explicit recipe
 /// seeks. Preserve all other descriptor flags, and tolerate closed streams.
 pub fn initialize() {
-    unsafe { rm_register_stdout_close() };
-    for descriptor in [1, 2] {
-        let flags = unsafe { fcntl(descriptor, 3) };
-        if flags >= 0 {
-            unsafe { fcntl(descriptor, 4, flags | 0x400) };
-        }
+    // SAFETY: the C adapter checks the native file type before changing
+    // either inherited open-file description.
+    unsafe {
+        rm_register_stdout_close();
+        rm_set_regular_output_append(1);
+        rm_set_regular_output_append(2);
     }
 }
 
