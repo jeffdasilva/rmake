@@ -335,6 +335,7 @@ enum DatabaseResult {
     ObservedGroup,
     ObservedDoubleColon,
     RecipeUnstarted,
+    UnfinishedRecipeExpansion,
     // A completed archive container merged into an unattempted file record.
     MergedArchiveContainer,
     // A completed ordinary source whose visited destination kept its file stem.
@@ -1301,6 +1302,7 @@ struct RecipeInputs<'a> {
     before: Option<SystemTime>,
     branch: Option<usize>,
     record_suffix_stem_lookup: bool,
+    record_expansion_failure: bool,
     location: Option<&'a Location>,
     dependencies: &'a [Dependency],
     dropped: &'a HashSet<Vec<u8>>,
@@ -15908,6 +15910,7 @@ impl Engine {
                                 || (branch.is_some()
                                     && rule.implicit_pattern.is_some()
                                     && rule.stem.as_deref() == Some(b""))),
+                        record_expansion_failure: branch.is_none() && rule.group.is_none(),
                         location: recipes.first().map(|recipe| &recipe.location),
                         dependencies: &rule.dependencies,
                         dropped: &dropped,
@@ -15988,7 +15991,9 @@ impl Engine {
                         TouchCompletion::Physical => DatabaseResult::PhysicalTouch,
                     };
                 }
-                if rule.grouped_double_id().is_some()
+                if execution.expansion_failed {
+                    outcome.database_result = DatabaseResult::UnfinishedRecipeExpansion;
+                } else if rule.grouped_double_id().is_some()
                     && execution.status == Status::Fatal
                     && !execution.ran
                 {
@@ -16632,6 +16637,7 @@ impl Engine {
             before,
             branch,
             record_suffix_stem_lookup,
+            record_expansion_failure,
             location,
             dependencies,
             dropped,
@@ -16791,7 +16797,19 @@ impl Engine {
                 }
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
-                    return Execution::fatal(false);
+                    let mut execution = Execution::fatal(false);
+                    if record_expansion_failure
+                        && !self.remaking
+                        && !parallel
+                        && self.output.database_requested()
+                        && rmake_core::filenames::archive_parts(target).is_none()
+                    {
+                        // Earlier expansion effects belong to the file table
+                        // even when no recipe command was dispatched.
+                        self.retain_database_context(target, branch, &variables);
+                        execution.expansion_failed = true;
+                    }
+                    return execution;
                 }
             }
         }

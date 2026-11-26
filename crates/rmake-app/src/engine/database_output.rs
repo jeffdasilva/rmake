@@ -512,7 +512,10 @@ impl Engine {
                 // The destination's own stem is separate from imported $*.
                 view.stem = None;
             }
-            view.updated = outcome.database_result != DatabaseResult::UnfinishedMissingRule;
+            view.updated = !matches!(
+                outcome.database_result,
+                DatabaseResult::UnfinishedMissingRule | DatabaseResult::UnfinishedRecipeExpansion
+            );
             view.status = if !view.updated {
                 FileStatus::Unattempted
             } else if detached_head
