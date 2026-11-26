@@ -16889,19 +16889,9 @@ impl Engine {
                 && state.branch.is_none()
                 && state.group.is_none()
                 && self.assumptions.is_none()
-                && self.vpath_dirs.is_empty()
-                && !self.database.has_vpaths()
-                && !self.aliases.contains_source_or_destination(dependency)
                 && !dependency.starts_with(b"-l")
-                && self.database_unchecked_times.get_mut().remove(dependency)
             {
-                // A continuing prerequisite checks the failed child's clock.
-                // Later consumers use that retained observation.
-                let time = self.name_time(dependency);
-                if let Some(cached) = self.file_traversals.outcome_mut(dependency) {
-                    cached.time = time;
-                }
-                Outcome { time, ..child }
+                self.observe_failed_prerequisite_time(dependency, child)
             } else {
                 self.observe_updated(dependency, child)
             };
@@ -16924,6 +16914,33 @@ impl Engine {
             }
             (child, pending)
         }
+    }
+
+    fn observe_failed_prerequisite_time(&mut self, dependency: &[u8], child: Outcome) -> Outcome {
+        let name = self.aliases.resolve(dependency);
+        if !self.database_unchecked_times.get_mut().contains(name) {
+            return child;
+        }
+        let alias = self.aliases.contains_source_or_destination(dependency);
+        let time = if !alias && self.vpath_dirs.is_empty() && !self.database.has_vpaths() {
+            self.name_time(name)
+        } else if alias
+            && self.gpath_dirs.is_empty()
+            && !self.options.check_symlink_times
+            && let Some(time) = modified(name)
+        {
+            // The retained VPATH name still exists, so its own timestamp
+            // answers the query without a new search or file rename.
+            self.retain_database_time(name, Some(time));
+            Some(time)
+        } else {
+            return child;
+        };
+        self.database_unchecked_times.get_mut().remove(name);
+        if let Some(cached) = self.file_traversals.outcome_mut(name) {
+            cached.time = time;
+        }
+        Outcome { time, ..child }
     }
 
     fn prerequisite_stale(&self, before: Option<SystemTime>, child: Outcome) -> bool {

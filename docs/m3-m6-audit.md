@@ -142,6 +142,7 @@ NUL boundaries, rebinding and cancellation.
   ancestors remain unupdated when traversal stops.
   An ordinary serial keep-going prerequisite consumer samples the failed
   child’s local timestamp while retaining its failed update.
+  A retained VPATH alias samples its existing canonical physical file.
 - [Eval allocation investigation](eval-allocation-profiles.md) retains experiments
   rejected after elapsed-time regressions and the selected runtime controls.
 
