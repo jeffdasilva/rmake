@@ -43,6 +43,9 @@ at the end of this audit.
   The startup preload list uses one expansion of `MAKEFILES` after command-line
   eval. An absent binding can warn at that point, while a defined empty binding
   leaves the preload list empty.
+  Startup include options cache each accepted operand after filename preparation.
+  Search construction records each existing directory in scan order and preserves
+  its cache event even when a later `-I-` clears it from the search list.
 - [Output validation and mutex failures](output-validation-order.md) and the
   [startup output-lock gate](../tests/startup-output-mutex/README.md). Completed
   definitions and output remain observable when later validation or opening fails.

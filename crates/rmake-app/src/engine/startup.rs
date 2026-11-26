@@ -29,7 +29,8 @@ pub(super) fn include_metadata(
         .iter()
         .any(|name| name.as_os_str().as_bytes().starts_with(b"~"))
     {
-        let mut builder = crate::makefiles::IncludeSearchBuilder::default();
+        let mut builder =
+            crate::makefiles::IncludeSearchBuilder::with_history(database.database_history());
         for index in 0..options.include_directories.len() {
             if rmake_linux::signals::pending().is_some() {
                 return Err(StartupError::expansion(ExpandError::Cancelled));
@@ -57,7 +58,7 @@ pub(super) fn include_metadata(
         }
         builder.finish()
     } else {
-        IncludeSearch::new(&options.include_directories)
+        IncludeSearch::new_with_history(&options.include_directories, database.database_history())
     };
     if rmake_linux::signals::pending().is_some() {
         return Err(StartupError::expansion(ExpandError::Cancelled));
@@ -69,9 +70,6 @@ pub(super) fn include_metadata(
         .define_literal(b".INCLUDE_DIRS", b"", Origin::Default)
         .map_err(StartupError::expansion)?;
     for directory in search.borrow().directories() {
-        if let Some(history) = database.database_history() {
-            history.intern(directory);
-        }
         evaluate(database, &runtime, |database, context| {
             database.define_variable_with(
                 rmake_core::parser::AssignmentSpec {

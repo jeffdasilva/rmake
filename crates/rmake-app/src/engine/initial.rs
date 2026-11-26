@@ -655,6 +655,9 @@ impl State {
                     let raw = options.include_directories[index].as_os_str().as_bytes();
                     if !self.seen_includes.contains(OsStr::from_bytes(raw)) {
                         let stored = self.path(program, raw)?;
+                        if let Some(history) = self.database.database_history() {
+                            history.intern(stored.as_os_str().as_bytes());
+                        }
                         self.seen_includes.insert(stored.as_os_str().to_owned());
                         options.include_directories[index] = stored;
                     } else {
