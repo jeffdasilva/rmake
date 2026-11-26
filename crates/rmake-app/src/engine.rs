@@ -528,6 +528,7 @@ struct MakefileRemake {
     retain_failure: bool,
     use_declared_synthetic_head: bool,
     use_declared_tail_head: bool,
+    trace_initial_synthetic: bool,
     stopped: Option<Rc<Cell<bool>>>,
     open_error: Option<SharedIncludeError>,
 }
@@ -3836,6 +3837,18 @@ impl Engine {
             // Required makefiles settle before the ordinary mode resumes.
             // An explicit goal can also name a makefile and use that mode.
             let ordinary_mode = modes.active();
+            let synthetic_trace_source = if !ordinary_mode
+                && (debug_before_remake == Mask::ALL
+                    || debug_before_remake.bits() == remake_debug_bits | Mask::VERBOSE.bits())
+                && self.jobserver.is_some()
+                && !always
+                && self.options.output_sync.is_none()
+                && self.options.inherited_output_sync.is_none()
+            {
+                self.initial_synthetic_remake_trace_source(&read_files)
+            } else {
+                None
+            };
             let named_sources = if ordinary_mode {
                 self.index_named_remake_sources(&read_files)
             } else {
@@ -4027,6 +4040,7 @@ impl Engine {
                 && self.qualified_load_debug_sources(named_load_files, false, 2, true)
                 && self.qualified_debug_remake_sources(&read_files, named_sources.as_ref());
             let parallel_remake_debug = !debug_before_remake.has(Mask::MAKEFILES)
+                || synthetic_trace_source.is_some()
                 || (qualified_remake_debug
                     && (self.options.load_limit.is_none()
                         || basic_load_debug
@@ -4286,6 +4300,7 @@ impl Engine {
                                 self, makefile,
                             ),
                             use_declared_tail_head: false,
+                            trace_initial_synthetic: false,
                             stopped: None,
                             // The diagnostic uses the first read's saved error,
                             // selected by the current occurrence's policy.
@@ -4577,6 +4592,8 @@ impl Engine {
                         && !modes.active()
                         && !optional
                         && !makefile.missing,
+                    trace_initial_synthetic: self.parallel_makefile_remakes
+                        && synthetic_trace_source == Some(name),
                     stopped: (optional && self.parallel_makefile_remakes)
                         .then(|| Rc::new(Cell::new(false))),
                     open_error: if optional {
@@ -4901,6 +4918,16 @@ impl Engine {
                     break;
                 }
                 if self.parallel_makefile_remakes && self.pending(name) {
+                    if context.trace_initial_synthetic
+                        && self.debug_was_considered(name)
+                        && self.parallel_jobs.primary.get(name).is_some_and(|job| {
+                            job.child.is_some() && job.continuation.branch == Some(1)
+                        })
+                    {
+                        // A second source entry sees the considered head
+                        // while the actual synthetic command is pending.
+                        crate::debug::emit(&self.output, crate::debug::Event::Pruning(name, 1));
+                    }
                     if let Some(trailing) = &trailing_optional_source
                         && name == trailing.neighbor
                         && self.options.keep_going
@@ -13116,6 +13143,63 @@ impl Engine {
         .then_some(neighbor.name.as_slice())
     }
 
+    fn initial_synthetic_remake_trace_source<'a>(
+        &self,
+        read_files: &'a [(Makefile, bool)],
+    ) -> Option<&'a [u8]> {
+        let [_, (source, false), (neighbor, false)] = read_files else {
+            return None;
+        };
+        let trailing = self.trailing_optional_remake(read_files)?;
+        let name = source.name.as_slice();
+        if trailing.kind != TrailingOptionalKind::Unruled
+            || !fs::symlink_metadata(os(&neighbor.name)).is_ok_and(|entry| entry.is_file())
+            || name.contains(&b'/')
+            || name.starts_with(b"~")
+            || name.starts_with(b"-l")
+            || rmake_core::filenames::archive_parts(name).is_some()
+            || self.database.loaded_modules.contains_key(name)
+            || self.special(b".PHONY", name, false)
+            || self
+                .assumed_new_double_colon_entries(name)
+                .is_none_or(|(_, count)| count != 1)
+        {
+            return None;
+        }
+        let [head] = self.database.rules.get(name)?.double_colon.as_deref()? else {
+            return None;
+        };
+        let candidates = self.database.implicit_candidates(name);
+        let [synthetic] = candidates.as_slice() else {
+            return None;
+        };
+        let leaf_time = |rule: &Rule| {
+            let [dependency] = rule.dependencies.as_slice() else {
+                return None;
+            };
+            if rule.secondary.is_some()
+                || rule.grouped_targets().is_some()
+                || dependency.order_only
+                || dependency.hidden
+                || !rule.recipes.as_ref().is_some_and(|recipes| {
+                    matches!(recipes.as_slice(), [recipe] if !recipe_is_recursive(recipe))
+                })
+                || !self.unruled_remake_source(&dependency.name)
+                || self.special(b".PHONY", &dependency.name, false)
+            {
+                return None;
+            }
+            let entry = fs::symlink_metadata(os(&dependency.name)).ok()?;
+            entry.is_file().then(|| entry.modified().ok()).flatten()
+        };
+        let entry = fs::symlink_metadata(os(name)).ok()?;
+        let before = entry.modified().ok()?;
+        (entry.is_file()
+            && leaf_time(head).is_some_and(|time| time <= before)
+            && leaf_time(&synthetic.rule).is_some_and(|time| time > before))
+        .then_some(name)
+    }
+
     fn trailing_optional_remake<'a>(
         &self,
         read_files: &'a [(Makefile, bool)],
@@ -13875,6 +13959,12 @@ impl Engine {
             && self.remaking
             && self.active_makefile_remake.is_some()
             && self.parallel_remake_debug_declarations(target);
+        let trace_initial_synthetic = state.last_epoch.is_none()
+            && state.depth == 0
+            && state
+                .remake
+                .as_ref()
+                .is_some_and(|context| context.trace_initial_synthetic);
         state.last_epoch = Some(self.graph_epoch);
         let mut replay_cached_after_recipe = false;
         let serial_remake_root = self.remaking
@@ -14080,12 +14170,18 @@ impl Engine {
                 && self.active_makefile_remake.is_none()
                 && assumed_time.is_none())
             .then_some(ordinal);
-            if ordinal != 0 && !declared && !self.remaking && assumed_time.is_none() {
+            if !declared
+                && ((!self.remaking && ordinal != 0 && assumed_time.is_none())
+                    || (trace_initial_synthetic && ordinal == 1))
+            {
                 // A fresh synthetic branch announces its visit before
                 // implicit search, even when no recipe can be found.
                 crate::debug::emit(
                     &self.output,
-                    crate::debug::Event::Considering(target, state.depth),
+                    crate::debug::Event::Considering(
+                        target,
+                        state.depth + usize::from(self.remaking),
+                    ),
                 );
             }
             let mut branch = if let Some(branch) = entry {
@@ -18015,6 +18111,7 @@ mod tests {
             retain_failure: true,
             use_declared_synthetic_head: false,
             use_declared_tail_head: false,
+            trace_initial_synthetic: false,
             stopped: None,
             open_error: None,
         });
