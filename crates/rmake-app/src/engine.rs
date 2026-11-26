@@ -5654,8 +5654,7 @@ impl Engine {
                             && std::ptr::eq(remake.file, trailing.required)
                             && !remake.modes.active()
                             && !MakefileModes::from_options(&self.options).active()
-                            && result.ran_refresh()
-                            && result.goal_verdict().is_none()
+                            && self.settled_required_worker_refresh(result)
                             && self.parallel_jobs.is_empty()
                             && let Some(worker) = remake.trailing_optional_worker.as_deref()
                             && worker.no_required_tail_remains
@@ -13621,6 +13620,18 @@ impl Engine {
         changed
     }
 
+    fn settled_required_worker_refresh(&self, outcome: Outcome) -> bool {
+        outcome.ran_refresh()
+            && (outcome.goal_verdict().is_none()
+                || (self.options.keep_going
+                    && outcome.failed
+                    && !outcome.question_outdated
+                    && matches!(
+                        outcome.remake_failure,
+                        RemakeFailure::RequiredDeclaredTailRecipe
+                    )))
+    }
+
     fn publish_restored_trailing_worker_clock(
         &mut self,
         leading: &FailedLeadingOptionalRemake<'_>,
@@ -13649,7 +13660,7 @@ impl Engine {
             && self
                 .file_traversals
                 .outcome(&worker.required)
-                .is_some_and(|outcome| outcome.ran_refresh() && outcome.goal_verdict().is_none())
+                .is_some_and(|outcome| self.settled_required_worker_refresh(*outcome))
             && visited
                 .get(leading.neighbor.name.as_slice())
                 .is_some_and(|(before, _)| {
