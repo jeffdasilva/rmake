@@ -48,6 +48,8 @@ at the end of this audit.
   Startup include options cache each accepted operand after filename preparation.
   Search construction records each existing directory in scan order and preserves
   its cache event even when a later `-I-` clears it from the search list.
+  An accepted startup `-C` operand also enters the cache during decoding,
+  before later goals or assignment effects and before the actual directory change.
   Live `MAKEFLAGS` and post-read flag decoders cache each accepted include
   operand at its argument boundary, preserving the events completed before a
   later assignment or terminal option error.

@@ -2064,9 +2064,6 @@ impl Engine {
             exit_directory = startup_directory.clone();
         }
         for directory in &options.directories {
-            if let Some(history) = database.database_history() {
-                history.intern(directory.as_os_str().as_bytes());
-            }
             retain!(std::env::set_current_dir(directory).map_err(|error| {
                 let detail = error
                     .raw_os_error()
