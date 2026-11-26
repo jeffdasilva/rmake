@@ -376,11 +376,11 @@ earlier goals can contribute to the lookup counters. The database cases also
 cover ordinary touch timestamps and when a later prerequisite observes a
 forced recipe's physical timestamp after an earlier failure.
 
-The native AArch64 glibc gate covers three C and C.UTF-8 locale cases. Its
-French lane verified the startup debug-option diagnostic in C and a pinned
-French locale. The retained GNU2 and optimized reports cover the exact native
-run. The
-dynamic musl gate has one C.UTF-8 wildcard byte-width case. Broader diagnostic
+The native AArch64 glibc gate covers three C and C.UTF-8 locale cases and the
+startup debug-option and directory-error diagnostics in C and a pinned French
+locale. It runs the startup usage and getopt models on both build profiles
+using the same locale data. The reports retain the native comparisons.
+The dynamic musl gate has one C.UTF-8 wildcard byte-width case. Broader diagnostic
 producers, native and Guile callbacks, cache history, resource failures and
 musl NLS remain open. See the
 [native AArch64](../.github/workflows/native-aarch64.yml) and
