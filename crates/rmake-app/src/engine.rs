@@ -3618,7 +3618,8 @@ impl Engine {
                             return 2;
                         }
                         if source_open_exhausted(&err) {
-                            self.fatal(None, os_error(&err).as_bytes());
+                            let detail = rmake_linux::filesystem::source_error_detail(&err);
+                            self.fatal(None, &detail);
                             return 2;
                         }
                         let detail = rmake_linux::filesystem::source_error_detail(&err);
@@ -14691,15 +14692,17 @@ impl Engine {
             || !std::ptr::eq(first.file, first_source)
             || !std::ptr::eq(second.file, second_source)
             || trailing_sources.len() != trailing_requests.len()
-            || trailing_requests.len() > 4
         {
             return None;
         }
         let (first_identity, first_before, first_branch) =
             self.held_direct_required_remake_job(first, visited)?;
-        let (second_identity, second_before, second_branch) =
-            self.held_direct_required_remake_job(second, visited)?;
-        let mut trailing = Vec::with_capacity(trailing_requests.len());
+        let (second_identity, second_before, None) =
+            self.held_direct_required_remake_job(second, visited)?
+        else {
+            return None;
+        };
+        let mut trailing = Vec::new();
         for ((source, skip), request) in trailing_sources.iter().zip(trailing_requests) {
             if *skip || !std::ptr::eq(request.file, source) {
                 return None;
@@ -14718,19 +14721,17 @@ impl Engine {
                 failure: None,
             });
         }
-        second_branch.is_none().then(|| {
-            Box::new(RequiredRemakeWorkerPair {
-                first_identity,
-                first_before,
-                first_branch,
-                first_reap: None,
-                second: &second.file.name,
-                second_identity,
-                second_before,
-                second_failure: None,
-                trailing,
-            })
-        })
+        Some(Box::new(RequiredRemakeWorkerPair {
+            first_identity,
+            first_before,
+            first_branch,
+            first_reap: None,
+            second: &second.file.name,
+            second_identity,
+            second_before,
+            second_failure: None,
+            trailing,
+        }))
     }
 
     fn held_direct_required_remake_job(
