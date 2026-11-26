@@ -1470,6 +1470,15 @@ impl VariableStore {
         true
     }
 
+    pub(crate) fn inherited_target_binding(&self, name: &[u8]) -> Option<(&[u8], &Variable)> {
+        let (index, binding) = self.lookup_from(name, 0)?;
+        let layer = self.layers.get(index.checked_sub(1)?)?;
+        if !layer.inherited || layer.pattern || layer.file_locals || layer.global {
+            return None;
+        }
+        Some((layer.target.as_deref()?, binding))
+    }
+
     pub(crate) fn qualify_ancestor_or_pattern(
         &self,
         name: &[u8],

@@ -92,6 +92,8 @@ NUL boundaries, rebinding and cancellation.
   keeps its definition location and export policy.
   When the named conditional selects the global binding, the same
   transfer updates that global slot for subsequent readers.
+  A retained inherited binding can transfer into its owning named
+  declaration. Later descendants and named reads see that owner's update.
   Standalone export and unexport lists record the visible-scope lookup for
   each name before updating its policy or creating an empty global binding.
   A list lookup refreshes the global .VARIABLES cache when that special

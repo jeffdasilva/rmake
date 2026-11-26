@@ -3742,6 +3742,22 @@ impl Database {
                     context,
                 ) {
                     self.refresh_target_read(&owner, &mut read, &declarations);
+                    let inherited_owner = if record_active {
+                        read.inherited_target_binding(&name)
+                            .filter(|(target, binding)| {
+                                self.rules.get(*target).is_some_and(|rule| {
+                                    rule.double_colon.is_none() && rule.group.is_none()
+                                }) && self.named_target_declaration(target).head.is_none()
+                                    && self
+                                        .target_scopes
+                                        .get(*target)
+                                        .and_then(|scope| scope.get(&name))
+                                        .is_some_and(|declared| std::ptr::eq(declared, *binding))
+                            })
+                            .map(|(target, _)| target)
+                    } else {
+                        None
+                    };
                     if record_active {
                         (active_conditional, transfer_command) =
                             Self::record_active_named_conditional(
@@ -3749,7 +3765,7 @@ impl Database {
                                 &name,
                                 target_destination,
                                 global_destination,
-                                record_other,
+                                record_other || inherited_owner.is_some(),
                             );
                     }
                     if read.qualify_ancestor_or_pattern(
@@ -3757,7 +3773,16 @@ impl Database {
                         assignment.private,
                         assignment.export,
                     ) {
-                        self.record_active_named_conditional_caller(&name, active_conditional);
+                        if let Some(owner) = inherited_owner {
+                            self.transfer_inherited_conditional_command_value(
+                                owner,
+                                &name,
+                                active_conditional,
+                            )
+                            .map_err(parse_error)?;
+                        } else {
+                            self.record_active_named_conditional_caller(&name, active_conditional);
+                        }
                         self.publish_target_scope(declaration, &name);
                         continue;
                     }
@@ -3914,6 +3939,44 @@ impl Database {
             // Qualifiers have already been applied to the selected binding.
             caller.record_database_lookup(name);
         }
+    }
+
+    fn transfer_inherited_conditional_command_value(
+        &mut self,
+        owner: &[u8],
+        name: &[u8],
+        selected: Option<Origin>,
+    ) -> Result<(), ExpandError> {
+        if selected.is_some_and(|origin| origin != Origin::Override)
+            && !self
+                .evaluation_bindings
+                .iter()
+                .rev()
+                .any(|frame| frame.contains_key(name))
+            && let Some(caller) = &self.evaluation_scope
+        {
+            let scope = self
+                .target_scopes
+                .get_mut(owner)
+                .expect("inherited declaration");
+            let same_binding = caller
+                .get(name)
+                .zip(scope.get(name))
+                .is_some_and(|(source, destination)| std::ptr::eq(source, destination));
+            if let Some(value) = caller.target_command_value(name)?
+                && !same_binding
+                && scope.transfer_target_command_value(name, value)
+            {
+                self.publish_target_scope(
+                    TargetDeclaration {
+                        name: owner,
+                        head: None,
+                    },
+                    name,
+                );
+            }
+        }
+        Ok(())
     }
 
     fn replay_named_flags(
