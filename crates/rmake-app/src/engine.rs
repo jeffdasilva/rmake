@@ -1760,6 +1760,8 @@ pub struct Engine {
     makefile_names: HashSet<Vec<u8>>,
     aliases: Aliases,
     path_observations: HashMap<Vec<u8>, PathObservation>,
+    ordinary_include_open_times: bool,
+    reopened_include_times: HashSet<Vec<u8>>,
     resolved_names: HashMap<Vec<u8>, Vec<u8>>,
     ignored_vpath: HashSet<Vec<u8>>,
     archive_vpath_reads: RefCell<Option<Box<ArchiveVpathReads>>>,
@@ -2349,6 +2351,8 @@ impl Engine {
             makefile_names: HashSet::new(),
             aliases: Aliases::default(),
             path_observations: HashMap::new(),
+            ordinary_include_open_times: false,
+            reopened_include_times: HashSet::new(),
             resolved_names: HashMap::new(),
             ignored_vpath: HashSet::new(),
             archive_vpath_reads: RefCell::new(None),
@@ -2465,14 +2469,80 @@ impl Engine {
                 || self.filesystem.borrow_mut().child_completed(),
             )
         };
-        let mut include = |name: &[u8]| self.include_search.borrow().read(name);
+        let record_open_times = self.ordinary_include_open_times && direct_heads;
+        let mut open_results = Vec::new();
+        let mut include = |name: &[u8]| {
+            let result = self.include_search.borrow().read(name);
+            if record_open_times {
+                match &result {
+                    Ok(included) => open_results.push((included.name.clone(), true)),
+                    Err(IncludeFailure::Deferred { resolved_name, .. }) => {
+                        open_results
+                            .push((resolved_name.as_deref().unwrap_or(name).to_vec(), false));
+                    }
+                    Err(IncludeFailure::Fatal(_)) => {}
+                }
+            }
+            result
+        };
         let context = runtime_context(location, &mut output)
             .with_makeflags(&mut flags)
             .with_target_reads(&mut target_reads)
             .with_filesystem(&mut filesystem)
             .with_shell(&shell)
             .with_includes(&mut include);
-        operation(&mut self.database, context)
+        let result = operation(&mut self.database, context);
+        for (name, opened) in open_results {
+            self.retain_include_open_time(name, opened);
+        }
+        result
+    }
+
+    fn retain_include_open_time(&mut self, name: Vec<u8>, opened: bool) {
+        if self.assumed_time(&name).is_some()
+            || self.aliases.contains_source_or_destination(&name)
+            || rmake_core::filenames::archive_parts(&name).is_some()
+            || self
+                .database
+                .rules
+                .get(&name)
+                .is_some_and(|rule| rule.double_colon.is_some() || rule.grouped_targets().is_some())
+        {
+            return;
+        }
+        if !opened {
+            // The recorded open already established that this file is missing.
+            // A later graph visit consumes that observation before searching.
+            self.retain_database_time(&name, None);
+            self.reopened_include_times.remove(&name);
+            self.database_unchecked_times.get_mut().remove(&name);
+            if let Some(outcome) = self.file_traversals.outcome_mut(&name) {
+                outcome.time = None;
+            }
+            self.path_observations.insert(name, None);
+        } else if self
+            .database_times
+            .get_mut()
+            .get(&name)
+            .is_some_and(Option::is_none)
+        {
+            // Reopening only resets a missing time. An existing physical
+            // observation and the earlier update verdict keep their owners.
+            self.database_times.get_mut().remove(&name);
+            if self
+                .path_observations
+                .get(&name)
+                .is_some_and(Option::is_none)
+            {
+                self.path_observations.remove(&name);
+            }
+            if let Some(outcome) = self.file_traversals.outcome(&name) {
+                if !outcome.failed && !outcome.question_outdated {
+                    self.reopened_include_times.insert(name.clone());
+                }
+                self.database_unchecked_times.get_mut().insert(name);
+            }
+        }
     }
 
     fn expand_global(
@@ -6176,6 +6246,7 @@ impl Engine {
             self.publish_restarted_assumptions();
         }
         self.unlink_stdin();
+        self.ordinary_include_open_times = true;
         let mut goals = if self.options.goals.is_empty() {
             // GNU expands a recursive default goal's raw value here, without
             // entering the .DEFAULT_GOAL binding's definition context. Nested
@@ -11218,7 +11289,10 @@ impl Engine {
         if outcome.failed {
             return outcome;
         }
-        if !outcome.search_after_update {
+        // A successful reopen leaves an earlier completed file unchecked
+        // until this consumer actually needs its current timestamp.
+        let reopened_include = outcome.time.is_none() && self.reopened_include_times.remove(target);
+        if !outcome.search_after_update && !reopened_include {
             // This is the successful consumer/goal timestamp phase. Without
             // search paths, use the already-retained local observation; the
             // bookkeeping stat need not be repeated just for diagnostics.
