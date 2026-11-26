@@ -18960,15 +18960,12 @@ impl Engine {
         if let Err(error) = fs::remove_file(os(target))
             && error.kind() != io::ErrorKind::NotFound
         {
-            self.stderr(
-                &[
-                    b"unlink: ".as_slice(),
-                    target,
-                    b": ",
-                    os_error(&error).as_bytes(),
-                ]
-                .concat(),
-            );
+            let detail = rmake_linux::filesystem::source_error_detail(&error);
+            self.stderr(&crate::messages::system(Message::OsError {
+                action: b"unlink: ",
+                path: target,
+                detail: &detail,
+            }));
         }
         false
     }

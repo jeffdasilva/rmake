@@ -64,7 +64,7 @@ os.write(1, function(getattr(errno, sys.argv[1])))
 
 def errno_witness(case, runtime, fact):
     name, locale = fact
-    assert name in {"ENOENT", "ENOTDIR", "EISDIR", "ENOSPC", "ENOLCK", "ELOOP", "ENAMETOOLONG"}
+    assert name in {"ENOENT", "ENOTDIR", "EISDIR", "ENOSPC", "ENOLCK", "ELOOP", "ENAMETOOLONG", "EACCES"}
     assert locale in {"C", "fr_FR.UTF-8", "C.UTF-8"}
     variables = {**case.environment, "LC_ALL": locale, "LANG": locale}
     variables.pop("LD_PRELOAD", None)
@@ -102,7 +102,7 @@ def cases(selection):
     debug_options = json.loads((DATA / "debug-options.json").read_bytes())
     suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution,
               touch_open, cleanup, wait_notice, intermediate, file_io, output_lock, debug_options)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 141, 15, 20, 14, 13, 18, 16, 12, 12, 8, 12, 12, 8, 7):
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 141, 15, 20, 14, 13, 18, 16, 12, 18, 8, 12, 12, 8, 7):
         raise h.HarnessError("unexpected NLS model inventory")
     shuffle_option = json.loads((DATA / "shuffle-option.json").read_bytes())
     if len(shuffle_option["rows"]) != 9 or shuffle_option["fixture_sha256"]:
@@ -141,7 +141,11 @@ def cases(selection):
     if set(lock_fixtures) != {"lock_errno.c"}:
         raise h.HarnessError("output lock fixture inventory differs")
     fixtures.update(lock_fixtures)
-    if any(suite["fixture_sha256"] for suite in (repeat, replay, low_resolution, touch_open, cleanup,
+    cleanup_fixtures = cleanup["fixture_sha256"]
+    if set(cleanup_fixtures) != {"recipe_unlink_errno.c"}:
+        raise h.HarnessError("recipe unlink fixture inventory differs")
+    fixtures.update(cleanup_fixtures)
+    if any(suite["fixture_sha256"] for suite in (repeat, replay, low_resolution, touch_open,
                                                 wait_notice, intermediate, file_io, debug_options)):
         raise h.HarnessError("unexpected source fixtures for later diagnostic cases")
     for name, expected in fixtures.items():

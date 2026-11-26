@@ -466,6 +466,9 @@ Adopted stdin cleanup reports the localized action and errno with the raw
 source path, including reader failure and early help.
 The localized file-size checks verify the stdin write failure before reader
 startup, using the recorded temporary name, retained bytes, and file mode.
+Recipe cleanup uses the localized unlink report when an owned changed
+target cannot be removed. The NLS checks cover raw paths and retain the
+recipe diagnostic, deletion announcement, and filesystem outcome in order.
 The dynamic musl gate checks C.UTF-8 wildcard byte widths and a C raw-target
 diagnostic beside a user warning. Broader diagnostic producers, native and
 Guile callbacks, cache history, resource failures and musl NLS remain open. See the
