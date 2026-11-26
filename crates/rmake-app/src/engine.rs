@@ -8856,7 +8856,6 @@ impl Engine {
                     // This root settled while the same later child still ran.
                     pair.first_reap = Some(clock);
                     if self.options.keep_going
-                        && !pair.first_double_colon
                         && let Some(job) = self.parallel_jobs.primary.get_mut(pair.second)
                         && job.identity == pair.second_identity
                     {
