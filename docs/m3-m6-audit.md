@@ -128,6 +128,8 @@ NUL boundaries, rebinding and cancellation.
   simple chains to full effects, nested scopes and shared binding history.
 - [Live source streams and parser continuations](live-sources.md) retain open-file
   identity, read/error/EOF behavior, source locations and owned cleanup.
+  An accepted nested include resolves a global MAKEFILE_LIST through the
+  active file scopes before recording the append in the global table.
 - [Eval allocation investigation](eval-allocation-profiles.md) retains experiments
   rejected after elapsed-time regressions and the selected runtime controls.
 
