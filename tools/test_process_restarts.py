@@ -16,7 +16,8 @@ import process_restarts as p
 
 class ProcessRestartTests(unittest.TestCase):
     def test_case_inventory_and_fixture_identity(self):
-        self.assertEqual({row['kind'] for row in p.models()}, {'warning', 'constructor', 'replacement'})
+        self.assertEqual({row['kind'] for row in p.models()},
+                         {'warning', 'constructor', 'replacement', 'startup-stdin'})
         with patch.object(h, 'sha256_file', return_value='unexpected'):
             with self.assertRaisesRegex(h.HarnessError, 'fixture identity changed'):
                 p.models()
