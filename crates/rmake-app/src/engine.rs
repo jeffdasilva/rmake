@@ -18467,7 +18467,7 @@ impl Engine {
                 };
                 for (name, selection) in selected {
                     self.database.refresh_scoped_variables(variables);
-                    let current = variables.for_environment();
+                    let current = variables.clone();
                     if let Some(selection) = selection
                         && let Some(variable) = current.environment_binding(selection)
                     {
@@ -18476,7 +18476,7 @@ impl Engine {
                             &self.database.unexports,
                             name,
                             variable,
-                            current.resolve_environment_export_policy(selection, variable),
+                            variable.export_policy(),
                             export_all,
                         ) {
                             child.env_remove(os(name));

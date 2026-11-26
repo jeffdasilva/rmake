@@ -2271,14 +2271,6 @@ impl VariableStore {
         self.bindings_at_layer(selection.layer)?.get(selection.name)
     }
 
-    pub fn resolve_environment_export_policy(
-        &self,
-        selection: EnvironmentBinding<'_>,
-        variable: &Variable,
-    ) -> Option<bool> {
-        self.resolve_selected_export_policy(selection.name, selection.layer, variable, true)
-    }
-
     fn global_layer(&self, layer: usize) -> bool {
         if layer == 0 {
             !self.scoped

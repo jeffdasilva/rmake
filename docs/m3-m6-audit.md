@@ -103,8 +103,8 @@ NUL boundaries, rebinding and cancellation.
   A recipe or shell environment keeps the binding selected for each name
   during assembly. Later export expansion sees changes to that binding and
   reads its dependencies in the live scope.
-  Shell environment assembly copies inherited export policy before expanding
-  any values. Changes to the selected binding itself are visible at emission.
+  Recipe and shell environments copy inherited export policy during assembly.
+  Changes to the selected binding itself are visible at emission.
   Standalone export and unexport lists record the visible-scope lookup for
   each name before updating its policy or creating an empty global binding.
   A list lookup refreshes the global .VARIABLES cache when that special
