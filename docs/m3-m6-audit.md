@@ -182,6 +182,11 @@ covers mixed required and optional failure policies.
   The tested unignored serial launch errors record the first cleanup-policy
   lookup in the file table and invalidate the displayed nonphony timestamp
   when a direct executable or the configured recipe shell fails to start.
+  This covers fully forced recipes under `-n`, `-q`, and `-t`. Mixed forced
+  and ordinary recipes still differ in their simulated timestamps after a
+  failed launch.
+  GNU also checks a prior executable's path during a later launch failure and
+  can emit an additional diagnostic. That diagnostic remains open.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)

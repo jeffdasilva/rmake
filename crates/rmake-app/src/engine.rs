@@ -17971,7 +17971,8 @@ impl Engine {
                         && !self.remaking
                         && remake.is_none()
                         && branch.is_none()
-                        && !MakefileModes::from_options(&self.options).active()
+                        && (execution.all_recursive
+                            || !MakefileModes::from_options(&self.options).active())
                         && !self.running_groups.contains_key(target)
                         && rmake_core::filenames::archive_parts(target).is_none()
                     {
