@@ -339,7 +339,11 @@ inline optional refresh while the explicit worker is live. The actual failures
 remain visible to ordinary dependents. The held earlier-only cases cover an
 absent optional source and a declared optional with a missing prerequisite.
 An earlier failure can also coexist with a trailing read of an unruled source
-that has settled at its original clock before the required worker is reaped.
+or a current declared source that settles at its original timestamp before the
+required worker is reaped. The declared cases check that the recipe stays
+unexpanded. An unruled trailing source can also settle through a direct
+missing-rule visit. That failure remains available to ordinary dependents
+while an independent goal can still proceed.
 Two-worker optional cases and other kinds of trailing optional visits still
 need qualification.
 [Held remake campaign](../tools/remake_parallel.py) ·

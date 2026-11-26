@@ -26,6 +26,9 @@ USAGE = b'Usage: make [options] [target] ...\nOptions:\n'
 OUTPUT_MODE = b'--output-sync=unsupported'
 OUTPUT_MODE_ERROR = b"make: *** unknown output-sync type 'unsupported'.  Stop.\n"
 FR_OUTPUT_MODE_ERROR = "make: *** type de output-sync «\u00a0unsupported\u00a0» inconnu. Arrêt.\n".encode()
+DEBUG_MODE_ERROR = b"make: *** unknown debug level specification 'unknown'.  Stop.\n"
+FR_DEBUG_MODE_ERROR = "make: *** niveau de débogage inconnu «\u00a0unknown\u00a0». Arrêt.\n".encode()
+MUTEX_OPEN_ERROR = b'make: *** cannot open output sync mutex missing/lock: No such file or directory.  Stop.\n'
 
 
 @dataclass(frozen=True)
@@ -118,13 +121,70 @@ def models():
     yield Model('inherited-lexical-error-before-output-mode', (CLI,), SHORT.replace(b'{argv}', b''),
                 gnumakeflags=b' '.join((gnu_first, b'--version', b'-z', OUTPUT_MODE, gnu_last)),
                 makeflags=next_source, version=True, seen=b'gnu-first\ngnu-last\n')
-    yield Model('inherited-debug-error-before-output-mode', (CLI,),
-                b"make: *** unknown debug level specification 'unknown'.  Stop.\n",
+    yield Model('inherited-debug-error-before-output-mode', (CLI,), DEBUG_MODE_ERROR,
                 gnumakeflags=b' '.join((gnu_first, invalid_debug, OUTPUT_MODE, gnu_last)),
                 makeflags=b' '.join((next_source, b'--version')),
                 usage=False, seen=b'gnu-first\ngnu-last\n')
-    yield Model('unknown-debug', (b'--debug=unknown',),
-                b"make: *** unknown debug level specification 'unknown'.  Stop.\n", usage=False)
+    yield Model('inherited-gnu-debug-version-before-output-mode', (CLI,), DEBUG_MODE_ERROR,
+                gnumakeflags=b' '.join((b'--version', gnu_first, invalid_debug, OUTPUT_MODE, mutex, gnu_last)),
+                makeflags=next_source, usage=False, version=True, seen=b'gnu-first\ngnu-last\n')
+    yield Model('fr-inherited-make-debug-error-version-after', (CLI,), FR_DEBUG_MODE_ERROR,
+                gnumakeflags=gnu_first,
+                makeflags=b' '.join((make_first, invalid_debug, make_last, b'--version')),
+                usage=False, version=True, seen=b'gnu-first\nmake-first\nmake-last\n', french=True)
+    yield Model('inherited-version-then-make-debug-error', (CLI,), DEBUG_MODE_ERROR,
+                gnumakeflags=b' '.join((b'--version', gnu_first, b'--debug=none')),
+                makeflags=b' '.join((make_first, invalid_debug, make_last)),
+                usage=False, version=True, seen=b'gnu-first\nmake-first\nmake-last\n')
+    yield Model('inherited-lexical-error-before-debug', (CLI,), SHORT.replace(b'{argv}', b''),
+                gnumakeflags=b' '.join((b'--version', gnu_first, invalid_debug, mutex, gnu_last, b'-z')),
+                makeflags=next_source, version=True, seen=b'gnu-first\ngnu-last\n')
+    yield Model('explicit-debug-error-version-with-inherited-effects',
+                (invalid_debug, b'SIDE:=$(file >>seen,cli-effect)', b'--version'), DEBUG_MODE_ERROR,
+                gnumakeflags=gnu_first, makeflags=b' '.join((b'--output-sync=target', make_first)),
+                usage=False, version=True, seen=b'gnu-first\nmake-first\ncli-effect\n')
+    target_mode = b'--output-sync=target'
+    yield Model('inherited-gnu-mutex-open-error-version-before', (CLI,), MUTEX_OPEN_ERROR,
+                gnumakeflags=b' '.join((b'--version', gnu_first, target_mode, mutex, gnu_last)),
+                makeflags=b' '.join((next_source, invalid_debug)),
+                usage=False, version=True, seen=b'gnu-first\ngnu-last\n')
+    yield Model('inherited-make-mutex-open-error-version-after', (CLI,), MUTEX_OPEN_ERROR,
+                gnumakeflags=gnu_first,
+                makeflags=b' '.join((make_first, mutex, target_mode, make_last, b'--version')),
+                usage=False, version=True, seen=b'gnu-first\nmake-first\nmake-last\n')
+    yield Model('inherited-version-then-make-mutex-open-error', (CLI,), MUTEX_OPEN_ERROR,
+                gnumakeflags=b' '.join((b'--version', gnu_first, target_mode)),
+                makeflags=b' '.join((make_first, mutex, make_last)),
+                usage=False, version=True, seen=b'gnu-first\nmake-first\nmake-last\n')
+    yield Model('inherited-mutex-open-error-before-later-version', (b'--version', CLI), MUTEX_OPEN_ERROR,
+                gnumakeflags=b' '.join((gnu_first, target_mode, mutex, gnu_last)),
+                makeflags=b' '.join((next_source, b'--version')),
+                usage=False, seen=b'gnu-first\ngnu-last\n')
+    yield Model('explicit-mutex-open-error-version-with-inherited-effects',
+                (mutex, b'SIDE:=$(file >>seen,cli-effect)', b'--version'), MUTEX_OPEN_ERROR,
+                gnumakeflags=gnu_first, makeflags=b' '.join((target_mode, make_first)),
+                usage=False, version=True, seen=b'gnu-first\nmake-first\ncli-effect\n')
+    source_failure = b'$(file >>seen,source-first)$(error stop-source)$(file >>seen,forbidden)'
+    source_error = b'make: *** stop-source.  Stop.\n'
+    yield Model('inherited-version-before-source-expansion-error', (CLI,), source_error,
+                gnumakeflags=b' '.join((b'$(file >>seen,gnu-expanded)', gnu_first, b'--version')),
+                makeflags=source_failure, usage=False, version=True,
+                seen=b'gnu-expanded\ngnu-first\nsource-first\n')
+    yield Model('fr-inherited-version-before-source-expansion-error', (CLI,),
+                'make: *** stop-source. Arrêt.\n'.encode(),
+                gnumakeflags=b' '.join((b'--version', gnu_first, target_mode)),
+                makeflags=source_failure, usage=False, version=True, french=True,
+                seen=b'gnu-first\nsource-first\n')
+    yield Model('inherited-help-before-source-expansion-error', (CLI,), source_error,
+                gnumakeflags=b' '.join((gnu_first, b'--help')),
+                makeflags=source_failure, usage=False, seen=b'gnu-first\nsource-first\n')
+    yield Model('version-text-in-failing-makeflags-expansion', (b'--version', CLI), source_error,
+                gnumakeflags=gnu_first, makeflags=b'--version ' + source_failure,
+                usage=False, seen=b'gnu-first\nsource-first\n')
+    yield Model('version-text-in-failing-gnumakeflags-expansion', (CLI,), source_error,
+                gnumakeflags=b'--version ' + source_failure, makeflags=next_source,
+                usage=False, seen=b'source-first\n')
+    yield Model('unknown-debug', (invalid_debug,), DEBUG_MODE_ERROR, usage=False)
     yield Model('invalid-then-assignment', (b'-z', CLI), SHORT, seen=b'cli-effect\n')
     yield Model('assignment-then-invalid', (CLI, b'-z'), SHORT, seen=b'cli-effect\n')
     yield Model('two-invalid-with-assignment', (b'-z', CLI, b'--absent'), SHORT + LONG, seen=b'cli-effect\n')

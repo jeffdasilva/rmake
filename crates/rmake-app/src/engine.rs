@@ -511,7 +511,7 @@ type MakefileVisits<'a> = HashMap<&'a [u8], (Option<SystemTime>, Option<SharedIn
 struct FailedLeadingOptionalRemake<'a> {
     required: &'a Makefile,
     neighbor: &'a Makefile,
-    trailing_current: Option<TrailingOptionalRemake<'a>>,
+    trailing: Option<TrailingOptionalRemake<'a>>,
 }
 
 struct TrailingOptionalRemake<'a> {
@@ -4189,13 +4189,11 @@ impl Engine {
                             settled
                                 && failed_leading_optional.as_ref().is_some_and(|leading| {
                                     std::ptr::eq(leading.required, source)
-                                        && leading.trailing_current.as_ref().is_none_or(
-                                            |trailing| {
-                                                engine.settled_current_trailing_optional_remake(
-                                                    trailing, visited,
-                                                )
-                                            },
-                                        )
+                                        && leading.trailing.as_ref().is_none_or(|trailing| {
+                                            engine.settled_trailing_after_leading_failure(
+                                                trailing, visited,
+                                            )
+                                        })
                                 })
                         });
                     if declared_tail_failed
@@ -13285,18 +13283,30 @@ impl Engine {
         {
             return None;
         }
-        let trailing_current = match trailing {
+        let trailing = match trailing {
             [] => None,
-            [(trailing, false)]
-                if trailing.optional
-                    && !trailing.missing
-                    && trailing.location.is_some()
-                    && self.unruled_remake_source(&trailing.name) =>
-            {
+            [(trailing, false)] if trailing.optional && trailing.location.is_some() => {
+                let kind = if trailing.missing {
+                    if !matches!(
+                        trailing.read_error.as_ref(),
+                        Some(IncludeError::Errno(error))
+                            if io::Error::from_raw_os_error(*error).kind() == io::ErrorKind::NotFound
+                    ) || !self.unruled_remake_source(&trailing.name)
+                    {
+                        return None;
+                    }
+                    TrailingOptionalKind::Missing
+                } else if self.unruled_remake_source(&trailing.name) {
+                    TrailingOptionalKind::Unruled
+                } else if self.declared_optional_remake_source(&trailing.name) {
+                    TrailingOptionalKind::Declared
+                } else {
+                    return None;
+                };
                 Some(TrailingOptionalRemake {
                     required,
                     neighbor: &trailing.name,
-                    kind: TrailingOptionalKind::Unruled,
+                    kind,
                 })
             }
             _ => return None,
@@ -13304,11 +13314,11 @@ impl Engine {
         Some(FailedLeadingOptionalRemake {
             required,
             neighbor,
-            trailing_current,
+            trailing,
         })
     }
 
-    fn settled_current_trailing_optional_remake(
+    fn settled_trailing_after_leading_failure(
         &self,
         trailing: &TrailingOptionalRemake<'_>,
         visited: &MakefileVisits<'_>,
@@ -13319,9 +13329,15 @@ impl Engine {
                 .get(name)
                 .zip(self.file_traversals.outcome(name))
                 .is_some_and(|((before, _), result)| {
-                    self.settled_trailing_optional_remake(trailing, *before, *result, false)
-                        && fs::symlink_metadata(os(name))
-                            .is_ok_and(|file| file.is_file() && file.modified().ok() == *before)
+                    // A declared trailing source must settle without expanding
+                    // a recipe, even if expansion would leave its clock intact.
+                    (trailing.kind != TrailingOptionalKind::Declared
+                        || result.completion == CompletionTime::Unchanged)
+                        && self.settled_trailing_optional_remake(trailing, *before, *result, false)
+                        // The missing outcome already checks that the path is absent.
+                        && (trailing.kind == TrailingOptionalKind::Missing
+                            || fs::symlink_metadata(os(name))
+                                .is_ok_and(|file| file.is_file() && file.modified().ok() == *before))
                 })
     }
 
