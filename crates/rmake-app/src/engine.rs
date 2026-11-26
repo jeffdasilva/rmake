@@ -643,6 +643,7 @@ struct RequiredRemakeWorkerPair<'a> {
     second_before: SystemTime,
     second_failure: Option<Rc<Cell<Option<SystemTime>>>>,
     third: Option<RemakeChild<'a>>,
+    third_failure: Option<Rc<Cell<Option<SystemTime>>>>,
 }
 
 struct TrailingOptionalWorker {
@@ -8857,13 +8858,12 @@ impl Engine {
                 {
                     // This root settled while the same later child still ran.
                     pair.first_reap = Some(reap);
-                    if self.options.keep_going
-                        && let Some(job) = self.parallel_jobs.primary.get_mut(pair.second)
-                        && job.identity == pair.second_identity
-                    {
-                        let failure = Rc::new(Cell::new(None));
-                        job.required_pair_failure = Some(Rc::clone(&failure));
-                        pair.second_failure = Some(failure);
+                    if self.options.keep_going {
+                        pair.second_failure =
+                            self.track_required_pair_failure(pair.second, pair.second_identity);
+                        pair.third_failure = pair.third.as_ref().and_then(|third| {
+                            self.track_required_pair_failure(third.name, third.identity)
+                        });
                     }
                 }
                 if request.trace_synthetic_reap
@@ -14713,6 +14713,7 @@ impl Engine {
                 second_before,
                 second_failure: None,
                 third,
+                third_failure: None,
             })
         })
     }
@@ -14787,22 +14788,45 @@ impl Engine {
                 self.parallel_jobs.len() == 2
             }
             Some(third) => {
-                self.parallel_jobs.len() == 1 && self.unchanged_required_remake_worker(third)
+                // A third worker that settled before the first clock was
+                // observed must have succeeded.
+                self.parallel_jobs.len() == 1
+                    && self.settled_required_remake_worker_clock(third.name, third.before, None)
             }
             None => self.parallel_jobs.len() == 1,
         }
     }
 
-    fn unchanged_required_remake_worker(&self, worker: &RemakeChild<'_>) -> bool {
-        Self::regular_remake_clock(worker.name) == Some(worker.before)
-            && self
-                .file_traversals
-                .outcome(worker.name)
-                .is_some_and(|outcome| {
-                    outcome.ran_refresh()
-                        && outcome.goal_verdict().is_none()
-                        && outcome.time == Some(worker.before)
-                })
+    fn track_required_pair_failure(
+        &mut self,
+        name: &[u8],
+        identity: u64,
+    ) -> Option<Rc<Cell<Option<SystemTime>>>> {
+        let job = self.parallel_jobs.primary.get_mut(name)?;
+        if job.identity != identity || job.child.is_none() {
+            return None;
+        }
+        let failure = Rc::new(Cell::new(None));
+        job.required_pair_failure = Some(Rc::clone(&failure));
+        Some(failure)
+    }
+
+    fn settled_required_remake_worker_clock(
+        &self,
+        name: &[u8],
+        before: SystemTime,
+        failure: Option<&Cell<Option<SystemTime>>>,
+    ) -> bool {
+        Self::regular_remake_clock(name) == Some(before)
+            && self.file_traversals.outcome(name).is_some_and(|outcome| {
+                outcome.ran_refresh()
+                    && outcome.time == Some(before)
+                    && (outcome.goal_verdict().is_none()
+                        || (self.options.keep_going
+                            && outcome.failed
+                            && !outcome.question_outdated
+                            && failure.is_some_and(|failure| failure.get() == Some(before))))
+            })
     }
 
     fn required_remake_pair_first_reap(
@@ -14848,25 +14872,18 @@ impl Engine {
             && self.settled_required_worker_refresh(outcome)
             && self.parallel_jobs.is_empty()
             && Self::regular_remake_clock(first) == Some(pair.first_before)
-            && Self::regular_remake_clock(pair.second) == Some(pair.second_before)
-            && pair
-                .third
-                .as_ref()
-                .is_none_or(|third| self.unchanged_required_remake_worker(third))
-            && self
-                .file_traversals
-                .outcome(pair.second)
-                .is_some_and(|second| {
-                    second.ran_refresh()
-                        && second.time == Some(pair.second_before)
-                        && (second.goal_verdict().is_none()
-                            || (self.options.keep_going
-                                && second.failed
-                                && !second.question_outdated
-                                && pair.second_failure.as_deref().is_some_and(|failure| {
-                                    failure.get() == Some(pair.second_before)
-                                })))
-                })
+            && self.settled_required_remake_worker_clock(
+                pair.second,
+                pair.second_before,
+                pair.second_failure.as_deref(),
+            )
+            && pair.third.as_ref().is_none_or(|third| {
+                self.settled_required_remake_worker_clock(
+                    third.name,
+                    third.before,
+                    pair.third_failure.as_deref(),
+                )
+            })
     }
 
     fn track_trailing_optional_worker(
