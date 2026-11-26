@@ -1,7 +1,9 @@
 {
   "classification": "Original cleanup diagnostics with independent file effects.",
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
-  "fixture_sha256": {},
+  "fixture_sha256": {
+    "recipe_unlink_errno.c": "d8134dbbb0175fb2cd4b6a466dc9569db7a949ef8280f4877de4c1ade117e5ba"
+  },
   "rows": [
     {
       "id": "nls-cleanup-fr-file",
@@ -323,6 +325,255 @@
       "updates": {
         "primary": "70",
         "peer": "6f"
+      }
+    },
+    {
+      "id": "nls-cleanup-unlink-denied-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "",
+        "LD_PRELOAD": "./recipe_unlink_errno.so"
+      },
+      "files": {
+        "Makefile": "2e44454c4554455f4f4e5f4552524f523a0a616c6c3a2067756172642f7461726765740a67756172642f7461726765743a20747269676765720a09407072696e746620225245434950455c6e223b207072696e7466202266726573685c6e22203e20222440223b206578697420370a",
+        "seen": "616e63686f720a",
+        "guard/anchor": "616e63686f720a",
+        "trigger": "736565640a",
+        "guard/target": "6f6c640a"
+      },
+      "modules": [
+        {
+          "source": "recipe_unlink_errno.c",
+          "filename": "recipe_unlink_errno.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "5245434950450a",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a343a2067756172642f7461726765745d204572726f7220370a6d616b653a202a2a2a2044656c6574696e672066696c65202767756172642f746172676574270a6d616b653a20756e6c696e6b3a2067756172642f7461726765743a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a"
+      },
+      "mtimes_ns": {
+        "guard/target": 1700000000000000000,
+        "trigger": 1700000001000000000
+      },
+      "updates": {
+        "guard/target": "66726573680a"
+      },
+      "errno_fact": [
+        "EACCES",
+        "C"
+      ]
+    },
+    {
+      "id": "nls-cleanup-unlink-denied-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr",
+        "LD_PRELOAD": "./recipe_unlink_errno.so"
+      },
+      "files": {
+        "Makefile": "2e44454c4554455f4f4e5f4552524f523a0a616c6c3a2067756172642f7461726765740a67756172642f7461726765743a20747269676765720a09407072696e746620225245434950455c6e223b207072696e7466202266726573685c6e22203e20222440223b206578697420370a",
+        "seen": "616e63686f720a",
+        "guard/anchor": "616e63686f720a",
+        "trigger": "736565640a",
+        "guard/target": "6f6c640a"
+      },
+      "modules": [
+        {
+          "source": "recipe_unlink_errno.c",
+          "filename": "recipe_unlink_errno.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "5245434950450a",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a343a2067756172642f7461726765745d204572726f7220370a6d616b653a202a2a2a205375707072657373696f6e206475206669636869657220c2abc2a067756172642f746172676574c2a0c2bb0a6d616b653a20756e6c696e6b3a2067756172642f746172676574203a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a"
+      },
+      "mtimes_ns": {
+        "guard/target": 1700000000000000000,
+        "trigger": 1700000001000000000
+      },
+      "updates": {
+        "guard/target": "66726573680a"
+      },
+      "errno_fact": [
+        "EACCES",
+        "fr_FR.UTF-8"
+      ]
+    },
+    {
+      "id": "nls-cleanup-unlink-denied-raw-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr",
+        "LD_PRELOAD": "./recipe_unlink_errno.so"
+      },
+      "files": {
+        "Makefile": "2e44454c4554455f4f4e5f4552524f523a0a616c6c3a2067756172642f7261775fff0a67756172642f7261775fff3a20747269676765720a09407072696e746620225245434950455c6e223b207072696e7466202266726573685c6e22203e20222440223b206578697420370a",
+        "seen": "616e63686f720a",
+        "guard/anchor": "616e63686f720a",
+        "trigger": "736565640a",
+        "guard/raw_\udcff": "6f6c640a"
+      },
+      "modules": [
+        {
+          "source": "recipe_unlink_errno.c",
+          "filename": "recipe_unlink_errno.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "5245434950450a",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a343a2067756172642f7261775fff5d204572726f7220370a6d616b653a202a2a2a205375707072657373696f6e206475206669636869657220c2abc2a067756172642f7261775fffc2a0c2bb0a6d616b653a20756e6c696e6b3a2067756172642f7261775fff203a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a"
+      },
+      "mtimes_ns": {
+        "guard/raw_\udcff": 1700000000000000000,
+        "trigger": 1700000001000000000
+      },
+      "updates": {
+        "guard/raw_\udcff": "66726573680a"
+      },
+      "errno_fact": [
+        "EACCES",
+        "fr_FR.UTF-8"
+      ]
+    },
+    {
+      "id": "nls-cleanup-unlink-denied-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de",
+        "LD_PRELOAD": "./recipe_unlink_errno.so"
+      },
+      "files": {
+        "Makefile": "2e44454c4554455f4f4e5f4552524f523a0a616c6c3a2067756172642f7461726765740a67756172642f7461726765743a20747269676765720a09407072696e746620225245434950455c6e223b207072696e7466202266726573685c6e22203e20222440223b206578697420370a",
+        "seen": "616e63686f720a",
+        "guard/anchor": "616e63686f720a",
+        "trigger": "736565640a",
+        "guard/target": "6f6c640a"
+      },
+      "modules": [
+        {
+          "source": "recipe_unlink_errno.c",
+          "filename": "recipe_unlink_errno.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "5245434950450a",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a343a2067756172642f7461726765745d204665686c657220370a6d616b653a202a2a2a20446174656920e2809e67756172642f746172676574e2809c20776972642067656cc3b6736368740a6d616b653a20756e6c696e6b3a2067756172642f7461726765743a20404f535f44455441494c400a",
+        "seen_hex": "616e63686f720a"
+      },
+      "mtimes_ns": {
+        "guard/target": 1700000000000000000,
+        "trigger": 1700000001000000000
+      },
+      "updates": {
+        "guard/target": "66726573680a"
+      },
+      "errno_fact": [
+        "EACCES",
+        "fr_FR.UTF-8"
+      ]
+    },
+    {
+      "id": "nls-cleanup-unlink-deleted-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr",
+        "LD_PRELOAD": "./recipe_unlink_errno.so"
+      },
+      "files": {
+        "Makefile": "2e44454c4554455f4f4e5f4552524f523a0a616c6c3a2067756172642f72656d6f7661626c650a67756172642f72656d6f7661626c653a20747269676765720a09407072696e746620225245434950455c6e223b207072696e7466202266726573685c6e22203e20222440223b206578697420370a",
+        "seen": "616e63686f720a",
+        "guard/anchor": "616e63686f720a",
+        "trigger": "736565640a"
+      },
+      "modules": [
+        {
+          "source": "recipe_unlink_errno.c",
+          "filename": "recipe_unlink_errno.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "5245434950450a",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a343a2067756172642f72656d6f7661626c655d204572726f7220370a6d616b653a202a2a2a205375707072657373696f6e206475206669636869657220c2abc2a067756172642f72656d6f7661626c65c2a0c2bb0a",
+        "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-cleanup-unlink-policy-disabled-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr",
+        "LD_PRELOAD": "./recipe_unlink_errno.so"
+      },
+      "files": {
+        "Makefile": "2320636c65616e75702064697361626c65640a616c6c3a2067756172642f7461726765740a67756172642f7461726765743a20747269676765720a09407072696e746620225245434950455c6e223b207072696e7466202266726573685c6e22203e20222440223b206578697420370a",
+        "seen": "616e63686f720a",
+        "guard/anchor": "616e63686f720a",
+        "trigger": "736565640a"
+      },
+      "modules": [
+        {
+          "source": "recipe_unlink_errno.c",
+          "filename": "recipe_unlink_errno.so",
+          "defines": []
+        }
+      ],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "5245434950450a",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a343a2067756172642f7461726765745d204572726f7220370a",
+        "seen_hex": "616e63686f720a"
+      },
+      "updates": {
+        "guard/target": "66726573680a"
       }
     }
   ]

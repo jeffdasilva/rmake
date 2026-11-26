@@ -577,6 +577,7 @@ pub struct Database {
     /// Target-only variable declarations never create rules or select a goal.
     pub target_scopes: HashMap<Vec<u8>, TargetScope>,
     target_scope_revision: u64,
+    updated_pattern_scopes: HashMap<usize, TargetScope>,
     named_head_records:
         HashMap<crate::file_records::FileRecordId, crate::file_records::FileRecordId>,
     detached_heads: HashMap<crate::file_records::FileRecordId, DetachedTargetHead>,
@@ -947,9 +948,11 @@ impl Database {
     /// Refresh a cached file context without rerunning its pattern effects.
     pub fn refresh_scoped_variables(&self, variables: &mut VariableStore) {
         variables.refresh_globals(&self.variables);
-        variables.refresh_declared_scopes(self.target_scope_revision, |name, history| {
-            self.declaration_scope_for_layer(name, history)
-        });
+        variables.refresh_declared_scopes(
+            self.target_scope_revision,
+            |name, history| self.declaration_scope_for_layer(name, history),
+            |identity| self.updated_pattern_scopes.get(&identity),
+        );
     }
 
     fn declaration_scope_for_layer(
@@ -3239,13 +3242,17 @@ impl Database {
         let lookup_scope = if matches!(spec.kind, Assignment::Append | Assignment::Conditional) {
             self.evaluation_scope.as_mut().map(|scope| {
                 scope.refresh_globals(&self.variables);
-                scope.refresh_declared_scopes(self.target_scope_revision, |name, history| {
-                    history
-                        .and_then(|history| self.detached_history_owners.get(&history))
-                        .and_then(|owner| self.detached_heads.get(owner))
-                        .map(|head| &head.scope)
-                        .or_else(|| self.target_scopes.get(name))
-                });
+                scope.refresh_declared_scopes(
+                    self.target_scope_revision,
+                    |name, history| {
+                        history
+                            .and_then(|history| self.detached_history_owners.get(&history))
+                            .and_then(|owner| self.detached_heads.get(owner))
+                            .map(|head| &head.scope)
+                            .or_else(|| self.target_scopes.get(name))
+                    },
+                    |identity| self.updated_pattern_scopes.get(&identity),
+                );
                 scope.clone()
             })
         } else {
@@ -3758,6 +3765,11 @@ impl Database {
                     } else {
                         None
                     };
+                    let pattern_owner = if record_active {
+                        read.activated_pattern_binding_scope(&name)
+                    } else {
+                        None
+                    };
                     if record_active {
                         (active_conditional, transfer_command) =
                             Self::record_active_named_conditional(
@@ -3765,7 +3777,9 @@ impl Database {
                                 &name,
                                 target_destination,
                                 global_destination,
-                                record_other || inherited_owner.is_some(),
+                                record_other
+                                    || inherited_owner.is_some()
+                                    || pattern_owner.is_some(),
                             );
                     }
                     if read.qualify_ancestor_or_pattern(
@@ -3776,6 +3790,14 @@ impl Database {
                         if let Some(owner) = inherited_owner {
                             self.transfer_inherited_conditional_command_value(
                                 owner,
+                                &name,
+                                active_conditional,
+                            )
+                            .map_err(parse_error)?;
+                        } else if let Some((identity, pattern)) = pattern_owner {
+                            self.transfer_pattern_conditional_command_value(
+                                identity,
+                                pattern,
                                 &name,
                                 active_conditional,
                             )
@@ -3974,6 +3996,35 @@ impl Database {
                     },
                     name,
                 );
+            }
+        }
+        Ok(())
+    }
+
+    fn transfer_pattern_conditional_command_value(
+        &mut self,
+        identity: usize,
+        mut pattern: TargetScope,
+        name: &[u8],
+        selected: Option<Origin>,
+    ) -> Result<(), ExpandError> {
+        if selected.is_some_and(|origin| origin != Origin::Override)
+            && !self
+                .evaluation_bindings
+                .iter()
+                .rev()
+                .any(|frame| frame.contains_key(name))
+            && let Some(caller) = &self.evaluation_scope
+        {
+            let same_binding = caller
+                .get(name)
+                .zip(pattern.get(name))
+                .is_some_and(|(source, destination)| std::ptr::eq(source, destination));
+            if let Some(value) = caller.target_command_value(name)?
+                && !same_binding
+                && pattern.transfer_target_command_value(name, value)
+            {
+                self.updated_pattern_scopes.insert(identity, pattern);
             }
         }
         Ok(())

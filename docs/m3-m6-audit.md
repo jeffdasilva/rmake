@@ -94,6 +94,9 @@ NUL boundaries, rebinding and cancellation.
   transfer updates that global slot for subsequent readers.
   A retained inherited binding can transfer into its owning named
   declaration. Later descendants and named reads see that owner's update.
+  A selected activated pattern slot can also receive a command value.
+  An inherited lookup updates the first visible pattern table it selects.
+  Cached reads share the replacement through that table's identity.
   Standalone export and unexport lists record the visible-scope lookup for
   each name before updating its policy or creating an empty global binding.
   A list lookup refreshes the global .VARIABLES cache when that special
@@ -418,6 +421,10 @@ failure still reports its missing rule and independent goals can proceed.
 A successful declared required worker can supply a new physical clock to
 the source decision before the sole tagged synthetic branch fails. The
 held cases cover both reaping orders and a genuine required-worker failure.
+A successfully reaped required worker can leave a reread pending when a
+trailing optional worker later restores the required file’s timestamp.
+The held cases retain the tagged missing-rule diagnostic and check the
+final physical clock used by ordinary goals.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)
 
@@ -457,6 +464,11 @@ Localized built-in arity reports preserve each evaluated argument effect before
 the error and retain the original function name, argument count and location.
 Adopted stdin cleanup reports the localized action and errno with the raw
 source path, including reader failure and early help.
+The localized file-size checks verify the stdin write failure before reader
+startup, using the recorded temporary name, retained bytes, and file mode.
+Recipe cleanup uses the localized unlink report when an owned changed
+target cannot be removed. The NLS checks cover raw paths and retain the
+recipe diagnostic, deletion announcement, and filesystem outcome in order.
 The dynamic musl gate checks C.UTF-8 wildcard byte widths and a C raw-target
 diagnostic beside a user warning. Broader diagnostic producers, native and
 Guile callbacks, cache history, resource failures and musl NLS remain open. See the

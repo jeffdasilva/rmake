@@ -1,0 +1,76 @@
+{
+  "classification": "File-size-limited stdin writes and adjacent controls in the pinned locale profile. Temporary source names are supplied by inotify and errno bytes are supplied by libc.",
+  "models_sha256": "8caf925cf9093eb23cc97182e0e3863f2c38a1e473b50b7e6be30d58a3652e02",
+  "rows": [
+    {
+      "source": "stdin-4097-limit-128",
+      "language": "C",
+      "stderr": "make: *** fwrite: temporary file @TMP@/@SOURCE@: @OS_DETAIL@.  Stop.\n"
+    },
+    {
+      "source": "stdin-4097-limit-128",
+      "language": "fr",
+      "stderr": "make: *** fwrite: temporary file @TMP@/@SOURCE@: @OS_DETAIL@. Arrêt.\n"
+    },
+    {
+      "source": "stdin-4097-limit-128",
+      "language": "de",
+      "stderr": "make: *** fwrite: temporäre Datei „@TMP@/@SOURCE@“: @OS_DETAIL@.  Schluss.\n"
+    },
+    {
+      "source": "stdin-4097-limit-128",
+      "language": "ja",
+      "stderr": "make: *** fwrite: 一時ファイル @TMP@/@SOURCE@: @OS_DETAIL@.  中止.\n"
+    },
+    {
+      "source": "stdin-4097-limit-128",
+      "language": "pl",
+      "stderr": "make: *** fwrite: plik tymczasowy @TMP@/@SOURCE@: @OS_DETAIL@. Stop.\n"
+    },
+    {
+      "source": "stdin-8192-limit-128",
+      "language": "C",
+      "stderr": "make: *** fwrite: temporary file @TMP@/@SOURCE@: @OS_DETAIL@.  Stop.\n"
+    },
+    {
+      "source": "stdin-8192-limit-128",
+      "language": "ja",
+      "stderr": "make: *** fwrite: 一時ファイル @TMP@/@SOURCE@: @OS_DETAIL@.  中止.\n"
+    },
+    {
+      "source": "stdin-4096-limit-128",
+      "language": "C",
+      "stderr": ""
+    },
+    {
+      "source": "stdin-4096-limit-128",
+      "language": "de",
+      "stderr": ""
+    },
+    {
+      "source": "stdin-4097-limit-4097",
+      "language": "C",
+      "stderr": ""
+    },
+    {
+      "source": "stdin-4097-limit-4097",
+      "language": "ja",
+      "stderr": ""
+    },
+    {
+      "source": "file-function-write-immediate",
+      "language": "C",
+      "stderr": "Makefile:2: *** write: note: @OS_DETAIL@.  Stop.\n"
+    },
+    {
+      "source": "file-function-write-immediate",
+      "language": "de",
+      "stderr": "Makefile:2: *** Schreiben: note: @OS_DETAIL@.  Schluss.\n"
+    },
+    {
+      "source": "file-function-write-immediate",
+      "language": "ja",
+      "stderr": "Makefile:2: *** write: note: @OS_DETAIL@.  中止.\n"
+    }
+  ]
+}

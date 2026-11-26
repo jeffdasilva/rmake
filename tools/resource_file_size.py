@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import sys
 import tempfile
 
 import conformance as h
@@ -17,12 +18,35 @@ import oracle
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / 'tests/resource-file-size'
 MODELS = FIXTURES / 'models.json'
+LOCALIZED = FIXTURES / 'localized.json'
 
 
 def file_record(value, mode=0o644):
     raw = value.encode()
     return {'type': 'file', 'mode': mode, 'size': len(raw),
             'sha256': hashlib.sha256(raw).hexdigest(), 'content': base64.b64encode(raw).decode()}
+
+
+def localized_models(models, root):
+    import locale_data
+
+    data = json.loads(LOCALIZED.read_bytes())
+    if data['models_sha256'] != h.sha256_file(MODELS):
+        raise h.HarnessError('localized file-size inputs differ from their pinned models')
+    declared = {model['id']: model for model in models}
+    profile = locale_data.provision(root)
+    selected = []
+    for row in data['rows']:
+        original = declared[row['source']]
+        if original['mode'] not in ('stdin', 'normal'):
+            raise h.HarnessError('localized file-size models keep SIGXFSZ ignored')
+        language = row['language']
+        locale = 'C' if language == 'C' else profile['locale']
+        model = {**original, 'id': original['id'] + '-' + language.lower(), 'stderr': row['stderr']}
+        model['environment'] = {**profile['environment'], 'LC_ALL': locale, 'LANG': locale,
+                                'LANGUAGE': '' if language == 'C' else language}
+        selected.append(model)
+    return selected, profile
 
 
 def execute(model, inputs, runtime, binaries):
@@ -40,8 +64,8 @@ def execute(model, inputs, runtime, binaries):
         expected = h.snapshot(roots)
         command = ['/usr/bin/python3', 'launch.py', model['mode'], str(model['limit']),
                    str(roots['bin'] / 'make'), *case.args]
-        out, err, status, bound, left = h.capture(command, roots['work'],
-                                                 h.clean_environment(runtime), case.timeout)
+        environment = h.clean_environment(runtime, model.get('environment', {}))
+        out, err, status, bound, left = h.capture(command, roots['work'], environment, case.timeout)
         filesystem = h.snapshot(roots)
         observer = roots['work'] / 'observer'
         raw = observer.read_bytes() if observer.is_file() else b''
@@ -57,15 +81,29 @@ def execute(model, inputs, runtime, binaries):
                 expected['tmp/' + name] = file_record(model['source_contents'], mode=0o600)
         for name, contents in model['created'].items():
             expected['work/' + name] = file_record(contents)
+        expected_error = expected_error.encode()
+        raw_errno = None
+        if b'@OS_DETAIL@' in expected_error:
+            from nls_diagnostics import OS_WITNESS
+
+            detail, witness_err, code, limit, leftover = h.capture(
+                [sys.executable, '-c', OS_WITNESS, 'EFBIG'], roots['work'], environment, 5,
+            )
+            if (code or witness_err or limit or leftover or not detail or b'\n' in detail
+                    or expected_error.count(b'@OS_DETAIL@') != 1):
+                raise h.HarnessError('could not witness public libc EFBIG text')
+            raw_errno = detail.hex()
+            expected_error = expected_error.replace(b'@OS_DETAIL@', detail)
         errors = [name for name, different in (
-            ('stdout', out != model['stdout'].encode()), ('stderr', err != expected_error.encode()),
+            ('stdout', out != model['stdout'].encode()), ('stderr', err != expected_error),
             ('status', status != model['status']), ('bounds', bool(bound or left)),
             ('source lifecycle witness', not witness_valid), ('complete filesystem', filesystem != expected),
         ) if different]
         observations.append({'command': command, 'stdout_hex': out.hex(), 'stderr_hex': err.hex(),
                              'status': status, 'bound': bound, 'leftovers': left, 'filesystem': filesystem,
-                             'expected_filesystem': expected, 'expected_stderr_hex': expected_error.encode().hex(),
-                             'observer_hex': raw.hex(), 'errors': errors})
+                             'expected_filesystem': expected, 'expected_stderr_hex': expected_error.hex(),
+                             'observer_hex': raw.hex(), 'errors': errors,
+                             **({'raw_errno_detail_hex': raw_errno} if raw_errno is not None else {})})
     if model['mode'].startswith('stdin'):
         # Each run independently matches the sole kernel CREATE identity,
         # ordered lifecycle, raw streams and complete post-run filesystem.
@@ -83,6 +121,8 @@ def main():
     parser.add_argument('--candidate', type=Path)
     parser.add_argument('--oracle-only', action='store_true')
     parser.add_argument('--case', action='append', default=[])
+    parser.add_argument('--localized', action='store_true')
+    parser.add_argument('--locale-root', type=Path, default=ROOT / '.tools/locale-data')
     parser.add_argument('--report', type=Path, required=True)
     args = parser.parse_args()
     if args.oracle_only == (args.candidate is not None):
@@ -94,6 +134,9 @@ def main():
         binaries.append(candidate)
     profile = oracle.verify(reference)
     models = json.loads(MODELS.read_bytes())['models']
+    locale_profile = None
+    if args.localized:
+        models, locale_profile = localized_models(models, args.locale_root)
     if args.case:
         if unknown := set(args.case) - {row['id'] for row in models}:
             parser.error(f'unknown case: {", ".join(sorted(unknown))}')
@@ -108,12 +151,16 @@ def main():
             rows = [execute(row, inputs, runtime, binaries) for row in models]
     finally:
         os.umask(previous)
+    sources = (Path(__file__).resolve(), MODELS, FIXTURES / 'launch.py')
+    if args.localized:
+        sources += (LOCALIZED,)
     report = {'oracle_profile': profile['profile_id'], 'oracle_sha256': h.sha256_file(reference),
               'candidate_sha256': h.sha256_file(candidate) if candidate is not None else None,
               'functional_cpu_affinity': sorted(os.sched_getaffinity(0)),
-              'source_hashes': {str(path.relative_to(ROOT)): h.sha256_file(path) for path in
-                                (Path(__file__).resolve(), MODELS, FIXTURES / 'launch.py')},
+              'source_hashes': {str(path.relative_to(ROOT)): h.sha256_file(path) for path in sources},
               'results': rows}
+    if locale_profile is not None:
+        report['locale_profile'] = locale_profile
     args.report.parent.mkdir(parents=True, exist_ok=True)
     with args.report.open('w') as stream:
         json.dump(report, stream, indent=2)

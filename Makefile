@@ -630,9 +630,11 @@ test-database-nls-release: release oracle-verify catalog-check
 
 test-nls: build oracle-verify catalog-check
 	$(PYTHON) tools/nls_diagnostics.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/nls/development.json $(if $(NLS_CASE),--case "$(NLS_CASE)")
+	$(if $(NLS_CASE),,$(PYTHON) tools/resource_file_size.py --localized --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/resource-file-size/nls-development.json)
 
 test-nls-release: release oracle-verify catalog-check
 	$(PYTHON) tools/nls_diagnostics.py --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/nls/optimized.json $(if $(NLS_CASE),--case "$(NLS_CASE)")
+	$(if $(NLS_CASE),,$(PYTHON) tools/resource_file_size.py --localized --oracle "$(ORACLE)" --candidate "$(M4_RELEASE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/resource-file-size/nls-optimized.json)
 
 test-nls-directory: build oracle-verify catalog-check
 	$(PYTHON) tools/nls_directory.py --oracle "$(ORACLE)" --candidate "$(CANDIDATE)" --locale-root "$(LOCALE_DATA_ROOT)" --report artifacts/nls/directory-development.json $(if $(NLS_DIRECTORY_CASE),--case "$(NLS_DIRECTORY_CASE)")
