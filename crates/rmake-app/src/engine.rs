@@ -6331,9 +6331,7 @@ impl Engine {
                     if let Some(history) = self.database.database_history() {
                         history.record_file_lookup(lookup);
                     }
-                    if self.database.rules.contains_key(lookup)
-                        || self.database.explicit_names.contains(lookup)
-                    {
+                    if self.database.file_records.contains(lookup) {
                         if goal.starts_with(b"./") {
                             goal = lookup.to_vec();
                         }

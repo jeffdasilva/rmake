@@ -146,6 +146,9 @@ NUL boundaries, rebinding and cancellation.
   optional remake candidate names as it enters their file records.
   With no selected goal, the diagnostic reads the raw MAKEFILE_LIST
   binding after default-goal expansion.
+  Default-goal selection checks the complete name against existing file
+  records before splitting it into words. That includes named and included
+  Makefile sources, including an optional source that is absent.
   A serial missing-rule stop occurs before completing the file update.
   The active ordinary prerequisite chain retains that state in a dump.
   A launched child retains its completed failure while its waiting ordinary
