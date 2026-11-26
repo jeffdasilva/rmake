@@ -692,7 +692,7 @@ impl State {
                         history.intern(options.files[index].as_os_str().as_bytes());
                     }
                 }
-                assumed @ (crate::cli::Argument::OldFile(index)
+                ref assumed @ (crate::cli::Argument::OldFile(index)
                 | crate::cli::Argument::NewFile(index)) => {
                     let files = if matches!(assumed, crate::cli::Argument::OldFile(_)) {
                         &mut options.old_files
