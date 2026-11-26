@@ -97,6 +97,9 @@ NUL boundaries, rebinding and cancellation.
   A selected activated pattern slot can also receive a command value.
   An inherited lookup updates the first visible pattern table it selects.
   Cached reads share the replacement through that table's identity.
+  The database prints a pattern declaration with the flavor adopted from a
+  command-line or environment-override binding. Activation uses the original
+  assignment operator.
   Standalone export and unexport lists record the visible-scope lookup for
   each name before updating its policy or creating an empty global binding.
   A list lookup refreshes the global .VARIABLES cache when that special

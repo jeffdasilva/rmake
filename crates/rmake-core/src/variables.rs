@@ -867,6 +867,7 @@ pub struct PatternVariable {
     name: Vec<u8>,
     value: Vec<u8>,
     assignment: Assignment,
+    database_flavor: Flavor,
     origin: Origin,
     private: bool,
     export: Option<bool>,
@@ -3081,6 +3082,7 @@ impl PatternVariable {
         {
             globals.variable_names(true)?;
         }
+        let mut database_flavor = Flavor::Simple;
         if origin != Origin::Override
             && let Some(global) = globals.get(name)
             && matches!(
@@ -3090,11 +3092,13 @@ impl PatternVariable {
         {
             value = global.value.clone();
             origin = global.origin;
+            database_flavor = global.flavor;
         }
         Ok(Self {
             name: name.to_vec(),
             value,
             assignment,
+            database_flavor,
             origin,
             private,
             export,
@@ -3125,6 +3129,7 @@ impl PatternVariable {
             name: &self.name,
             value: &self.value,
             assignment: self.assignment,
+            flavor: self.database_flavor,
             origin: self.origin,
             private: self.private,
             export: self.export,
