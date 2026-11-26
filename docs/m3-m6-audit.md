@@ -354,6 +354,9 @@ active when its completion and final physical timestamp both match the
 original timestamp.
 The selected two-worker cases retain the optional child's successful completion
 while the required child is still pending and both files keep their timestamps.
+For the qualified inline refresh without a relevant time assumption, a trailing
+file changed and then restored by the required worker uses its final timestamp
+for the restart decision and ordinary goal visits.
 Other completion orders and changed worker clocks still need qualification.
 [Held remake campaign](../tools/remake_parallel.py) ·
 [Structured remake models](../tests/debug-output/remake-cache-phase.toml)

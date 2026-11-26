@@ -633,6 +633,14 @@ struct TrailingOptionalWorker {
     completed: Cell<bool>,
 }
 
+struct InlineOptionalRemakeClock<'a> {
+    required: &'a [u8],
+    source: &'a [u8],
+    before: SystemTime,
+    inline: SystemTime,
+    changed_on_visit: bool,
+}
+
 struct RemakePrerequisiteChild<'a> {
     name: &'a [u8],
     identity: u64,
@@ -4145,14 +4153,31 @@ impl Engine {
             } else {
                 None
             };
-            let failed_leading_optional = if use_required_source_head
+            let use_failed_leading_head = use_required_source_head
                 && !all_required_sources
                 && leading_optional_source.is_none()
+                && self.options.new_files.len() == 1;
+            let check_inline_clock_after_reap = self.parallel_makefile_remakes
+                && self.options.keep_going
+                && !modes.active()
+                && read_files.len() == 4
+                && self.options.new_files.len() <= 1;
+            let failed_leading_layout = if use_failed_leading_head || check_inline_clock_after_reap
             {
                 self.failed_leading_optional_remake(&read_files)
             } else {
                 None
             };
+            let failed_leading_optional = failed_leading_layout
+                .as_ref()
+                .filter(|_| use_failed_leading_head);
+            let deferred_trailing_layout = failed_leading_layout.as_ref().filter(|leading| {
+                check_inline_clock_after_reap
+                    && leading.trailing.as_ref().is_some_and(|trailing| {
+                        trailing.kind == TrailingOptionalKind::Declared
+                            && self.unassumed_direct_double_colon_remake(&leading.required.name)
+                    })
+            });
             let trailing_optional_source = if use_required_source_head
                 && !all_required_sources
                 && leading_optional_source.is_none()
@@ -4207,7 +4232,7 @@ impl Engine {
                     )
                     && prior_visits.is_some_and(|(visited, request)| {
                         request.optional_visit_settled
-                            && failed_leading_optional.as_ref().is_some_and(|leading| {
+                            && failed_leading_optional.is_some_and(|leading| {
                                 std::ptr::eq(leading.required, source)
                                     && leading.trailing.as_ref().is_none_or(|trailing| {
                                         engine.settled_trailing_after_leading_failure(
@@ -4335,6 +4360,7 @@ impl Engine {
             let mut failed = false;
             let mut stopped = false;
             let mut pending = Vec::new();
+            let mut deferred_inline_optional_clock = None;
             let initial_reaps = self.recipe_reaps;
             let mut pass_reaps = initial_reaps;
             let mut pass_progress = self.filesystem.borrow().generation();
@@ -4763,6 +4789,9 @@ impl Engine {
                 let inline_optional_dispatch = (trailing_optional_source
                     .as_ref()
                     .or(mixed_trailing_source)
+                    .or_else(|| {
+                        deferred_trailing_layout.and_then(|leading| leading.trailing.as_ref())
+                    })
                     .is_some_and(|trailing| {
                         name == trailing.neighbor && trailing.kind == TrailingOptionalKind::Declared
                     })
@@ -5064,19 +5093,15 @@ impl Engine {
                         request.trailing_optional_worker =
                             self.track_trailing_optional_worker(trailing, before);
                     }
-                    let optional_visit_settled =
-                        failed_leading_optional.as_ref().is_some_and(|leading| {
-                            std::ptr::eq(leading.required, makefile)
-                                && self.pending_explicit_remake_recipe(name)
-                                && visited.get(leading.neighbor.name.as_slice()).is_some_and(
-                                    |(before, _)| {
-                                        self.settled_leading_optional_failure(
-                                            leading.neighbor,
-                                            *before,
-                                        )
-                                    },
-                                )
-                        });
+                    let optional_visit_settled = failed_leading_optional.is_some_and(|leading| {
+                        std::ptr::eq(leading.required, makefile)
+                            && self.pending_explicit_remake_recipe(name)
+                            && visited.get(leading.neighbor.name.as_slice()).is_some_and(
+                                |(before, _)| {
+                                    self.settled_leading_optional_failure(leading.neighbor, *before)
+                                },
+                            )
+                    });
                     pending.push(PendingMakefileRemake {
                         modes: visit_modes,
                         file: makefile,
@@ -5298,9 +5323,43 @@ impl Engine {
                     } else {
                         false
                     };
-                    changed |= record_change
-                        && (physically_changed
-                            || (result.remake_group_peer_updated && !tracked_group_change));
+                    if record_change
+                        && inline_completion
+                        && !visit_modes.active()
+                        && self.options.keep_going
+                        && let Some(leading) = deferred_trailing_layout
+                        && let Some(trailing) = leading.trailing.as_ref()
+                        && name == trailing.neighbor
+                        && let (Some(before), Some(inline)) = (before, result.time)
+                        && inline != before
+                        && result.ran
+                        && self.settled_trailing_optional_remake(
+                            trailing,
+                            Some(before),
+                            result,
+                            true,
+                        )
+                        && self.pending_explicit_remake_recipe(&leading.required.name)
+                        && visited.get(leading.neighbor.name.as_slice()).is_some_and(
+                            |(before, _)| {
+                                self.settled_leading_optional_failure(leading.neighbor, *before)
+                            },
+                        )
+                    {
+                        // The earlier failure leaves this source's new clock
+                        // to be sampled after the required worker finishes.
+                        deferred_inline_optional_clock = Some(InlineOptionalRemakeClock {
+                            required: &leading.required.name,
+                            source: name,
+                            before,
+                            inline,
+                            changed_on_visit: physically_changed,
+                        });
+                    } else {
+                        changed |= record_change && physically_changed;
+                    }
+                    changed |=
+                        record_change && result.remake_group_peer_updated && !tracked_group_change;
                     // Use the simulated clock of a loaded required source after
                     // all named declarations have settled at the same physical time.
                     if !changed
@@ -5592,6 +5651,13 @@ impl Engine {
                         }
                     }
                 }
+            }
+            if let Some(clock) = deferred_inline_optional_clock {
+                changed |= if stopped {
+                    clock.changed_on_visit
+                } else {
+                    self.settle_inline_optional_remake_clock(clock)
+                };
             }
             // Only a continuing ordinary build may overlap an already
             // running sibling from a stopped optional remake.
@@ -13342,6 +13408,7 @@ impl Engine {
             return None;
         };
         (!neighbor.missing
+            && self.options.new_files.len() == 1
             && self.optional_remake_layout(primary, neighbor, required)
             && self.unruled_remake_source(&neighbor.name))
         .then_some(neighbor.name.as_slice())
@@ -13399,6 +13466,63 @@ impl Engine {
             neighbor,
             trailing,
         })
+    }
+
+    fn unassumed_direct_double_colon_remake(&self, target: &[u8]) -> bool {
+        self.local_remake_source(target)
+            && !self.special(b".PHONY", target, false)
+            && self.database.implicit_candidates(target).is_empty()
+            && self.database.rules.get(target).is_some_and(|rule| {
+                let Some([head, tail]) = rule.double_colon.as_deref() else {
+                    return false;
+                };
+                [head, tail].into_iter().all(|branch| {
+                    branch.grouped_targets().is_none()
+                        && branch.secondary.is_none()
+                        && branch.dependencies.iter().all(|dep| {
+                            dep.name != b".WAIT"
+                                && !dep.hidden
+                                && self.unruled_remake_source(&dep.name)
+                        })
+                })
+            })
+    }
+
+    fn settle_inline_optional_remake_clock(
+        &mut self,
+        clock: InlineOptionalRemakeClock<'_>,
+    ) -> bool {
+        if self.shutdown.get() != Shutdown::Running
+            || !self.parallel_jobs.is_empty()
+            || MakefileModes::from_options(&self.options).active()
+            || self.pending(clock.required)
+            || !self
+                .file_traversals
+                .outcome(clock.required)
+                .is_some_and(|outcome| {
+                    outcome.ran
+                        && !outcome.fatal
+                        && !outcome.blocked
+                        && outcome.goal_verdict().is_none()
+                        && outcome.completion == CompletionTime::Refresh
+                })
+        {
+            return clock.changed_on_visit;
+        }
+        let Some(mut result) = self.file_traversals.outcome(clock.source).copied() else {
+            return clock.changed_on_visit;
+        };
+        if !Self::same_clock_optional_remake_outcome(Some(clock.inline), result) {
+            return clock.changed_on_visit;
+        }
+        let Some(time) = Self::regular_remake_clock(clock.source) else {
+            return clock.changed_on_visit;
+        };
+        result.time = Some(time);
+        result.debug_time_changed &= time != clock.before;
+        self.file_traversals.set_outcome(clock.source, result);
+        self.retain_database_time(clock.source, Some(time));
+        time != clock.before
     }
 
     fn same_clock_optional_remake_outcome(before: Option<SystemTime>, result: Outcome) -> bool {
@@ -13536,7 +13660,8 @@ impl Engine {
             return None;
         };
         let (source, _) = required.last()?;
-        if !self.optional_remake_layout(primary, neighbor, required)
+        if self.options.new_files.len() != 1
+            || !self.optional_remake_layout(primary, neighbor, required)
             || self.has_requested_goal_name(rmake_core::filenames::without_dot_prefix(&source.name))
         {
             return None;
@@ -13587,7 +13712,6 @@ impl Engine {
             || self.options.check_symlink_times
             || !self.options.include_directories.is_empty()
             || !self.options.old_files.is_empty()
-            || self.options.new_files.len() != 1
             || self.database.has_vpaths()
             || !self.vpath_dirs.is_empty()
             || !self.gpath_dirs.is_empty()
