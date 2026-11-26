@@ -4217,6 +4217,12 @@ impl Engine {
             });
             let deferred_trailing_layout =
                 direct_trailing_layout.filter(|_| self.options.keep_going);
+            // A completed pair can also supply the ordinary goal clock in
+            // stopping mode after the remake pass continues.
+            let required_clock_layout = deferred_trailing_layout.or_else(|| {
+                direct_trailing_layout
+                    .filter(|leading| !self.has_assumed_double_colon_entry(&leading.required.name))
+            });
             let ordinary_current_leading = direct_trailing_layout.filter(|leading| {
                 !self.has_assumed_double_colon_entry(&leading.required.name)
                     && !leading.neighbor.missing
@@ -5205,7 +5211,7 @@ impl Engine {
                         .then_some(trailing)
                     });
                     let settled_failed_leading_trailing =
-                        deferred_trailing_layout.and_then(|leading| {
+                        required_clock_layout.and_then(|leading| {
                             let trailing = leading.trailing.as_ref()?;
                             (name == trailing.neighbor
                                 && self.settled_leading_optional_visit_failure(leading, &visited))
@@ -5215,7 +5221,7 @@ impl Engine {
                         .or(current_leading_trailing)
                         .or_else(|| {
                             if !self.options.keep_going {
-                                return None;
+                                return settled_failed_leading_trailing;
                             }
                             mixed_trailing_source
                                 .or_else(|| {
@@ -6122,7 +6128,7 @@ impl Engine {
                 && !remake_question
                 && !modes.active()
                 && self.parallel_jobs.is_empty()
-                && let Some(leading) = deferred_trailing_layout
+                && let Some(leading) = required_clock_layout
             {
                 self.publish_restored_required_worker_clock(leading, &visited, &pending);
             }

@@ -237,8 +237,8 @@ class DebugOutputTests(unittest.TestCase):
 
     def test_static_inventory_and_retained_history_hashes(self):
         models = d.models()
-        self.assertEqual(len(models), 835)
-        self.assertEqual(len({model.id for model in models}), 835)
+        self.assertEqual(len(models), 849)
+        self.assertEqual(len({model.id for model in models}), 849)
         self.assertEqual(sum(model.id.startswith('debug-held-dispatch-') for model in models), 9)
         self.assertEqual(sum(model.id.startswith('debug-child-') for model in models),10)
         self.assertEqual(sum(model.id.startswith('debug-boundary-') for model in models),14)
@@ -309,6 +309,8 @@ class DebugOutputTests(unittest.TestCase):
         self.assertEqual(sum(model.id.startswith('debug-remake-restored-required-after-optional-failure-')
                              for model in models), 9)
         self.assertEqual(sum(model.id.startswith('debug-remake-restored-required-mixed-optional-failure-')
+                             for model in models), 14)
+        self.assertEqual(sum(model.id.startswith('debug-remake-restored-required-mixed-stopping-')
                              for model in models), 14)
         self.assertEqual(sum(model.id.startswith('debug-remake-mixed-optional-before-no-rule-inline-')
                              for model in models), 5)
