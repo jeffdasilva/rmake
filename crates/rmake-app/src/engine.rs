@@ -633,6 +633,7 @@ struct TrailingOptionalWorker {
     required_identity: u64,
     optional_identity: u64,
     required_before: SystemTime,
+    no_required_tail_remains: bool,
     only_synthetic_tail_remains: bool,
     required_failure_settled: Cell<bool>,
     result: Cell<Option<TrailingOptionalWorkerResult>>,
@@ -4201,6 +4202,19 @@ impl Engine {
             } else {
                 None
             };
+            let ordinary_trailing_optional = if self.parallel_makefile_remakes
+                && !modes.active()
+                && read_files.len() == 3
+                && self.options.new_files.len() <= 1
+            {
+                self.trailing_optional_remake_layout(&read_files)
+                    .filter(|trailing| {
+                        trailing.kind == TrailingOptionalKind::Declared
+                            && self.unassumed_direct_double_colon_remake(&trailing.required.name)
+                    })
+            } else {
+                None
+            };
             let uses_declared_synthetic_head = |engine: &Self, source: &Makefile| {
                 !source.optional
                     && !source.missing
@@ -4237,6 +4251,19 @@ impl Engine {
                 ) && !outcome.fatal
                     && !outcome.question_outdated;
                 let explicit_refresh = outcome.ran_refresh();
+                let retained_worker_restart = explicit_refresh
+                    && outcome.failed
+                    && !outcome.question_outdated
+                    && matches!(
+                        outcome.remake_failure,
+                        RemakeFailure::RequiredSyntheticInput
+                    )
+                    && prior_visits.is_some_and(|(visited, request)| {
+                        trailing_optional_source.as_ref().is_some_and(|trailing| {
+                            std::ptr::eq(trailing.required, source)
+                                && engine.retained_trailing_worker_clock(request, trailing, visited)
+                        })
+                    });
                 let missing_after_leading_failure = explicit_refresh
                     && matches!(
                         outcome.remake_failure,
@@ -4258,6 +4285,7 @@ impl Engine {
                     });
                 if declared_tail_failed
                     || missing_after_leading_failure
+                    || retained_worker_restart
                     || (matches!(
                         outcome.remake_failure,
                         RemakeFailure::RequiredSyntheticInput
@@ -4315,7 +4343,7 @@ impl Engine {
                     outcome.failed = false;
                     outcome.first_branch_verdict = None;
                 }
-                outcome
+                (outcome, retained_worker_restart)
             };
             let mut loaded_prerequisite_times = HashMap::new();
             if !parallel_remakes {
@@ -4813,7 +4841,7 @@ impl Engine {
                     build_visit,
                     track_named_source.then_some(&mut source_started_command),
                 );
-                result = source_outcome(self, makefile, result, None);
+                result = source_outcome(self, makefile, result, None).0;
                 let chain_failed = result.failed;
                 let refreshed_implicit_time = loaded_implicit_time.filter(|_| {
                     !MakefileModes::from_options(&self.options).active()
@@ -5083,14 +5111,32 @@ impl Engine {
                     {
                         self.qualify_synthetic_recipe_after_optional_read(&trailing.required.name);
                     }
-                    let trailing_worker_source = mixed_trailing_source.or_else(|| {
-                        trailing_optional_source
-                            .as_ref()
-                            .filter(|_| read_files.len() == 3)
-                    });
+                    let trailing_worker_source =
+                        ordinary_trailing_optional.as_ref().or_else(|| {
+                            if !self.options.keep_going {
+                                return None;
+                            }
+                            mixed_trailing_source
+                                .or_else(|| {
+                                    trailing_optional_source
+                                        .as_ref()
+                                        .filter(|_| read_files.len() == 3)
+                                })
+                                .or_else(|| {
+                                    let leading = deferred_trailing_layout?;
+                                    let trailing = leading.trailing.as_ref()?;
+                                    let (before, _) =
+                                        visited.get(leading.neighbor.name.as_slice())?;
+                                    (name == trailing.neighbor
+                                        && self.settled_leading_optional_failure(
+                                            leading.neighbor,
+                                            *before,
+                                        ))
+                                    .then_some(trailing)
+                                })
+                        });
                     if let Some(trailing) = trailing_worker_source
                         && name == trailing.neighbor
-                        && self.options.keep_going
                         && !visit_modes.active()
                         && !pending_peer
                         && !result.failed
@@ -5590,6 +5636,9 @@ impl Engine {
                     question_or_failure,
                 );
                 if !stopped {
+                    if let Some(leading) = deferred_trailing_layout {
+                        self.publish_restored_trailing_worker_clock(leading, &visited, &pending);
+                    }
                     for remake in pending {
                         changed |= remake.trailing_prerequisite_changed;
                         let name = remake.file.name.as_slice();
@@ -5599,11 +5648,31 @@ impl Engine {
                             .outcome(self.aliases.resolve(name))
                             .copied()
                             .unwrap_or(remake.initial);
-                        let result =
+                        if !changed
+                            && let Some(trailing) = ordinary_trailing_optional.as_ref()
+                            && !remake.duplicate
+                            && std::ptr::eq(remake.file, trailing.required)
+                            && !remake.modes.active()
+                            && !MakefileModes::from_options(&self.options).active()
+                            && result.ran_refresh()
+                            && result.goal_verdict().is_none()
+                            && self.parallel_jobs.is_empty()
+                            && let Some(worker) = remake.trailing_optional_worker.as_deref()
+                            && worker.no_required_tail_remains
+                            && let Some(&(Some(before), _)) = visited.get(trailing.neighbor)
+                        {
+                            // The earlier successful child supplied the reread
+                            // timestamp before this required worker restored it.
+                            changed |= self
+                                .restored_trailing_worker_outcome(worker, trailing.neighbor, before)
+                                .is_some();
+                        }
+                        let (result, retained_worker_restart) =
                             source_outcome(self, remake.file, result, Some((&visited, &remake)));
                         if remake.duplicate && (remake.file.optional || !result.failed) {
                             continue;
                         }
+                        changed |= retained_worker_restart;
                         ran_remake_recipe |= result.ran;
                         if result.question_outdated {
                             if overlap_primary_recipe && remake.file.optional {
@@ -10345,14 +10414,9 @@ impl Engine {
         let (archive, member) =
             rmake_core::filenames::archive_parts(target).expect("archive reference");
         if member.starts_with(b"(") && member.ends_with(b")") {
-            return Err(ExpandError::UnlocatedError(
-                [
-                    b"attempt to use unsupported feature: '".as_slice(),
-                    target,
-                    b"'",
-                ]
-                .concat(),
-            ));
+            return Err(ExpandError::system(Message::UnsupportedArchiveSymbol(
+                target,
+            )));
         }
         let member_time = self.name_time(member);
         let container = self
@@ -10766,14 +10830,9 @@ impl Engine {
         let (archive, member) =
             rmake_core::filenames::archive_parts(target).expect("archive reference");
         if member.starts_with(b"(") && member.ends_with(b")") {
-            return Err(ExpandError::UnlocatedError(
-                [
-                    b"attempt to use unsupported feature: '".as_slice(),
-                    target,
-                    b"'",
-                ]
-                .concat(),
-            ));
+            return Err(ExpandError::system(Message::UnsupportedArchiveSymbol(
+                target,
+            )));
         }
         if self.database.file_records.contains(archive) || self.directory_member(archive)? {
             self.database.file_records.insert(archive);
@@ -13535,7 +13594,7 @@ impl Engine {
         {
             return clock.changed_on_visit;
         }
-        let Some(mut result) = self.file_traversals.outcome(clock.source).copied() else {
+        let Some(result) = self.file_traversals.outcome(clock.source).copied() else {
             return clock.changed_on_visit;
         };
         if !Self::same_clock_optional_remake_outcome(Some(clock.inline), result) {
@@ -13544,11 +13603,64 @@ impl Engine {
         let Some(time) = Self::regular_remake_clock(clock.source) else {
             return clock.changed_on_visit;
         };
+        self.publish_optional_remake_clock(clock.source, result, clock.before, time)
+    }
+
+    fn publish_optional_remake_clock(
+        &mut self,
+        name: &[u8],
+        mut result: Outcome,
+        before: SystemTime,
+        time: SystemTime,
+    ) -> bool {
+        let changed = time != before;
         result.time = Some(time);
-        result.debug_time_changed &= time != clock.before;
-        self.file_traversals.set_outcome(clock.source, result);
-        self.retain_database_time(clock.source, Some(time));
-        time != clock.before
+        result.debug_time_changed &= changed;
+        self.file_traversals.set_outcome(name, result);
+        self.retain_database_time(name, Some(time));
+        changed
+    }
+
+    fn publish_restored_trailing_worker_clock(
+        &mut self,
+        leading: &FailedLeadingOptionalRemake<'_>,
+        visited: &MakefileVisits<'_>,
+        pending: &[PendingMakefileRemake<'_>],
+    ) {
+        let Some(trailing) = leading.trailing.as_ref() else {
+            return;
+        };
+        let name = trailing.neighbor;
+        let Some(&(Some(before), _)) = visited.get(name) else {
+            return;
+        };
+        let Some(worker) = pending
+            .iter()
+            .find(|request| !request.duplicate && std::ptr::eq(request.file, trailing.required))
+            .and_then(|request| request.trailing_optional_worker.as_deref())
+        else {
+            return;
+        };
+        if self.options.keep_going
+            && self.shutdown.get() == Shutdown::Running
+            && self.parallel_jobs.is_empty()
+            && !MakefileModes::from_options(&self.options).active()
+            && worker.no_required_tail_remains
+            && self
+                .file_traversals
+                .outcome(&worker.required)
+                .is_some_and(|outcome| outcome.ran_refresh() && outcome.goal_verdict().is_none())
+            && visited
+                .get(leading.neighbor.name.as_slice())
+                .is_some_and(|(before, _)| {
+                    self.settled_leading_optional_failure(leading.neighbor, *before)
+                })
+            && let Some(outcome) = self.restored_trailing_worker_outcome(worker, name, before)
+        {
+            // The earlier failure deferred the optional read's clock sample.
+            // Ordinary consumers use that final sample after restoration.
+            self.publish_optional_remake_clock(name, outcome, before, before);
+        }
     }
 
     fn same_clock_optional_remake_outcome(before: Option<SystemTime>, result: Outcome) -> bool {
@@ -13608,6 +13720,46 @@ impl Engine {
         settled
             && Self::regular_remake_clock(trailing.neighbor) == Some(clock)
             && Self::regular_remake_clock(&worker.required) == Some(worker.required_before)
+    }
+
+    fn retained_trailing_worker_clock(
+        &self,
+        request: &PendingMakefileRemake<'_>,
+        trailing: &TrailingOptionalRemake<'_>,
+        visited: &MakefileVisits<'_>,
+    ) -> bool {
+        let Some(worker) = &request.trailing_optional_worker else {
+            return false;
+        };
+        let name = trailing.neighbor;
+        let Some(&(Some(before), _)) = visited.get(name) else {
+            return false;
+        };
+        // With only the trailing optional source, its successful clock
+        // can be read before the required synthetic failure settles.
+        self.options.keep_going
+            && worker.only_synthetic_tail_remains
+            && self
+                .restored_trailing_worker_outcome(worker, name, before)
+                .is_some()
+    }
+
+    fn restored_trailing_worker_outcome(
+        &self,
+        worker: &TrailingOptionalWorker,
+        name: &[u8],
+        before: SystemTime,
+    ) -> Option<Outcome> {
+        let Some(TrailingOptionalWorkerResult::Completed(reap_clock)) = worker.result.get() else {
+            return None;
+        };
+        let outcome = self.file_traversals.outcome(name).copied()?;
+        (!worker.required_failure_settled.get()
+            && reap_clock != before
+            && Self::same_clock_optional_remake_outcome(Some(reap_clock), outcome)
+            && Self::regular_remake_clock(&worker.required) == Some(worker.required_before)
+            && Self::regular_remake_clock(name) == Some(before))
+        .then_some(outcome)
     }
 
     fn settled_trailing_optional_visit(
@@ -13730,12 +13882,22 @@ impl Engine {
         &self,
         read_files: &'a [(Makefile, bool)],
     ) -> Option<TrailingOptionalRemake<'a>> {
+        if self.options.new_files.len() == 1 {
+            self.trailing_optional_remake_layout(read_files)
+        } else {
+            None
+        }
+    }
+
+    fn trailing_optional_remake_layout<'a>(
+        &self,
+        read_files: &'a [(Makefile, bool)],
+    ) -> Option<TrailingOptionalRemake<'a>> {
         let [(primary, false), required @ .., (neighbor, false)] = read_files else {
             return None;
         };
         let (source, _) = required.last()?;
-        if self.options.new_files.len() != 1
-            || !self.optional_remake_layout(primary, neighbor, required)
+        if !self.optional_remake_layout(primary, neighbor, required)
             || self.has_requested_goal_name(rmake_core::filenames::without_dot_prefix(&source.name))
         {
             return None;
@@ -13909,16 +14071,10 @@ impl Engine {
         }
         let required_before = Self::regular_remake_clock(required)?;
         let required_identity = self.parallel_jobs.primary.get(required)?.identity;
+        let branches = &self.pending_double_colon.get(required)?.branches;
+        let no_required_tail_remains = branches.is_empty();
         let only_synthetic_tail_remains =
-            self.pending_double_colon
-                .get(required)
-                .is_some_and(|state| {
-                    state.branches.len() == 1
-                        && state
-                            .branches
-                            .front()
-                            .is_some_and(|(_, branch)| branch.is_none())
-                });
+            branches.len() == 1 && branches.front().is_some_and(|(_, branch)| branch.is_none());
         let optional = self.parallel_jobs.primary.get_mut(trailing.neighbor)?;
         if optional.before != Some(optional_before) {
             return None;
@@ -13928,6 +14084,7 @@ impl Engine {
             required_identity,
             optional_identity: optional.identity,
             required_before,
+            no_required_tail_remains,
             only_synthetic_tail_remains,
             required_failure_settled: Cell::new(false),
             result: Cell::new(None),

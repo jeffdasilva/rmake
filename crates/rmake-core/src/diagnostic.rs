@@ -1443,7 +1443,8 @@ impl Diagnostic {
         Self::with_system_location(message.owned(), true)
     }
     pub(crate) fn system_owned(message: crate::messages::OwnedMessage) -> Self {
-        Self::with_system_location(message, false)
+        let unlocated = message.id.is_unlocated();
+        Self::with_system_location(message, unlocated)
     }
     fn with_system_location(message: crate::messages::OwnedMessage, unlocated: bool) -> Self {
         Self::System(Box::new(SystemDiagnostic {

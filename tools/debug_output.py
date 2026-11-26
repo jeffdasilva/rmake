@@ -38,6 +38,8 @@ class Model:
     release_after: bytes | None = None
     release_sequence: tuple[tuple[str, bytes], ...] = ()
     sequential_workers: bool = False
+    wait_after_first_reap: bool = False
+    expected_mtimes_ns: dict[str, int] = field(default_factory=dict)
 
 
 def safe_relative(name: str) -> Path:
@@ -79,9 +81,14 @@ def _model_file(filename: str) -> list[Model]:
                     bytes.fromhex(row['oracle_explicit_version_hex']) if 'oracle_explicit_version_hex' in row else None,
                     bytes.fromhex(row['release_after_stdout_hex']) if 'release_after_stdout_hex' in row else None,
                     tuple((name, bytes.fromhex(marker)) for name, marker in row.get('release_sequence', [])),
-                    row.get('sequential_workers', False))
+                    row.get('sequential_workers', False), row.get('wait_after_first_reap', False),
+                    row.get('expected_mtimes_ns', {}))
               for row in data['models']]
     for model in result:
+        for name, stamp in model.expected_mtimes_ns.items():
+            safe_relative(name)
+            if type(stamp) is not int:
+                raise h.HarnessError('debug fixture expects integer nanosecond timestamps')
         stdout = bytes.fromhex(model.expected['stdout_template_hex'])
         stderr = bytes.fromhex(model.expected['stderr_template_hex'])
         if model.release_after is not None and (
@@ -94,6 +101,10 @@ def _model_file(filename: str) -> list[Model]:
             model.sequential_workers and not model.release_sequence
         ):
             raise h.HarnessError('sequential workers require an ordered release sequence')
+        if not isinstance(model.wait_after_first_reap, bool) or (
+            model.wait_after_first_reap and (len(model.release_sequence) != 2 or model.sequential_workers)
+        ):
+            raise h.HarnessError('waiting after the first reap requires two overlapping workers')
         if model.release_sequence:
             validate_release_sequence(model, stdout)
         uses_version = b'@EXPLICIT_VERSION@' in stdout
@@ -300,6 +311,31 @@ def calibrate_version(binary: Path, root: Path, reference: bytes | None = None) 
     return observations[0].stdout, records
 
 
+def blocking_child_wait(proc: Path) -> bool:
+    # Linux ABI syscall numbers for wait4, poll and ppoll.
+    numbers = {'x86_64': (61, 7, 271), 'aarch64': (260, None, 73)}.get(os.uname().machine)
+    if numbers is None:
+        raise h.HarnessError('observing the held child wait requires Linux x86-64 or AArch64')
+    if not (proc / 'stat').read_bytes().rpartition(b') ')[2].startswith(b'S '):
+        return False
+    try:
+        fields = (proc / 'syscall').read_text().split()
+    except (PermissionError, FileNotFoundError) as error:
+        if proc.is_dir():
+            raise h.HarnessError(f'cannot observe held make child through {proc / "syscall"}') from error
+        return False
+    if len(fields) != 9:
+        return False
+    number = int(fields[0])
+    argument = int(fields[3], 0)
+    wait4, poll, ppoll = numbers
+    return (
+        (number == wait4 and not argument & os.WNOHANG)
+        or (number == poll and argument & 0xffffffff == 0xffffffff)
+        or (number == ppoll and argument == 0)
+    )
+
+
 def execute_model(model: Model, case: h.Case, runtime: Path, binary: Path) -> h.Observation:
     sequence = tuple((name + '.', marker) for name, marker in model.release_sequence)
     if model.release_after is not None:
@@ -308,9 +344,10 @@ def execute_model(model: Model, case: h.Case, runtime: Path, binary: Path) -> h.
         return h.execute(case, runtime, binary)
     work = runtime / 'work'
     released = 0
+    held_pair: tuple[int, int, bytes] | None = None
 
-    def release(_parent: int, stdout: bytes) -> None:
-        nonlocal released
+    def release(parent: int, stdout: bytes) -> None:
+        nonlocal released, held_pair
         if released == len(sequence):
             return
         prefix, marker = sequence[released]
@@ -335,6 +372,29 @@ def execute_model(model: Model, case: h.Case, runtime: Path, binary: Path) -> h.
             return
         if (work / (prefix + 'done')).exists():
             raise h.HarnessError('worker was not held at the declared boundary')
+        if model.wait_after_first_reap:
+            proc = Path('/proc', str(parent))
+            try:
+                children = {int(pid) for pid in (proc / 'task' / str(parent) / 'children').read_text().split()}
+                if released:
+                    assert held_pair is not None
+                    first, second, started = held_pair
+                    if children != {second} or Path('/proc', str(first)).is_dir():
+                        return
+                    identity = Path('/proc', str(second), 'stat').read_bytes().rpartition(b') ')[2].split()
+                    if identity[19] != started or not blocking_child_wait(proc):
+                        return
+                else:
+                    if len(children) != 2:
+                        return
+                    first = int((work / (prefix + 'pid')).read_text())
+                    if first not in children:
+                        return
+                    second, = children - {first}
+                    identity = Path('/proc', str(second), 'stat').read_bytes().rpartition(b') ')[2].split()
+                    held_pair = first, second, identity[19]
+            except (FileNotFoundError, ProcessLookupError):
+                return
         temporary = work / (prefix + 'release.tmp')
         temporary.write_bytes(b'yes\n')
         temporary.chmod(0o644)
@@ -357,10 +417,21 @@ def run_campaign(selected: list[Model], oracle: Path, candidate: Path | None, ro
     records = []
     for model in selected:
         case, filesystem = prepare(model, inputs / safe_relative(model.id), runtime)
-        observations = [execute_model(model, case, runtime, binary) for binary in
-                        ([oracle, oracle] if candidate is None else [oracle, oracle, candidate])]
+        timestamp_paths = {name: runtime / 'work' / safe_relative(name)
+                           for name in model.expected_mtimes_ns}
+        observations = []
+        timestamps = []
+        for binary in [oracle, oracle] if candidate is None else [oracle, oracle, candidate]:
+            observations.append(execute_model(model, case, runtime, binary))
+            if timestamp_paths:
+                timestamps.append({name: path.stat().st_mtime_ns if path.exists() else None
+                                   for name, path in timestamp_paths.items()})
         judgment = assess(model, case, runtime, filesystem, observations,
                           [oracle_version, oracle_version] + ([candidate_version] if candidate is not None else []))
+        if timestamp_paths:
+            judgment['expected_mtimes_ns'] = model.expected_mtimes_ns
+            judgment['observed_mtimes_ns'] = timestamps
+            judgment['passed'] &= all(stamps == model.expected_mtimes_ns for stamps in timestamps)
         records.append({'id': model.id, 'args': list(case.args), 'environment': case.environment,
                         'expected': model.expected, 'expected_seen_template_hex': model.seen.hex(),
                         'input_files_hex': {name: value.hex() for name, value in model.files.items()},
@@ -369,6 +440,7 @@ def run_campaign(selected: list[Model], oracle: Path, candidate: Path | None, ro
                         **({'release_sequence': [[name, marker.hex()] for name, marker in model.release_sequence]}
                            if model.release_sequence else {}),
                         **({'sequential_workers': True} if model.sequential_workers else {}),
+                        **({'wait_after_first_reap': True} if model.wait_after_first_reap else {}),
                         'output': model.output, 'oracle_explicit_version_hex': model.explicit_version_reference.hex() if model.explicit_version_reference is not None else None, **judgment})
         print(('PASS ' if judgment['passed'] else 'FAIL ') + model.id, flush=True)
     return {'classification': 'Original static debug-output oracle qualification; zero ordinary-ledger or exception credit' if candidate is None else 'Original static debug-output differential profile; ordinary-ledger credit is separate',

@@ -5501,7 +5501,7 @@ impl Database {
                 self.finish_declaration(declaration, &location, context)?;
                 let name = self.expand_directive_name(rest, &location, context)?;
                 let name = name.as_slice();
-                if self.variables.can_undefine(name, origin) {
+                if self.variables.prepare_undefine(name, origin) {
                     let safety = if self.runtime_metadata_live && name == b".DEFAULT_GOAL" {
                         Some(crate::safety::SafetyError::DefaultGoalDeletion)
                     } else if self.exporting.iter().any(|active| active == name) {
@@ -5542,6 +5542,11 @@ impl Database {
                 if empty_directive {
                     self.export_all = export;
                 }
+                let export_error = |error: ExpandError| ParseError {
+                    unlocated: error.is_unlocated(),
+                    location: location.clone(),
+                    message: error.diagnostic(),
+                };
                 for name in names.split(is_list_space).filter(|name| !name.is_empty()) {
                     // A standalone directive updates the selected binding.
                     // Only a name absent from every scope creates a global.
@@ -5556,18 +5561,15 @@ impl Database {
                     self.evaluation_scope
                         .as_ref()
                         .unwrap_or(&self.variables)
-                        .record_database_lookup(name);
+                        .record_export_list_lookup(name, &self.variables)
+                        .map_err(export_error)?;
                     if self.apply_scoped_assignment_qualifiers(name, false, Some(export)) {
                         continue;
                     }
                     if self.variables.get(name).is_none() {
                         self.variables
                             .define_at(name, b"", Assignment::Simple, Origin::File, &location)
-                            .map_err(|error| ParseError {
-                                unlocated: error.is_unlocated(),
-                                location: location.clone(),
-                                message: error.diagnostic(),
-                            })?;
+                            .map_err(export_error)?;
                     }
                     self.set_global_export(name.to_vec(), export);
                 }
