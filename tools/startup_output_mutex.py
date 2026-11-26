@@ -34,6 +34,13 @@ IDS = (
     "inherited-output-already-append-pipe-flags",
     "inherited-output-regular-append-flags",
     "inherited-output-device-flags",
+    "closed-output-stdout-direct",
+    "closed-output-stderr-direct",
+    "closed-output-stdout-target-sync",
+    "closed-output-stderr-line-sync",
+    "closed-output-both-recurse-sync",
+    "closed-output-both-explicit-redirects",
+    "closed-output-stdout-write-failure",
 )
 
 
@@ -74,6 +81,8 @@ def observe(model, case, runtime, image, version):
         expected_files.pop("work/" + name)
     if model["seen"] is not None:
         expected_files["work/seen"] = file_entry(model["seen"].encode())
+    for name, contents in model.get("updates", {}).items():
+        expected_files["work/" + name] = file_entry(contents.encode())
     command = [str(runtime / "bin/make"), *case.args]
     if "append_mode" in model:
         command[:0] = ["/usr/bin/python3", "append_witness.py", model["append_mode"]]

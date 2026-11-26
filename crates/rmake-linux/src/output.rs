@@ -300,6 +300,9 @@ impl Coordination {
 }
 
 fn stream_metadata(descriptor: c_int) -> Option<Metadata> {
+    if crate::process::startup_output_was_closed(descriptor) {
+        return None;
+    }
     // Borrow standard streams via an owned CLOEXEC duplicate; never construct
     // a File owning the caller's descriptor or depend on procfs for metadata.
     let duplicate = unsafe { fcntl(descriptor, 1030, 3) };

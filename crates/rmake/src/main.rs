@@ -10,7 +10,7 @@ use std::process::ExitCode;
 mod panic_guard;
 
 fn main() -> ExitCode {
-    rmake_linux::process::preserve_closed_startup_stdin();
+    rmake_linux::process::preserve_closed_startup_streams();
     // Select libc locale while still on the ordinary process-leading stack.
     rmake_linux::locale::initialize();
     #[cfg(feature = "guile")]
