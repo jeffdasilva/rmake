@@ -305,11 +305,11 @@ impl RuleDeclaration {
             && self.recipes.is_empty()
             && !self.targets.is_empty()
         {
-            return Err(ParseError {
-                unlocated: false,
-                location: self.location.clone().expect("group header location"),
-                message: "grouped targets must provide a recipe".into(),
-            });
+            return Err(ParseError::system(
+                self.location.clone().expect("group header location"),
+                Message::GroupRecipeRequired,
+                context,
+            ));
         }
         if self.cancel_default
             && !self.recipe_started
@@ -6253,13 +6253,7 @@ impl Database {
                         &mut self.warnings,
                         context,
                         location.clone(),
-                        [
-                            b"target '".as_slice(),
-                            target,
-                            b"' doesn't match the target pattern",
-                        ]
-                        .concat()
-                        .into(),
+                        Diagnostic::system(Message::StaticTargetMismatch(target)),
                     );
                     unmatched = true;
                 }

@@ -2986,6 +2986,331 @@
         "stderr_hex": "",
         "seen_hex": "616e63686f720a726561640a6265666f72650a7461696c0a72756e0a"
       }
+    },
+    {
+      "id": "nls-static-target-mismatch-single-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "6f64643a20252e6f75743a20252e696e203b2040242866696c65203e3e7365656e2c2440296563686f2024403a243c3a242a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "6f64643a3a6f64640a",
+        "stderr_hex": "4d616b6566696c653a313a206c61206369626c6520c2abc2a06f6464c2a0c2bb206e6520636f72726573706f6e6420706173206175206d6f746966206465206369626c650a",
+        "seen_hex": "616e63686f720a6f64640a"
+      }
+    },
+    {
+      "id": "nls-static-target-mismatch-single-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "6f64643a20252e6f75743a20252e696e203b2040242866696c65203e3e7365656e2c2440296563686f2024403a243c3a242a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "6f64643a3a6f64640a",
+        "stderr_hex": "4d616b6566696c653a313a20446173205a69656c20e2809e6f6464e2809c207061737374206e69636874207a756d205a69656c2d4d75737465720a",
+        "seen_hex": "616e63686f720a6f64640a"
+      }
+    },
+    {
+      "id": "nls-static-target-mismatch-single-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "6f64643a20252e6f75743a20252e696e203b2040242866696c65203e3e7365656e2c2440296563686f2024403a243c3a242a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "6f64643a3a6f64640a",
+        "stderr_hex": "4d616b6566696c653a313a2074617267657420276f64642720646f65736e2774206d617463682074686520746172676574207061747465726e0a",
+        "seen_hex": "616e63686f720a6f64640a"
+      }
+    },
+    {
+      "id": "nls-static-target-mismatch-raw-order-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a24287761726e696e67206265666f7265290a616c6c3a206f6464207261772dff20676f6f642e6f75740a6f6464207261772dff20676f6f642e6f75743a20252e6f75743a20252e696e203b2040242866696c65203e3e7365656e2c2440297072696e7466202725737c25737c25735c6e2720272440272027243c272027242a270a24287761726e696e67206166746572290a7461696c3a203b20403a0a",
+        "seen": "616e63686f720a",
+        "good.in": "696e7075740a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "4d616b6566696c653a323a206265666f72650a4d616b6566696c653a343a20e382bfe383bce382b2e38383e3838820276f64642720e381afe382bfe383bce382b2e38383e38388e38391e382bfe383bce383b3e381a8e4b880e887b4e38197e381bee3819be382930a4d616b6566696c653a343a20e382bfe383bce382b2e38383e3838820277261772dff2720e381afe382bfe383bce382b2e38383e38388e38391e382bfe383bce383b3e381a8e4b880e887b4e38197e381bee3819be382930a4d616b6566696c653a353a2061667465720a6f64647c7c6f64640a7261772dff7c7c7261772dff0a676f6f642e6f75747c676f6f642e696e7c676f6f640a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a7265616465720a6f64640a7261772dff0a676f6f642e6f75740a"
+      },
+      "output": "merged"
+    },
+    {
+      "id": "nls-static-target-mismatch-raw-order-pl",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a24287761726e696e67206265666f7265290a616c6c3a206f6464207261772dff20676f6f642e6f75740a6f6464207261772dff20676f6f642e6f75743a20252e6f75743a20252e696e203b2040242866696c65203e3e7365656e2c2440297072696e7466202725737c25737c25735c6e2720272440272027243c272027242a270a24287761726e696e67206166746572290a7461696c3a203b20403a0a",
+        "seen": "616e63686f720a",
+        "good.in": "696e7075740a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "4d616b6566696c653a323a206265666f72650a4d616b6566696c653a343a206f6269656b7420276f646427206e696520706173756a6520646f20777a6f726361206f6269656b74750a4d616b6566696c653a343a206f6269656b7420277261772dff27206e696520706173756a6520646f20777a6f726361206f6269656b74750a4d616b6566696c653a353a2061667465720a6f64647c7c6f64640a7261772dff7c7c7261772dff0a676f6f642e6f75747c676f6f642e696e7c676f6f640a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a7265616465720a6f64640a7261772dff0a676f6f642e6f75740a"
+      },
+      "output": "merged"
+    },
+    {
+      "id": "nls-static-target-mismatch-matched-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a676f6f642e6f75743a20252e6f75743a20252e696e203b2040242866696c65203e3e7365656e2c2440297072696e7466202725737c25737c25735c6e2720272440272027243c272027242a270a",
+        "seen": "616e63686f720a",
+        "good.in": "696e7075740a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "676f6f642e6f75747c676f6f642e696e7c676f6f640a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a7265616465720a676f6f642e6f75740a"
+      }
+    },
+    {
+      "id": "nls-group-recipe-required-single-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "fr"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a616c6c3a206120620a61206220263a20696e7075740a696e7075743a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a333a202a2a2a206c6573206369626c65732067726f7570c3a9657320646f6976656e7420666f75726e697220756e6520726563657474652e20417272c3aa742e0a",
+        "seen_hex": "616e63686f720a7265616465720a"
+      }
+    },
+    {
+      "id": "nls-group-recipe-required-single-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": ""
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a616c6c3a206120620a61206220263a20696e7075740a696e7075743a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a333a202a2a2a2067726f757065642074617267657473206d7573742070726f766964652061207265636970652e202053746f702e0a",
+        "seen_hex": "616e63686f720a7265616465720a"
+      }
+    },
+    {
+      "id": "nls-group-recipe-required-double-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a616c6c3a206120620a61206220263a3a20696e7075740a696e7075743a203b2040242866696c65203e3e7365656e2c666f7262696464656e293a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "4d616b6566696c653a333a202a2a2a2047727570706965727465205a69656c65206dc3bc7373656e2065696e2052657a65707420616e676562656e2e20205363686c7573732e0a",
+        "seen_hex": "616e63686f720a7265616465720a"
+      }
+    },
+    {
+      "id": "nls-group-recipe-required-include-header-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a616c6c3a206120620a696e636c75646520706169722e6d6b0a",
+        "seen": "616e63686f720a",
+        "pair.mk": "242866696c65203e3e7365656e2c696e636c756465290a61206220263a20696e7075740a6e657874242866696c65203e3e7365656e2c666f7262696464656e293a0a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "",
+        "stderr_hex": "706169722e6d6b3a323a202a2a2a20e382b0e383abe383bce38397e58c96e38197e3819fe382bfe383bce382b2e38383e38388e381afe383ace382b7e38394e38292e4be9be7b5a6e38199e3828be5bf85e8a681e3818ce38182e3828ae381bee381992e2020e4b8ade6ada22e0a",
+        "seen_hex": "616e63686f720a7265616465720a696e636c7564650a"
+      }
+    },
+    {
+      "id": "nls-group-recipe-required-conditional-before-home-pl",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "pl"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a756e6578706f727420484f4d450a484f4d45203d2024286572726f7220484f4d4529686f7573650a616c6c3a206120620a61206220263a207e2f610a696665712028242866696c65203e3e7365656e2c636f6e646974696f6e616c292428696e666f20434f4e444954494f4e414c292c290a656e6469660a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout_hex": "434f4e444954494f4e414c0a",
+        "stderr_hex": "4d616b6566696c653a353a202a2a2a20706f677275706f77616e65206f6269656b7479206d75737ac48520646f73746172637a61c487206f70697320706f6c6563656e69612e2053746f702e0a",
+        "seen_hex": "616e63686f720a7265616465720a636f6e646974696f6e616c0a"
+      }
+    },
+    {
+      "id": "nls-group-recipe-required-empty-single-de",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "de"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a616c6c3a206120620a61206220263a3b0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "6d616b653a2046c3bc7220646173205a69656c20e2809e616c6ce2809c20697374206e6963687473207a752074756e2e0a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a7265616465720a"
+      }
+    },
+    {
+      "id": "nls-group-recipe-required-empty-double-ja",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "ja"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c726561646572290a616c6c3a2061206220630a61206220263a3a3b0a62206320263a3a3b0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout_hex": "6d616b653a2027616c6c2720e381abe5afbee38197e381a6e8a18ce38186e381b9e3818de4ba8be381afe38182e3828ae381bee3819be382932e0a",
+        "stderr_hex": "",
+        "seen_hex": "616e63686f720a7265616465720a"
+      }
     }
   ]
 }
