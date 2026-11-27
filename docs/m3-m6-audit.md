@@ -252,7 +252,8 @@ NUL boundaries, rebinding and cancellation.
   The post-read file policy marks .PHONY prerequisites as targets before
   visits begin, including when a later setup diagnostic stops traversal.
   This publication also enables the .PRECIOUS marker for file and pattern
-  records.
+  records. A conflict in intermediate policy retains completed named file
+  markers and the lookup history through the conflicting directive.
 - [Eval allocation investigation](eval-allocation-profiles.md) retains experiments
   rejected after elapsed-time regressions and the selected runtime controls.
 

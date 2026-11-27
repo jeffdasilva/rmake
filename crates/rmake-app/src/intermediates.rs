@@ -20,6 +20,12 @@ pub struct Policy {
     secondary_files: Option<Box<HashSet<Vec<u8>>>>,
 }
 
+#[derive(Debug)]
+pub struct PolicyConflict {
+    pub diagnostic: Vec<u8>,
+    pub last_lookup: &'static [u8],
+}
+
 fn branches<'a>(database: &'a Database, name: &[u8]) -> &'a [Rule] {
     database.rules.get(name).map_or(&[], |rule| {
         rule.double_colon
@@ -40,15 +46,13 @@ fn global_setting(database: &Database, name: &[u8]) -> bool {
 }
 
 impl Policy {
-    pub fn read(database: &Database) -> Result<Self, Vec<u8>> {
+    pub fn read(&mut self, database: &Database) -> Result<(), PolicyConflict> {
         let not_intermediate: HashSet<_> = branches(database, b".NOTINTERMEDIATE")
             .iter()
             .flat_map(|rule| &rule.dependencies)
             .map(|dependency| dependency.name.clone())
             .collect();
-        let mut policy = Self {
-            no_intermediates: global_setting(database, b".NOTINTERMEDIATE"),
-            all_secondary: global_setting(database, b".SECONDARY"),
+        *self = Self {
             not_intermediate,
             ..Self::default()
         };
@@ -57,26 +61,36 @@ impl Policy {
                 .iter()
                 .flat_map(|rule| &rule.dependencies)
             {
-                if policy.not_intermediate.contains(&dependency.name) {
-                    return Err(crate::messages::system(
-                        Message::IntermediateTargetConflict {
+                if self.not_intermediate.contains(&dependency.name) {
+                    return Err(PolicyConflict {
+                        diagnostic: crate::messages::system(Message::IntermediateTargetConflict {
                             target: &dependency.name,
                             secondary: name == b".SECONDARY",
-                        },
-                    ));
+                        }),
+                        last_lookup: name,
+                    });
                 }
                 if name == b".INTERMEDIATE" {
-                    policy.intermediate.insert(dependency.name.clone());
+                    self.intermediate.insert(dependency.name.clone());
                 } else {
-                    policy.secondary.insert(dependency.name.clone());
+                    self.secondary.insert(dependency.name.clone());
                 }
             }
         }
-        if policy.all_secondary && policy.no_intermediates {
-            return Err(crate::messages::system(Message::IntermediatePolicyConflict));
+        let no_intermediates = global_setting(database, b".NOTINTERMEDIATE");
+        let all_secondary = global_setting(database, b".SECONDARY");
+        if all_secondary && no_intermediates {
+            return Err(PolicyConflict {
+                diagnostic: crate::messages::system(Message::IntermediatePolicyConflict),
+                last_lookup: b".SECONDARY",
+            });
         }
-        policy.capture_files(database);
-        Ok(policy)
+        // Global flags apply to file records only after every named
+        // declaration has been processed.
+        self.no_intermediates = no_intermediates;
+        self.all_secondary = all_secondary;
+        self.capture_files(database);
+        Ok(())
     }
 
     /// Global secondary flags apply to records entered before dependencies

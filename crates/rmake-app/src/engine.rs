@@ -3956,14 +3956,12 @@ impl Engine {
             }
             self.flag_state.refresh(&self.options);
             self.initial_flags = runtime_flags.clone();
-            self.record_database_file_policy();
-            self.intermediate_policy = match crate::intermediates::Policy::read(&self.database) {
-                Ok(policy) => policy,
-                Err(message) => {
-                    self.fatal(None, &message);
-                    return 2;
-                }
-            };
+            let policy = self.intermediate_policy.read(&self.database);
+            self.record_database_file_policy(policy.as_ref().err().map(|error| error.last_lookup));
+            if let Err(error) = policy {
+                self.fatal(None, &error.diagnostic);
+                return 2;
+            }
             self.database.freeze_rules();
             let extra_records = match self.database.snap_extra_prerequisites(
                 self.intermediate_policy.all_secondary,
@@ -21201,7 +21199,7 @@ mod tests {
                 b"Makefile",
             )
             .unwrap();
-        engine.intermediate_policy = crate::intermediates::Policy::read(&engine.database).unwrap();
+        engine.intermediate_policy.read(&engine.database).unwrap();
         engine.intermediates.insert(b"inferred".to_vec());
         engine.intermediates.insert(b"excluded".to_vec());
         assert!(engine.intermediate(b"resolved"));
