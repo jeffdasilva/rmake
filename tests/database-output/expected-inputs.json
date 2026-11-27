@@ -83090,6 +83090,1334 @@
         }
       ],
       "trusted_trace_sha256": "f2aabe95a4af7f27c1dd8433c93618cf7338b257ff0f0e0fb40e3c565fb63d4d"
+    },
+    "database-phase-serial-parent-unfinished-body": {
+      "template_sha256": "5ef3344e52e81824bbe1e763ed40d51716b0e03c64c30c16f3fefe1702b9d631",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6561726c696572"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6561726c696572"
+            ],
+            [
+              "add",
+              "6561726c696572"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "cca9448fbf0d1ff0f83dbbfc8da0d854192d06ac0ff630c973e4998a81cb2bfd"
+    },
+    "database-phase-serial-parent-unfinished-shell": {
+      "template_sha256": "6ed5d98fd875d9daf5334a73651db3e758ba70a2df6f0fb248bb335db316683b",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6561726c696572"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6561726c696572"
+            ],
+            [
+              "add",
+              "6561726c696572"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "5c78cc6ace1acd3bc5243535efc55cbc59ea33e77bfe08a1a5b82b63dcbf2552"
+    },
+    "database-phase-serial-parent-unfinished-export": {
+      "template_sha256": "e699608d1e160d786406584999aa6801042d01077171e98eb44926ac75f88fc6",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6561726c696572"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6561726c696572"
+            ],
+            [
+              "add",
+              "6561726c696572"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "5c78cc6ace1acd3bc5243535efc55cbc59ea33e77bfe08a1a5b82b63dcbf2552"
+    },
+    "database-phase-serial-parent-unfinished-two-ancestors": {
+      "template_sha256": "f529311242da2abbb2aac5aafb5e0b850f8227ce92a94d50250e16831063f5df",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "c9c7a92de2885d01bd0e3a7798692810fbcd42f7d95f49d58511302e9132630c"
+    },
+    "database-phase-serial-parent-unfinished-user-error": {
+      "template_sha256": "6a54f3d00a0afa38d4595aeb39f6db629c502d079a1e5babaae4fba5049a96fd",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "82998d86b6f7364c941aca4161bbac543e944442b540eb3272b3f0829c541df6"
+    },
+    "database-phase-serial-parent-unfinished-arity-error": {
+      "template_sha256": "ab94c5f2004fed8c8d6734ac213a5380107a133e217923bbcbdf24a571e247c2",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "82998d86b6f7364c941aca4161bbac543e944442b540eb3272b3f0829c541df6"
+    },
+    "database-phase-serial-parent-unfinished-direct-leaf-control": {
+      "template_sha256": "225e91ccaad2cf292f306393b9c6cd66ed9aae2cec024f0af4a86d0450e3275c",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "43a99a9954bcfd26effc322275544f56ad486c55f32b8dd242dcf6b1e942ecc8"
+    },
+    "database-phase-serial-parent-unfinished-valid-control": {
+      "template_sha256": "ef7779a3d14b27dc92cddcd26c78751b2430e346810ccff10b4e5c0035e6edea",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6561726c696572"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6561726c696572"
+            ],
+            [
+              "add",
+              "6561726c696572"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "da27b64e652e49f22d4c47a7d9e2e98bcbd274759c92100a9156c642e0c6de30"
+    },
+    "database-phase-serial-parent-unfinished-completed-child-control": {
+      "template_sha256": "2993ac86b40ca3aeed27d951c9ddbf59ebee9ce61ba2e47615e3071b04a394ef",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "82998d86b6f7364c941aca4161bbac543e944442b540eb3272b3f0829c541df6"
+    },
+    "database-phase-serial-parent-unfinished-implicit-ancestor": {
+      "template_sha256": "0054da3f1af66493e301f12f7bbef2e7478246ae2525d74eb7dca09726cb1b6e",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "after",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              null,
+              false
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "a4903c415f294998befa2dfcdf8f2f684b2dd3ddad664c2908245baae3434974"
+    },
+    "database-phase-serial-parent-unfinished-valid-implicit-control": {
+      "template_sha256": "568a4f4a5ca1b10de72c2a45b0e8f389ec41dc35ed52a68fe1fa33263dda124e",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "after",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              null,
+              false
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d697373696e67"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "cf981b5b6187e940f73a4780de80ad16cfc0709d615b0d9e565b50c2dffee6a0"
     }
   }
 }
