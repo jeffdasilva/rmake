@@ -85611,6 +85611,383 @@
         }
       ],
       "trusted_trace_sha256": "5e357daefdbf1f6a034b35987deb392f73f606ef99bca5b3784b5f6ac1eb6900"
+    },
+    "database-phase-serial-shell-after-noop-malformed": {
+      "template_sha256": "2046fa8f0b3850a0c604eaa8fda71ca782abdf470856ab6e3c6a4dafaaa9f0b5",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "after",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              null,
+              false
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6c656166"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6c656166"
+            ],
+            [
+              "add",
+              "6c656166"
+            ],
+            [
+              "add",
+              "6c656166"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "803ea556ee59b48e34088071cb97b018597993e246abfcb75f718bdb414f49ae"
+    },
+    "database-phase-serial-shell-after-noop-valid": {
+      "template_sha256": "93e1b2a28c7052201c4421ad47860c17116a2dbcd87942a1607a6cf4433fb61d",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "after",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              null,
+              false
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6c656166"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6c656166"
+            ],
+            [
+              "add",
+              "6c656166"
+            ],
+            [
+              "add",
+              "6c656166"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "50ffe548fbd964494b2d95ad163a0022f8a1bb2822255bffca39c9a0dee85324"
+    },
+    "database-phase-serial-shell-after-noop-valid-real-child": {
+      "template_sha256": "5a94135172734ebd52eb08b85fe6e63db7617196cfd7b8437f5262b981c729ac",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "after",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              null,
+              false
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6c656166"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "6c656166"
+            ],
+            [
+              "add",
+              "6c656166"
+            ],
+            [
+              "add",
+              "6c656166"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "626f64792e6d6b"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "50ffe548fbd964494b2d95ad163a0022f8a1bb2822255bffca39c9a0dee85324"
     }
   }
 }

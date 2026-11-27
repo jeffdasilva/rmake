@@ -157,11 +157,13 @@ jobs:
               --locale-root .tools/locale-data-arm64 \
               --report "artifacts/locales/aarch64-stdin-file-size-$kind.json"
           done
-      - name: Check the pinned xxHash project
+      - name: Check the pinned xxHash and Lua projects
         timeout-minutes: 5
         run: |
           python3 tools/integration.py --case xxhash-0.8.3 --candidate target/release/rmake \
             --report artifacts/integration/aarch64-xxhash-optimized.json
+          python3 tools/integration.py --case lua-5.4.9 --case lua-5.4.9-parallel-fifo \
+            --candidate target/release/rmake --report artifacts/integration/aarch64-lua-optimized.json
       - name: Check the Guile-enabled application
         timeout-minutes: 15
         shell: bash
@@ -241,7 +243,12 @@ jobs:
             --case guile-bridge-shell-target \
             --case guile-live-converter-result --case guile-live-converter-expand \
             --case guile-live-converter-evaluate --case guile-live-converter-variable \
-            --case guile-live-converter-between-leaves --report "$reports/application.json"
+            --case guile-live-converter-between-leaves \
+            --case guile-gmk-var-procedure-shape --case guile-gmk-var-module-scope \
+            --case guile-gmk-var-expand-rebound \
+            --case guile-gmk-var-expand-rebound-during-conversion \
+            --case guile-gmk-var-formatter-rebound-during-conversion \
+            --report "$reports/application.json"
           env -u RMAKE_GUILE_COMPONENT_CASE TMPDIR="$target" \
             python3 tools/guile_profile_exec.py --profile "$profile" -- \
             python3 tools/rust.py cargo test --release --locked -p rmake-linux --features guile \

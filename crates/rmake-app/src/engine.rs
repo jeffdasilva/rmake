@@ -19132,6 +19132,7 @@ impl Engine {
         } = state;
         let variables = &mut variables;
         let mut failed_executable_attempt = false;
+        let mut configuration_after_noop = false;
         while let Some((index, bytes, recipe)) = expanded.pop_front() {
             self.observe_interrupt();
             if self.interrupt.is_some() {
@@ -19155,7 +19156,7 @@ impl Engine {
                 command = trim_leading(&command[1..]);
             }
             flow.visit(index, force);
-            let observe_preparation_failure = !ran
+            let observe_preparation_failure = (!ran || configuration_after_noop)
                 && !force
                 && !command.is_empty()
                 && !one_shell
@@ -19173,6 +19174,8 @@ impl Engine {
                 && self.serial_or_owned_two_job_pipe(parallel);
             let first_configuration_include =
                 observe_preparation_failure.then_some(self.database.makefiles.len());
+            let observe_export_failure = !ran && observe_preparation_failure;
+            configuration_after_noop = false;
             // GNU expands configuration before a dry-run/query decision, after
             // all recipe bodies have expanded. A nonempty expansion consisting
             // only of blanks/modifiers still reaches configuration; a zero-byte
@@ -19355,6 +19358,14 @@ impl Engine {
                 ordinary_invocation.expect("ordinary commands are prepared with their boundary")
             };
             if crate::recipe_flow::optimized_noop(&invocation) {
+                // The no-op counts as a command without registering a child.
+                // The next serial shell configuration can still stop before a launch.
+                configuration_after_noop = !parallel
+                    && observe_preparation_failure
+                    && !self.aliases.contains_source_or_destination(target)
+                    && self.database.rules.get(target).is_some_and(|rule| {
+                        rule.implicit_pattern.is_none() && !rule.default_recipe
+                    });
                 continue;
             }
             let direct = matches!(&invocation, crate::process::Invocation::Direct { .. });
@@ -19435,7 +19446,7 @@ impl Engine {
                 let mut emitted_order = Vec::new();
                 let mut inherited_mflags = false;
                 let first_required_export_include =
-                    observe_preparation_failure.then_some(self.database.makefiles.len());
+                    observe_export_failure.then_some(self.database.makefiles.len());
                 let first_export_include = (self.ordinary_include_open_times
                     && !self.remaking
                     && self.active_makefile_remake.is_none()
