@@ -943,7 +943,11 @@ impl Engine {
                 });
                 self.stderr(&message);
             }
-            self.jobserver.take();
+            if let Some(server) = self.jobserver.take()
+                && jobs == 1
+            {
+                server.retire_inherited_pipe();
+            }
             self.options.jobserver_auth = None;
         }
         let mode = self

@@ -263,13 +263,11 @@ impl Controller {
             self.select(None);
         }
     }
+    fn selected(&self) -> Option<Rc<Buffer>> {
+        self.0.current.borrow().as_ref().and_then(Weak::upgrade)
+    }
     pub fn current(&self) -> Option<Rc<Buffer>> {
-        self.0
-            .current
-            .borrow()
-            .as_ref()
-            .and_then(Weak::upgrade)
-            .filter(|buf| buf.enabled.get())
+        self.selected().filter(|buffer| buffer.enabled())
     }
     pub fn write_parts(&self, error: bool, parts: &[&[u8]]) {
         if parts.iter().any(|part| !part.is_empty()) {
@@ -283,14 +281,26 @@ impl Controller {
             plain_parts(error, parts);
         }
     }
-    pub(crate) fn write_diagnostic_parts(&self, parts: &[&[u8]]) {
-        if self.mode().root_buffered()
-            && let Some(buffer) = self.current().filter(|buffer| buffer.reader)
+    pub(crate) fn write_info_parts(&self, parts: &[&[u8]]) {
+        if self.mode() == Mode::None
+            && let Some(buffer) = self
+                .selected()
+                .filter(|buffer| buffer.reader_retry_pending())
         {
+            buffer.prepare_reader_output();
+        }
+        self.write_parts(false, parts);
+    }
+    pub(crate) fn write_diagnostic_parts(&self, parts: &[&[u8]]) {
+        let mode = self.mode();
+        if let Some(buffer) = self.selected().filter(|buffer| {
+            (mode.root_buffered() && buffer.reader && buffer.enabled())
+                || (mode == Mode::None && buffer.reader_retry_pending())
+        }) {
             self.start();
-            if buffer.prepare(true) {
-                // GNU formats the suppression while the reader's warning is
-                // pending and writes that suppression in its place.
+            if buffer.prepare_reader_output() {
+                // GNU formats the suppression while the reader's diagnostic
+                // is pending and writes that suppression in its place.
                 self.warn_spool_unavailable();
                 return;
             }
@@ -445,7 +455,7 @@ pub struct Owner {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum SpoolFailure {
     Terminal,
-    ReaderTemporaryFile,
+    ReaderTemporaryFile { retry_pending: bool },
 }
 
 pub struct Buffer {
@@ -486,26 +496,54 @@ impl Buffer {
         self.enabled.set(enabled);
     }
     pub(crate) fn failed_to_buffer_reader_output(&self) -> bool {
-        self.failure.get() == Some(SpoolFailure::ReaderTemporaryFile)
+        matches!(
+            self.failure.get(),
+            Some(SpoolFailure::ReaderTemporaryFile { .. })
+        )
+    }
+    fn reader_retry_pending(&self) -> bool {
+        self.failure.get()
+            == Some(SpoolFailure::ReaderTemporaryFile {
+                retry_pending: true,
+            })
+    }
+    fn prepare_reader_output(&self) -> bool {
+        self.prepare_spool(true, true)
+    }
+    fn prepare(&self, retry_reader: bool) -> bool {
+        self.prepare_spool(retry_reader, false)
     }
     /// Report a temporary-file creation failure from this attempt.
-    fn prepare(&self, retry_reader: bool) -> bool {
-        if self.failure.get().is_some() || self.spool.borrow().is_some() {
+    fn prepare_spool(&self, retry_reader: bool, allow_pending_retry: bool) -> bool {
+        let retrying = allow_pending_retry && self.reader_retry_pending();
+        if (self.failure.get().is_some() && !retrying) || self.spool.borrow().is_some() {
             return false;
+        }
+        if retrying {
+            self.failure.set(Some(SpoolFailure::ReaderTemporaryFile {
+                retry_pending: false,
+            }));
         }
         match Spool::new() {
             Ok(spool) => {
                 self.spool.replace(Some(spool));
+                self.enabled.set(true);
                 false
             }
             Err(error) => {
                 let creation_failed = error.creation_path.is_some();
-                let failure = if retry_reader && creation_failed {
-                    SpoolFailure::ReaderTemporaryFile
-                } else {
-                    SpoolFailure::Terminal
-                };
-                self.failure.set(Some(failure));
+                if !retrying {
+                    let failure = if retry_reader && creation_failed {
+                        // Closing the reader spool precedes disabling the
+                        // global mode, so its next write can try once more.
+                        SpoolFailure::ReaderTemporaryFile {
+                            retry_pending: self.controller.mode().root_buffered(),
+                        }
+                    } else {
+                        SpoolFailure::Terminal
+                    };
+                    self.failure.set(Some(failure));
+                }
                 self.enabled.set(false);
                 if let Some(path) = error.creation_path {
                     self.controller

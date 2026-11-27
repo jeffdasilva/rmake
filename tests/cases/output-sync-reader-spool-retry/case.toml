@@ -1,0 +1,10 @@
+id = "output-sync-reader-spool-retry"
+requirement = "runtime.output-sync-reader-temp-replay"
+candidate = "required"
+provenance = "Original paired reader diagnostic and temporary spool failure cases with bounded ordinary GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout = "verified initial fatal\nverified preserved info and fatal retry\nverified warning retry and post-read replay\nverified warning then a single info retry\nverified recurse control\nverified available directory control\n"
+stderr = ""

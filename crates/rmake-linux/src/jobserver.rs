@@ -30,6 +30,7 @@ unsafe extern "C" {
     fn pipe2(descriptors: *mut c_int, flags: c_int) -> c_int;
     fn fcntl(descriptor: c_int, operation: c_int, ...) -> c_int;
     fn dup2(original: c_int, replacement: c_int) -> c_int;
+    fn close(descriptor: c_int) -> c_int;
     fn rmake_restart_pipe_private(pipe: *const c_int);
     fn rmake_pipe_identity(descriptor: c_int, reader: c_int, identity: *mut u64) -> c_int;
     fn read(descriptor: c_int, bytes: *mut c_void, length: usize) -> isize;
@@ -79,6 +80,15 @@ fn expose_child_pipe_descriptor(owned: c_int, wire: c_int, reader: bool) -> io::
         }
     }
     descriptor_control(wire, 2, 0).map(|_| ())
+}
+
+fn retire_pipe_descriptor(descriptor: c_int, reader: bool, identity: [u64; 2]) {
+    if pipe_identity(descriptor, Some(reader)).ok() == Some(identity) {
+        // SAFETY: the serialized CLI reset still sees the authenticated wire.
+        // This numeric slot has no Rust owner. Linux close consumes it even
+        // on EINTR, so there is no retry that could close a replacement.
+        unsafe { close(descriptor) };
+    }
 }
 
 enum Endpoint {
@@ -823,6 +833,31 @@ impl Jobserver {
             }
         }
         Ok(())
+    }
+
+    /// Drop the borrowed wire when a makefile forces the CLI back to serial.
+    pub fn retire_inherited_pipe(self) {
+        if !crate::process::cli_has_inherited_streams() {
+            return;
+        }
+        if let Some(pipe) = self.recursive_exec_pipe() {
+            for (index, reader) in [true, false].into_iter().enumerate() {
+                if let Ok(identity) = pipe_identity(pipe.owned[index].as_raw_fd(), Some(reader)) {
+                    retire_pipe_descriptor(pipe.incoming[index], reader, identity);
+                }
+            }
+        } else {
+            for endpoint in [&self.0.reader, &self.0.writer] {
+                if let Endpoint::Inherited {
+                    descriptor,
+                    reader,
+                    identity,
+                } = endpoint
+                {
+                    retire_pipe_descriptor(*descriptor, *reader, *identity);
+                }
+            }
+        }
     }
 
     pub(crate) fn recursive_exec_pipe(&self) -> Option<RestartPipe<'_>> {

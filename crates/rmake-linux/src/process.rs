@@ -89,6 +89,10 @@ pub fn preserve_closed_startup_streams() {
     CLI_UNAVAILABLE_OUTPUTS.store(marked & OUTPUT_MASK, Ordering::Relaxed);
 }
 
+pub(crate) fn cli_has_inherited_streams() -> bool {
+    CLI_INHERITED_OPEN_STREAMS.load(Ordering::Relaxed) != 0
+}
+
 pub(crate) fn cli_inherited_stream_was_open(descriptor: c_int) -> bool {
     STANDARD_STREAMS.contains(&descriptor)
         && CLI_INHERITED_OPEN_STREAMS.load(Ordering::Relaxed) & (1 << descriptor) != 0
