@@ -13,6 +13,9 @@ layout, bytes, modes and link topology and verifies the source tree is preserved
 A validation retry alters a private copy of `fr.po`, checks that the installer
 rejects it before creating the stage, then restores its bytes and modification
 time and repeats the install in the same workspace.
+A destination retry checks the exact partial package left by a regular file
+blocking a locale directory. It removes the obstruction, retries in the same
+staging tree, and verifies the complete package and the pre-existing files.
 
 The fixture runs warm oracle bootstrap and retries it after a real advisory
 lock conflict in the same disposable workspace. It compares both transcripts
