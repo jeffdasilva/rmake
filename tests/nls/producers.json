@@ -5935,6 +5935,282 @@
         "stderr": "",
         "seen": "anchor\nbefore\nrhs\nafter\n"
       }
+    },
+    {
+      "id": "nls-eval-numeric-argument-location-word-invalid-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72642024242866696c65203e3e7365656e2c696e646578296261642c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** invalid first argument to 'word' function: 'bad'.  Stop.\n",
+        "seen": "anchor\nbefore\nindex\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-numeric-argument-location-wordlist-end-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72646c6973742024242866696c65203e3e7365656e2c737461727429312c24242866696c65203e3e7365656e2c656e64292d312c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** invalid second argument to 'wordlist' function: '-1'. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nstart\nend\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-numeric-argument-location-wordlist-start-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72646c6973742024242866696c65203e3e7365656e2c7374617274292d312c24242866696c65203e3e7365656e2c656e6429322c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** invalid first argument to 'wordlist' function: '-1'.  Stop.\n",
+        "seen": "anchor\nbefore\nstart\nend\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-numeric-argument-location-intcmp-first-invalid-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428696e74636d702024242866696c65203e3e7365656e2c6c656674296261642c24242866696c65203e3e7365656e2c726967687429322c24242866696c65203e3e7365656e2c73656c6563746564296c6573732c24242866696c65203e3e7365656e2c756e73656c656374656429657175616c29290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** non-numeric first argument to 'intcmp' function: 'bad'. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nleft\nright\n"
+      }
+    },
+    {
+      "id": "nls-eval-numeric-argument-location-intcmp-first-empty-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428696e74636d702024242866696c65203e3e7365656e2c6c656674292c24242866696c65203e3e7365656e2c726967687429322c24242866696c65203e3e7365656e2c73656c6563746564296c65737329290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** non-numeric first argument to 'intcmp' function: empty value.  Stop.\n",
+        "seen": "anchor\nbefore\nleft\nright\n"
+      }
+    },
+    {
+      "id": "nls-eval-numeric-argument-location-intcmp-second-invalid-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428696e74636d702024242866696c65203e3e7365656e2c6c65667429312c24242866696c65203e3e7365656e2c7269676874296261642c24242866696c65203e3e7365656e2c73656c6563746564296c65737329290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** non-numeric second argument to 'intcmp' function: 'bad'.  Stop.\n",
+        "seen": "anchor\nbefore\nleft\nright\n"
+      }
+    },
+    {
+      "id": "nls-eval-numeric-argument-location-intcmp-second-empty-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428696e74636d702024242866696c65203e3e7365656e2c6c65667429312c24242866696c65203e3e7365656e2c7269676874292c24242866696c65203e3e7365656e2c73656c6563746564296c65737329290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** non-numeric second argument to 'intcmp' function: empty value. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nleft\nright\n"
+      }
+    },
+    {
+      "id": "nls-eval-numeric-argument-location-word-direct-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a56203a3d202428776f726420242866696c65203e3e7365656e2c696e646578296261642c242866696c65203e3e7365656e2c7465787429616c7068612062657461290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:3: *** invalid first argument to 'word' function: 'bad'.  Stop.\n",
+        "seen": "anchor\nbefore\nindex\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-numeric-argument-location-wordlist-direct-eval-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24286576616c2056203a3d20242428776f72646c6973742024242866696c65203e3e7365656e2c737461727429312c24242866696c65203e3e7365656e2c656e64292d312c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:3: *** invalid second argument to 'wordlist' function: '-1'. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nstart\nend\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-numeric-argument-location-intcmp-inner-owner-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "494e4e4552203d202428696e74636d7020242866696c65203e3e7365656e2c6c656674296261642c242866696c65203e3e7365656e2c726967687429322c242866696c65203e3e7365656e2c73656c6563746564296c6573732c242866696c65203e3e7365656e2c756e73656c656374656429657175616c290a4f55544552203d2024286576616c2056203a3d20242428494e4e455229290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** non-numeric first argument to 'intcmp' function: 'bad'.  Stop.\n",
+        "seen": "anchor\nbefore\nleft\nright\n"
+      }
+    },
+    {
+      "id": "nls-eval-numeric-argument-location-intcmp-selected-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428696e74636d702024242866696c65203e3e7365656e2c6c65667429312c24242866696c65203e3e7365656e2c726967687429322c24242866696c65203e3e7365656e2c73656c6563746564296c6573732c24242866696c65203e3e7365656e2c756e73656c656374656429657175616c29290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "before\nvalue=[less]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nleft\nright\nselected\nafter\n"
+      }
+    },
+    {
+      "id": "nls-eval-numeric-argument-location-word-arity-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24286576616c2056203a3d2024242863616c6c20776f72642c24242866696c65203e3e7365656e2c696e646578293129290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:3: *** insufficient number of arguments (1) to function 'word'. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nindex\n"
+      }
     }
   ]
 }

@@ -194,7 +194,11 @@ The `file` function has typed errors for a missing name, an extra read argument
 or an invalid operation. Through `eval`, these errors still use the innermost
 recursive definition's location when one is active. Filesystem and parser
 errors use the reader location. Tests cover both locations, eager side effects
-and raw argument bytes. [Low-resolution timestamp models](../tests/nls/low-resolution.json)
+and raw argument bytes. The same definition location applies to a nonnumeric
+`word` index, out-of-bounds `wordlist` arguments and invalid `intcmp` operands.
+Numeric tests include a fresh inner definition, true arity errors and a
+successful comparison that runs only the selected branch.
+[Low-resolution timestamp models](../tests/nls/low-resolution.json)
 use fixed timestamps to check warning publication and effects in C and French.
 The [debug option models](../tests/nls/debug-options.json) check invalid debug
 requests at startup and during secondary expansion. They cover French,

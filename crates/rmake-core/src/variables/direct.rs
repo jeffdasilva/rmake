@@ -213,7 +213,7 @@ impl Expansion<'_, '_> {
         for range in ranges {
             let argument = &argument[range];
             let prepared = if native {
-                self.expand(argument)
+                self.expand_at(argument, nearest)
             } else if let Some(result) = self.pure_bytes_planned(argument, lookups) {
                 result
             } else {
@@ -230,7 +230,10 @@ impl Expansion<'_, '_> {
         // Argument preparation is now selected. Publish its logical reads
         // before the builtin can emit output, mutate bindings, or fail.
         std::mem::take(lookups).commit();
-        Some(self.eager_function(name, &values, nearest))
+        Some(
+            self.eager_function(name, &values, nearest)
+                .map_err(|error| self.locate_expansion_error(error, nearest)),
+        )
     }
 }
 

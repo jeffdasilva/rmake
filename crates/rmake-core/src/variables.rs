@@ -506,6 +506,16 @@ impl ExpandError {
         }
     }
 
+    fn uses_eval_argument_location(&self) -> bool {
+        match self {
+            Self::FileArgument(_) | Self::WordlistIndexBounds(_) | Self::InvalidInteger { .. } => {
+                true
+            }
+            Self::System(message) => message.id == crate::messages::MessageId::WordFirstInvalid,
+            _ => false,
+        }
+    }
+
     fn at(self, location: Option<&Arc<Location>>) -> Self {
         if let Self::RenderedSystem { error, diagnostic } = self {
             return Self::RenderedSystem {
@@ -4339,7 +4349,7 @@ impl Expansion<'_, '_> {
             } else if let Some(result) = self.direct_expression(input, nearest) {
                 result
             } else {
-                self.expand_machine(input, nearest.cloned())
+                self.expand_machine(input, nearest)
             }
         } else {
             self.expand_inner(input)
@@ -4357,6 +4367,20 @@ impl Expansion<'_, '_> {
         } else {
             result.map_err(|error| self.context.freeze_error(error))
         }
+    }
+
+    fn locate_expansion_error(
+        &self,
+        error: ExpandError,
+        nearest: Option<&Arc<Location>>,
+    ) -> ExpandError {
+        let location = nearest.or_else(|| {
+            self.context
+                .eval_argument_location
+                .as_ref()
+                .filter(|_| error.uses_eval_argument_location())
+        });
+        error.at(location)
     }
 
     fn expand_inner(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
@@ -5126,7 +5150,7 @@ impl Expansion<'_, '_> {
         let active = self.snapshot_active();
         let mut context = self.context.reborrow();
         if let Some(location) = expanding_location {
-            context.eval_file_argument_location = Some(Arc::clone(location));
+            context.eval_argument_location = Some(Arc::clone(location));
         }
         let result = match &mut self.store {
             StoreAccess::Database(db) => {
@@ -5235,15 +5259,7 @@ impl Expansion<'_, '_> {
                 nearest,
             )
         } else {
-            self.eager_builtin(name, args).map_err(|error| {
-                if nearest.is_none() && matches!(error, ExpandError::FileArgument(_)) {
-                    // A recursive variable's definition can still own file
-                    // argument validation inside an evaluated buffer.
-                    error.at(self.context.eval_file_argument_location.as_ref())
-                } else {
-                    error
-                }
-            })
+            self.eager_builtin(name, args)
         }
     }
 

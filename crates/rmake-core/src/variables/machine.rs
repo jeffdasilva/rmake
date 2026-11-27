@@ -305,7 +305,7 @@ impl Expansion<'_, '_> {
     pub(super) fn expand_machine(
         &mut self,
         input: &[u8],
-        nearest: Option<Arc<Location>>,
+        nearest: Option<&Arc<Location>>,
     ) -> Result<Vec<u8>, ExpandError> {
         self.machine_nesting += 1;
         let active_start = self.active.len();
@@ -318,7 +318,7 @@ impl Expansion<'_, '_> {
             extra: Rc::new(Budget::default()),
         };
         let result = (|| {
-            m.read(Source::borrowed(input), logical_start, nearest)?;
+            m.read(Source::borrowed(input), logical_start, nearest.cloned())?;
             while let Some(Job {
                 kind,
                 depth,
@@ -332,7 +332,7 @@ impl Expansion<'_, '_> {
                     return Err(ExpandError::Cancelled);
                 }
                 self.machine_step(&mut m, kind, depth, nearest.clone())
-                    .map_err(|error| error.at(nearest.as_ref()))?;
+                    .map_err(|error| self.locate_expansion_error(error, nearest.as_ref()))?;
             }
             debug_assert_eq!(m.values.len(), 1);
             Ok(m.value())
