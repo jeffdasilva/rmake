@@ -19626,13 +19626,14 @@ impl Engine {
                 Err(err) => {
                     let detail = rmake_linux::filesystem::source_error_detail(&err);
                     self.stderr(&[program.as_slice(), b": ", &detail].concat());
-                    // GNU also rechecks the previous command after a launch
-                    // exceeds the Linux argument or filename limit.
+                    // GNU also rechecks the previous command after a kernel
+                    // argument, filename, or symlink resolution limit.
                     const ENAMETOOLONG: i32 = 36;
+                    const ELOOP: i32 = 40;
                     let sync_mode = self.output.mode();
                     if (executable_launch_failed
                         || err.kind() == io::ErrorKind::ArgumentListTooLong
-                        || err.raw_os_error() == Some(ENAMETOOLONG))
+                        || matches!(err.raw_os_error(), Some(ENAMETOOLONG | ELOOP)))
                         && !self.remaking
                         && remake.is_none()
                         && branch.is_none()

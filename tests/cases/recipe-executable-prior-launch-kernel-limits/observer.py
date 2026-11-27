@@ -55,21 +55,29 @@ for limit, recipe_command, launch_error in (
 ):
     cases.extend((
         (f'{limit} direct', recipe_command, ('-j1', '-Onone'), True, False, False, 2,
-         PRIOR_OUT, PRIOR_ERR + launch_error + PRIOR_ERROR + FATAL),
+         PRIOR_OUT, PRIOR_ERR + launch_error + PRIOR_ERROR + FATAL, False),
         (f'{limit} ignored', recipe_command, ('-j1', '-Onone'), True, True, True, 0,
-         PRIOR_OUT + PRIOR_ERR + launch_error + PRIOR_ERROR + IGNORED + b'continued\n', b''),
+         PRIOR_OUT + PRIOR_ERR + launch_error + PRIOR_ERROR + IGNORED + b'continued\n', b'', False),
         (f'{limit} parallel target', recipe_command, ('-j2', '-Otarget'), True, False, True, 2,
-         PRIOR_ERROR + PRIOR_OUT + PRIOR_ERR + launch_error + FATAL, b''),
+         PRIOR_ERROR + PRIOR_OUT + PRIOR_ERR + launch_error + FATAL, b'', False),
         (f'{limit} healthy prior control', recipe_command, ('-j1', '-Onone'), False, False, False, 2,
-         PRIOR_OUT, PRIOR_ERR + launch_error + FATAL),
+         PRIOR_OUT, PRIOR_ERR + launch_error + FATAL, False),
     ))
-cases.append((
-    'in-range missing filename control', in_range, ('-j1', '-Onone'), True, False, False, 2,
-    PRIOR_OUT, PRIOR_ERR + b'make[1]: ' + in_range + b': No such file or directory\n' + PRIOR_ERROR + FATAL,
+LOOP_ERROR = b'make[1]: ./next: Too many levels of symbolic links\n'
+MISSING = b': No such file or directory\n'
+cases.extend((
+    ('in-range missing filename control', in_range, ('-j1', '-Onone'), True, False, False, 2,
+     PRIOR_OUT, PRIOR_ERR + b'make[1]: ' + in_range + MISSING + PRIOR_ERROR + FATAL, False),
+    ('symlink loop direct', b'./next', ('-j1', '-Onone'), True, False, False, 2,
+     PRIOR_OUT, PRIOR_ERR + LOOP_ERROR + PRIOR_ERROR + FATAL, True),
+    ('symlink loop healthy prior control', b'./next', ('-j1', '-Onone'), False, False, False, 2,
+     PRIOR_OUT, PRIOR_ERR + LOOP_ERROR + FATAL, True),
+    ('missing symlink path control', b'./next', ('-j1', '-Onone'), True, False, False, 2,
+     PRIOR_OUT, PRIOR_ERR + b'make[1]: ./next' + MISSING + PRIOR_ERROR + FATAL, False),
 ))
 
 failures = []
-for name, recipe_command, options, removed, ignored, merged, status, stdout, stderr in cases:
+for name, recipe_command, options, removed, ignored, merged, status, stdout, stderr, loop in cases:
     with tempfile.TemporaryDirectory(dir='.') as scratch:
         work = Path(scratch)
         tmp = work/'tmp'
@@ -81,6 +89,16 @@ for name, recipe_command, options, removed, ignored, merged, status, stdout, std
         script += b'exit 0\n'
         prior.write_bytes(script)
         prior.chmod(0o755)
+        next_path = work/'next'
+        if loop:
+            next_path.symlink_to('next')
+            try:
+                next_path.stat()
+            except OSError as error:
+                if error.errno != errno.ELOOP:
+                    raise
+            else:
+                raise SystemExit('the symlink loop fixture did not reach ELOOP')
         worker = work/'worker.mk'
         modifier = b'-@' if ignored else b'@'
         worker.write_bytes(
@@ -106,6 +124,9 @@ for name, recipe_command, options, removed, ignored, merged, status, stdout, std
             expected.add('ran')
             witness = work/'ran'
             files_match &= witness.is_file() and witness.read_bytes() == b'effect\n'
+        if loop:
+            expected.add('next')
+            files_match &= next_path.is_symlink() and os.readlink(next_path) == 'next'
         files_match &= {path.name for path in work.iterdir()} == expected
         if (result.returncode != status or result.stdout != stdout
                 or (result.stderr or b'') != stderr or not files_match):
