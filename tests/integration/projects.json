@@ -15,6 +15,17 @@
         "empty.input"
       ],
       "smoke_stdout_hex": "30326363356430352020656d7074792e696e7075740a",
+      "clean_rebuild": {
+        "stdout_lines": [
+          "@MAKE@ -C tests clean",
+          "@MAKE@ -C tests/bench clean",
+          "rm -f *.o benchHash benchHash32 benchHash_avx2 benchHash_avx512 benchHash_hw",
+          "@MAKE@ -C tests/collisions clean",
+          "rm -f *.o allcodecs/*.o",
+          "rm -f collisionsTest",
+          "cleaning completed"
+        ]
+      },
       "source_url": "https://codeload.github.com/Cyan4973/xxHash/tar.gz/e626a72bc2321cd320e953a0ccf1584cad60f363",
       "archive_sha256": "34e71c085636fbc1726482996d92719d0a16e6a6097970ecf2990a27b3821162",
       "topdir": "xxHash-e626a72bc2321cd320e953a0ccf1584cad60f363",
@@ -577,7 +588,8 @@
     "header-mutation-and-newer-mtime",
     "rebuild",
     "binary-smoke",
-    "optional-missing-output-recovery-and-binary-smoke"
+    "optional-missing-output-recovery-and-binary-smoke",
+    "optional-upstream-clean-rebuild-and-binary-smoke"
   ],
   "args": [
     "-j1",

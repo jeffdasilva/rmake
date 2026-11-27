@@ -106,6 +106,14 @@ class IntegrationTests(unittest.TestCase):
             'preserve': ['src/lua.o', 'src/lapi.o', 'src/luac.o', 'src/liblua.a', 'src/luac'],
         }})
 
+    def test_clean_rebuild_is_opt_in_for_the_pinned_xxhash_profile(self):
+        cases = i.project_profiles(json.loads(i.MANIFEST.read_text()))
+        enabled = {name: profile['clean_rebuild']
+                   for name, (profile, _) in cases.items() if 'clean_rebuild' in profile}
+        self.assertEqual(set(enabled), {'xxhash-0.8.3'})
+        self.assertEqual(enabled['xxhash-0.8.3']['stdout_lines'][-1], 'cleaning completed')
+        self.assertIn('@MAKE@ -C tests/collisions clean', enabled['xxhash-0.8.3']['stdout_lines'])
+
     def test_shared_zlib_profile_uses_the_pinned_archive_and_safe_install(self):
         plan = json.loads(i.MANIFEST.read_text())
         cases = i.project_profiles(plan)

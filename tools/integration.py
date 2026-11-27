@@ -4,6 +4,7 @@
 """Pinned, reviewed real-project GNU2/rmake builds, never a security sandbox."""
 from __future__ import annotations
 import argparse
+import base64
 import dataclasses
 import hashlib
 import http.client
@@ -112,6 +113,7 @@ def extract(project, archive, destination):
 def project_profiles(plan):
     sources = {project['id']: project for project in plan['projects']}
     cases = {name: (source, source) for name, source in sources.items()}
+    opt_in_workflows = ('missing_output_recovery', 'clean_rebuild')
     for profile in plan.get('profiles', ()):
         name = profile['id']
         if not IDENTIFIER.fullmatch(name) or name in cases:
@@ -121,8 +123,8 @@ def project_profiles(plan):
             raise h.HarnessError('integration profile does not name a pinned source')
         fields = ('args', 'expected_build_stdout_hex', 'configure', 'target', 'watched',
                   'header', 'header_rebuild', 'smoke', 'smoke_stdout_hex', 'staged_install',
-                  'configuration', 'snapshot', 'missing_output_recovery')
-        defaults = {field: value for field, value in source.items() if field != 'missing_output_recovery'}
+                  'configuration', 'snapshot', *opt_in_workflows)
+        defaults = {field: value for field, value in source.items() if field not in opt_in_workflows}
         case = {**defaults, **{field: profile[field] for field in fields if field in profile}, 'id': name}
         cases[name] = (case, source)
     return cases
@@ -251,8 +253,13 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
     expected_streams = {}
     if 'expected_build_stdout_hex' in project:
         expected_streams.update(dict.fromkeys(
-            ('fresh', 'noop', 'rebuild', 'recover-missing-output'),
+            ('fresh', 'noop', 'rebuild', 'recover-missing-output', 'rebuild-after-clean'),
             bytes.fromhex(project['expected_build_stdout_hex'])))
+    clean_rebuild = project.get('clean_rebuild')
+    if clean_rebuild is not None:
+        expected_steps += 3
+        stdout = ('\n'.join(clean_rebuild['stdout_lines']) + '\n').encode()
+        expected_streams['clean'] = stdout.replace(b'@MAKE@', os.fsencode(runtime / 'bin/make'))
     staged = project.get('staged_install')
     smoke_command = project['smoke']
     if staged is not None:
@@ -269,6 +276,10 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
         h.reset_workspace(case, runtime, binary)
         environment = h.clean_environment(runtime, environment_plan)
         command = [str(runtime / 'bin/make'), *project.get('args', plan['args']), project['target']]
+        clean_input = None
+        if clean_rebuild is not None:
+            clean_input = h.snapshot({name: runtime / name for name in ('work', 'home', 'tmp')},
+                                     **snapshot_limits)
         install_command = [*command[:-1], *STAGED_INSTALL_ARGS] if staged is not None else None
         run = {'binary': str(binary), 'command': command, 'parts': [], 'errors': []}
         row['runs'].append(run)
@@ -315,10 +326,17 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
             if configuration is not None and fresh_observation.filesystem != noop_observation.filesystem:
                 run['errors'].append('no-op changed the configured build')
             noop = {name: (runtime / 'work' / name).stat().st_mtime_ns for name in project['watched']}
-            header = runtime / 'work' / str(safe_name(project['header']))
+            header_name = safe_name(project['header'])
+            header = runtime / 'work' / header_name
             header.write_bytes(rebuilt_header(project, header.read_bytes()))
             stamp = max(fresh.values()) + 1
             os.utime(header, ns=(stamp, stamp))
+            if clean_input is not None:
+                expected_header = rebuilt_header(project, (fixture / header_name).read_bytes())
+                key = f'work/{header_name}'
+                clean_input[key] = dict(clean_input[key], size=len(expected_header),
+                                        sha256=hashlib.sha256(expected_header).hexdigest(),
+                                        content=base64.b64encode(expected_header).decode('ascii'))
             step('rebuild', command)
             rebuilt = {name: (runtime / 'work' / name).stat().st_mtime_ns for name in project['watched']}
             run['mtime_witness'] = {'fresh': fresh, 'noop': noop, 'header': stamp, 'rebuilt': rebuilt}
@@ -359,6 +377,22 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
                 recovered_smoke = step('recovered-smoke', smoke_command, 10)
                 if not validate_smoke(recovered_smoke, expected_smoke):
                     run['errors'].append('independent recovered executable smoke bytes')
+            if clean_input is not None:
+                cleaned = step('clean', [*command[:-1], 'clean'])
+                absent = {name: not os.path.lexists(runtime / 'work' / safe_name(name))
+                          for name in project['watched']}
+                witness = {'matches_edited_input': cleaned.filesystem == clean_input,
+                           'watched_outputs_absent': absent}
+                run['clean_rebuild_witness'] = witness
+                if not witness['matches_edited_input'] or not all(absent.values()):
+                    run['errors'].append('clean did not restore the edited source tree')
+                rebuilt_clean = step('rebuild-after-clean', command)
+                witness['matches_pre_clean_build'] = rebuilt_clean.filesystem == smoke.filesystem
+                if not witness['matches_pre_clean_build']:
+                    run['errors'].append('clean rebuild changed the complete build filesystem')
+                clean_smoke = step('clean-rebuild-smoke', smoke_command, 10)
+                if not validate_smoke(clean_smoke, expected_smoke):
+                    run['errors'].append('independent clean rebuild executable smoke bytes')
         except (h.HarnessError, OSError, ValueError) as error:
             run['errors'].append(str(error))
     row['differences'] = []
