@@ -317,8 +317,8 @@ covers mixed required and optional failure policies.
   recipe child exits 127, serial and parallel recipes check the selected
   path before printing the recipe error. A parallel recipe continuation
   also retains the latest launch across a no-child line and ignored
-  launch failures. Target and line sync keep their respective output
-  dump boundaries around the recheck.
+  launch failures. Target, line and recursive sync keep their respective
+  output dump boundaries around the recheck.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)

@@ -207,9 +207,10 @@ executable diagnostics.
 
 An ordinary parallel recipe continuation keeps the latest successfully
 launched path through skipped commands and ignored lookup failures.
-With target output synchronization, the recheck appears before the target
-buffer. With line synchronization, completed lines have already been
-printed when the recheck appears, and the current line's output follows it.
+With target or recursive output synchronization, the recheck appears before
+the recipe buffer. With line synchronization, completed lines have already
+been printed when the recheck appears, and the current line's output follows
+it.
 
 Shell capture opens its pipe before executable selection. A failed lookup or
 launch retains the pipe ends for the interpreter's lifetime. A pipe allocation

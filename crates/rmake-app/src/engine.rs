@@ -19470,7 +19470,6 @@ impl Engine {
                     // when the next executable lookup fails.
                     let sync_mode = self.output.mode();
                     if executable_launch_failed
-                        && (!parallel || sync_mode != crate::output::Mode::Recurse)
                         && !self.remaking
                         && remake.is_none()
                         && branch.is_none()
