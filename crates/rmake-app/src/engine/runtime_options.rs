@@ -948,7 +948,7 @@ impl Engine {
                 && jobs != usize::MAX
                 && matches!(
                     self.options.jobserver_style.as_deref(),
-                    Some(b"pipe" | b"fifo")
+                    None | Some(b"pipe" | b"fifo")
                 );
             if let Some(server) = self.jobserver.take()
                 && (serial || replace_server)
