@@ -63,5 +63,41 @@ verified query recursive ignored child exit 1 split
 verified query recursive ignored child exit 1 merged
 verified query recursive skipped second line split
 verified query recursive skipped second line merged
+verified pipe dry direct fatal split
+verified pipe dry direct fatal merged
+verified pipe query direct fatal split
+verified pipe query direct fatal merged
+verified pipe dry direct ignored split
+verified pipe dry direct ignored merged
+verified pipe query direct ignored split
+verified pipe query direct ignored merged
+verified pipe dry target fatal split
+verified pipe dry target fatal merged
+verified pipe query target fatal split
+verified pipe query target fatal merged
+verified pipe dry target ignored split
+verified pipe dry target ignored merged
+verified pipe query target ignored split
+verified pipe query target ignored merged
+verified pipe dry recursive fatal split
+verified pipe dry recursive fatal merged
+verified pipe query recursive fatal split
+verified pipe query recursive fatal merged
+verified pipe dry recursive ignored split
+verified pipe dry recursive ignored merged
+verified pipe query recursive ignored split
+verified pipe query recursive ignored merged
+verified pipe dry target healthy control split
+verified pipe dry target healthy control merged
+verified pipe query recursive healthy control split
+verified pipe query recursive healthy control merged
+verified pipe query first child exit 1 split
+verified pipe query first child exit 1 merged
+verified pipe query next child exit 1 split
+verified pipe query next child exit 1 merged
+verified pipe dry skipped second line split
+verified pipe dry skipped second line merged
+verified pipe query skipped second line split
+verified pipe query skipped second line merged
 """
 stderr = ""

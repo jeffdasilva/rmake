@@ -53,7 +53,7 @@ class Case(NamedTuple):
     next_executable: bool = False
 
 
-cases = (
+cases = [
     Case('forced missing', DRY, b'+@', b'+@', True, 2,
          FORCED_STDOUT, PRIOR_ERR + DIRECT_FATAL, FORCED_MERGED + DIRECT_FATAL),
     Case('healthy prior control', DRY, b'+@', b'+@', False, 2,
@@ -129,7 +129,37 @@ cases = (
          next_executable=True),
     Case('query recursive skipped second line', QUERY_RECURSIVE, b'+@', b'@', True, 1,
          PRIOR_OUT, PRIOR_ERR, PRIOR_OUT + PRIOR_ERR),
+]
+
+# Forced lines have the same exact streams under an owned pipe. Target sync
+# uses the direct streams, and Recurse keeps the prior diagnostic global.
+serial_cases = {case.name: case for case in cases}
+pipe_cases = (
+    ('dry direct fatal', 'forced missing', ()),
+    ('query direct fatal', 'query forced missing', ()),
+    ('dry direct ignored', 'direct ignored', ()),
+    ('query direct ignored', 'query direct ignored', ()),
+    ('dry target fatal', 'forced missing', ('-Otarget',)),
+    ('query target fatal', 'query forced missing', ('-Otarget',)),
+    ('dry target ignored', 'direct ignored', ('-Otarget',)),
+    ('query target ignored', 'query direct ignored', ('-Otarget',)),
+    ('dry recursive fatal', 'recursive fatal', ()),
+    ('query recursive fatal', 'query recursive fatal', ()),
+    ('dry recursive ignored', 'recursive ignored', ()),
+    ('query recursive ignored', 'query recursive ignored', ()),
+    ('dry target healthy control', 'healthy prior control', ('-Otarget',)),
+    ('query recursive healthy control', 'query recursive fatal healthy control', ()),
+    ('query first child exit 1', 'query first child exit 1', ()),
+    ('query next child exit 1', 'query next child exit 1', ()),
+    ('dry skipped second line', 'skipped second line control', ()),
+    ('query skipped second line', 'query skipped second line', ()),
 )
+for label, template, extra_options in pipe_cases:
+    case = serial_cases[template]
+    cases.append(case._replace(
+        name=f'pipe {label}',
+        options=('-j2', '--jobserver-style=pipe', *case.options, *extra_options),
+    ))
 
 failures = []
 for case in cases:

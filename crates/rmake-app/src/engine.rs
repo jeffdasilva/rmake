@@ -19719,16 +19719,24 @@ impl Engine {
                     const ELOOP: i32 = 40;
                     let sync_mode = self.output.mode();
                     let modes = MakefileModes::from_options(&self.options);
+                    let single_owned_pipe_recipe = parallel
+                        && self.parallel_jobs.is_empty()
+                        && self.jobserver.as_ref().is_some_and(|server| {
+                            server.owned_slots() == Some(2)
+                                && !server.auth().starts_with(b"fifo:")
+                                && !server.uses_compact_pipe()
+                        });
                     let forced_lookup = force
                         && direct
-                        && !parallel
+                        && (!parallel || single_owned_pipe_recipe)
                         && !one_shell
                         && !modes.touch
                         && (modes.dry_run != modes.question)
-                        && matches!(
+                        && (matches!(
                             sync_mode,
                             crate::output::Mode::None | crate::output::Mode::Recurse
-                        )
+                        ) || (single_owned_pipe_recipe
+                            && sync_mode == crate::output::Mode::Target))
                         && err.kind() == io::ErrorKind::NotFound;
                     if (executable_launch_failed
                         || err.kind() == io::ErrorKind::ArgumentListTooLong
