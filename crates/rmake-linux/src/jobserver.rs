@@ -638,7 +638,12 @@ impl Jobserver {
     }
 
     fn join_pipe(read: c_int, write: c_int, auth: &[u8]) -> io::Result<Self> {
-        if read < 3 || write < 3 || read == write {
+        // A recursive GNU child can inherit its pipe reader in a formerly
+        // vacant output slot. Check CLI entry state before adopting a low wire.
+        if (read < 3 && !crate::process::cli_inherited_output_was_open(read))
+            || write < 3
+            || read == write
+        {
             return Err(io::Error::from(io::ErrorKind::InvalidInput));
         }
         // Startup can occupy previously closed slots advertised by stale

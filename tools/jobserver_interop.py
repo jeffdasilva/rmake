@@ -15,6 +15,7 @@ import conformance as harness
 import oracle
 
 ROOT = Path(__file__).resolve().parents[1]
+LOW_WIRE_FIXTURE = ROOT / 'tests/jobserver-low-wire'
 NODES = ('outer1', 'outer2', 'inner1', 'inner2', 'inner3', 'inner4')
 
 
@@ -88,6 +89,43 @@ def execute(root: Path, parent: Path, child: Path, style: str, borrowed: bool,
         external.unlink(missing_ok=True)
 
 
+def execute_low_wire(root: Path, parent: Path, child: Path, closed_output: int, mode: str):
+    child_alias = root / 'bin/child/make'
+    args = ('-rR', '--no-print-directory', '-j2', '--jobserver-style=pipe',
+            '-O' + mode, f'CHILD={child_alias}', 'all')
+    case = harness.Case(LOW_WIRE_FIXTURE, 'jobserver-inherited-read-wire',
+                        'runtime.jobserver', 'required', args, 5, {},
+                        {'exit_code': 0, 'stdout': '', 'stderr': ''})
+    harness.validate_fixture(case.path)
+    harness.reset_workspace(case, root, parent)
+    child_alias.parent.mkdir(exist_ok=True)
+    child_alias.unlink(missing_ok=True)
+    child_alias.symlink_to(child)
+    work = root / 'work'
+    command = ['/usr/bin/python3', 'witness.py', str(closed_output), str(root / 'bin/make'), *case.args]
+    out, err, status, limit, leftovers = harness.capture(
+        command, work, harness.clean_environment(root), case.timeout)
+    if status < 0 or limit or leftovers:
+        raise harness.HarnessError(
+            f'jobserver low-wire fixture stopped with {status=}, {limit=}, {leftovers=}')
+    files = harness.snapshot({name: root / name for name in ('work', 'home', 'tmp')})
+    observation = harness.Observation(out, err, status, limit, files, leftovers)
+    errors = harness.expectation_errors(case, observation)
+    wire = (closed_output, 3) if closed_output else (3, 4)
+    auth = f'--jobserver-auth={wire[0]},{wire[1]}\n'.encode()
+    if mode == 'target':
+        output = b'file/access=2/append=1 file/access=2/append=1\n'
+    else:
+        output = b' '.join(b'closed' if fd == closed_output else b'pipe/access=1/append=0'
+                           for fd in (1, 2)) + b'\n'
+    for name, expected in [('parent-auth', auth), ('child-auth', auth), ('seen-child', output)]:
+        if not (work / name).is_file() or (work / name).read_bytes() != expected:
+            errors.append('file anchor: ' + name)
+    if any((root / 'tmp').iterdir()):
+        errors.append('jobserver temporary resource leaked')
+    return observation, errors
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--oracle', type=Path, default=oracle.PREFIX / 'bin/make')
@@ -137,8 +175,19 @@ def main() -> int:
     results.append(dict(style='sentinel-bytes', parent='rmake', child='rmake', seed_hex='515a',
                         expected_hex='2b2b', errors=errors))
     print(('FAIL' if errors else 'PASS'), 'ordinary sentinel token bytes', errors)
+    for closed_output, mode in ((0, 'target'), (1, 'target'), (2, 'target'), (1, 'none'), (2, 'none')):
+        baseline, baseline_errors = execute_low_wire(destination, reference, reference, closed_output, mode)
+        repeated, repeat_errors = execute_low_wire(destination, reference, reference, closed_output, mode)
+        observed, errors = execute_low_wire(destination, reference, candidate, closed_output, mode)
+        errors += baseline_errors + repeat_errors + harness.differences(baseline, repeated)
+        errors += harness.differences(baseline, observed)
+        results.append(dict(style='pipe-inherited-read-wire', parent='gnu', child='rmake',
+                            closed_output=closed_output, output_sync=mode, errors=errors))
+        print(('FAIL' if errors else 'PASS'), 'GNU parent pipe read wire',
+              closed_output or 'open outputs', mode, errors)
     report = dict(profile_id=profile['profile_id'], candidate=identity,
                   fixture_sha256={p.name: harness.sha256_file(p) for p in (ROOT / 'tests/jobserver').iterdir()},
+                  low_wire_fixture_sha256={p.name: harness.sha256_file(p) for p in LOW_WIRE_FIXTURE.iterdir()},
                   results=results)
     (destination / 'report.json').write_text(json.dumps(report, indent=2))
     failed = sum(bool(row['errors']) for row in results)
