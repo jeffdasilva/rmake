@@ -59,7 +59,8 @@ fn main() {
             std::env::var_os("RMAKE_GUILE_PREFIX")
                 .expect("guile requires an explicit verified library prefix"),
         );
-        let library = prefix.join("usr/lib/x86_64-linux-gnu");
+        let arch = std::env::var("CARGO_CFG_TARGET_ARCH").expect("Cargo target architecture");
+        let library = prefix.join("usr/lib").join(format!("{arch}-linux-gnu"));
         println!("cargo:rustc-link-arg=-Wl,-rpath,{}", library.display());
     }
     // Existing GNU plugins resolve these public C entry points from the host.

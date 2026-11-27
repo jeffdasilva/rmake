@@ -111,7 +111,8 @@ def main():
     args.report.parent.mkdir(parents=True, exist_ok=True)
     report = {"classification": "Bounded strict Guile frontend comparison; no complete profile or M6 claim",
               "profile_sha256": h.sha256_file(args.profile), "model_inventory_sha256": h.sha256_file(DATA / "suites.json"),
-              "oracle": h.executable_identity(oracle, oracle=True), "candidate": h.executable_identity(args.candidate) if args.candidate else None,
+              "oracle": h.executable_identity(oracle, oracle=True, environment=environment),
+              "candidate": h.executable_identity(args.candidate, environment=environment) if args.candidate else None,
               "functional_cpu_affinity": sorted(os.sched_getaffinity(0)), "records": [], "passed": False}
     locales = {row["locale"] for _, row in selected if "locale" in row}
     locale_profile = None

@@ -475,7 +475,8 @@ def expectation_errors(case: Case, observation: Observation, *, root: Path | Non
     return errors
 
 
-def executable_identity(path: Path, *, oracle: bool = False) -> dict[str, Any]:
+def executable_identity(path: Path, *, oracle: bool = False,
+                        environment: dict[str, str] | None = None) -> dict[str, Any]:
     path = path.expanduser().resolve()
     if not path.is_file() or not os.access(path, os.X_OK):
         raise HarnessError(f"executable not found or not executable: {path}")
@@ -484,7 +485,7 @@ def executable_identity(path: Path, *, oracle: bool = False) -> dict[str, Any]:
         for name in ("bin", "home", "tmp"):
             (root / name).mkdir()
         output, error, status, limit, leftovers = capture(
-            [str(path), "--version"], root, clean_environment(root), 5)
+            [str(path), "--version"], root, clean_environment(root, environment), 5)
     if limit or leftovers or status != 0:
         raise HarnessError(f"unable to obtain executable identity: {path}")
     first_line = output.splitlines()[0] if output.splitlines() else b""
