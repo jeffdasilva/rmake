@@ -6,6 +6,7 @@ import io
 import json
 import shutil
 import socket
+import sys
 from pathlib import Path
 import tarfile
 import tempfile
@@ -191,6 +192,28 @@ class IntegrationTests(unittest.TestCase):
             network.assert_not_called()
         with self.assertRaisesRegex(h.HarnessError, 'identifier'):
             i.archive_for({'id': '../escape'}, Path('/not-written'))
+
+    def test_bootstrap_cli_reports_directory_blocking_cached_archive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cache = root / 'cache'
+            archive = cache / 'zlib-1.3.2.tar.gz'
+            archive.mkdir(parents=True)
+            report = root / 'report.json'
+            sentinel = b'{"previous": true}\n'
+            report.write_bytes(sentinel)
+            previous = report.stat()
+            argv = [sys.executable, '-B', i.__file__, '--bootstrap-only',
+                    '--case', 'zlib-1.3.2', '--cache', str(cache), '--report', str(report)]
+
+            stdout, stderr, status, limit, leftovers = h.capture(argv, root, h.clean_environment(root), 5)
+            self.assertEqual((stdout, status, limit, leftovers), (b'', 1, None, False))
+            self.assertRegex(stderr, rb"\Aintegration: [^\n]*Is a directory[^\n]*zlib-1\.3\.2\.tar\.gz[^\n]*\n\Z")
+            self.assertEqual(list(cache.iterdir()), [archive])
+            self.assertEqual(list(archive.iterdir()), [])
+            self.assertEqual(report.read_bytes(), sentinel)
+            self.assertEqual((report.stat().st_ino, report.stat().st_mtime_ns), (previous.st_ino, previous.st_mtime_ns))
+            self.assertEqual(set(root.iterdir()), {cache, report})
 
     def test_missing_primary_moves_to_fallback_and_retries_transient_dns(self):
         source = b'verified source'

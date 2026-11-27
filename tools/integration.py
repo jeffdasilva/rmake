@@ -579,4 +579,7 @@ def main(argv=None, *, verify_reference=None):
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (h.HarnessError, oracle.OracleError, OSError, ValueError, tarfile.TarError) as error:
+        raise SystemExit(f'integration: {error}') from None
