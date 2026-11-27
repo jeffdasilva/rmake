@@ -973,6 +973,7 @@ struct FileVisit {
     parent: Option<OwnedScopeParent>,
     // Ordinary pass plus one, recorded when verbose output was disabled.
     quiet_consideration: Option<NonZeroU64>,
+    existing_intermediate: Option<bool>,
 }
 
 // Scope is established before expansion. An update result can be
@@ -8424,6 +8425,7 @@ impl Engine {
         self.file_traversals.remember_visit(target, || FileVisit {
             parent: Some(OwnedScopeParent::new(parent, records.id(parent.target))),
             quiet_consideration: None,
+            existing_intermediate: None,
         });
         if !self.resolve_implicit_for_intermediate(target, depth) {
             return Inspection {
@@ -13648,6 +13650,7 @@ impl Engine {
                 parent: parent
                     .map(|parent| OwnedScopeParent::new(parent, records.id(parent.target))),
                 quiet_consideration,
+                existing_intermediate: None,
             })
             .quiet_consideration = quiet_consideration;
         let phony = self.special(b".PHONY", target, false);
@@ -13691,6 +13694,24 @@ impl Engine {
             .rules
             .get(target)
             .is_some_and(|rule| rule.double_colon.is_some());
+        if !double_colon
+            && self.special(b".INTERMEDIATE", target, false)
+            && rmake_core::filenames::archive_parts(target).is_none()
+        {
+            // A local file found before its first recipe or implicit search
+            // loses the declared intermediate marker in the database.
+            let existing = !phony
+                && matches!(resolved, Some((None, Some(_))))
+                && self.assumed_time(target).is_none()
+                && !self.database_implicit.contains(target);
+            if let Some(visit) = self
+                .file_traversals
+                .record_mut(target)
+                .and_then(|record| record.visit.as_mut())
+            {
+                visit.existing_intermediate.get_or_insert(existing);
+            }
+        }
         let comparison = if double_colon {
             before
         } else {
@@ -16816,15 +16837,49 @@ impl Engine {
                         .is_some_and(|child| self.prerequisite_stale(state.comparison, *child))
             });
             self.apply_graph_abort(&mut state.outcome);
-            if state.stale && !state.outcome.failed && !state.outcome.question_outdated {
+            if state.stale
+                && !state.outcome.failed
+                && !state.outcome.question_outdated
+                && !state.deferred_intermediates.is_empty()
+            {
+                let observe_named_intermediate = !self.remaking
+                    && self.active_makefile_remake.is_none()
+                    && !self.parallel_graph()
+                    && state.branch.is_none()
+                    && state.group.is_none()
+                    && self.ordinary_queries.first_verdict.is_none()
+                    && !MakefileModes::from_options(&self.options).active();
                 for dependency in &state.deferred_intermediates {
-                    let child = self.build(
+                    let mut child = self.build(
                         dependency,
                         Some(state.scope_parent(target)),
                         state.depth + 1,
                     );
+                    let pending = self.pending(dependency);
+                    if observe_named_intermediate
+                        && !pending
+                        && child.ran
+                        && !child.failed
+                        && !child.question_outdated
+                        && child.completion == CompletionTime::Refresh
+                        && !child.search_after_update
+                        && !self.aliases.contains_source_or_destination(dependency)
+                        && !self.reopened_include_times.contains(dependency)
+                        && rmake_core::filenames::archive_parts(dependency).is_none()
+                        && self.special(b".INTERMEDIATE", dependency, false)
+                        && self.database.rules.get(dependency).is_some_and(|rule| {
+                            rule.double_colon.is_none()
+                                && rule.grouped_targets().is_none()
+                                && rule.implicit_pattern.is_none()
+                                && !rule.default_recipe
+                        })
+                    {
+                        // The parent consumes the settled timestamp before
+                        // intermediate cleanup can remove the file.
+                        child = self.observe_updated(dependency, child);
+                    }
                     merge_child(&mut state.outcome, child);
-                    waiting |= self.pending(dependency);
+                    waiting |= pending;
                 }
             }
         }
@@ -19948,6 +20003,7 @@ mod tests {
                 None,
             )),
             quiet_consideration: NonZeroU64::new(2),
+            existing_intermediate: None,
         });
         assert!(files.remove_outcome(name).expect("initial outcome").ran);
         assert!(files.visit(name).is_some());
@@ -20091,6 +20147,7 @@ mod tests {
                 None,
             )),
             quiet_consideration: None,
+            existing_intermediate: None,
         });
         engine.file_traversals.set_outcome(
             leaf,

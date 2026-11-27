@@ -382,7 +382,15 @@ impl Engine {
                 .and_then(|variables| variables.get(b"*"))
                 .map(|variable| variable.raw_value())
         });
-        view.intermediate = self.intermediates.contains(name);
+        // The post-read policy marks named intermediates before any visit.
+        view.intermediate = self.intermediates.contains(name)
+            || (branch.is_none()
+                && !detached_head
+                && self.special(b".INTERMEDIATE", name, false)
+                && self
+                    .file_traversals
+                    .visit(name)
+                    .is_none_or(|visit| visit.existing_intermediate != Some(true)));
         view.not_intermediate = self.special(b".NOTINTERMEDIATE", name, true);
         let named_secondary = self.special(b".SECONDARY", name, false);
         view.secondary = named_secondary
