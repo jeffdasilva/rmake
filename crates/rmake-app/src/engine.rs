@@ -11891,7 +11891,6 @@ impl Engine {
             || !self.vpath_dirs.is_empty()
             || !self.gpath_dirs.is_empty()
             || self.database.file_records.contains(&child.name)
-            || self.database.file_records.contains(&input.name)
             || [&parent.name, &child.name, &input.name].iter().any(|name| {
                 name.contains(&b'/')
                     || name.starts_with(b"-l")
@@ -11901,6 +11900,23 @@ impl Engine {
             })
         {
             return None;
+        }
+        if self.database.file_records.contains(&input.name) {
+            let rule = self.database.rules.get(&input.name)?;
+            if !self.database.explicit_names.contains(&input.name)
+                || self.special(b".PHONY", &input.name, false)
+                || rule.record_only
+                || rule.default_recipe
+                || rule.implicit_pattern.is_some()
+                || rule.stem.is_some()
+                || rule.secondary.is_some()
+                || rule.group.is_some()
+                || rule.double_colon.is_some()
+                || !rule.dependencies.is_empty()
+                || rule.recipes.is_none()
+            {
+                return None;
+            }
         }
         Some((
             &input.name,
