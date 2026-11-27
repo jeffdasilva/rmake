@@ -766,9 +766,9 @@ inherited jobserver pipe.
 
 The [AArch64 GNU reference workflow](../.github/workflows/guile-aarch64-reference.yml)
 checks the pinned GNU Make 4.4.1 Guile feature and a Scheme scalar result. The
-native AArch64 glibc job uses that SDK and reference to gate seven application
-models against the enabled rmake release. The full application and component
-gates use the x86-64 glibc SDK.
+native AArch64 glibc job uses that SDK and reference to gate twelve application
+models against the enabled rmake release, including five live converter cases.
+The full application and component gates use the x86-64 glibc SDK.
 
 ## Integration and performance
 
