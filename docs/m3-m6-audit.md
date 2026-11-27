@@ -41,7 +41,11 @@ at the end of this audit.
   An unchanged `MAKEFLAGS` replay also records its encoded command-line eval
   reference when present.
   When the reader changes canonical `MAKEFLAGS`, post-read command replay
-  consumes the already expanded default command-variable suffix. The original
+  consumes the already expanded default command-variable suffix. The ordinary
+  non-POSIX suffix also reuses the result of a file-defined recursive
+  `MAKEOVERRIDES` so its expansion effects run once before the first recipe.
+  A changed canonical POSIX suffix that directly names the automatic
+  command-line snapshot replays that expanded snapshot. The original
   command-line source is read again in the next process image after a restart.
   The startup preload list uses one expansion of `MAKEFILES` after command-line
   eval. An absent binding can warn at that point, while a defined empty binding
@@ -749,10 +753,11 @@ deep evaluation and five optimized file and archive ownership cases. The
 optimized x86-64 cases, including native module setup, process restart and an
 inherited jobserver pipe.
 
-A separate hosted ARM job verified the pinned GNU Make 4.4.1 Guile feature and
-a Scheme scalar result. The enabled rmake application and component gates use
-the x86-64 glibc SDK. See the
-[AArch64 GNU reference workflow](../.github/workflows/guile-aarch64-reference.yml).
+The [AArch64 GNU reference workflow](../.github/workflows/guile-aarch64-reference.yml)
+checks the pinned GNU Make 4.4.1 Guile feature and a Scheme scalar result. The
+native AArch64 glibc job uses that SDK and reference to gate seven application
+models against the enabled rmake release. The full application and component
+gates use the x86-64 glibc SDK.
 
 ## Integration and performance
 

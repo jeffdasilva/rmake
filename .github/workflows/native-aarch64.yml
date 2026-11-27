@@ -162,6 +162,84 @@ jobs:
         run: |
           python3 tools/integration.py --case xxhash-0.8.3 --candidate target/release/rmake \
             --report artifacts/integration/aarch64-xxhash-optimized.json
+      - name: Check the Guile-enabled application
+        timeout-minutes: 15
+        shell: bash
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          PYTHONPATH: tools
+        run: |
+          sdk=.tools/guile-aarch64
+          profile="$sdk/reference-profile.json"
+          reports=artifacts/guile-aarch64
+          mkdir -p "$reports"
+          python3 tools/guile_toolchain.py --root "$sdk" --reference
+          target=$(mktemp -d "$RUNNER_TEMP/rmake-guile-aarch64.XXXXXX")
+          trap 'rm -rf -- "$target"' EXIT
+          export CARGO_TARGET_DIR="$target"
+          python3 tools/guile_profile_exec.py --profile "$profile" -- \
+            python3 tools/rust.py cargo build --release --locked -p rmake --features guile
+          candidate="$target/release/rmake"
+          python3 - "$profile" "$candidate" "$reports/identity.json" <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import platform
+          import sys
+          import tempfile
+
+          from conformance import executable_identity, sha256_file
+          from guile_frontend import read_profile
+          from guile_toolchain import run
+
+          profile_path, candidate, report = map(Path, sys.argv[1:])
+          profile = read_profile(profile_path)
+          environment = profile['environment']
+          commit = run(['git', 'rev-parse', 'HEAD'], timeout=10).stdout.strip().decode()
+          assert commit == os.environ['GITHUB_SHA']
+          header = run(['readelf', '-h', str(candidate)], env=environment, timeout=10).stdout
+          assert any(line.split() == [b'Machine:', b'AArch64'] for line in header.splitlines())
+
+          library = Path(environment['LD_LIBRARY_PATH']).resolve()
+          expected = {'libguile-3.0.so.1', 'libgc.so.1'}
+          linked = {}
+          dependencies = run(['ldd', str(candidate)], env=environment, timeout=10).stdout
+          assert b'not found' not in dependencies, dependencies
+          for line in dependencies.decode().splitlines():
+              name, separator, detail = line.strip().partition(' => ')
+              if separator and name in expected:
+                  path = Path(detail.split()[0]).resolve(strict=True)
+                  assert path.is_relative_to(library), (name, path, library)
+                  linked[name] = {'path': str(path), 'sha256': sha256_file(path)}
+          assert linked.keys() == expected, dependencies
+
+          source = bytes.fromhex(profile['smoke_input_hex']) + b'$(info HOST=[$(MAKE_HOST)])\n'
+          with tempfile.TemporaryDirectory(prefix='rmake-guile-arm-smoke-') as work:
+              smoke = run([str(candidate), '-rR', '--no-print-directory', '-f', '-'],
+                          cwd=work, env=environment, input=source, timeout=10)
+          features, result, host = smoke.stdout.splitlines()
+          assert not smoke.stderr and features.startswith(b'FEATURES=[') and features.endswith(b']')
+          assert b'guile' in features[10:-1].split() and result == b'RESULT=[42]'
+          assert host == b'HOST=[aarch64-unknown-linux-gnu]'
+          report.write_text(json.dumps({
+              'source_commit': commit,
+              'host_machine': platform.machine(),
+              'host_libc': platform.libc_ver(),
+              'candidate': executable_identity(candidate, environment=environment),
+              'reference_profile_sha256': sha256_file(profile_path),
+              'elf_header': header.decode(),
+              'guile_runtime': linked,
+              'smoke_stdout_hex': smoke.stdout.hex(),
+              'smoke_stderr_hex': smoke.stderr.hex(),
+          }, indent=2) + '\n')
+          PY
+          python3 tools/guile_frontend.py --profile "$profile" --candidate "$candidate" \
+            --locale-root .tools/locale-data-arm64 \
+            --case guile-frontend-integer \
+            --case c-valid-utf8-source --case utf8-valid-utf8-source --case callback-eval-false \
+            --case module-public-interface --case module-public-gmk-var \
+            --case guile-bridge-shell-target --report "$reports/application.json"
+          du -sb -- "$sdk" "$target" > "$reports/disk-bytes.txt"
       - name: Retain native profile and reports
         if: always()
         continue-on-error: true
@@ -171,9 +249,15 @@ jobs:
           name: native-aarch64-${{ github.sha }}-${{ github.run_attempt }}
           path: |
             .tools/oracle/profile.json
+            .tools/guile-aarch64/profile.json
+            .tools/guile-aarch64/reference-profile.json
+            .tools/guile-aarch64/references/*-build.log
+            .tools/guile-aarch64/provenance/signature-status.txt
+            .tools/guile-aarch64/provenance/*.package
             artifacts/developer-flows/
             artifacts/evaluation-aarch64/
             artifacts/file-owner-aarch64/
+            artifacts/guile-aarch64/
             artifacts/locales/aarch64-*.json
             artifacts/integration/
             artifacts/process-restarts/

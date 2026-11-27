@@ -67,7 +67,11 @@ pub(crate) fn has_default_snapshot(variables: &VariableStore) -> bool {
             && binding.flavor() == Flavor::Recursive
             && binding.definition().is_none()
             && binding.raw_value() == DEFAULT_OVERRIDES
-    }) && variables.get(SNAPSHOT).is_some_and(|binding| {
+    }) && has_automatic_snapshot(variables)
+}
+
+pub(crate) fn has_automatic_snapshot(variables: &VariableStore) -> bool {
+    variables.get(SNAPSHOT).is_some_and(|binding| {
         binding.origin() == Origin::Automatic
             && binding.flavor() == Flavor::Simple
             && binding.definition().is_none()

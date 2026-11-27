@@ -192,10 +192,13 @@ own expansion. The models check the order of effects, literal operand bytes,
 and the localized error from an invalid `word` argument.
 The `file` function has typed errors for a missing name, an extra read argument
 or an invalid operation. Through `eval`, these errors still use the innermost
-recursive definition's location when one is active. Filesystem and parser
-errors use the reader location. Tests cover both locations, eager side effects
-and raw argument bytes. The same definition location applies to a nonnumeric
-`word` index, out-of-bounds `wordlist` arguments and invalid `intcmp` operands.
+located recursive definition, including when a command-line or environment
+alias performs the evaluation. The active reader owns the diagnostic when
+the expansion has no located definition. Filesystem failures, parser errors
+and user errors use the reader location. Tests cover both locations, eager side
+effects and raw argument bytes. The same definition location applies to a
+nonnumeric `word` index, out-of-bounds `wordlist` arguments and invalid `intcmp`
+operands.
 Numeric tests include a fresh inner definition, true arity errors and a
 successful comparison that runs only the selected branch.
 [Low-resolution timestamp models](../tests/nls/low-resolution.json)
