@@ -911,7 +911,7 @@ pub(crate) fn emit_output(
         let _ = rmake_linux::native::flush_stream(matches!(output, Output::Warning { .. }));
     }
     match output {
-        Output::Info(message) => controller.write_parts(false, &[message, b"\n"]),
+        Output::Info(message) => controller.write_info_parts(&[message, b"\n"]),
         Output::SystemWarning { .. } => unreachable!("typed warning was formatted above"),
         Output::Warning { location, message } => {
             if let Some(location) = location.filter(|location| !location.file.is_null()) {
@@ -3112,11 +3112,15 @@ impl Engine {
         let wait = shutdown.report(owner);
         self.shutdown.set(shutdown);
         if let Some(location) = location.filter(|location| !location.file.is_null()) {
-            self.output
-                .write_parts(true, &[&location_prefix(location), b"*** ", message, stop]);
+            self.output.write_diagnostic_parts(&[
+                &location_prefix(location),
+                b"*** ",
+                message,
+                stop,
+            ]);
         } else {
             self.output
-                .write_parts(true, &[&self.program, b": *** ", message, stop]);
+                .write_diagnostic_parts(&[&self.program, b": *** ", message, stop]);
         }
         self.unlink_stdin();
         if wait {

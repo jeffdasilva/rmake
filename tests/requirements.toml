@@ -1365,13 +1365,13 @@ cases = ["output-sync-temp-creation-failure"]
 
 [[requirements]]
 id = "runtime.output-sync-reader-temp-replay"
-title = "Post-read output synchronization after reader stdout spool creation fails"
+title = "Reader and post-read output synchronization after spool creation fails"
 status = "fixture-ready"
 candidate_status = "implemented-slice"
 reference = "docs/debug-output.md"
-candidate_required = 1
-fixture_count = 1
-cases = ["output-sync-reader-temp-replay"]
+candidate_required = 2
+fixture_count = 2
+cases = ["output-sync-reader-temp-replay", "output-sync-reader-spool-retry"]
 
 [[requirements]]
 id = "runtime.output-sync-verbose-mutex"

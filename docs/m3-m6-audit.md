@@ -638,6 +638,12 @@ and line/target synchronization. Further combinations remain required.
 
 **Evidence**
 
+- A failed reader temporary spool retains one retry for the next built-in
+  output. Direct reader info already emitted stays in order. A warning or
+  fatal diagnostic pending during another creation failure is replaced by
+  the suppression message. Fatal status and the separate post-read replay
+  remain observable.
+  [Reader spool fixture](../tests/cases/output-sync-reader-spool-retry/case.toml)
 - [Output spool pressure](../tests/resource-fd-spool/README.md),
   [compact pipe pressure](../tests/resource-fd-pipe/README.md),
   [FIFO pressure and protected-directory failures](../tests/resource-fd-fifo/README.md)
