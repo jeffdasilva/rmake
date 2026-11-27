@@ -172,6 +172,8 @@ NUL boundaries, rebinding and cancellation.
   An optional include in an ordinary recipe body also records its failed open
   when the file has no completed visit and the parallel job queue is idle or
   holds one separate ordinary recipe.
+  Required includes in the same recipe-body phase retain the failed open
+  while the parallel job queue is idle.
   Optional includes from target-specific shell configuration also retain
   their missing timestamps while the parallel job queue is idle or holds
   one separate ordinary recipe.

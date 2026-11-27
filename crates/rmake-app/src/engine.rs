@@ -2497,7 +2497,11 @@ impl Engine {
             && self.active_makefile_remake.is_none()
             && !MakefileModes::from_options(&self.options).active()
             && (self.parallel_jobs.is_empty() || self.one_running_ordinary_recipe());
-        let first_recipe_include = observe_recipe_includes.then_some(self.database.makefiles.len());
+        let first_recipe_include = observe_recipe_includes.then(|| {
+            let include_required =
+                site == ScopedExpansionSite::RecipeBody && self.parallel_jobs.is_empty();
+            (self.database.makefiles.len(), include_required)
+        });
         let mut target_reads = TargetReads {
             visits: &self.file_traversals,
             retained_parents: &self.retained_scope_parents,
@@ -2550,8 +2554,8 @@ impl Engine {
         for (name, opened) in open_results {
             self.retain_include_open_time(name, opened);
         }
-        if let Some(first) = first_recipe_include {
-            self.retain_optional_include_open_times(first);
+        if let Some((first, include_required)) = first_recipe_include {
+            self.retain_scoped_include_open_times(first, include_required);
         }
         result
     }
@@ -2573,7 +2577,7 @@ impl Engine {
                 })
     }
 
-    fn retain_optional_include_open_times(&mut self, first: usize) {
+    fn retain_scoped_include_open_times(&mut self, first: usize, include_required: bool) {
         // The reader records the directive's optional policy and the
         // selected file identity together.
         let observations: Vec<_> = self
@@ -2581,7 +2585,9 @@ impl Engine {
             .makefiles
             .iter()
             .skip(first)
-            .filter(|file| file.optional && !self.file_traversals.has_outcome(&file.name))
+            .filter(|file| {
+                (file.optional || include_required) && !self.file_traversals.has_outcome(&file.name)
+            })
             .map(|file| (file.name.clone(), !file.missing))
             .collect();
         for (name, opened) in observations {
@@ -19260,7 +19266,7 @@ impl Engine {
                             }
                             Err(err) => {
                                 if let Some(first) = first_export_include {
-                                    self.retain_optional_include_open_times(first);
+                                    self.retain_scoped_include_open_times(first, false);
                                 }
                                 self.expansion_error(variable.definition(), &err);
                                 return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
@@ -19271,7 +19277,7 @@ impl Engine {
                     }
                 }
                 if let Some(first) = first_export_include {
-                    self.retain_optional_include_open_times(first);
+                    self.retain_scoped_include_open_times(first, false);
                 }
                 if !export_selected(
                     &environment_variables,
