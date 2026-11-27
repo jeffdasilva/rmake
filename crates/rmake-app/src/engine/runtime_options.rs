@@ -813,12 +813,13 @@ impl Engine {
         &mut self,
         restarts: u32,
         published_load_limit: bool,
-    ) -> Result<(), ()> {
+    ) -> Result<Option<Vec<u8>>, ()> {
         if let Some(options) = self.flag_state.take() {
             self.options = options;
         }
         let mut changed = false;
         let mut file_jobs = None;
+        let mut command_overrides = None;
         for name in [b"GNUMAKEFLAGS".as_slice(), b"MAKEFLAGS".as_slice()] {
             let warn_missing =
                 self.flag_state.warn_undefined.get() && self.database.variables.get(name).is_none();
@@ -866,6 +867,23 @@ impl Engine {
             let value = if let Some(prefix) = unchanged_makeflags.filter(|_| changed) {
                 Some(prefix.to_vec())
             } else if !unchanged {
+                // Reuse a pure canonical suffix at command replay. Dynamic
+                // prefixes and user declarations keep their existing reads.
+                let reuse_snapshot = name == b"MAKEFLAGS"
+                    && self.command_replay
+                    && crate::command_variables::has_default_snapshot(&self.database.variables)
+                    && binding.is_some_and(|binding| {
+                        binding.definition().is_none()
+                            && binding.flavor() == Flavor::Recursive
+                            && binding
+                                .raw_value()
+                                .strip_suffix(self.database.command_overrides_reference())
+                                .is_some_and(|prefix| {
+                                    !prefix.contains(&b'$')
+                                        && !prefix.windows(4).any(|part| part == b" -- ")
+                                        && prefix == self.options.makeflags_for_phase(false)
+                                })
+                    });
                 let expression = [b"$(".as_slice(), name, b")"].concat();
                 match self.expand_global(&expression, None) {
                     Ok(mut value) => {
@@ -877,6 +895,9 @@ impl Engine {
                             && let Some(boundary) =
                                 value.windows(4).position(|part| part == b" -- ")
                         {
+                            if reuse_snapshot {
+                                command_overrides = Some(value.split_off(boundary + 4));
+                            }
                             value.truncate(boundary);
                         }
                         Some(value)
@@ -926,7 +947,7 @@ impl Engine {
                 .as_ref()
                 .is_some_and(|buffer| buffer.failed_to_buffer_reader_output());
         if !changed && !retry_reader {
-            return Ok(());
+            return Ok(command_overrides);
         }
         if let Some(jobs) = file_jobs.filter(|jobs| Some(*jobs) != self.flag_entry_jobs)
             && self.options.jobserver_auth.is_some()
@@ -985,7 +1006,7 @@ impl Engine {
             self.reader_output = self.output.reader_buffer();
             self.output.select(self.reader_output.as_ref());
         }
-        Ok(())
+        Ok(command_overrides)
     }
 
     fn complete_passive_mutex(&self) -> Result<(), ()> {

@@ -3605,7 +3605,27 @@ impl Database {
                             || single_colon().is_some_and(|rule| rule.group.is_none()))
                 }
                 b"@" | b"%" | b"*" | b"<" | b"^" | b"+" | b"?" | b"|" => {
-                    kind == Assignment::Append
+                    // An override assignment can still select the retained
+                    // automatic binding in the named file's runtime table.
+                    let override_retained = assignment.origin == Origin::Override
+                        && matches!(kind, Assignment::Simple | Assignment::Recursive)
+                        && !assignment.private
+                        && assignment.export.is_none()
+                        && scope.get(&name).is_none()
+                        && self
+                            .evaluation_scope
+                            .as_ref()
+                            .is_some_and(|caller| !caller.is_file_read_context(target))
+                        && single_colon().is_some_and(|rule| {
+                            rule.group.is_none()
+                                && rule.implicit_pattern.is_none()
+                                && !rule.default_recipe
+                        })
+                        && context
+                            .target_reads
+                            .as_deref()
+                            .is_some_and(|reads| !reads.has_file_aliases());
+                    (kind == Assignment::Append || override_retained)
                         && declaration.head.is_none()
                         && self
                             .evaluation_scope

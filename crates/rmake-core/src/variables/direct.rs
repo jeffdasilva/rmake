@@ -152,9 +152,10 @@ impl Expansion<'_, '_> {
     pub(super) fn direct_expression(
         &mut self,
         input: &[u8],
+        nearest: Option<&Arc<Location>>,
     ) -> Option<Result<Vec<u8>, ExpandError>> {
         let mut lookups = crate::database::LookupBatch::default();
-        let result = self.direct_expression_planned(input, &mut lookups)?;
+        let result = self.direct_expression_planned(input, nearest, &mut lookups)?;
         lookups.commit();
         Some(result)
     }
@@ -162,6 +163,7 @@ impl Expansion<'_, '_> {
     fn direct_expression_planned(
         &mut self,
         input: &[u8],
+        nearest: Option<&Arc<Location>>,
         lookups: &mut crate::database::LookupBatch,
     ) -> Option<Result<Vec<u8>, ExpandError>> {
         // A recognized eager function cannot be a pure literal reference.
@@ -211,7 +213,7 @@ impl Expansion<'_, '_> {
         for range in ranges {
             let argument = &argument[range];
             let prepared = if native {
-                self.expand(argument)
+                self.expand_at(argument, nearest)
             } else if let Some(result) = self.pure_bytes_planned(argument, lookups) {
                 result
             } else {
@@ -228,7 +230,10 @@ impl Expansion<'_, '_> {
         // Argument preparation is now selected. Publish its logical reads
         // before the builtin can emit output, mutate bindings, or fail.
         std::mem::take(lookups).commit();
-        Some(self.eager_function(name, &values))
+        Some(
+            self.eager_function(name, &values, nearest)
+                .map_err(|error| self.locate_expansion_error(error, nearest)),
+        )
     }
 }
 
@@ -344,7 +349,7 @@ mod tests {
         expansion.depth = DIRECT_DEPTH;
         assert!(
             expansion
-                .direct_expression(b"$(subst $(B),x,$(shell forbidden))")
+                .direct_expression(b"$(subst $(B),x,$(shell forbidden))", None)
                 .is_none()
         );
         assert_eq!(table.stats(), before);
@@ -368,7 +373,7 @@ mod tests {
         let mut expansion = store.expansion(ExpansionContext::new(None, &mut receiver));
         expansion.depth = DIRECT_DEPTH;
         assert_eq!(
-            expansion.direct_expression(b"$(info $(A))"),
+            expansion.direct_expression(b"$(info $(A))", None),
             Some(Ok(Vec::new()))
         );
         assert_eq!(seen, [(b"value".to_vec(), before + 1)]);

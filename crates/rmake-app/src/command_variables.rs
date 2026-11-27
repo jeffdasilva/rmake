@@ -8,6 +8,7 @@ use rmake_core::parser::assignment;
 use rmake_core::variables::{Assignment, ExpandError, Flavor, MAX_OUTPUT, Origin, VariableStore};
 
 const SNAPSHOT: &[u8] = b"-*-command-variables-*-";
+const DEFAULT_OVERRIDES: &[u8] = b"${-*-command-variables-*-}";
 
 pub(crate) fn quote(output: &mut Vec<u8>, input: &[u8]) -> Result<(), ExpandError> {
     for &byte in input {
@@ -50,7 +51,7 @@ pub fn prepare(variables: &mut VariableStore, names: &[Vec<u8>]) -> Result<bool,
         variables.define_literal(SNAPSHOT, &encoded, Origin::Automatic)?;
         variables.define(
             b"MAKEOVERRIDES",
-            b"${-*-command-variables-*-}",
+            DEFAULT_OVERRIDES,
             Assignment::Recursive,
             Origin::Default,
         )?;
@@ -58,6 +59,19 @@ pub fn prepare(variables: &mut VariableStore, names: &[Vec<u8>]) -> Result<bool,
     Ok(variables
         .get(b"MAKEOVERRIDES")
         .is_some_and(|variable| !variable.raw_value().is_empty()))
+}
+
+pub(crate) fn has_default_snapshot(variables: &VariableStore) -> bool {
+    variables.get(b"MAKEOVERRIDES").is_some_and(|binding| {
+        binding.origin() == Origin::Default
+            && binding.flavor() == Flavor::Recursive
+            && binding.definition().is_none()
+            && binding.raw_value() == DEFAULT_OVERRIDES
+    }) && variables.get(SNAPSHOT).is_some_and(|binding| {
+        binding.origin() == Origin::Automatic
+            && binding.flavor() == Flavor::Simple
+            && binding.definition().is_none()
+    })
 }
 
 fn tokens(input: &[u8]) -> impl Iterator<Item = Vec<u8>> + '_ {
@@ -100,13 +114,17 @@ fn tokens(input: &[u8]) -> impl Iterator<Item = Vec<u8>> + '_ {
 pub fn replay(
     variables: &mut VariableStore,
     active: bool,
+    already_expanded: Option<Vec<u8>>,
     environment_origin: Origin,
     mut context: ExpansionContext<'_>,
 ) -> Result<Vec<Vec<u8>>, ExpandError> {
     if !active {
         return Ok(Vec::new());
     }
-    let encoded = variables.expand_at_invocation_with(b"$(MAKEOVERRIDES)", context.reborrow())?;
+    let encoded = match already_expanded {
+        Some(encoded) => encoded,
+        None => variables.expand_at_invocation_with(b"$(MAKEOVERRIDES)", context.reborrow())?,
+    };
     let mut names = Vec::new();
     for token in tokens(&encoded) {
         let Some(spec) = assignment(&token) else {
@@ -154,6 +172,7 @@ mod tests {
         replay(
             &mut variables,
             active,
+            None,
             Origin::Environment,
             ExpansionContext::pure(),
         )

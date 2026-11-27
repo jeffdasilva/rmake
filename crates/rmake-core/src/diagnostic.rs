@@ -3,7 +3,7 @@
 
 //! Owned diagnostic text with lossless transport for Makefile bytes.
 
-use std::fmt;
+use std::{fmt, sync::Arc};
 
 /// Source identity preserves the native ABI distinction between NULL and a
 /// non-NULL pointer to an empty filename. Clones share named source bytes.
@@ -494,6 +494,7 @@ pub trait TargetReadReceiver {
 /// shared by cloned variable stores; each evaluation chooses its own receiver.
 pub struct ExpansionContext<'a> {
     pub location: Option<&'a Location>,
+    pub(crate) eval_argument_location: Option<Arc<Location>>,
     cancellation: Option<&'a std::sync::atomic::AtomicBool>,
     output: Option<&'a mut dyn OutputReceiver>,
     filesystem: Option<&'a mut FilesystemReceiver<'a>>,
@@ -522,6 +523,7 @@ impl<'a> ExpansionContext<'a> {
     ) -> Self {
         Self {
             location,
+            eval_argument_location: None,
             cancellation: None,
             output: Some(output),
             filesystem: None,
@@ -544,6 +546,7 @@ impl<'a> ExpansionContext<'a> {
     pub fn pure() -> Self {
         Self {
             location: None,
+            eval_argument_location: None,
             cancellation: None,
             output: None,
             filesystem: None,
@@ -1367,6 +1370,7 @@ impl<'a> ExpansionContext<'a> {
     pub fn at<'b>(&'b mut self, location: Option<&'b Location>) -> ExpansionContext<'b> {
         ExpansionContext {
             location,
+            eval_argument_location: self.eval_argument_location.clone(),
             cancellation: self.cancellation,
             output: match &mut self.output {
                 Some(output) => Some(&mut **output),

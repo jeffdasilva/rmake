@@ -506,6 +506,29 @@ impl ExpandError {
         }
     }
 
+    fn uses_eval_argument_location(&self) -> bool {
+        use crate::messages::MessageId;
+        match self {
+            Self::FileArgument(_)
+            | Self::WordIndexZero
+            | Self::WordlistIndexBounds(_)
+            | Self::InvalidInteger { .. } => true,
+            Self::System(message) => matches!(
+                message.id,
+                MessageId::WordFirstInvalid
+                    | MessageId::WordFirstEmpty
+                    | MessageId::WordFirstOutOfRange
+                    | MessageId::WordlistFirstInvalid
+                    | MessageId::WordlistFirstEmpty
+                    | MessageId::WordlistFirstOutOfRange
+                    | MessageId::WordlistSecondInvalid
+                    | MessageId::WordlistSecondEmpty
+                    | MessageId::WordlistSecondOutOfRange
+            ),
+            _ => false,
+        }
+    }
+
     fn at(self, location: Option<&Arc<Location>>) -> Self {
         if let Self::RenderedSystem { error, diagnostic } = self {
             return Self::RenderedSystem {
@@ -4198,7 +4221,7 @@ impl Expansion<'_, '_> {
         if entered {
             self.binding_context = Some(variable.definition.clone());
         }
-        let result = self.expand(&variable.value);
+        let result = self.expand_at(&variable.value, variable.definition.as_ref());
         if entered {
             self.binding_context = None;
         }
@@ -4302,6 +4325,14 @@ impl Expansion<'_, '_> {
     }
 
     fn expand(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        self.expand_at(input, None)
+    }
+
+    fn expand_at(
+        &mut self,
+        input: &[u8],
+        nearest: Option<&Arc<Location>>,
+    ) -> Result<Vec<u8>, ExpandError> {
         if self.context.is_cancelled() {
             return Err(ExpandError::Cancelled);
         }
@@ -4328,10 +4359,10 @@ impl Expansion<'_, '_> {
                 && direct::references_only(input)
             {
                 self.expand_inner(input)
-            } else if let Some(result) = self.direct_expression(input) {
+            } else if let Some(result) = self.direct_expression(input, nearest) {
                 result
             } else {
-                self.expand_machine(input)
+                self.expand_machine(input, nearest)
             }
         } else {
             self.expand_inner(input)
@@ -4349,6 +4380,20 @@ impl Expansion<'_, '_> {
         } else {
             result.map_err(|error| self.context.freeze_error(error))
         }
+    }
+
+    fn locate_expansion_error(
+        &self,
+        error: ExpandError,
+        nearest: Option<&Arc<Location>>,
+    ) -> ExpandError {
+        let location = nearest.or_else(|| {
+            self.context
+                .eval_argument_location
+                .as_ref()
+                .filter(|_| error.uses_eval_argument_location())
+        });
+        error.at(location)
     }
 
     fn expand_inner(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
@@ -5109,26 +5154,21 @@ impl Expansion<'_, '_> {
         }
     }
 
-    fn evaluate_buffer(&mut self, first: &[u8]) -> Result<Vec<u8>, ExpandError> {
-        let location = self.context.location;
-        self.evaluate_buffer_at(first, location)
-    }
-
     fn evaluate_buffer_at(
         &mut self,
         first: &[u8],
         location: Option<&Location>,
+        expanding_location: Option<&Arc<Location>>,
     ) -> Result<Vec<u8>, ExpandError> {
         let active = self.snapshot_active();
+        let mut context = self.context.reborrow();
+        if let Some(location) = expanding_location {
+            context.eval_argument_location = Some(Arc::clone(location));
+        }
         let result = match &mut self.store {
-            StoreAccess::Database(db) => db.evaluate_in(
-                first,
-                location,
-                None,
-                &mut self.bindings,
-                active,
-                self.context.reborrow(),
-            ),
+            StoreAccess::Database(db) => {
+                db.evaluate_in(first, location, None, &mut self.bindings, active, context)
+            }
             StoreAccess::Scoped {
                 database,
                 variables,
@@ -5139,7 +5179,7 @@ impl Expansion<'_, '_> {
                     Some(*variables),
                     &mut self.bindings,
                     active,
-                    self.context.reborrow(),
+                    context,
                 );
                 database.refresh_scoped_variables(variables);
                 result
@@ -5219,9 +5259,18 @@ impl Expansion<'_, '_> {
         Ok(value)
     }
 
-    fn eager_function(&mut self, name: &[u8], args: &[Vec<u8>]) -> Result<Vec<u8>, ExpandError> {
+    fn eager_function(
+        &mut self,
+        name: &[u8],
+        args: &[Vec<u8>],
+        nearest: Option<&Arc<Location>>,
+    ) -> Result<Vec<u8>, ExpandError> {
         if name == b"eval" {
-            self.evaluate_buffer(args.first().map(Vec::as_slice).unwrap_or_default())
+            self.evaluate_buffer_at(
+                args.first().map(Vec::as_slice).unwrap_or_default(),
+                self.context.location,
+                nearest,
+            )
         } else {
             self.eager_builtin(name, args)
         }
@@ -5607,7 +5656,7 @@ impl crate::native::NativeHost for Expansion<'_, '_> {
 
     fn evaluate(&mut self, input: &[u8], location: Option<&Location>) -> Result<(), ExpandError> {
         let location = location.or(self.context.location);
-        self.evaluate_buffer_at(input, location).map(|_| ())
+        self.evaluate_buffer_at(input, location, None).map(|_| ())
     }
 
     fn emit(&mut self, event: Output<'_>) -> bool {

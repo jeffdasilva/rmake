@@ -3855,12 +3855,10 @@ impl Engine {
                     return 2;
                 }
             }
-            if self
-                .read_runtime_flags(restarts, published_load_limit)
-                .is_err()
-            {
+            let Ok(command_overrides) = self.read_runtime_flags(restarts, published_load_limit)
+            else {
                 return 2;
-            }
+            };
             // GNU applies -R's implied -r after the post-read option decode,
             // independently of the snapshots taken after initial eval buffers.
             if self.options.no_variables && !self.options.no_rules {
@@ -3880,6 +3878,7 @@ impl Engine {
             match crate::command_variables::replay(
                 &mut self.database.variables,
                 self.command_replay,
+                command_overrides,
                 if self.options.environment_override {
                     Origin::EnvironmentOverride
                 } else {

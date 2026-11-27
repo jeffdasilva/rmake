@@ -40,6 +40,9 @@ at the end of this audit.
   The database records one lookup per post-read flag source with warnings enabled.
   An unchanged `MAKEFLAGS` replay also records its encoded command-line eval
   reference when present.
+  When the reader changes canonical `MAKEFLAGS`, post-read command replay
+  consumes the already expanded default command-variable suffix. The original
+  command-line source is read again in the next process image after a restart.
   The startup preload list uses one expansion of `MAKEFILES` after command-line
   eval. An absent binding can warn at that point, while a defined empty binding
   leaves the preload list empty.
@@ -108,7 +111,9 @@ NUL boundaries, rebinding and cancellation.
   rule evaluates its simple suffix before origin precedence preserves the
   automatic value. This also applies to explicit single-colon groups without
   filename aliases when the named peer has its own automatic binding. The
-  database models check suffix effects and lookup counts. A first named or
+  database models check suffix effects and lookup counts. An ordinary simple
+  or recursive override of a retained automatic also checks the caller's origin
+  after the automatic binding survives the assignment. A first named or
   pattern append checks the binding's own table before storing its deferred
   suffix. Expanding an inherited append in a recipe or environment starts
   a fresh lookup and records the logical tables visited as it finds each part.

@@ -46,7 +46,7 @@ All profiles use the C locale and the manifest's compiler and environment inputs
 | --- | --- | --- |
 | `xxhash-0.8.3` | `xxhsum`, serial | Object/executable rebuild and known empty-input hash. |
 | `zlib-1.3.2` | `static`, serial | Static library and executable rebuild with compression round trip. |
-| `zlib-1.3.2-staged-shared` | `all`, two pipe slots, target synchronization | Static/PIC builds and two staged installs with shared-library checks. |
+| `zlib-1.3.2-staged-shared` | `all`, two pipe slots, target synchronization | Static/PIC builds, staged installation, uninstall and reinstall with shared-library checks. |
 | `lua-5.4.9` | `linux`, two pipe slots, recursive synchronization | Recursive build, version-header rebuild and executable results. |
 | `lua-5.4.9-parallel-fifo` | `linux`, four FIFO slots, recursive synchronization | The Lua build and rebuild through a shared FIFO jobserver. |
 | `gzip-1.14` | `all`, serial | Recursive build and a header change observable in compressed data. |
@@ -79,13 +79,17 @@ and `minigzip`, then checks a compression/decompression round trip. Both serial
 profiles append an original comment to their watched header to trigger a rebuild.
 
 The shared zlib profile prepares a common `--shared --prefix=/usr` configuration.
-It watches `adler32.lo`, `libz.a`, `libz.so.1.3.2` and `minigzipsh`. Both installs
+It watches `adler32.lo`, `libz.a`, `libz.so.1.3.2` and `minigzipsh`. All installs
 use the upstream target with `DESTDIR=stage LDCONFIG=:` inside the disposable
 workspace. The [original witness](../tests/integration/zlib-staged-shared.py)
 checks staged files, modes, relative symlinks and pkg-config metadata, then loads
 the staged shared object for a binary compression round trip. Changing the
 version header must rebuild the outputs and change the staged library's reported
-version.
+version. The upstream `uninstall` removes the eight installed entries from that
+same stage while keeping its directories, an unrelated staged file and the
+build outputs. A reinstall must restore the staged payload and pass the shared
+library round trip again. Retained regular files must keep their identity and
+timestamps through both steps.
 
 ### bzip2
 
@@ -169,7 +173,8 @@ runs once and becomes common frozen input, including its complete log.
 
 Executable profiles compare a fresh build, a no-op, a header-triggered rebuild
 and an executable check. Profiles with a semantic header change also check the
-fresh executable. The staged zlib profile adds an install after each build.
+fresh executable. The staged zlib profile installs after each build and checks
+uninstall and reinstall after the header rebuild.
 BusyBox `defconfig` compares configuration only, retaining the common input and
 all filesystem changes.
 
