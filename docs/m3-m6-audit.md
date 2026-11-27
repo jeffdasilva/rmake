@@ -125,6 +125,8 @@ NUL boundaries, rebinding and cancellation.
   transfer updates that global slot for subsequent readers.
   A retained inherited binding can transfer into its owning named
   declaration. Later descendants and named reads see that owner's update.
+  A plain double-colon head prints its current named declaration after a
+  later branch changes it. Each branch retains its own automatic bindings.
   A selected activated pattern slot can also receive a command value.
   An inherited lookup updates the first visible pattern table it selects.
   Cached reads share the replacement through that table's identity.

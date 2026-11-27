@@ -5194,6 +5194,487 @@
         "stderr_hex": "6d616b655b315d3a205f5f726d616b655f7265766965775f6d697373696e675f636f6d6d616e645f5f3a204e6f20737563682066696c65206f72206469726563746f72790a6d616b655b315d3a205f5f726d616b655f7265766965775f6d697373696e675f636f6d6d616e645f5f3a204e6f20737563682066696c65206f72206469726563746f72790a6d616b655b315d3a205f5f726d616b655f7265766965775f6d697373696e675f636f6d6d616e645f5f3a204e6f20737563682066696c65206f72206469726563746f72790a6d616b655b315d3a205f5f726d616b655f7265766965775f6d697373696e675f636f6d6d616e645f5f3a204e6f20737563682066696c65206f72206469726563746f72790a6d616b655b315d3a205f5f726d616b655f7265766965775f6d697373696e675f636f6d6d616e645f5f3a204e6f20737563682066696c65206f72206469726563746f72790a436170747572652e6d6b3a363a20706970653a20546f6f206d616e79206f70656e2066696c65730a",
         "seen_hex": "616e63686f720a"
       }
+    },
+    {
+      "id": "nls-zero-builtin-call-c-all",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "5348454c4c203d20242866696c65203e3e7365656e2c756e65787065637465642d7368656c6c292f62696e2f73680a242866696c65203e3e7365656e2c6265666f7265290a2428666f726561636820464e2c737472697020736f727420776f726473206669727374776f7264206c617374776f726420646972206e6f746469722073756666697820626173656e616d65206f726967696e20666c61766f722076616c756520616273706174682077696c6463617264207368656c6c206576616c2c242866696c65203e3e7365656e2c2428464e293d5b242863616c6c202428464e29295d29290a5348454c4c203a3d202f62696e2f73680a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nstrip=[]\nsort=[]\nwords=[]\nfirstword=[]\nlastword=[]\ndir=[]\nnotdir=[]\nsuffix=[]\nbasename=[]\norigin=[]\nflavor=[]\nvalue=[]\nabspath=[]\nwildcard=[]\nshell=[]\neval=[]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-zero-builtin-call-fr-sort",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c20736f7274290a242866696c65203e3e7365656e2c726573756c743d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nresult=[]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-zero-builtin-call-de-abspath",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2061627370617468290a242866696c65203e3e7365656e2c726573756c743d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:de:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nresult=[]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-zero-builtin-call-ja-eval",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c206576616c290a242866696c65203e3e7365656e2c726573756c743d5b242856414c5545295d290a242863616c6c206576616c2c5055424c4953484544203a3d20796573290a242866696c65203e3e7365656e2c7075626c69736865643d5b24285055424c4953484544295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:ja:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nresult=[]\npublished=[yes]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-zero-builtin-call-c-empty-argument-control",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c20776f7264732c292f2428776f72647320292f242863616c6c20776f7264732c612062290a242866696c65203e3e7365656e2c726573756c743d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nresult=[0/0/2]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-zero-builtin-call-ja-existing-zero-arity-control",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c207265616c7061746829242863616c6c207761726e696e6729242863616c6c206572726f7229242863616c6c20696e666f290a242866696c65203e3e7365656e2c726573756c743d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:ja:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nresult=[]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-zero-builtin-call-c-required-word-control",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c20776f7264290a242866696c65203e3e7365656e2c726573756c743d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** insufficient number of arguments (0) to function 'word'.  Stop.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-zero-builtin-call-de-required-file-control",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2066696c65290a242866696c65203e3e7365656e2c726573756c743d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:de:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** Zu wenig Argumente (0) für die Funktion „file“.  Schluss.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-zero-builtin-call-fr-direct-lazy-control",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d202428696620242866696c65203e3e7365656e2c756e65787065637465642d6c617a7929796573290a242866696c65203e3e7365656e2c726573756c743d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** insufficient number of arguments (1) to function 'if'. Arrêt.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-zero-builtin-call-fr-computed-callee",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c20242866696c65203e3e7365656e2c63616c6c65652d65666665637429776f726473290a242866696c65203e3e7365656e2c726573756c743d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\ncallee-effect\nresult=[]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-direct-sort",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c20736f72742c6220612c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nouter-extra\nvalue=[a b]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-sort",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2063616c6c2c736f72742c6220612c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nouter-extra\nvalue=[a b]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-sort-two-dispatches",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2063616c6c2c63616c6c2c736f72742c6220612c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nouter-extra\nvalue=[a b]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-direct-if",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2069662c312c24242866696c65203e3e7365656e2c63686f73656e297965732c24242866696c65203e3e7365656e2c756e63686f73656e296e6f2c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nouter-extra\nchosen\nvalue=[yes]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-if",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2063616c6c2c69662c312c24242866696c65203e3e7365656e2c63686f73656e297965732c24242866696c65203e3e7365656e2c756e63686f73656e296e6f2c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nouter-extra\nchosen\nvalue=[yes]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-fr-direct-word",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c20776f72642c6261642c6120622c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** invalid first argument to 'word' function: 'bad'. Arrêt.\n",
+        "seen": "anchor\nbefore\nouter-extra\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-fr-word",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2063616c6c2c776f72642c6261642c6120622c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** invalid first argument to 'word' function: 'bad'. Arrêt.\n",
+        "seen": "anchor\nbefore\nouter-extra\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-direct-file",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2066696c652c3e7772697474656e2c242866696c65203e3e7365656e2c746578742d6f706572616e6429626f647924242866696c65203e3e7365656e2c7265646973706174636865642d74657874292c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\ntext-operand\nouter-extra\nvalue=[]\ncontinued\n"
+      },
+      "updates": {
+        "written": "626f6479242866696c65203e3e7365656e2c7265646973706174636865642d74657874290a"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-file",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2063616c6c2c66696c652c3e7772697474656e2c242866696c65203e3e7365656e2c746578742d6f706572616e6429626f647924242866696c65203e3e7365656e2c7265646973706174636865642d74657874292c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\ntext-operand\nouter-extra\nvalue=[]\ncontinued\n"
+      },
+      "updates": {
+        "written": "626f6479242866696c65203e3e7365656e2c7265646973706174636865642d74657874290a"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-required-callee",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2063616c6c290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** insufficient number of arguments (0) to function 'call'.  Stop.\n",
+        "seen": "anchor\nbefore\n"
+      }
     }
   ]
 }

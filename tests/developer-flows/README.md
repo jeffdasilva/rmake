@@ -18,12 +18,15 @@ The fixture runs warm oracle bootstrap and retries it after a real advisory
 lock conflict in the same disposable workspace. It compares both transcripts
 and checks that the installed oracle and lock file are preserved. It also
 runs six real Cargo clean modes (including parallel pipe jobserver and
-`-n`, `-q`, `-t` guards), and three benchmark
-preconditions. `clean` checks a real compiled target, preserves unselected
-and neighboring targets, and never runs against the original checkout. The
-benchmark cases require the real oracle and release prerequisites, exact
-failures, and no result file. The positioned Cargo completion time is the
-only variable transcript field. No latency is collected by this gate.
+`-n`, `-q`, `-t` guards) and a manifest validation retry. Cargo rejects a
+duplicate workspace resolver without changing either target tree. The fixture
+restores the manifest bytes and modification time, then retries in the same
+workspace and checks that only the selected compiled target is removed.
+
+The three benchmark preconditions require the real oracle and release
+prerequisites, exact failures, and no result file. The positioned Cargo
+completion time is the only variable transcript field. No latency is collected
+by this gate.
 
 This gate needs a provisioned pinned Rust toolchain and verified GNU oracle.
 It is separate from cold downloading/installing and timing benchmarks.

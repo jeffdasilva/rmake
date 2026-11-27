@@ -71845,6 +71845,1658 @@
         }
       ],
       "trusted_trace_sha256": "d8f00a6e9e460994793e843e3dc0ed15b216765a4f080cebc8db62ceccb48328"
+    },
+    "database-phase-double-colon-named-projection-tail-append-j1": {
+      "template_sha256": "3c8901949828b6dca841f36e51b4116e980e85157fe08bf869e00f8916435aff",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "61"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "68e060a7af4ba4537325eb24f4fea8e8c2b297726855e8712413c9fa4d3dc6b1"
+    },
+    "database-phase-double-colon-named-projection-tail-append-j2": {
+      "template_sha256": "e05cef068669f04a094c52445984219d1254ada1ec457e679648eaab858695f3",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "61"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "68e060a7af4ba4537325eb24f4fea8e8c2b297726855e8712413c9fa4d3dc6b1"
+    },
+    "database-phase-double-colon-named-projection-tail-third-reader-j1": {
+      "template_sha256": "46b781865c5b013dcf0711ebdbf634d102e431e1889a1d65db902d4f66bf510e",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "7428b7a096dfa1a90b69a1966aba5b6c1465d8af8707bf040c5a4fce8058c100"
+    },
+    "database-phase-double-colon-named-projection-tail-third-reader-j2": {
+      "template_sha256": "de2e5d66c659200f4a288ac3dc356b17ce4932b81f3e97ee62560db4b4dd5d85",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "7428b7a096dfa1a90b69a1966aba5b6c1465d8af8707bf040c5a4fce8058c100"
+    },
+    "database-phase-double-colon-named-projection-tail-named-reader-j1": {
+      "template_sha256": "ef7719a7be745479a3df0780eddeae36d4f06209ab11c92af38149759b0731a8",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "61"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "3769d0ee4f92071ec0b55b0971579a0be2f08bbfdb0e33fb94db09dd58c5fcba"
+    },
+    "database-phase-double-colon-named-projection-tail-named-reader-j2": {
+      "template_sha256": "2b3da74ac8955bdd6f88eb5b905e9bb54d6d622a2e0168ec629cc317cd5c7604",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "6166746572"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "61"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "3769d0ee4f92071ec0b55b0971579a0be2f08bbfdb0e33fb94db09dd58c5fcba"
+    },
+    "database-phase-double-colon-named-projection-tail-new-binding-j1": {
+      "template_sha256": "204642821b9672bd6c8bd1bacb9a447e7d1d1822910349499e5bd75cb6e79858",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "61"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "68e060a7af4ba4537325eb24f4fea8e8c2b297726855e8712413c9fa4d3dc6b1"
+    },
+    "database-phase-double-colon-named-projection-tail-new-binding-j2": {
+      "template_sha256": "ba621d6d3511814d7abcb9373953cd95bead3850212cb419fd7ef63bb169e9ab",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "61"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "68e060a7af4ba4537325eb24f4fea8e8c2b297726855e8712413c9fa4d3dc6b1"
+    },
+    "database-phase-double-colon-named-projection-head-append-control-j1": {
+      "template_sha256": "f02dee23034d60b73131d68e39f15bdacb124495a2da673e040f89bad3f85613",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "d1b66a6b81732f15db147408332dc20f30b2427b69cf3d83ca0af9cb22e6ffd3"
+    },
+    "database-phase-double-colon-named-projection-head-append-control-j2": {
+      "template_sha256": "0cb9623da2db6d0fedf9cb377a411a0ce4e46e8a9d4fefbf6096154c9ee2cb14",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "d1b66a6b81732f15db147408332dc20f30b2427b69cf3d83ca0af9cb22e6ffd3"
+    },
+    "database-phase-double-colon-named-projection-tail-no-mutation-control-j1": {
+      "template_sha256": "6f2157d13a6849634c88ac483e18f2768ac0cd23c02f2030fdb96fdb01096095",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "2feaf2541595ec9639e1614515f4c0d9c26867703d31a8bc34aabfc96964af62"
+    },
+    "database-phase-double-colon-named-projection-tail-no-mutation-control-j2": {
+      "template_sha256": "2a1996ed07bfba4d053c00fcc6d5c0131f892fb13314892faaad69b9282f7805",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "2feaf2541595ec9639e1614515f4c0d9c26867703d31a8bc34aabfc96964af62"
+    },
+    "database-phase-double-colon-named-projection-tail-absent-control-j1": {
+      "template_sha256": "02c02082f14477040dcbab9689745eb4f348deed9f78b1deb06c40ff655aa440",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "2feaf2541595ec9639e1614515f4c0d9c26867703d31a8bc34aabfc96964af62"
+    },
+    "database-phase-double-colon-named-projection-tail-absent-control-j2": {
+      "template_sha256": "9a12696f6337dbd12a59ae8c7bf3127643fe346ed86d4c1228aa767a843d55d3",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "61"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "2feaf2541595ec9639e1614515f4c0d9c26867703d31a8bc34aabfc96964af62"
     }
   }
 }

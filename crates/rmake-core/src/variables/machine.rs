@@ -979,12 +979,23 @@ impl Expansion<'_, '_> {
             if values.len() < minimum {
                 return Err(self.too_few_builtin_arguments(name, values.len()));
             }
+            if values.is_empty() {
+                m.values.push(Vec::new());
+                return Ok(());
+            }
             if let Some(max) = maximum {
                 values.truncate(max);
             }
-            if matches!(
+            if name == b"call" {
+                // The enclosing call has already expanded these operands.
+                m.job(
+                    Kind::Args(name.to_vec(), Vec::new(), 0, values),
+                    depth,
+                    nearest,
+                )?;
+            } else if matches!(
                 name,
-                b"if" | b"or" | b"and" | b"intcmp" | b"foreach" | b"let" | b"call"
+                b"if" | b"or" | b"and" | b"intcmp" | b"foreach" | b"let"
             ) {
                 let args = values
                     .into_iter()
