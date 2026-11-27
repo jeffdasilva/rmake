@@ -40,6 +40,9 @@ at the end of this audit.
   The database records one lookup per post-read flag source with warnings enabled.
   An unchanged `MAKEFLAGS` replay also records its encoded command-line eval
   reference when present.
+  When the reader changes canonical `MAKEFLAGS`, post-read command replay
+  consumes the already expanded default command-variable suffix. The original
+  command-line source is read again in the next process image after a restart.
   The startup preload list uses one expansion of `MAKEFILES` after command-line
   eval. An absent binding can warn at that point, while a defined empty binding
   leaves the preload list empty.
