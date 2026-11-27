@@ -801,3 +801,15 @@ records = ["all: artifact.out"]
 seen_hex = "524541440a494d504c494349540a414c4c0a"
 directory_identity = true
 absolute_directory_state = "scanned"
+
+[[case]]
+id = "implicit-absolute-prerequisite-directory-generation-zero"
+makefile = '''
+all: artifact.out ; @$(file >>seen,ALL):
+%.out: $(CURDIR)/source/middle ; @$(file >>seen,IMPLICIT):
+$(CURDIR)/source/middle: ; @$(file >>seen,MIDDLE):
+'''
+records = ["all: artifact.out"]
+seen_hex = "494d504c494349540a414c4c0a"
+directory_identity = true
+absolute_directory_state = "unopened"
