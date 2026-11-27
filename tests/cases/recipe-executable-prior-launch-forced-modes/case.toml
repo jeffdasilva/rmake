@@ -1,0 +1,67 @@
+id = "recipe-executable-prior-launch-forced-modes"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+provenance = "Original forced executable dry-run and query witnesses paired against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout = """\
+verified forced missing split
+verified forced missing merged
+verified healthy prior control split
+verified healthy prior control merged
+verified skipped second line control split
+verified skipped second line control merged
+verified ordinary dry run control split
+verified ordinary dry run control merged
+verified direct ignored split
+verified direct ignored merged
+verified direct ignored healthy control split
+verified direct ignored healthy control merged
+verified recursive fatal split
+verified recursive fatal merged
+verified recursive fatal healthy control split
+verified recursive fatal healthy control merged
+verified recursive ignored split
+verified recursive ignored merged
+verified recursive ignored healthy control split
+verified recursive ignored healthy control merged
+verified recursive skipped second line control split
+verified recursive skipped second line control merged
+verified serial target mode split
+verified serial target mode merged
+verified serial line mode split
+verified serial line mode merged
+verified query forced missing split
+verified query forced missing merged
+verified query healthy prior control split
+verified query healthy prior control merged
+verified query first child exit 1 split
+verified query first child exit 1 merged
+verified query next child exit 1 split
+verified query next child exit 1 merged
+verified query skipped second line split
+verified query skipped second line merged
+verified query direct ignored split
+verified query direct ignored merged
+verified query direct ignored healthy control split
+verified query direct ignored healthy control merged
+verified query recursive fatal split
+verified query recursive fatal merged
+verified query recursive fatal healthy control split
+verified query recursive fatal healthy control merged
+verified query recursive ignored split
+verified query recursive ignored merged
+verified query recursive ignored healthy control split
+verified query recursive ignored healthy control merged
+verified query recursive first child exit 1 split
+verified query recursive first child exit 1 merged
+verified query recursive next child exit 1 split
+verified query recursive next child exit 1 merged
+verified query recursive ignored child exit 1 split
+verified query recursive ignored child exit 1 merged
+verified query recursive skipped second line split
+verified query recursive skipped second line merged
+"""
+stderr = ""

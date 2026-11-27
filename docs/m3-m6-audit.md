@@ -172,6 +172,12 @@ NUL boundaries, rebinding and cancellation.
   An optional include in an ordinary recipe body also records its failed open
   when the file has no completed visit and the parallel job queue is idle or
   holds one separate ordinary recipe.
+  Required includes in the same recipe-body phase retain the failed open
+  while the parallel job queue is idle or holds one separate ordinary recipe.
+  A parse failure in a required source just opened by that idle recipe
+  leaves its parent file unupdated and retains the included source location.
+  With one launched phony sibling, a required source parse failure also leaves
+  the expanding target and its waiting ordinary single-colon ancestors unupdated.
   Optional includes from target-specific shell configuration also retain
   their missing timestamps while the parallel job queue is idle or holds
   one separate ordinary recipe.
@@ -337,6 +343,9 @@ covers mixed required and optional failure policies.
   output dump boundaries around the recheck. A launch rejected with `E2BIG` or
   `ENAMETOOLONG` also rechecks the prior executable in direct and target-sync
   output. A local symlink loop triggers the recheck in ordinary serial output.
+  In a serial dry run or query, a forced direct command that fails to find
+  its executable also triggers the recheck. This covers ignored failures and
+  recursive output synchronization.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)

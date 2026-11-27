@@ -551,7 +551,9 @@ impl Engine {
             }
             view.updated = !matches!(
                 outcome.database_result,
-                DatabaseResult::UnfinishedUpdate | DatabaseResult::UnfinishedRecipeExpansion
+                DatabaseResult::UnfinishedUpdate
+                    | DatabaseResult::UnfinishedRecipeExpansion
+                    | DatabaseResult::UnfinishedHeldRecipeInclude
             );
             view.status = if !view.updated {
                 FileStatus::Unattempted
