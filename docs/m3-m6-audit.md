@@ -174,6 +174,8 @@ NUL boundaries, rebinding and cancellation.
   holds one separate ordinary recipe.
   Required includes in the same recipe-body phase retain the failed open
   while the parallel job queue is idle.
+  A parse failure in a required source just opened by that idle recipe
+  leaves its parent file unupdated and retains the included source location.
   Optional includes from target-specific shell configuration also retain
   their missing timestamps while the parallel job queue is idle or holds
   one separate ordinary recipe.

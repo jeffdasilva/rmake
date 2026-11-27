@@ -18603,6 +18603,15 @@ impl Engine {
             {
                 recipe.location.line = line;
             }
+            let first_idle_include = (parallel
+                && record_expansion_failure
+                && !self.remaking
+                && self.active_makefile_remake.is_none()
+                && self.parallel_jobs.is_empty()
+                && !self.options.keep_going
+                && !MakefileModes::from_options(&self.options).active()
+                && self.output.database_requested())
+            .then_some(self.database.makefiles.len());
             let expansion = self.with_scoped_expansion(
                 Some(&recipe.location),
                 ScopedExpansionSite::RecipeBody,
@@ -18625,9 +18634,18 @@ impl Engine {
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
                     let mut execution = Execution::fatal(false);
+                    let failed_required_include = first_idle_include
+                        .zip(err.location())
+                        .is_some_and(|(first, at)| {
+                            self.database.makefiles.iter().skip(first).any(|file| {
+                                !file.optional
+                                    && !file.missing
+                                    && Some(file.name.as_slice()) == at.file.as_option()
+                            })
+                        });
                     if record_expansion_failure
                         && !self.remaking
-                        && !parallel
+                        && (!parallel || failed_required_include)
                         && self.output.database_requested()
                         && rmake_core::filenames::archive_parts(target).is_none()
                     {
