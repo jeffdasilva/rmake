@@ -87,7 +87,8 @@ When debugging a change in output order, check these boundaries.
 - Separate spools drain stdout then stderr. A shared spool preserves their
   relative order. The buffer descriptors are private, close on exec, and stay
   above closed standard descriptors. Inherited regular output files use append
-  mode. `MAKE_TERMOUT` and `MAKE_TERMERR` describe the inherited terminals.
+  mode. Inherited pipes and devices retain their flags. `MAKE_TERMOUT` and
+  `MAKE_TERMERR` describe the inherited terminals.
 - `--sync-mutex=fnm:PATH` lets recursive builds coordinate through a POSIX
   byte-range lock. A top-level line or target build cleans up the lock file it
   owns. Borrowing another process's lock leaves its bytes and path intact.

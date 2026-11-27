@@ -4,11 +4,14 @@
 """Strict GNU2 comparison of the bounded owned-catalog NLS profiles."""
 import argparse
 import base64
+import gzip
 import hashlib
 import json
 import os
 from dataclasses import replace
 from pathlib import Path
+import signal
+import stat
 import sys
 import tempfile
 
@@ -53,33 +56,39 @@ import ctypes
 import errno
 import locale
 import os
+import signal
 import sys
 locale.setlocale(locale.LC_ALL, "")
-function = ctypes.CDLL(None).strerror
+is_signal = sys.argv[2:] == ["signal"]
+function = getattr(ctypes.CDLL(None), "strsignal" if is_signal else "strerror")
 function.argtypes = [ctypes.c_int]
 function.restype = ctypes.c_char_p
-os.write(1, function(getattr(errno, sys.argv[1])))
+os.write(1, function(getattr(signal if is_signal else errno, sys.argv[1])))
 """
 
 
-def errno_witness(case, runtime, fact):
+def os_detail_witness(case, runtime, fact, kind):
     name, locale = fact
-    assert name in {"ENOENT", "ENOTDIR", "EISDIR", "ENOSPC", "ENOLCK", "ELOOP", "ENAMETOOLONG", "EACCES"}
+    supported = {"SIGTERM"} if kind == "signal" else {
+        "ENOENT", "ENOTDIR", "EISDIR", "ENOSPC", "ENOLCK", "ELOOP", "ENAMETOOLONG", "EACCES",
+    }
+    assert name in supported
     assert locale in {"C", "fr_FR.UTF-8", "C.UTF-8"}
     variables = {**case.environment, "LC_ALL": locale, "LANG": locale}
     variables.pop("LD_PRELOAD", None)
     environment = h.clean_environment(runtime, variables)
     out, err, status, limit, leftovers = h.capture(
-        [sys.executable, "-c", OS_WITNESS, name], runtime / "work", environment, 5,
+        [sys.executable, "-c", OS_WITNESS, name, kind], runtime / "work", environment, 5,
     )
     if status or err or limit or leftovers or not out or b"\n" in out:
-        raise h.HarnessError("could not witness public libc errno text")
+        raise h.HarnessError("could not witness public libc diagnostic text")
     expected = dict(case.expected)
     stream = "stdout_hex" if case.output == "merged" else "stderr_hex"
     text = bytes.fromhex(expected[stream])
-    if text.count(b"@OS_DETAIL@") != 1:
-        raise h.HarnessError("expected one exact independent errno slot")
-    expected[stream] = text.replace(b"@OS_DETAIL@", out).hex()
+    marker = b"@SIGNAL_DETAIL@" if kind == "signal" else b"@OS_DETAIL@"
+    if text.count(marker) != 1:
+        raise h.HarnessError(f"expected one exact independent {kind} slot")
+    expected[stream] = text.replace(marker, out).hex()
     return replace(case, expected=expected), out
 
 
@@ -102,7 +111,7 @@ def cases(selection):
     debug_options = json.loads((DATA / "debug-options.json").read_bytes())
     suites = (data, structure, producers, loader, include, remake, repeat, replay, low_resolution,
               touch_open, cleanup, wait_notice, intermediate, file_io, output_lock, debug_options)
-    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 176, 15, 20, 14, 13, 18, 16, 12, 26, 8, 12, 12, 8, 7):
+    if tuple(len(suite["rows"]) for suite in suites) != (30, 25, 188, 19, 20, 14, 13, 18, 16, 15, 26, 8, 18, 12, 8, 7):
         raise h.HarnessError("unexpected NLS model inventory")
     shuffle_option = json.loads((DATA / "shuffle-option.json").read_bytes())
     if len(shuffle_option["rows"]) != 9 or shuffle_option["fixture_sha256"]:
@@ -173,6 +182,59 @@ def prepare(row, environment):
                         output=row.get("output", "separate"))
 
 
+def observe_touch_access(case, runtime, executable, access):
+    h.reset_workspace(case, runtime, executable)
+    target = runtime / "work/target"
+    initial = target.stat()
+    argv = [str(runtime / "bin/make"), *case.args]
+    if os.geteuid() == 0:
+        argv[:0] = ["/usr/bin/setpriv", "--bounding-set=-dac_override,-dac_read_search"]
+    target.chmod(access["mode"])
+    try:
+        out, err, status, limit, leftovers = h.capture(
+            argv, runtime / "work", h.clean_environment(runtime, case.environment), case.timeout)
+        final = target.stat()
+    finally:
+        # The common byte snapshot must be able to read the target after the probe.
+        target.chmod(stat.S_IMODE(initial.st_mode))
+    files = h.snapshot({name: runtime / name for name in ("work", "home", "tmp")})
+    exact_time = final.st_mtime_ns
+    original_time = initial.st_mtime_ns
+    mode = stat.S_IMODE(final.st_mode)
+    mtime_matches = exact_time > original_time if access["updates_mtime"] else exact_time == original_time
+    evidence = {"touch_mode": mode, "original_touch_mtime_ns": original_time,
+                "observed_touch_mtime_ns": exact_time,
+                "touch_access_matches": mode == access["mode"] and mtime_matches}
+    return h.Observation(out, err, status, limit, files, leftovers), evidence
+
+
+def interrupt_intermediate(case, runtime, executable, name, retains_directory):
+    work = runtime / "work"
+    marker = work / "ready"
+    target = work / native.safe_relative(name)
+    generated = work / "saved" if retains_directory else target
+    delivered = False
+
+    def observe(pid, _stdout):
+        nonlocal delivered
+        if delivered or not marker.is_file() or marker.read_bytes() != b"ready\n":
+            return
+        if ((retains_directory and not target.is_dir())
+                or not generated.is_file() or generated.read_bytes() != b"generated\n"):
+            raise h.HarnessError("interrupted fixture did not create its intermediate")
+        descriptor = os.pidfd_open(pid)
+        try:
+            signal.pidfd_send_signal(descriptor, signal.SIGTERM)
+            delivered = True
+        finally:
+            os.close(descriptor)
+
+    value = h.execute(case, runtime, executable, observe=observe)
+    if not delivered:
+        raise h.HarnessError("interrupted fixture did not reach controlled signal delivery")
+    return value
+
+
 def loader_witness(case, runtime, kind):
     if kind not in ("open", "symbol"):
         raise h.HarnessError("unknown raw loader witness")
@@ -221,6 +283,25 @@ def release_on_wait_notice(runtime):
     return observe
 
 
+def prepare_latin1_ctype(profile, root):
+    # Provisioning has already verified the package and the full input tree.
+    prefix = Path(profile["environment"]["LOCPATH"]).parent / "prefix/usr"
+    i18n = prefix / "share/i18n"
+    charmap = root / "ISO-8859-1"
+    charmap.write_bytes(gzip.decompress((i18n / "charmaps/ISO-8859-1.gz").read_bytes()))
+    locales = root / "latin1-locales"
+    locales.mkdir()
+    result = locale_data.run(
+        [str(prefix / "bin/localedef"), "--no-archive", "-i", str(i18n / "locales/fr_FR"),
+         "-f", str(charmap), str(locales / "fr_FR.ISO-8859-1")],
+        env={"PATH": "/usr/bin:/bin", "LC_ALL": "C", "HOME": str(root), "I18NPATH": str(i18n)},
+        umask=0o022,
+    )
+    if result.stdout or result.stderr:
+        raise h.HarnessError("localedef emitted an unexpected Latin-1 diagnostic")
+    return {"LOCPATH": str(locales)}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--oracle", type=Path, default=ROOT / ".tools/oracle/bin/make")
@@ -262,10 +343,14 @@ def main(argv=None):
         args.report.write_text(json.dumps(report, indent=2) + "\n")
     with tempfile.TemporaryDirectory(prefix="rmake-nls-") as temporary:
         root = Path(temporary)
+        latin1 = prepare_latin1_ctype(profile, root) if any(row.get("latin1_ctype") for row in rows) else None
+        if latin1 is not None:
+            report["latin1_ctype_tree_sha256"] = locale_data.tree_digest(Path(latin1["LOCPATH"]))
         reset = root / "runtime"
         reset.mkdir()
         for row in rows:
-            model = prepare(row, profile["environment"])
+            environment = latin1 if row.get("latin1_ctype") else profile["environment"]
+            model = prepare(row, environment)
             record = {"id": model.id, "model": row, "observations": [], "passed": False}
             report["cases"].append(record)
             try:
@@ -279,8 +364,11 @@ def main(argv=None):
                 case, detail = loader_witness(case, reset, kind)
                 record["raw_loader_detail_hex"] = detail.hex()
             if (fact := row.get("errno_fact")) is not None:
-                case, detail = errno_witness(case, reset, fact)
+                case, detail = os_detail_witness(case, reset, fact, "errno")
                 record["raw_errno_detail_hex"] = detail.hex()
+            if (fact := row.get("signal_fact")) is not None:
+                case, detail = os_detail_witness(case, reset, fact, "signal")
+                record["raw_signal_detail_hex"] = detail.hex()
             expected_files = h.snapshot({name: reset / name for name in ("work", "home", "tmp")})
             expected_files["work/seen"].update(content=base64.b64encode(model.seen).decode(), size=len(model.seen),
                                                sha256=hashlib.sha256(model.seen).hexdigest())
@@ -326,7 +414,15 @@ def main(argv=None):
                         raise h.HarnessError("isolated help output did not satisfy its control")
                     control_record["control_help_stdout_hex"] = help_output.stdout.hex()
                     expected_case = replace(case, expected={**case.expected, "stdout_hex": help_output.stdout.hex()})
-                value = h.execute(case, reset, executable, observe_streams=observer)
+                touch_record = {}
+                intermediate = row.get("interrupt_intermediate")
+                if intermediate is not None:
+                    retains_directory = intermediate in row.get("created_directories", [])
+                    value = interrupt_intermediate(case, reset, executable, intermediate, retains_directory)
+                elif (access := row.get("touch_access")) is not None:
+                    value, touch_record = observe_touch_access(case, reset, executable, access)
+                else:
+                    value = h.execute(case, reset, executable, observe_streams=observer, argv0=row.get("argv0"))
                 differences = h.differences(observed[0], value) if observed else []
                 if help_control is not None and index == 2:
                     differences = [field for field in differences if field != "stdout"]
@@ -336,12 +432,15 @@ def main(argv=None):
                 record["observations"].append(dict(h.observation_json(value), stdout_hex=value.stdout.hex(), stderr_hex=value.stderr.hex(),
                                                    observed_mtimes_ns=timestamps, timestamps_match=timestamps == expected_mtimes,
                                                    errors=h.expectation_errors(expected_case, value), filesystem_matches=value.filesystem == expected_files,
-                                                   differences=differences, **control_record))
-                if value.limit or value.leftover_processes or value.returncode < 0:
+                                                   differences=differences, **control_record, **touch_record))
+                controlled_signal = intermediate is not None and value.returncode == -signal.SIGTERM
+                if value.limit or value.leftover_processes or (value.returncode < 0 and not controlled_signal):
                     record["zero_credit"] = True
                     publish()
                     raise h.HarnessError("new NLS bound/signal retained; stop without replay")
-            record["passed"] = all(not item["errors"] and item["filesystem_matches"] and item["timestamps_match"] and not item["differences"] for item in record["observations"])
+            record["passed"] = all(not item["errors"] and item["filesystem_matches"] and item["timestamps_match"]
+                                   and item.get("touch_access_matches", True) and not item["differences"]
+                                   for item in record["observations"])
             print(("PASS " if record["passed"] else "FAIL ") + row["id"], flush=True)
             publish()
     report["passed"] = all(record["passed"] for record in report["cases"])

@@ -266,6 +266,15 @@ fn location_prefix(location: &Location) -> Vec<u8> {
     bytes
 }
 
+fn recipe_error_location_prefix(location: &Location) -> Vec<u8> {
+    if !location.file.is_null() {
+        return location_prefix(location);
+    }
+    let mut bytes = crate::messages::system(rmake_core::messages::Message::BuiltinRecipe);
+    bytes.extend_from_slice(b": ");
+    bytes
+}
+
 fn one_logical_recipe_slot(bytes: &[u8]) -> bool {
     bytes
         .split_inclusive(|&byte| byte == b'\n')
@@ -1887,6 +1896,7 @@ impl Invocation {
             startup_exit::Host {
                 stdin_source: prepared.plan.stdin_source.take(),
                 database: prepared.database,
+                command_goals: prepared.seed.command_goals,
                 filesystem: prepared.filesystem,
                 output: prepared.output,
                 reader_output: prepared.reader_output,
@@ -1969,6 +1979,7 @@ impl Engine {
                                 startup_exit::Host {
                                     stdin_source: plan.stdin_source.take(),
                                     database,
+                                    command_goals: seed.command_goals,
                                     filesystem,
                                     output,
                                     reader_output,
@@ -2055,9 +2066,6 @@ impl Engine {
             exit_directory = startup_directory.clone();
         }
         for directory in &options.directories {
-            if let Some(history) = database.database_history() {
-                history.intern(directory.as_os_str().as_bytes());
-            }
             retain!(std::env::set_current_dir(directory).map_err(|error| {
                 let detail = error
                     .raw_os_error()
@@ -3096,9 +3104,13 @@ impl Engine {
     }
 
     fn enter_preload_file<'a>(&mut self, name: &'a [u8]) -> &'a [u8] {
-        // An existing normalized record takes precedence over a new spelling.
+        // The selected spelling is cached before probing the normalized key.
         let lookup = rmake_core::filenames::without_dot_prefix(name);
-        if lookup.len() < name.len() && self.database.file_records.contains(lookup) {
+        if let Some(history) = self.database.database_history() {
+            history.intern(name);
+            history.record_file_lookup(lookup);
+        }
+        if self.database.file_records.contains(lookup) {
             return lookup;
         }
         self.database.file_records.insert(name);
@@ -3106,14 +3118,6 @@ impl Engine {
     }
 
     fn read_startup_makefiles(&mut self) -> Result<(), ()> {
-        if self
-            .database
-            .variables
-            .database_lookup(b"MAKEFILES")
-            .is_none_or(|value| value.raw_value().is_empty())
-        {
-            return Ok(());
-        }
         let names = match self.expand_global(b"$(MAKEFILES)", None) {
             Ok(names) => names,
             Err(error) => {
@@ -3124,6 +3128,9 @@ impl Engine {
         // MAKEFILES uses ordinary words: no globbing or backslash filename list
         // decoding. Freeze the expanded list before any preload changes it.
         for spelling in words(&names) {
+            if let Some(history) = self.database.database_history() {
+                history.intern(spelling);
+            }
             crate::debug::reader(
                 &self.output,
                 rmake_core::diagnostic::ReaderEvent::Reading {
@@ -3939,7 +3946,7 @@ impl Engine {
                 .map(|file| file.name.clone())
                 .collect();
             if let Some(files) = &mut self.assumptions {
-                files.bind(&mut self.database, restarts == 0);
+                files.bind(&mut self.database, &self.options, restarts == 0);
             }
             self.output.select(None);
             if let Some(buffer) = self.reader_output.take() {
@@ -6323,9 +6330,7 @@ impl Engine {
                     if let Some(history) = self.database.database_history() {
                         history.record_file_lookup(lookup);
                     }
-                    if self.database.rules.contains_key(lookup)
-                        || self.database.explicit_names.contains(lookup)
-                    {
+                    if self.database.file_records.contains(lookup) {
                         if goal.starts_with(b"./") {
                             goal = lookup.to_vec();
                         }
@@ -8224,24 +8229,16 @@ impl Engine {
                 continue;
             }
             if self.interrupt.is_some() {
-                self.stderr(
-                    &[
-                        b"*** Deleting intermediate file '".as_slice(),
-                        &target,
-                        b"'",
-                    ]
-                    .concat(),
-                );
+                self.stderr(&crate::messages::system(Message::DeleteIntermediate(
+                    &target,
+                )));
                 if let Err(error) = result {
-                    self.stderr(
-                        &[
-                            b"\nunlink: ".as_slice(),
-                            &target,
-                            b": ",
-                            os_error(&error).as_bytes(),
-                        ]
-                        .concat(),
-                    );
+                    let detail = rmake_linux::filesystem::source_error_detail(&error);
+                    self.stderr(&crate::messages::system(Message::OsError {
+                        action: b"\nunlink: ",
+                        path: &target,
+                        detail: &detail,
+                    }));
                 }
                 continue;
             }
@@ -9560,7 +9557,7 @@ impl Engine {
             && (!job.ignore || !self.globally_silent())
         {
             self.show_recipe_makefile_error(remake);
-            let source = location_prefix(&job.location);
+            let source = recipe_error_location_prefix(&job.location);
             let ignored = if job.ignore {
                 crate::messages::system(rmake_core::messages::Message::Ignored)
             } else {
@@ -9579,7 +9576,7 @@ impl Engine {
                 [
                     if job.ignore { b"".as_slice() } else { b"*** " },
                     b"[",
-                    &location_prefix(&job.location),
+                    &source,
                     &target,
                     format!("] {error}").as_bytes(),
                     &ignored,
@@ -19427,7 +19424,7 @@ impl Engine {
                     && (!ignore || !self.globally_silent())
                 {
                     self.show_recipe_makefile_error(remake.as_ref());
-                    let source = location_prefix(&recipe.location);
+                    let source = recipe_error_location_prefix(&recipe.location);
                     let ignored = if ignore {
                         crate::messages::system(rmake_core::messages::Message::Ignored)
                     } else {
@@ -19446,7 +19443,7 @@ impl Engine {
                         } else {
                             let mut message = if ignore { Vec::new() } else { b"*** ".to_vec() };
                             message.push(b'[');
-                            message.extend_from_slice(&location_prefix(&recipe.location));
+                            message.extend_from_slice(&source);
                             message.extend_from_slice(target);
                             message.extend_from_slice(format!("] {error}").as_bytes());
                             message.extend_from_slice(&ignored);
@@ -19551,6 +19548,7 @@ impl Engine {
         }
         let file = match OpenOptions::new()
             .create(true)
+            .read(true)
             .write(true)
             .truncate(false)
             .open(os(target))

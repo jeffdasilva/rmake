@@ -10,6 +10,14 @@ use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::process::Stdio;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+const STDIN: c_int = 0;
+const F_GETFD: c_int = 1;
+const F_SETFD: c_int = 2;
+const FD_CLOEXEC: c_int = 1;
+const EBADF: c_int = 9;
+static STARTUP_STDIN_CLOSED: AtomicBool = AtomicBool::new(false);
 
 unsafe extern "C" {
     fn strsignal(number: c_int) -> *mut c_char;
@@ -21,6 +29,38 @@ unsafe extern "C" {
     fn pipe2(descriptors: *mut c_int, flags: c_int) -> c_int;
     fn _exit(status: c_int) -> !;
     fn euidaccess(path: *const c_char, mode: c_int) -> c_int;
+}
+
+pub(crate) fn remember_inherited_stdin() {
+    // SAFETY: F_GETFD only observes the descriptor. Restore the startup
+    // thread's errno, which also makes this constructor safe for library users.
+    unsafe {
+        let errno = __errno_location();
+        let saved = *errno;
+        let closed = fcntl(STDIN, F_GETFD) < 0 && *errno == EBADF;
+        STARTUP_STDIN_CLOSED.store(closed, Ordering::Relaxed);
+        *errno = saved;
+    }
+}
+
+/// The CLI calls this before its first native operation after Rust startup.
+/// Rust fills a missing stdin with a placeholder. Keep that slot occupied in
+/// the parent, and let exec close it unless a child selects its own input.
+pub fn preserve_closed_startup_stdin() {
+    if !STARTUP_STDIN_CLOSED.load(Ordering::Relaxed) {
+        return;
+    }
+    // SAFETY: the entry observation and immediate CLI call bracket Rust's
+    // repair. Only the replacement's descriptor flags are changed.
+    unsafe {
+        let errno = __errno_location();
+        let saved = *errno;
+        let flags = fcntl(STDIN, F_GETFD);
+        if flags >= 0 {
+            fcntl(STDIN, F_SETFD, flags | FD_CLOEXEC);
+        }
+        *errno = saved;
+    }
 }
 
 /// Probe an executable candidate using the caller's effective credentials.

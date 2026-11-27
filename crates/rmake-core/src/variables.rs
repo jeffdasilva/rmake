@@ -3142,24 +3142,11 @@ impl PatternVariable {
         if name.is_empty() {
             return Err(ExpandError::EmptyVariableName);
         }
-        if origin != Origin::Override {
-            globals.record_database_lookup(name);
-        }
-        if globals
-            .get(name)
-            .is_some_and(|variable| variable.scope.variable_names)
-        {
-            globals.variable_names(true)?;
-        }
         let mut database_flavor = Flavor::Simple;
         if origin != Origin::Override
-            && let Some(global) = globals.get(name)
-            && matches!(
-                global.origin,
-                Origin::CommandLine | Origin::EnvironmentOverride
-            )
+            && let Some(global) = globals.target_command_value(name)?
         {
-            value = global.value.clone();
+            value = global.value;
             origin = global.origin;
             database_flavor = global.flavor;
         }

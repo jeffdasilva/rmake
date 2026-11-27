@@ -1,0 +1,12 @@
+id = "grouped-pattern-conditional-transfer-inactive-sibling"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "A conditional assignment to an inactive sibling keeps the active grouped pattern unchanged."
+provenance = "Original fixtures and stream/status anchors checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "X=cli", "one.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6561726c793d5b7061747465726e7c66696c655d0a6c6174653d5b7061747465726e7c66696c655d0a706172656e743d5b7061747465726e7c66696c655d0a"
+stderr_hex = ""

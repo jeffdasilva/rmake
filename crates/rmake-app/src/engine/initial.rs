@@ -514,6 +514,7 @@ impl Plan {
                         startup_exit::Host {
                             stdin_source,
                             database: state.database,
+                            command_goals: state.seed.command_goals,
                             filesystem: state.filesystem,
                             output: state.output,
                             warnings: state.warnings,
@@ -655,6 +656,9 @@ impl State {
                     let raw = options.include_directories[index].as_os_str().as_bytes();
                     if !self.seen_includes.contains(OsStr::from_bytes(raw)) {
                         let stored = self.path(program, raw)?;
+                        if let Some(history) = self.database.database_history() {
+                            history.intern(stored.as_os_str().as_bytes());
+                        }
                         self.seen_includes.insert(stored.as_os_str().to_owned());
                         options.include_directories[index] = stored;
                     } else {
@@ -666,6 +670,9 @@ impl State {
                     let raw = options.directories[index].as_os_str().as_bytes();
                     if !self.seen_directories.contains(OsStr::from_bytes(raw)) {
                         let stored = self.path(program, raw)?;
+                        if let Some(history) = self.database.database_history() {
+                            history.intern(stored.as_os_str().as_bytes());
+                        }
                         self.seen_directories.insert(stored.as_os_str().to_owned());
                         options.directories[index] = stored;
                     } else {
@@ -686,26 +693,25 @@ impl State {
                         history.intern(options.files[index].as_os_str().as_bytes());
                     }
                 }
-                crate::cli::Argument::OldFile(index) => {
-                    let raw = options.old_files[index].as_os_str().as_bytes();
-                    options.old_files[index] = self.path(program, raw)?;
-                    if let Some(history) = self.database.database_history() {
-                        history.intern(options.old_files[index].as_os_str().as_bytes());
-                    }
-                }
-                crate::cli::Argument::NewFile(index) => {
-                    let raw = options.new_files[index].as_os_str().as_bytes();
+                ref assumed @ (crate::cli::Argument::OldFile(index)
+                | crate::cli::Argument::NewFile(index)) => {
+                    let files = if matches!(assumed, crate::cli::Argument::OldFile(_)) {
+                        &mut options.old_files
+                    } else {
+                        &mut options.new_files
+                    };
+                    let raw = files[index].as_os_str().as_bytes();
                     // Compare the incoming spelling against the already
                     // prepared operands before resolving this path.
-                    if options.new_files[..index]
+                    if files[..index]
                         .iter()
                         .any(|path| path.as_os_str().as_bytes() == raw)
                     {
-                        options.new_files.pop();
+                        files.pop();
                     } else {
-                        options.new_files[index] = self.path(program, raw)?;
+                        files[index] = self.path(program, raw)?;
                         if let Some(history) = self.database.database_history() {
-                            history.intern(options.new_files[index].as_os_str().as_bytes());
+                            history.intern(files[index].as_os_str().as_bytes());
                         }
                     }
                 }
@@ -719,6 +725,9 @@ impl State {
                         history.intern(name);
                     }
                     self.database.file_records.insert(name);
+                    if let Some(id) = self.database.file_records.id(name) {
+                        self.seed.command_goals.insert(id);
+                    }
                     let previous = self.database.variables.database_lookup(b"MAKECMDGOALS");
                     let had_previous = previous.is_some();
                     let mut value = previous.map(|v| v.raw_value().to_vec()).unwrap_or_default();

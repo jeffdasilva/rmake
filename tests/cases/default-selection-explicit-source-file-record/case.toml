@@ -1,0 +1,12 @@
+id = "default-selection-explicit-source-file-record"
+requirement = "options.default-goal-spelling"
+candidate = "required"
+description = "A reader named by -f can select its own complete stored filename."
+provenance = "Original fixtures and stream/status anchors checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "-f", "source fragment.mk"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6d616b653a204e6f7468696e6720746f20626520646f6e6520666f722027736f7572636520667261676d656e742e6d6b272e0a"
+stderr_hex = ""

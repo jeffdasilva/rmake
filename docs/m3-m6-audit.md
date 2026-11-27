@@ -40,9 +40,32 @@ at the end of this audit.
   The database records one lookup per post-read flag source with warnings enabled.
   An unchanged `MAKEFLAGS` replay also records its encoded command-line eval
   reference when present.
+  The startup preload list uses one expansion of `MAKEFILES` after command-line
+  eval. An absent binding can warn at that point, while a defined empty binding
+  leaves the preload list empty.
+  Startup failure dumps mark the file records already selected by command-line
+  goals, including when a command assignment supersedes `MAKECMDGOALS`.
+  An exact duplicate temporary stdin operand leaves ownership with the
+  earlier source record.
+  Repeated assumed-old operands check prepared names before expanding HOME
+  or recording another filename lookup.
+  The initial file-table publication records each retained old operand and
+  then each active new operand, even when the name shares an age record.
+  Startup include options cache each accepted operand after filename preparation.
+  Search construction records each existing directory in scan order and preserves
+  its cache event even when a later `-I-` clears it from the search list.
+  An accepted startup `-C` operand also enters the cache during decoding,
+  before later goals or assignment effects and before the actual directory change.
+  Live `MAKEFLAGS` and post-read flag decoders cache each accepted include
+  operand at its argument boundary, preserving the events completed before a
+  later assignment or terminal option error.
+  Active include search rebuilds cache each successful directory scan before
+  any later reset or HOME failure. Passive decoding leaves the search intact.
 - [Output validation and mutex failures](output-validation-order.md) and the
   [startup output-lock gate](../tests/startup-output-mutex/README.md). Completed
   definitions and output remain observable when later validation or opening fails.
+  Inherited regular output files use append mode. The startup output gate
+  checks the original flags on pipes and devices and the flags of recipe spools.
 - [Initial inherited expansion](initial-flag-expansion.md),
   [ordered CLI startup](ordered-cli-startup.md),
   [literal startup](literal-startup.md) and
@@ -113,6 +136,10 @@ NUL boundaries, rebinding and cancellation.
   Recipe and shell child environments use the current stored .VARIABLES
   bytes. A recursive assignment expands those bytes in the child environment
   context. An ordinary lookup can refresh the stored bytes as names change.
+  An inactive pattern override preserves the stored global `.VARIABLES` value
+  for the reader and recipe environments.
+  An explicit single-colon group with an activated pattern binding can also
+  receive a stronger caller command-line value during conditional eval.
   An undefine probes the global definition table before checking origin.
   User-defined calls record the initial body lookup and the lookup in the
   argument frame when a literal callee has a body. An empty callee still
@@ -136,10 +163,16 @@ NUL boundaries, rebinding and cancellation.
   A serial fatal dump retains the marker from the interrupted visit.
   A scoped include during a serial goal records a failed open as a missing timestamp.
   An accepted reopen clears that timestamp while preserving the update verdict.
+  Startup preloads intern each list operand and the selected read name at their
+  respective reader boundaries. The file table probes the normalized name
+  before entering the selected spelling when the probe misses.
   When default makefile discovery misses, the reader interns all three
   optional remake candidate names as it enters their file records.
   With no selected goal, the diagnostic reads the raw MAKEFILE_LIST
   binding after default-goal expansion.
+  Default-goal selection checks the complete name against existing file
+  records before splitting it into words. That includes named and included
+  Makefile sources, including an optional source that is absent.
   A serial missing-rule stop occurs before completing the file update.
   The active ordinary prerequisite chain retains that state in a dump.
   A launched child retains its completed failure while its waiting ordinary
@@ -189,6 +222,8 @@ Named sources must retain the selected operand while startup effects replay.
   [raw restart environments](../tests/restart-environment/README.md),
   [inherited pipe restarts](../tests/restart-pipe/README.md) and
   [native standard-stream restarts](../tests/native-restart-stdio/README.md).
+  An inherited closed stdin stays closed across reader, recipe, and restart
+  execs. An explicitly selected child input can occupy that descriptor.
 
 ## Rules and target state
 
@@ -519,6 +554,16 @@ startup, using the recorded temporary name, retained bytes, and file mode.
 Recipe cleanup uses the localized unlink report when an owned changed
 target cannot be removed. The NLS checks cover raw paths and retain the
 recipe diagnostic, deletion announcement, and filesystem outcome in order.
+Built-in recipe failures report the translated location label for numeric
+exit and signal statuses, including ignored errors and parallel output.
+Physical touch opens ordinary targets for reading and writing. The locale
+checks retain the target's contents and timestamp after a denied open.
+Interrupted intermediate cleanup localizes deletion and unlink failures while
+preserving raw filename and system error bytes.
+Diagnostic prefixes use the raw final component of `argv[0]`, with `make`
+as the fallback for an empty invocation argument.
+Native setup-name inference classifies basename bytes under the active C
+locale, including letters in a single-byte locale.
 A restart that cannot return to the original directory emits the localized
 system warning and fatal message in order. It reports a failed unlink of
 the owned stdin source before the jobserver token report and finalizers.

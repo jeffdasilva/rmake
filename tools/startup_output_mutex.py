@@ -29,6 +29,11 @@ IDS = (
     "explicit-missing-before-directory-change",
     "explicit-missing-in-inherited-reader-buffer",
     "explicit-missing-before-help",
+    "inherited-output-pipe-flags",
+    "inherited-output-synchronized-pipe-flags",
+    "inherited-output-already-append-pipe-flags",
+    "inherited-output-regular-append-flags",
+    "inherited-output-device-flags",
 )
 
 
@@ -44,6 +49,8 @@ def prepare(model, fixture):
         path.write_bytes(content.encode())
     if model["id"] == "valid-visible-before-later-effects":
         (fixture / "witness.py").write_bytes((FIXTURE / "witness.py").read_bytes())
+    if "append_mode" in model:
+        (fixture / "append_witness.py").write_bytes((FIXTURE / "append_witness.py").read_bytes())
     h.validate_fixture(fixture)
     expected = {"stdout": model["stdout"], "stderr": model["stderr"], "exit_code": model["status"]}
     return h.Case(fixture, model["id"], "output.sync", "required",
@@ -67,8 +74,11 @@ def observe(model, case, runtime, image, version):
         expected_files.pop("work/" + name)
     if model["seen"] is not None:
         expected_files["work/seen"] = file_entry(model["seen"].encode())
+    command = [str(runtime / "bin/make"), *case.args]
+    if "append_mode" in model:
+        command[:0] = ["/usr/bin/python3", "append_witness.py", model["append_mode"]]
     out, err, code, limit, leftovers = h.capture(
-        [str(runtime / "bin/make"), *case.args], runtime / "work",
+        command, runtime / "work",
         h.clean_environment(runtime, case.environment), case.timeout, case.output == "merged",
     )
     value = h.Observation(out, err, code, limit, h.snapshot(roots), leftovers)
@@ -128,6 +138,7 @@ def main():
               "version_model_sha256": h.sha256_file(FIXTURE / "version-models.json"),
               "explicit_version_calibration": {"oracle": oracle_calibration, "candidate": candidate_calibration},
               "witness_sha256": h.sha256_file(FIXTURE / "witness.py"),
+              "append_witness_sha256": h.sha256_file(FIXTURE / "append_witness.py"),
               "affinity": sorted(os.sched_getaffinity(0)),
               "passed": all(row["passed"] for row in records)}
     args.report.parent.mkdir(parents=True, exist_ok=True)

@@ -61,13 +61,20 @@ impl Files {
             new_active: true,
         })))
     }
-    pub(super) fn bind(&mut self, database: &mut Database, new_active: bool) {
+    pub(super) fn bind(&mut self, database: &mut Database, options: &Options, new_active: bool) {
         self.new_active = new_active;
-        for (name, entry) in &mut self.entries {
-            if !new_active && entry.bits & OLD == 0 {
-                continue;
+        let new_files = if new_active {
+            options.new_files.as_slice()
+        } else {
+            &[]
+        };
+        // Logical ages share one entry per name, but each retained operand
+        // enters the file table in the original old-then-new publication order.
+        for path in options.old_files.iter().chain(new_files) {
+            let name = rmake_core::filenames::without_dot_prefix(path.as_os_str().as_bytes());
+            if let Some(entry) = self.entries.get_mut(name) {
+                Self::bind_record(database, name, &mut entry.bits);
             }
-            Self::bind_record(database, name, &mut entry.bits);
         }
     }
     fn bind_record(database: &mut Database, name: &[u8], bits: &mut u8) {
@@ -308,10 +315,12 @@ mod tests {
 
     #[test]
     fn double_colon_records_keep_real_times_rules_and_the_new_input_tails() {
-        let mut files = files(&["-odep", "-Wdep", "-W./dep", "-oold"]);
+        let options =
+            Options::parse(["-odep", "-Wdep", "-W./dep", "-oold"].map(OsString::from)).unwrap();
+        let mut files = Files::from_options(&options).unwrap().unwrap();
         let mut database = Database::default();
         database.read(b"dep::;\nold::;\n", b"Makefile").unwrap();
-        files.bind(&mut database, true);
+        files.bind(&mut database, &options, true);
         assert_eq!(files.time(b"dep"), None);
         assert!(!files.ignores_rules(b"dep"));
         assert!(!files.ignores_rules(b"old"));

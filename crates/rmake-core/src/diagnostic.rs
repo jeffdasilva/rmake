@@ -333,6 +333,10 @@ pub struct MakeflagsResult {
 
 /// Owns search traversal without borrowing host state across HOME effects.
 pub trait IncludePreparation {
+    /// Return whether this preparation records history during its own scan.
+    fn record_directory_history(&mut self, _history: &crate::database::History) -> bool {
+        false
+    }
     fn next(&mut self) -> Option<Vec<u8>>;
     fn directory(&mut self, value: Vec<u8>);
     fn finish(self: Box<Self>) -> PreparedIncludes;
@@ -754,7 +758,11 @@ impl<'a> ExpansionContext<'a> {
                     ExpandError::UnlocatedError(error)
                 })?;
         }
+        let mut recorded_directory_history = false;
         if let Some(mut preparation) = result.prepare_includes.take() {
+            recorded_directory_history = database
+                .database_history()
+                .is_some_and(|history| preparation.record_directory_history(history));
             // Argument-driving depth, terminal and following-definition state
             // have been restored. Search effects retain any enclosing frame,
             // but must not impersonate a completed decoder's argv scope.
@@ -778,7 +786,7 @@ impl<'a> ExpansionContext<'a> {
             result.include_dirs = prepared.directories;
             result.publish_includes = Some(prepared.publish);
         }
-        if let Some(history) = database.database_history() {
+        if !recorded_directory_history && let Some(history) = database.database_history() {
             for directory in &result.include_dirs {
                 history.intern(directory);
             }
@@ -913,6 +921,9 @@ impl<'a> ExpansionContext<'a> {
                     }
                     FlagAction::Filename(raw) => {
                         let value = self.flag_filename(database, &raw)?;
+                        if let Some(history) = database.database_history() {
+                            history.intern(&value);
+                        }
                         decoder
                             .filename(value)
                             .map_err(ExpandError::UnlocatedError)?;
@@ -940,10 +951,13 @@ impl<'a> ExpansionContext<'a> {
         database: &mut crate::parser::Database,
         raw: &[u8],
     ) -> Result<Vec<u8>, crate::variables::ExpandError> {
-        let mut expanded = self.flag_tilde(database, raw)?;
-        let prefix = expanded.len() - crate::filenames::without_dot_prefix(&expanded).len();
-        expanded.drain(..prefix);
-        Ok(expanded)
+        let expanded = self.flag_tilde(database, raw)?;
+        let normalized = crate::filenames::without_dot_prefix(&expanded);
+        if normalized.len() == expanded.len() {
+            Ok(expanded)
+        } else {
+            Ok(normalized.to_vec())
+        }
     }
 
     fn flag_tilde(

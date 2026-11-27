@@ -4,6 +4,7 @@
 //! Linux include search policy. Only the directory list is retained; each read
 //! opens the file afresh, including reads after eval, recipes and restarts.
 
+use rmake_core::database::History;
 use rmake_core::diagnostic::{
     ExpansionContext, FilesystemEffect, IncludeError, IncludeFailure, IncludedFile,
 };
@@ -82,15 +83,15 @@ pub struct IncludeSearch {
 }
 
 impl IncludeSearch {
-    pub fn new(arguments: &[PathBuf]) -> Self {
-        let mut builder = IncludeSearchBuilder::default();
+    pub fn new_with_history(arguments: &[PathBuf], history: Option<&History>) -> Self {
+        let mut builder = IncludeSearchBuilder::with_history(history);
         for argument in arguments {
             builder.push(argument.as_os_str().as_bytes());
         }
         builder.finish()
     }
 
-    fn add_directory(&mut self, name: &[u8]) {
+    fn add_directory(&mut self, name: &[u8], history: Option<&History>) {
         let metadata = loop {
             // A fatal signal must not begin another filesystem observation.
             if rmake_linux::signals::pending().is_some() {
@@ -106,7 +107,11 @@ impl IncludeSearch {
             while end > 1 && name[end - 1] == b'/' {
                 end -= 1;
             }
-            self.directories.push(name[..end].to_vec());
+            let directory = &name[..end];
+            if let Some(history) = history {
+                history.intern(directory);
+            }
+            self.directories.push(directory.to_vec());
         }
     }
 
@@ -165,6 +170,7 @@ fn open_failure(resolved_name: Option<Vec<u8>>, error: io::Error) -> IncludeFail
 pub struct IncludeSearchBuilder {
     search: IncludeSearch,
     defaults: bool,
+    history: Option<History>,
 }
 
 impl Default for IncludeSearchBuilder {
@@ -172,11 +178,19 @@ impl Default for IncludeSearchBuilder {
         Self {
             search: IncludeSearch::default(),
             defaults: true,
+            history: None,
         }
     }
 }
 
 impl IncludeSearchBuilder {
+    pub fn with_history(history: Option<&History>) -> Self {
+        Self {
+            history: history.cloned(),
+            ..Self::default()
+        }
+    }
+
     pub fn push(&mut self, name: &[u8]) {
         if name == b"-" {
             self.defaults = false;
@@ -188,7 +202,7 @@ impl IncludeSearchBuilder {
 
     /// Expanded names are directories even when HOME produces a literal '-'.
     pub fn push_resolved(&mut self, name: &[u8]) {
-        self.search.add_directory(name);
+        self.search.add_directory(name, self.history.as_ref());
     }
 
     pub fn finish(mut self) -> IncludeSearch {
@@ -199,7 +213,8 @@ impl IncludeSearchBuilder {
                 "/usr/local/include",
                 "/usr/include",
             ] {
-                self.search.add_directory(name.as_bytes());
+                self.search
+                    .add_directory(name.as_bytes(), self.history.as_ref());
             }
         }
         self.search

@@ -1,0 +1,12 @@
+id = "grouped-pattern-conditional-transfer-lexical-control"
+requirement = "scope.pattern-specific"
+candidate = "required"
+description = "A lexical caller value masks command-priority transfer into the active grouped pattern."
+provenance = "Original fixtures and stream/status anchors checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1", "X=cli", "one.out"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "6561726c793d5b7061747465726e7c66696c655d0a6c65786963616c3d5b6c65786963616c5d0a6c6174653d5b7061747465726e7c66696c655d0a706172656e743d5b7061747465726e7c66696c655d0a"
+stderr_hex = ""

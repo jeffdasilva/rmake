@@ -4,6 +4,224 @@
   "fixture_sha256": {},
   "rows": [
     {
+      "id": "nls-intermediate-sigterm-fr-retained-directory",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "-Otarget",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "2e494e5445524d4544494154453a206d6964ff0a616c6c3a206d6964ff0a09406d76202d2d20276d6964ff27207361766564202626206d6b646972202d2d20276d6964ff27202626207072696e7466202772656164795c6e27203e2072656164792026262065786563202f62696e2f736c65657020340a6d6964ff3a0a09407072696e7466202767656e6572617465645c6e27203e2024400a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {
+        "ready": "72656164790a",
+        "saved": "67656e6572617465640a"
+      },
+      "created_directories": [
+        "mid\udcff"
+      ],
+      "modules": [],
+      "signal_fact": [
+        "SIGTERM",
+        "fr_FR.UTF-8"
+      ],
+      "errno_fact": [
+        "EISDIR",
+        "fr_FR.UTF-8"
+      ],
+      "interrupt_intermediate": "mid\udcff",
+      "expected": {
+        "exit_code": -15,
+        "stdout": "",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a333a20616c6c5d20405349474e414c5f44455441494c400a6d616b653a202a2a2a205375707072657373696f6e206475206669636869657220696e7465726dc3a964696169726520c2abc2a06d6964ffc2a0c2bb0a6d616b653a200a756e6c696e6b3a206d6964ff203a20404f535f44455441494c400a",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-intermediate-sigterm-c-retained-directory",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "-Otarget",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "files": {
+        "Makefile": "2e494e5445524d4544494154453a206d6964ff0a616c6c3a206d6964ff0a09406d76202d2d20276d6964ff27207361766564202626206d6b646972202d2d20276d6964ff27202626207072696e7466202772656164795c6e27203e2072656164792026262065786563202f62696e2f736c65657020340a6d6964ff3a0a09407072696e7466202767656e6572617465645c6e27203e2024400a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {
+        "ready": "72656164790a",
+        "saved": "67656e6572617465640a"
+      },
+      "created_directories": [
+        "mid\udcff"
+      ],
+      "modules": [],
+      "signal_fact": [
+        "SIGTERM",
+        "C.UTF-8"
+      ],
+      "errno_fact": [
+        "EISDIR",
+        "C.UTF-8"
+      ],
+      "interrupt_intermediate": "mid\udcff",
+      "expected": {
+        "exit_code": -15,
+        "stdout": "",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a333a20616c6c5d20405349474e414c5f44455441494c400a6d616b653a202a2a2a2044656c6574696e6720696e7465726d6564696174652066696c6520276d6964ff270a6d616b653a200a756e6c696e6b3a206d6964ff3a20404f535f44455441494c400a",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-intermediate-sigterm-fr-serial",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "2e494e5445524d4544494154453a206d6964ff0a616c6c3a206d6964ff0a09407072696e7466202772656164795c6e27203e2072656164793b2065786563202f62696e2f736c65657020340a6d6964ff3a0a09407072696e7466202767656e6572617465645c6e27203e2024400a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {
+        "ready": "72656164790a"
+      },
+      "modules": [],
+      "signal_fact": [
+        "SIGTERM",
+        "fr_FR.UTF-8"
+      ],
+      "interrupt_intermediate": "mid\udcff",
+      "expected": {
+        "exit_code": -15,
+        "stdout": "",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a333a20616c6c5d20405349474e414c5f44455441494c400a6d616b653a202a2a2a205375707072657373696f6e206475206669636869657220696e7465726dc3a964696169726520c2abc2a06d6964ffc2a0c2bb0a",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-intermediate-sigterm-fr-parallel-pipe",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "-Otarget",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "2e494e5445524d4544494154453a206d6964ff0a616c6c3a206d6964ff0a09407072696e7466202772656164795c6e27203e2072656164793b2065786563202f62696e2f736c65657020340a6d6964ff3a0a09407072696e7466202767656e6572617465645c6e27203e2024400a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {
+        "ready": "72656164790a"
+      },
+      "modules": [],
+      "signal_fact": [
+        "SIGTERM",
+        "fr_FR.UTF-8"
+      ],
+      "interrupt_intermediate": "mid\udcff",
+      "expected": {
+        "exit_code": -15,
+        "stdout": "",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a333a20616c6c5d20405349474e414c5f44455441494c400a6d616b653a202a2a2a205375707072657373696f6e206475206669636869657220696e7465726dc3a964696169726520c2abc2a06d6964ffc2a0c2bb0a",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-intermediate-sigterm-fr-parallel-fifo",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=fifo",
+        "-Otarget",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "2e494e5445524d4544494154453a206d6964ff0a616c6c3a206d6964ff0a09407072696e7466202772656164795c6e27203e2072656164793b2065786563202f62696e2f736c65657020340a6d6964ff3a0a09407072696e7466202767656e6572617465645c6e27203e2024400a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {
+        "ready": "72656164790a"
+      },
+      "modules": [],
+      "signal_fact": [
+        "SIGTERM",
+        "fr_FR.UTF-8"
+      ],
+      "interrupt_intermediate": "mid\udcff",
+      "expected": {
+        "exit_code": -15,
+        "stdout": "",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a333a20616c6c5d20405349474e414c5f44455441494c400a6d616b653a202a2a2a205375707072657373696f6e206475206669636869657220696e7465726dc3a964696169726520c2abc2a06d6964ffc2a0c2bb0a",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-intermediate-sigterm-c-parallel-pipe",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "--jobserver-style=pipe",
+        "-Otarget",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C.UTF-8",
+        "LANG": "C.UTF-8"
+      },
+      "files": {
+        "Makefile": "2e494e5445524d4544494154453a206d6964ff0a616c6c3a206d6964ff0a09407072696e7466202772656164795c6e27203e2072656164793b2065786563202f62696e2f736c65657020340a6d6964ff3a0a09407072696e7466202767656e6572617465645c6e27203e2024400a",
+        "seen": "616e63686f720a"
+      },
+      "updates": {
+        "ready": "72656164790a"
+      },
+      "modules": [],
+      "signal_fact": [
+        "SIGTERM",
+        "C.UTF-8"
+      ],
+      "interrupt_intermediate": "mid\udcff",
+      "expected": {
+        "exit_code": -15,
+        "stdout": "",
+        "stderr_hex": "6d616b653a202a2a2a205b4d616b6566696c653a333a20616c6c5d20405349474e414c5f44455441494c400a6d616b653a202a2a2a2044656c6574696e6720696e7465726d6564696174652066696c6520276d6964ff270a",
+        "seen": "anchor\n"
+      }
+    },
+    {
       "id": "nls-intermediate-policy-de-global",
       "args": [
         "-rR",

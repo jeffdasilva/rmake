@@ -348,9 +348,14 @@ def child_limits(timeout: float) -> None:
 def capture(command: list[str], cwd: Path, environment: dict[str, str], timeout: float,
             merged: bool = False, *, observe: Callable[[int, bytes], None] | None = None,
             observe_streams: Callable[[bytes, bytes], None] | None = None,
+            executable: str | None = None,
             ) -> tuple[bytes, bytes, int, str | None, bool]:
-    """Bound the process group; stream observers receive cumulative captured bytes."""
-    process = subprocess.Popen(command, cwd=cwd, env=environment, stdin=subprocess.DEVNULL,
+    """Bound the process group; stream observers receive cumulative captured bytes.
+
+    A separate executable lets native startup probes pass an exact argv[0].
+    """
+    process = subprocess.Popen(command, executable=executable, cwd=cwd, env=environment,
+                               stdin=subprocess.DEVNULL,
                                stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT if merged else subprocess.PIPE,
                                start_new_session=True, close_fds=True,
@@ -417,12 +422,15 @@ def capture(command: list[str], cwd: Path, environment: dict[str, str], timeout:
 
 def execute(case: Case, root: Path, executable: Path, *,
             observe: Callable[[int, bytes], None] | None = None,
-            observe_streams: Callable[[bytes, bytes], None] | None = None) -> Observation:
+            observe_streams: Callable[[bytes, bytes], None] | None = None,
+            argv0: str | None = None) -> Observation:
     reset_workspace(case, root, executable)
+    program = str(root / "bin" / "make")
     out, err, status, limit, leftovers = capture(
-        [str(root / "bin" / "make"), *case.args], root / "work",
+        [program if argv0 is None else argv0, *case.args], root / "work",
         clean_environment(root, case.environment), case.timeout, case.output == "merged",
-        observe=observe, observe_streams=observe_streams)
+        observe=observe, observe_streams=observe_streams,
+        executable=program if argv0 is not None else None)
     files = snapshot({name: root / name for name in ("work", "home", "tmp")})
     return Observation(out, err, status, limit, files, leftovers)
 

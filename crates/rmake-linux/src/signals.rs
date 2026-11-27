@@ -46,7 +46,8 @@ unsafe extern "C" {
 
 // Rust's startup changes SIGPIPE to SIG_IGN. Record its inherited disposition
 // before lang_start so explicit inherited ignore can still be honored.
-extern "C" fn remember_pipe() {
+extern "C" fn remember_inherited_state() {
+    crate::process::remember_inherited_stdin();
     let old = unsafe { signal(13, 1) };
     if old != usize::MAX {
         INITIAL_PIPE.store(i32::from(old == 1), Ordering::Relaxed);
@@ -56,7 +57,7 @@ extern "C" fn remember_pipe() {
 
 #[used]
 #[unsafe(link_section = ".init_array")]
-static BEFORE_RUST: extern "C" fn() = remember_pipe;
+static BEFORE_RUST: extern "C" fn() = remember_inherited_state;
 
 extern "C" fn caught(number: c_int) {
     // AtomicI32 is lock-free on supported Linux targets. write, signal, getpid

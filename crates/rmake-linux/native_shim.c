@@ -17,6 +17,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <sys/resource.h>
+#include <sys/stat.h>
 #include <ucontext.h>
 #include <unistd.h>
 #ifdef RMAKE_GUILE_DISPATCH
@@ -361,6 +362,21 @@ static void register_stdout_once(void) {
     if (fcntl(STDOUT_FILENO, F_GETFD) >= 0)
         atexit(close_native_stdout);
 }
+void rm_set_regular_output_append(int fd) {
+    int saved = errno;
+    struct stat metadata;
+    if (fstat(fd, &metadata) == 0 && S_ISREG(metadata.st_mode)) {
+        int flags = fcntl(fd, F_GETFL);
+        if (flags >= 0) {
+            int result;
+            do {
+                result = fcntl(fd, F_SETFL, flags | O_APPEND);
+            } while (result < 0 && errno == EINTR);
+        }
+    }
+    errno = saved;
+}
+
 void rm_register_stdout_close(void) {
     pthread_once(&stdout_close_once, register_stdout_once);
 }

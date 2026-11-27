@@ -16,6 +16,11 @@ streams, status, and the complete fixture filesystem. Two explicit version
 failures also require the separately calibrated banner at its declared position
 in direct or spooled startup output.
 
+The inherited-output profiles inspect the Make parent and recipe descriptors.
+They check pipe and device flags, existing append and nonblocking flags, and
+append writes after a seek on inherited regular files. The synchronized
+control separately checks the recipe spool and inherited pipe flags.
+
 Run `make test-startup-output-mutex` or
 `make test-startup-output-mutex-release`. The existing live and passive
 output-lock suites retain their own fixtures.

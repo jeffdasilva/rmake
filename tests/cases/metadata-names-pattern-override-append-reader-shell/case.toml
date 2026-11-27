@@ -1,0 +1,12 @@
+id = "metadata-names-pattern-override-append-reader-shell"
+requirement = "variables.metadata"
+candidate = "required"
+description = "An inactive pattern override append leaves the stored names value for the reader shell."
+provenance = "Original fixtures and stream/status anchors checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout_hex = "7368656c6c3d5b72657461696e65645d0a"
+stderr_hex = ""

@@ -1,0 +1,12 @@
+id = "default-selection-optional-include-file-record"
+requirement = "options.default-goal-spelling"
+candidate = "required"
+description = "A missing optional include retains a file record and gives the ordinary missing-rule error."
+provenance = "Original fixtures and stream/status anchors checked against pinned GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory", "-j1"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout_hex = ""
+stderr_hex = "6d616b653a202a2a2a204e6f2072756c6520746f206d616b65207461726765742027736f7572636520667261676d656e742e6d6b272e202053746f702e0a"

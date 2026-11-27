@@ -595,8 +595,13 @@ pub(super) fn print_startup(host: &startup_exit::Host) {
         let files: Vec<_> = host
             .database
             .file_records
-            .names()
-            .map(|name| FileView::unchecked(name, host.database.rules.get(name)))
+            .entries()
+            .map(|entry| {
+                let name = entry.logical_name;
+                let mut view = FileView::unchecked(name, host.database.rules.get(name));
+                view.command_line = host.command_goals.contains(&entry.id);
+                view
+            })
             .collect();
         history.with_string_cache(|string_cache| {
             PRESENTATION.contents(

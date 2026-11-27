@@ -3726,16 +3726,12 @@ impl Database {
                             )
                         })
                 });
-                let record_active = self.target_read.is_none()
+                let record_conditional = self.target_read.is_none()
                     && declaration.head.is_none()
                     && !matches!(
                         name.as_slice(),
                         b"MAKEFLAGS" | b".SHELLSTATUS" | b".VARIABLES"
                     )
-                    && self
-                        .rules
-                        .get(target)
-                        .is_none_or(|rule| rule.double_colon.is_none() && rule.group.is_none())
                     && caller.is_some_and(|caller| {
                         caller
                             .ordinary_file_locals_identity()
@@ -3743,6 +3739,22 @@ impl Database {
                                 !self.detached_history_owners.contains_key(&identity)
                             })
                     });
+                let rule = self.rules.get(target);
+                let record_active = record_conditional
+                    && rule.is_none_or(|rule| rule.double_colon.is_none() && rule.group.is_none());
+                // Grouped destinations qualify only through an already
+                // selected pattern binding.
+                let record_group_pattern = record_conditional
+                    && rule.is_some_and(|rule| {
+                        rule.double_colon.is_none()
+                            && rule.group.as_ref().is_some_and(|group| {
+                                group.double_id.is_none() && group.implicit_identity.is_none()
+                            })
+                    })
+                    && context
+                        .target_reads
+                        .as_deref()
+                        .is_some_and(|reads| !reads.has_file_aliases());
                 if let Some((owner, mut read)) = self.existing_target_read(
                     target,
                     &declarations,
@@ -3766,12 +3778,12 @@ impl Database {
                     } else {
                         None
                     };
-                    let pattern_owner = if record_active {
+                    let pattern_owner = if record_active || record_group_pattern {
                         read.activated_pattern_binding_scope(&name)
                     } else {
                         None
                     };
-                    if record_active {
+                    if record_active || pattern_owner.is_some() {
                         (active_conditional, transfer_command) =
                             Self::record_active_named_conditional(
                                 &read,
