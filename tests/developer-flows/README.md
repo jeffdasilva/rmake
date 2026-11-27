@@ -16,9 +16,11 @@ time and repeats the install in the same workspace.
 
 The fixture runs warm oracle bootstrap and retries it after a real advisory
 lock conflict in the same disposable workspace. It compares both transcripts
-and checks that the installed oracle and lock file are preserved. It also
-runs six real Cargo clean modes (including parallel pipe jobserver and
-`-n`, `-q`, `-t` guards) and a manifest validation retry. Cargo rejects a
+and checks that the installed oracle and lock file are preserved. The integrity
+retry checks that warm bootstrap rejects a private executable with the wrong
+digest before running it, then succeeds after the verified bytes are restored.
+The gate also runs six real Cargo clean modes (including parallel pipe jobserver
+and `-n`, `-q`, `-t` guards) and a manifest validation retry. Cargo rejects a
 duplicate workspace resolver without changing either target tree. The fixture
 restores the manifest bytes and modification time, then retries in the same
 workspace and checks that only the selected compiled target is removed.

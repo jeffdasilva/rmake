@@ -21,10 +21,12 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'tests/developer-flows'
 BOOTSTRAP_LINE = b'python3 tools/oracle.py bootstrap\n'
 BOOTSTRAP_RETRY = 'warm-bootstrap-oracle-lock-retry'
+ORACLE_INTEGRITY_RETRY = 'warm-bootstrap-oracle-integrity-retry'
 CATALOG_RETRY = 'catalog-install-validation-retry'
 CLEAN_RETRY = 'clean-invalid-manifest-retry'
 FAILED_PHASE_REPORTS = {
-    BOOTSTRAP_RETRY: 'contended_runs', CATALOG_RETRY: 'rejected_runs',
+    BOOTSTRAP_RETRY: 'contended_runs', ORACLE_INTEGRITY_RETRY: 'rejected_runs',
+    CATALOG_RETRY: 'rejected_runs',
     CLEAN_RETRY: 'invalid_manifest_runs',
 }
 BUILD_LINE = b'python3 tools/rust.py cargo build --workspace --release --locked\n'
@@ -43,7 +45,8 @@ CLEAN_CASES = {
 VALIDATION_CASES = {'bench-validation': 'oracle', 'bench-compare-validation': 'comparison'}
 CATALOG_CASES = ('catalog-check', 'catalog-install-staged', CATALOG_RETRY)
 READ_ONLY_CASES = ('help', 'doctor')
-CASE_IDS = ('warm-bootstrap-oracle', BOOTSTRAP_RETRY, *READ_ONLY_CASES, *CATALOG_CASES, *CLEAN_CASES,
+CASE_IDS = ('warm-bootstrap-oracle', BOOTSTRAP_RETRY, ORACLE_INTEGRITY_RETRY, *READ_ONLY_CASES,
+            *CATALOG_CASES, *CLEAN_CASES,
             'bench-invalid-repeat', 'bench-invalid-suite', 'bench-compare-missing-executable',
             *VALIDATION_CASES)
 
@@ -316,19 +319,22 @@ class Subject:
         require(not (self.work / '.tools/downloads').exists(), 'warm oracle attempted a download')
         return result
 
+    def rejected_bootstrap(self, diagnostic):
+        recipe = b'\t$(PYTHON) tools/oracle.py bootstrap'
+        line = (self.work / 'Makefile').read_bytes().splitlines().index(recipe) + 1
+        failure = f'make: *** [Makefile:{line}: bootstrap-oracle] Error 2\n'.encode()
+        return BOOTSTRAP_LINE, diagnostic + failure, 2, None, False
+
     def observe_bootstrap_lock_retry(self, binary, protected):
         tools = self.work / '.tools'
         lock_path = tools / 'oracle.lock'
-        recipe = b'\t$(PYTHON) tools/oracle.py bootstrap'
-        line = (self.work / 'Makefile').read_bytes().splitlines().index(recipe) + 1
-        diagnostic = (b'oracle: another oracle bootstrap is already running\n'
-                      + f'make: *** [Makefile:{line}: bootstrap-oracle] Error 2\n'.encode())
+        expected = self.rejected_bootstrap(b'oracle: another oracle bootstrap is already running\n')
         with lock_path.open('ab') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             owner = os.fstat(lock.fileno())
             before = digest_tree(tools)
             blocked = self.run(binary, 'bootstrap-oracle')
-            require(blocked == (BOOTSTRAP_LINE, diagnostic, 2, None, False),
+            require(blocked == expected,
                     f'contended bootstrap model: {blocked!r}')
             require(os.path.samestat(owner, lock_path.lstat()) and digest_tree(tools) == before,
                     'contended bootstrap changed the lock or installed tools')
@@ -344,6 +350,46 @@ class Subject:
         require(os.path.samestat(owner, lock_path.lstat()) and digest_tree(tools) == before,
                 'bootstrap retry changed the lock or installed tools')
         return blocked, retried
+
+    def observe_oracle_integrity_retry(self, binary, protected):
+        installed = self.profile / 'bin/make'
+        marker = installed.with_suffix('.invoked')
+        tools = self.work / '.tools'
+        lock_path = tools / 'oracle.lock'
+        with lock_path.open('ab'):
+            pass
+        original_lock = lock_path.stat()
+        original = installed.stat()
+        authentic = installed.read_bytes()
+        verified_sha = h.sha256_file(installed)
+        before = digest_tree(tools)
+        require(not marker.exists(), 'oracle execution marker was already present')
+        try:
+            installed.write_bytes(b'#!/bin/sh\nprintf "unexpected\\n" > "$0.invoked"\nexit 91\n')
+            wrong_sha = h.sha256_file(installed)
+            require(verified_sha != wrong_sha, 'replacement has the verified digest')
+            invalid_tools = digest_tree(tools)
+            invalid_protected = {**protected, 'profile': digest_tree(self.profile)}
+            expected = self.rejected_bootstrap(
+                f'oracle: oracle binary SHA256 mismatch: expected {verified_sha}, '
+                f'got {wrong_sha}; executable was not run\n'.encode())
+            rejected = self.run(binary, 'bootstrap-oracle')
+            require(rejected == expected, f'bootstrap integrity failure: {rejected!r}')
+            require(not marker.exists() and os.path.samestat(original, installed.stat())
+                    and os.path.samestat(original_lock, lock_path.stat())
+                    and digest_tree(tools) == invalid_tools and self.protected() == invalid_protected,
+                    'rejected bootstrap executed the replacement or changed its workspace')
+        finally:
+            installed.write_bytes(authentic)
+            os.utime(installed, ns=(original.st_atime_ns, original.st_mtime_ns))
+        require(digest_tree(tools) == before and self.protected() == protected,
+                'oracle integrity control was not restored')
+        retried = self.observe_warm_bootstrap(binary)
+        require(os.path.samestat(original, installed.stat())
+                and installed.stat().st_mtime_ns == original.st_mtime_ns
+                and os.path.samestat(original_lock, lock_path.stat()) and digest_tree(tools) == before,
+                'bootstrap retry changed the restored install or lock')
+        return rejected, retried
 
     def observe_clean_manifest_rejection(self, binary, target, other):
         manifest = self.work / 'Cargo.toml'
@@ -387,6 +433,8 @@ class Subject:
             result = self.observe_warm_bootstrap(binary)
         elif case == BOOTSTRAP_RETRY:
             result = self.observe_bootstrap_lock_retry(binary, before)
+        elif case == ORACLE_INTEGRITY_RETRY:
+            result = self.observe_oracle_integrity_retry(binary, before)
         elif case in READ_ONLY_CASES:
             result = self.observe_read_only(case, binary)
         elif case == CATALOG_RETRY:
