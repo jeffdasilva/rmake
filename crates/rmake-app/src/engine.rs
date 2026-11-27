@@ -1654,6 +1654,7 @@ struct ImplicitSelection {
     prepared_scope: Option<Box<ImplicitScope>>,
     explicit_names: Vec<Vec<u8>>,
     intermediate_names: Vec<Vec<u8>>,
+    single_stem_input: bool,
 }
 
 enum ImplicitFilenames {
@@ -11757,15 +11758,34 @@ impl Engine {
             .iter()
             .map(|child| (child.name.as_slice(), &child.rule))
             .collect();
+        let plain_child_history = self.database.database_history().and_then(|history| {
+            self.plain_implicit_child_input(parent, &children, placement)
+                .map(|(input, stem, pattern)| (history.clone(), input, stem, pattern))
+        });
         for child in &children {
             self.retain_implicit_selection_history(child, ImplicitPlacement::Descendant);
         }
         // Process candidate inputs in reverse order when their owner accepts.
         for dependency in parent.rule.dependencies.iter().rev() {
             if let Some(child) = inferred.get(dependency.name.as_slice()) {
-                self.database.file_records.insert(&dependency.name);
+                if let Some((history, input, stem, pattern)) = &plain_child_history {
+                    // The sole child accepted its leaf before this parent attached it.
+                    history.intern(input);
+                    history.intern(stem);
+                    history.record_file_lookup(pattern);
+                    self.database
+                        .file_records
+                        .enter_prerequisite(&dependency.name);
+                    history.record_file_lookup(pattern);
+                } else {
+                    self.database.file_records.insert(&dependency.name);
+                }
                 for input in child.dependencies.iter().filter(|dep| dep.name != b".WAIT") {
                     self.database.file_records.insert(&input.name);
+                }
+                if let Some((history, _, _, _)) = &plain_child_history {
+                    history.intern(&dependency.name);
+                    history.record_file_lookup(&dependency.name);
                 }
             } else if placement != ImplicitPlacement::Descendant && dependency.name != b".WAIT" {
                 if let Some(history) = self.database.database_history() {
@@ -11849,6 +11869,46 @@ impl Engine {
         }
     }
 
+    fn plain_implicit_child_input<'a>(
+        &self,
+        parent: &ImplicitSelection,
+        children: &'a [ImplicitSelection],
+        placement: ImplicitPlacement,
+    ) -> Option<(&'a [u8], &'a [u8], &'a [u8])> {
+        let [child] = children else { return None };
+        let [input] = child.rule.dependencies.as_slice() else {
+            return None;
+        };
+        if placement != ImplicitPlacement::Root
+            || !parent.single_stem_input
+            || !child.single_stem_input
+            || !self.options.no_rules
+            || self.remaking
+            || self.active_makefile_remake.is_some()
+            || self.parallel_graph()
+            || MakefileModes::from_options(&self.options).active()
+            || self.database.has_vpaths()
+            || !self.vpath_dirs.is_empty()
+            || !self.gpath_dirs.is_empty()
+            || self.database.file_records.contains(&child.name)
+            || self.database.file_records.contains(&input.name)
+            || [&parent.name, &child.name, &input.name].iter().any(|name| {
+                name.contains(&b'/')
+                    || name.starts_with(b"-l")
+                    || name.starts_with(b"~")
+                    || rmake_core::filenames::archive_parts(name).is_some()
+                    || self.aliases.contains_source_or_destination(name)
+            })
+        {
+            return None;
+        }
+        Some((
+            &input.name,
+            child.rule.stem.as_deref()?,
+            child.rule.implicit_pattern.as_deref()?,
+        ))
+    }
+
     fn retain_implicit_selection_history(
         &mut self,
         selection: &ImplicitSelection,
@@ -11894,6 +11954,7 @@ impl Engine {
             prepared_scope,
             explicit_names: _,
             intermediate_names,
+            single_stem_input: _,
         } = selection;
         let descendant = placement == ImplicitPlacement::Descendant;
         let detached = placement == ImplicitPlacement::DoubleColonRoot;
@@ -12552,6 +12613,12 @@ impl Engine {
                             ),
                         );
                     }
+                    let single_stem_input = candidate.rule.secondary.is_none()
+                        && candidate.rule.group.is_none()
+                        && !candidate.rule.terminal
+                        && candidate.rule.dependencies.len() == 1
+                        && candidate.stem_dependencies.contains(&0)
+                        && matches!(dependencies.as_slice(), [input] if !input.order_only && !input.hidden);
                     let mut selected = std::mem::take(&mut candidate.rule);
                     // A pattern barrier cannot cross into the target's explicit prerequisites.
                     Self::trim_implicit_waits(&mut dependencies);
@@ -12563,6 +12630,7 @@ impl Engine {
                         explicit_names,
                         intermediate_names,
                         prepared_scope: search.intermediate_scope.take().map(Box::new),
+                        single_stem_input,
                     };
                     if intermediate {
                         self.publish_implicit_children(
@@ -21256,6 +21324,7 @@ mod tests {
                     explicit_names: Vec::new(),
                     intermediate_names: Vec::new(),
                     prepared_scope: None,
+                    single_stem_input: false,
                 },
                 children: Vec::new(),
                 published: HashMap::new(),
