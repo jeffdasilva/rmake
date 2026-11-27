@@ -28,6 +28,11 @@ pending partial C stdout is not flushed by an interpreter warning. At normal and
 fatal process exit GNU closes stdout before library destructors, while their
 interpreter/file effects and stderr remain available.
 
+Six serial models compare two unchanged modules after a remake. The file
+witness records prerequisite-driven unloads, read-order reloads and final
+destructors. The output checks the appended module names and empty restart
+count, including aliases and repeated load directives.
+
 Every expected stream, status and ordered `seen` witness is explicit. Repeated
 GNU differences, wrong independent models, candidate differences, resource bounds,
 and leftover children always fail. `--oracle-only` checks both GNU observations

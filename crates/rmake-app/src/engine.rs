@@ -6411,7 +6411,25 @@ impl Engine {
             // A query verdict leaves any objects unloaded by the remake pass
             // in that state for the ordinary goals.
             if !remake_question {
-                for module in crate::native::unloaded() {
+                let mut modules = crate::native::unloaded();
+                if modules.len() > 1
+                    && !unsuccessful_remake
+                    && !modes.active()
+                    && self.job_slots() == 1
+                {
+                    let mut pending: HashSet<_> = modules.iter().map(Vec::as_slice).collect();
+                    let read_order: Vec<_> = read_files
+                        .iter()
+                        .filter(|(file, skipped)| !*skipped && pending.remove(file.name.as_slice()))
+                        .map(|(file, _)| file.name.clone())
+                        .collect();
+                    if pending.is_empty() {
+                        // An unchanged serial remake reloads the admitted
+                        // read records in order, regardless of dependency order.
+                        modules = read_order;
+                    }
+                }
+                for module in modules {
                     let location = self.database.loaded_modules.get(&module).cloned();
                     if let Err(error) =
                         self.native_module_operation(&module, location.as_ref(), true)

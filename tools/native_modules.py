@@ -150,6 +150,7 @@ def models() -> list[Model]:
         expected = b'LOADED=[probe_api.so]\nRESULT=[' + (b'target' if kind == 'target' else b'all') + b']\n'
         result.append(Model('native-recipe-' + kind, {'Makefile': body, 'seen': b'anchor\n'}, {'exit_code': 0, 'stdout_hex': expected.hex(), 'stderr_hex': ''}, b'anchor\nbefore\n'))
     result.extend(lifecycle_models())
+    result.extend(reload_order_models())
     result.extend(setup_result_models())
     result.extend(loader_debug_models())
     result.extend(additional_models())
@@ -257,6 +258,61 @@ def lifecycle_models() -> list[Model]:
                                 args=('-rR', '--no-print-directory', '-k', '-j2', '--jobserver-style=' + transport, '-O' + sync)))
     return result
 
+
+
+def reload_order_models() -> list[Model]:
+    modules = (Module('reload_order.c', 'module_a.so'),
+               Module('reload_order.c', 'module_b.so', ('MODULE_B',)))
+    aliases = {'aliases/module_a.so': '../module_a.so'}
+
+    def model(name, read_order, remake_order, *, optimized=False, repeated=False, alias=False):
+        program = b'.DEFAULT_GOAL := all\n'
+        loaded = []
+        seen = b'anchor\n'
+        for letter in read_order:
+            filename = f'module_{letter}.so'.encode()
+            program += b'load ' + filename + b'\n'
+            loaded.append(filename)
+            seen += f'{letter}:open\n{letter}:setup\n'.encode()
+            if alias and letter == 'a':
+                program += b'load aliases/module_a.so(module_a_gmk_setup)\n'
+                loaded.append(b'aliases/module_a.so')
+                seen += b'a:setup\n'
+        if repeated:
+            program += b'load ./module_a.so\n'
+        program += (b'$(file >>seen,reader)\n$(info reader=[$(.LOADED)])\n'
+                    b'.PHONY: all FORCE\n'
+                    b'all: ; @$(file >>seen,goal)printf "%s\\n" "goal=[$(.LOADED)] restart=[$(MAKE_RESTARTS)]"\n'
+                    b'FORCE:\n')
+        for letter in ('a', 'b'):
+            prerequisite = f'module_{remake_order[0]}.so ' if letter == remake_order[1] else ''
+            rule = f'module_{letter}.so: {prerequisite}FORCE ; '.encode()
+            command = b'@:\n' if optimized else f'@/usr/bin/printf "remake:{letter}\\n" >>seen\n'.encode()
+            program += rule + command
+        seen += b'reader\n'
+        for letter in remake_order:
+            seen += f'{letter}:close\n'.encode()
+            if not optimized:
+                seen += f'remake:{letter}\n'.encode()
+        seen += b''.join(f'{letter}:open\n{letter}:setup\n'.encode() for letter in read_order)
+        seen += b'goal\n'
+        seen += b''.join(f'{letter}:close\n'.encode() for letter in read_order)
+        reloaded = [f'module_{letter}.so'.encode() for letter in read_order]
+        stdout = b'reader=[' + b' '.join(loaded) + b']\ngoal=[' + b' '.join(loaded + reloaded) + b'] restart=[]\n'
+        return Model('native-reload-read-order-' + name, {'Makefile': program, 'seen': b'anchor\n'},
+                     {'exit_code': 0, 'stdout_hex': stdout.hex(), 'stderr_hex': ''}, seen, modules,
+                     args=('-rR', '--no-print-directory', '-j1', '-s', 'all'),
+                     mtimes_ns={module.filename: INPUT_TIME_NS for module in modules},
+                     symlinks=aliases if alias else {})
+
+    return [
+        model('reverse', 'ab', 'ba'),
+        model('mirror', 'ba', 'ab'),
+        model('optimized', 'ab', 'ba', optimized=True),
+        model('duplicate', 'ab', 'ba', repeated=True),
+        model('alias', 'ab', 'ba', alias=True),
+        model('aligned-control', 'ba', 'ba'),
+    ]
 
 
 def setup_result_models() -> list[Model]:
