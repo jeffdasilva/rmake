@@ -19286,7 +19286,6 @@ impl Engine {
                 && self.serial_or_owned_two_job_pipe(parallel);
             let first_configuration_include =
                 observe_preparation_failure.then_some(self.database.makefiles.len());
-            preparation_after_noop = false;
             // GNU expands configuration before a dry-run/query decision, after
             // all recipe bodies have expanded. A nonempty expansion consisting
             // only of blanks/modifiers still reaches configuration; a zero-byte
@@ -19352,8 +19351,11 @@ impl Engine {
             };
             let shell = shell.as_slice();
             if command.is_empty() {
+                // A nonrecursive prefix-only line prepares no invocation.
+                preparation_after_noop &= !force;
                 continue;
             }
+            preparation_after_noop = false;
             let transformed;
             let ordinary_invocation;
             if one_shell {

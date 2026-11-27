@@ -207,6 +207,8 @@ NUL boundaries, rebinding and cancellation.
   user errors, and built-in arity diagnostics. This also applies when serial
   shell or export preparation fails after an optimized no-op, before the
   first child launches.
+  A nonrecursive prefix-only recipe line between the optimized no-op and
+  export preparation retains this update state.
   Optional includes from target-specific shell configuration also retain
   their missing timestamps while the parallel job queue is idle or holds
   one separate ordinary recipe.
