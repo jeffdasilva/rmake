@@ -20,8 +20,10 @@ not reconfigure search. After an ordinary include search finds a file,
 when present. A new record retains the resolved path. Diagnostics use the
 requested include spelling.
 Optional includes suppress missing-file errors, but not fatal parse or directory
-read errors. Recipe-time eval uses the same runtime reader. Each read opens the
-file again: no negative result or file content is cached across effects.
+read errors. Reader and recipe eval use the same file record selection. Serial
+recipe-time observations retain the selected record along with the open result.
+Each read opens the file again: no negative result or file content is cached
+across effects.
 
 The configured default include directory is selected at compilation by
 `RMAKE_INCLUDEDIR`, followed by `/usr/gnu/include`, `/usr/local/include` and

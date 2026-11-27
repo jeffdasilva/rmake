@@ -5436,18 +5436,16 @@ impl Database {
                     };
                     match result {
                         Ok(included) => {
-                            // Select the previously registered owner after an
-                            // ordinary reader search. Eval-buffer observations
-                            // still use the exact filename returned by the open.
-                            let name = if evaluated_at.is_none()
-                                && included.name.starts_with(b"./")
-                                && included.name != path
+                            // Use the existing file record for a resolved
+                            // dot-prefixed spelling while parsing the requested source.
+                            let name = if included.name.starts_with(b"./") && included.name != path
                             {
                                 self.enter_makefile_source(&included.name)
                             } else {
                                 self.enter_exact_include_source(&included.name);
                                 &included.name
                             };
+                            context.include_open_result(name, true);
                             self.makefiles.push(Makefile {
                                 name: name.to_vec(),
                                 optional,
@@ -5478,6 +5476,7 @@ impl Database {
                         Err((resolved_name, detail)) => {
                             let name = resolved_name.unwrap_or(path);
                             self.enter_exact_include_source(&name);
+                            context.include_open_result(&name, false);
                             self.makefiles.push(Makefile {
                                 name,
                                 optional,
@@ -9297,6 +9296,14 @@ mod reader_event_tests {
                 self.0.push(text.to_vec());
             }
         }
+        fn include_open_result(&mut self, name: &[u8], opened: bool) {
+            let label = if opened {
+                b"opened:".as_slice()
+            } else {
+                b"missing:"
+            };
+            self.0.push([label, name].concat());
+        }
         fn reader_event(&mut self, event: ReaderEvent<'_>) {
             self.0.push(match event {
                 ReaderEvent::Reading { name, optional, .. } => [
@@ -9319,7 +9326,7 @@ mod reader_event_tests {
         let mut reads = 0;
         database
             .read_with(
-                b"-include absent.mk\ninclude child.mk\n$(info parent)\n",
+                b"child.mk:\n-include absent.mk\n$(eval include child.mk)\n$(info parent)\n",
                 b"parent.mk",
                 ExpansionContext::with_receiver(None, &mut events).with_includes(&mut |name| {
                     reads += 1;
@@ -9327,7 +9334,7 @@ mod reader_event_tests {
                         return Err(b"No such file or directory".to_vec().into());
                     }
                     Ok(IncludedFile {
-                        name: name.to_vec(),
+                        name: b"./child.mk".to_vec(),
                         input: Input::Bytes(b"\xef\xbb\xbf$(info child)\n".to_vec()),
                     })
                 }),
@@ -9338,7 +9345,9 @@ mod reader_event_tests {
             events.0,
             [
                 b"optional:absent.mk".to_vec(),
+                b"missing:absent.mk".to_vec(),
                 b"include:child.mk".to_vec(),
+                b"opened:child.mk".to_vec(),
                 b"bom:child.mk".to_vec(),
                 b"child".to_vec(),
                 b"parent".to_vec()

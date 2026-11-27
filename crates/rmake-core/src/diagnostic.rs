@@ -101,6 +101,8 @@ pub enum ReaderEvent<'a> {
 pub trait OutputReceiver {
     fn emit(&mut self, event: Output<'_>);
     fn reader_event(&mut self, _event: ReaderEvent<'_>) {}
+    /// The file record selected for a completed or deferred include open.
+    fn include_open_result(&mut self, _name: &[u8], _opened: bool) {}
     fn recursive_shell_export(&mut self, _definition: &Location, _name: &[u8]) {}
     fn loader_event(&mut self, _event: crate::native::LoaderEvent<'_>) {}
     fn guile_callback(&mut self, _callback: crate::native::GuileCallback<'_>) {}
@@ -1180,6 +1182,12 @@ impl<'a> ExpansionContext<'a> {
     pub fn reader_event(&mut self, event: ReaderEvent<'_>) {
         if let Some(output) = self.output.as_mut() {
             output.reader_event(event);
+        }
+    }
+
+    pub(crate) fn include_open_result(&mut self, name: &[u8], opened: bool) {
+        if let Some(output) = self.output.as_mut() {
+            output.include_open_result(name, opened);
         }
     }
 

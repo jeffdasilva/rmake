@@ -1266,6 +1266,7 @@ struct RuntimeOutput<'a> {
     controller: &'a crate::output::Controller,
     program: &'a [u8],
     warnings: &'a Cell<bool>,
+    include_open_results: Option<&'a mut Vec<(Vec<u8>, bool)>>,
 }
 impl<'a> RuntimeOutput<'a> {
     fn new(
@@ -1277,6 +1278,7 @@ impl<'a> RuntimeOutput<'a> {
             controller,
             program,
             warnings,
+            include_open_results: None,
         }
     }
 }
@@ -1306,6 +1308,12 @@ impl OutputReceiver for RuntimeOutput<'_> {
     }
     fn reader_event(&mut self, event: rmake_core::diagnostic::ReaderEvent<'_>) {
         crate::debug::reader(self.controller, event);
+    }
+
+    fn include_open_result(&mut self, name: &[u8], opened: bool) {
+        if let Some(results) = &mut self.include_open_results {
+            results.push((name.to_vec(), opened));
+        }
     }
 
     fn recursive_shell_export(&mut self, definition: &Location, name: &[u8]) {
@@ -2530,8 +2538,12 @@ impl Engine {
             branches: &mut self.database_branch_contexts,
             direct_heads,
         };
+        let mut open_results = Vec::new();
         let mut output =
             RuntimeOutput::new(&self.output, &self.program, &self.flag_state.warn_undefined);
+        if self.ordinary_include_open_times && direct_heads {
+            output.include_open_results = Some(&mut open_results);
+        }
         let mut flags = self.flag_state.receiver();
         let mut filesystem = |effect: rmake_core::diagnostic::FilesystemEffect<'_>| {
             self.filesystem.borrow_mut().execute(effect)
@@ -2546,22 +2558,7 @@ impl Engine {
                 || self.filesystem.borrow_mut().child_completed(),
             )
         };
-        let record_open_times = self.ordinary_include_open_times && direct_heads;
-        let mut open_results = Vec::new();
-        let mut include = |name: &[u8]| {
-            let result = self.include_search.borrow().read(name);
-            if record_open_times {
-                match &result {
-                    Ok(included) => open_results.push((included.name.clone(), true)),
-                    Err(IncludeFailure::Deferred { resolved_name, .. }) => {
-                        open_results
-                            .push((resolved_name.as_deref().unwrap_or(name).to_vec(), false));
-                    }
-                    Err(IncludeFailure::Fatal(_)) => {}
-                }
-            }
-            result
-        };
+        let mut include = |name: &[u8]| self.include_search.borrow().read(name);
         let context = runtime_context(location, &mut output)
             .with_makeflags(&mut flags)
             .with_target_reads(&mut target_reads)
