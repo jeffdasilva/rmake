@@ -51,6 +51,8 @@ at the end of this audit.
   or recording another filename lookup.
   The initial file-table publication records each retained old operand and
   then each active new operand, even when the name shares an age record.
+  After a restart, the delayed file-table publication records all retained
+  new operands in order. Shared names keep one logical age record.
   Startup include options cache each accepted operand after filename preparation.
   Search construction records each existing directory in scan order and preserves
   its cache event even when a later `-I-` clears it from the search list.
@@ -296,8 +298,10 @@ covers mixed required and optional failure policies.
   This leaves the existing target cleanup rules in effect.
   Ordinary serial recipes now report a failed stat of the last launched
   executable after an unignored missing-executable error, before the recipe's
-  terminal error. Ignored errors, child exit 127, other prior executable
-  failures, and recursive output synchronization remain open.
+  terminal error. When a launched recipe child exits 127, serial and parallel
+  recipes check the selected path before printing the recipe error.
+  Rechecking the prior executable after an ignored launch error, other launch
+  failures, and launch errors with recursive output synchronization remain open.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)

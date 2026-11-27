@@ -192,6 +192,12 @@ through `/bin/sh` with its selected path and original arguments. When no
 executable qualifies, the last access error other than `ENOENT` determines
 the diagnostic. A quoted empty program name has no current-directory match.
 
+When a recipe child exits with status 127, GNU Make checks the executable path
+used for that command. A failed stat, a directory, missing owner execute
+permission, or an empty executable produces an additional diagnostic before
+the recipe error. Serial and parallel recipes retain the path selected at
+launch, including paths resolved through the child's search path.
+
 Shell capture opens its pipe before executable selection. A failed lookup or
 launch retains the pipe ends for the interpreter's lifetime. A pipe allocation
 failure reports the active source location and preserves the previous

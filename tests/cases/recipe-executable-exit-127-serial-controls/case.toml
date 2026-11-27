@@ -1,0 +1,11 @@
+id = "recipe-executable-exit-127-serial-controls"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+description = "Exit 127 with an unchanged executable and exit 126 with an unlinked executable retain the ordinary diagnostics."
+provenance = "Original Makefile and executable fixture with independently recorded GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+
+[expected]
+exit_code = 0
+stdout = "child 127\nchild 126\ncontinued\n"
+stderr = "make: [Makefile:2: all] Error 127 (ignored)\nmake: [Makefile:3: all] Error 126 (ignored)\n"

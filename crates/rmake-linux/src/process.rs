@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io;
 use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::ffi::OsStrExt;
+use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -98,6 +99,22 @@ pub fn executable(path: &Path) -> io::Result<()> {
     }
     if path.metadata()?.is_dir() {
         return Err(io::Error::from_raw_os_error(13));
+    }
+    Ok(())
+}
+
+/// Recheck the launched path after a child exits with status 127.
+pub fn recheck_executable(path: &Path) -> io::Result<()> {
+    const OWNER_EXECUTE: u32 = 0o100;
+    const EACCES: c_int = 13;
+    const ENOEXEC: c_int = 8;
+
+    let metadata = crate::filesystem::retry_interrupted(|| path.metadata())?;
+    if metadata.is_dir() || metadata.mode() & OWNER_EXECUTE == 0 {
+        return Err(io::Error::from_raw_os_error(EACCES));
+    }
+    if metadata.len() == 0 {
+        return Err(io::Error::from_raw_os_error(ENOEXEC));
     }
     Ok(())
 }

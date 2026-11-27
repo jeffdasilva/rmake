@@ -1,0 +1,11 @@
+id = "recipe-executable-exit-127-serial-unlink"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+description = "A serial recipe reports the resolved search path when its executable unlinks itself and exits 127."
+provenance = "Original Makefile and executable fixture with independently recorded GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+
+[expected]
+exit_code = 2
+stdout = "child\n"
+stderr = "make: ./helpers/runner: No such file or directory\nmake: *** [Makefile:3: all] Error 127\n"

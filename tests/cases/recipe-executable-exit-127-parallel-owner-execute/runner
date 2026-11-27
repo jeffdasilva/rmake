@@ -1,0 +1,4 @@
+#!/bin/sh
+printf "child\n"
+chmod 655 -- "$0"
+exit 127

@@ -1,0 +1,4 @@
+#!/bin/sh
+printf "child %s\n" "$1"
+if [ "$1" = 126 ]; then rm -- "$0"; fi
+exit "$1"

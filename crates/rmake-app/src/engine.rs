@@ -1318,6 +1318,7 @@ struct SerialWait {
 struct ParallelJob {
     identity: u64,
     program: Vec<u8>,
+    executable: Option<PathBuf>,
     location: Location,
     ignore: bool,
     recursive: bool,
@@ -2944,6 +2945,22 @@ impl Engine {
     fn stderr(&self, body: &[u8]) {
         self.output
             .write_parts(true, &[&self.program, b": ", body, b"\n"]);
+    }
+
+    // The executable diagnostic runs before selecting the completed
+    // recipe's output buffer, which still owns the recipe error.
+    fn report_recipe_executable_exit(
+        &self,
+        status: Option<&std::process::ExitStatus>,
+        executable: Option<&Path>,
+    ) {
+        if status.and_then(std::process::ExitStatus::code) == Some(127)
+            && let Some(executable) = executable
+            && let Err(error) = rmake_linux::process::recheck_executable(executable)
+        {
+            let detail = rmake_linux::filesystem::source_error_detail(&error);
+            self.stderr(&[executable.as_os_str().as_bytes(), b": ", &detail].concat());
+        }
     }
 
     fn clock_candidate(&self, time: Option<SystemTime>) -> Option<SystemTime> {
@@ -9496,7 +9513,8 @@ impl Engine {
                 result.as_ref().is_ok_and(|status| status.success()),
             );
         }
-        let launched = result.as_ref().is_some_and(Result::is_ok);
+        let exit_status = result.as_ref().and_then(|result| result.as_ref().ok());
+        let launched = exit_status.is_some();
         if launched || failed_dispatch {
             self.recipe_reaps = self.recipe_reaps.wrapping_add(1);
         }
@@ -9506,6 +9524,7 @@ impl Engine {
                 buffer.child_reaped(true);
             }
         }
+        self.report_recipe_executable_exit(exit_status, job.executable.as_deref());
         let report_error = failed_dispatch
             || result
                 .as_ref()
@@ -9517,10 +9536,7 @@ impl Engine {
         if failed_dispatch || result.is_some() {
             self.filesystem.borrow_mut().child_completed();
         }
-        let signaled = result
-            .as_ref()
-            .and_then(|status| status.as_ref().ok())
-            .is_some_and(|status| status.signal().is_some());
+        let signaled = exit_status.is_some_and(|status| status.signal().is_some());
         let error_code = match result.as_ref() {
             Some(Ok(status)) => status.code().filter(|code| *code != 0),
             Some(Err(_)) => Some(127),
@@ -18560,6 +18576,7 @@ impl Engine {
                 ParallelJob {
                     identity,
                     program: Vec::new(),
+                    executable: None,
                     location: recipes[0].location.clone(),
                     ignore: false,
                     recursive: false,
@@ -19259,6 +19276,7 @@ impl Engine {
             #[cfg(feature = "guile")]
             let mut interpreter_failed = false;
             if parallel && (failed_dispatch || process.is_ok()) {
+                let (child, executable) = process.ok().unzip();
                 let identity = self.next_job;
                 self.next_job = self.next_job.wrapping_add(1);
                 if failed_dispatch {
@@ -19270,6 +19288,7 @@ impl Engine {
                     ParallelJob {
                         identity,
                         program,
+                        executable,
                         location: recipe.location.clone(),
                         ignore,
                         recursive: force,
@@ -19277,7 +19296,7 @@ impl Engine {
                         phony,
                         stdin_owner,
                         waiting_load: false,
-                        child: process.ok().map(|(child, _)| child),
+                        child,
                         signal_cleaned: false,
                         required_pair_failure: None,
                         trailing_optional_worker: None,
@@ -19321,8 +19340,6 @@ impl Engine {
                 }
                 Err(error) => Err(error),
             };
-            self.output
-                .select(output.as_ref().filter(|buffer| buffer.enabled()));
             self.filesystem.borrow_mut().child_completed();
             let launched = result.is_ok();
             if launched && !phony {
@@ -19344,6 +19361,12 @@ impl Engine {
                 self.output.select(None);
                 return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
             }
+            self.report_recipe_executable_exit(
+                result.as_ref().ok(),
+                previous_executable.as_deref(),
+            );
+            self.output
+                .select(output.as_ref().filter(|buffer| buffer.enabled()));
             let failure_cleanup = if !launched || signal_cleaned {
                 Cleanup::None
             } else if result
