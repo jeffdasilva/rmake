@@ -1,0 +1,19 @@
+id = "recursion-postread-override-omitted"
+requirement = "recursion.environment"
+candidate = "required"
+description = "An omitted alias first expands during export, so child SIDE records the parent's undefined MARK origin."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--no-print-directory", "--keep-going", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = """
+READ|0|undefined|krRs -j1 --no-print-directory
+PARENT|0|undefined||undefined|
+OVERRIDES|0|undefined
+INHERITED|krRs -j1 --no-print-directory -- MARK=from-public SIDE=undefined
+CHILD_READ|1|command line|from-public|command line|undefined|krRs -j1 --no-print-directory -- $(MAKEOVERRIDES)|krRs -j1 --no-print-directory -- SIDE=undefined MARK=from-public
+CHILD_RUN|1|command line|from-public|command line|undefined|krRs -j1 --no-print-directory -- $(MAKEOVERRIDES)|krRs -j1 --no-print-directory -- SIDE=undefined MARK=from-public
+"""
