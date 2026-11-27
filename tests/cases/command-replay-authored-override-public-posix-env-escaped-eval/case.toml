@@ -1,0 +1,20 @@
+id = "command-replay-authored-override-public-posix-env-escaped-eval"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "A literal escaped delimiter stays inside its eval option until the authored public suffix."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["-rRk", "--no-print-directory", "--jobs=1", "-e", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|environment override|ekrR -j1 --no-print-directory -- $(MAKEOVERRIDES)|undefined|
+ALIAS|read|undefined
+READ|override|from-public|override|undefined|override|recursive|--eval=EARLY=kept\ -- -s -- $(MAKEOVERRIDES)|undefined|
+ALIAS|run|override
+RUN|override|from-public|override|undefined|override|--eval=EARLY=kept\ -- -s -- $(MAKEOVERRIDES)|undefined|
+ALIAS|run|override
+ENV|--eval=EARLY=kept\ -- -s -- MARK=from-public SIDE=override
+'''

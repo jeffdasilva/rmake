@@ -29,6 +29,7 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 const PUBLIC_COMMAND_OVERRIDES_REFERENCE: &[u8] = b" -- $(MAKEOVERRIDES)";
+const HIDDEN_COMMAND_OVERRIDES_REFERENCE: &[u8] = b" -- $(-*-command-variables-*-)";
 
 fn source_read_error_at(
     file: SourceName,
@@ -3390,7 +3391,6 @@ impl Database {
             };
         if replay_flags {
             let ordinary_file_assignment = origin == Origin::File
-                && matches!(spec.kind, Assignment::Recursive | Assignment::Append)
                 && definition.is_some()
                 && self.evaluation_depth == 0
                 && self.evaluation_scope.is_none()
@@ -3467,6 +3467,9 @@ impl Database {
         ordinary_file_assignment: bool,
         mut context: ExpansionContext<'_>,
     ) -> Result<usize, ExpandError> {
+        let authored_override = origin == Origin::Override
+            && named_target.is_none()
+            && self.has_authored_makeflags_override_reference();
         let encoded_overrides = self.variables.get(b"MAKEFLAGS").is_some_and(|variable| {
             let raw = variable.raw_value();
             // Under -e the file assignment can leave the original canonical
@@ -3479,7 +3482,9 @@ impl Database {
                 && variable.flavor() == Flavor::Recursive
                 && variable.definition().is_none()
                 && raw.ends_with(PUBLIC_COMMAND_OVERRIDES_REFERENCE);
-            !replay_public_overrides && Self::has_command_overrides_reference(raw)
+            !authored_override
+                && !replay_public_overrides
+                && Self::has_command_overrides_reference(raw)
         });
         let value = self.expand_with(b"$(MAKEFLAGS)", context.reborrow())?;
         let extent = value.len();
@@ -4893,10 +4898,31 @@ impl Database {
 
     pub fn command_overrides_reference(&self) -> &'static [u8] {
         if self.posix {
-            b" -- $(-*-command-variables-*-)"
+            HIDDEN_COMMAND_OVERRIDES_REFERENCE
         } else {
             PUBLIC_COMMAND_OVERRIDES_REFERENCE
         }
+    }
+
+    /// A file-located global override explicitly selects its reference.
+    /// Use the full-source decoder when the preceding flags are literal.
+    pub fn has_authored_makeflags_override_reference(&self) -> bool {
+        !self.rules_frozen
+            && self.evaluation_scope.is_none()
+            && self.target_read.is_none()
+            && self.evaluation_bindings.is_empty()
+            && self.variables.get(b"MAKEFLAGS").is_some_and(|binding| {
+                let raw = binding.raw_value();
+                binding.origin() == Origin::Override
+                    && binding.flavor() == Flavor::Recursive
+                    && binding
+                        .definition()
+                        .is_some_and(|location| !location.file.is_null())
+                    && raw
+                        .strip_suffix(PUBLIC_COMMAND_OVERRIDES_REFERENCE)
+                        .or_else(|| raw.strip_suffix(HIDDEN_COMMAND_OVERRIDES_REFERENCE))
+                        .is_some_and(|prefix| !prefix.contains(&b'$'))
+            })
     }
 
     pub fn has_command_overrides_reference(value: &[u8]) -> bool {

@@ -1,0 +1,17 @@
+id = "command-replay-late-posix-public-default-control"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "The default public override snapshot retains its value across a later POSIX directive."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|krR -j1 --no-print-directory -- $(MAKEOVERRIDES)|
+READ|undefined||krRs -j1 --no-print-directory -- $(MAKEOVERRIDES)|
+RUN|environment|from-cli|undefined||krRs -j1 --no-print-directory -- $(-*-command-variables-*-)
+ENV|krRs -j1 --no-print-directory -- MARK=from-cli
+'''

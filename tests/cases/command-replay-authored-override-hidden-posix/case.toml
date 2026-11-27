@@ -1,0 +1,17 @@
+id = "command-replay-authored-override-hidden-posix"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "An authored hidden override reference replays the snapshot without expanding the public alias."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["-rRk", "--no-print-directory", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|file|krR -j1 --no-print-directory -- $(MAKEOVERRIDES)
+READ|override|from-cli|undefined||override|recursive|--silent -- $(-*-command-variables-*-)
+RUN|override|from-cli|undefined||override|--silent -- $(-*-command-variables-*-)
+ENV|--silent -- MARK=from-cli
+'''

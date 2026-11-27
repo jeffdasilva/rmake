@@ -1,0 +1,17 @@
+id = "command-replay-retained-env-flags-accepted-override-control"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "An explicit override wins under -e and decodes the new flags in POSIX mode."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--environment-overrides", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|ekrR -j1 --no-print-directory -- $(MAKEOVERRIDES)|
+READ|undefined||--silent|
+RUN|undefined||undefined||--silent
+ENV|--silent
+'''

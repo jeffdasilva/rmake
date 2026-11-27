@@ -1,0 +1,20 @@
+id = "command-replay-authored-override-public-ordinary"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "An authored public override reference supplies the live setter and post-read replay."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["-rRk", "--no-print-directory", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|file|krR -j1 --no-print-directory -- $(MAKEOVERRIDES)
+ALIAS|read|undefined
+READ|override|from-public|override|undefined|override|recursive|--silent -- $(MAKEOVERRIDES)
+ALIAS|run|override
+RUN|override|from-public|override|undefined|override|--silent -- $(MAKEOVERRIDES)
+ALIAS|run|override
+ENV|--silent -- MARK=from-public SIDE=override
+'''

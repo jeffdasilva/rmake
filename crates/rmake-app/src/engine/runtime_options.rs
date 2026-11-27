@@ -7,6 +7,8 @@ use super::*;
 use rmake_core::diagnostic::MakeflagsDecodeError;
 use rmake_core::variables::{EVAL_FLAGS_NAME, EVAL_FLAGS_REFERENCE};
 
+const PUBLIC_COMMAND_OVERRIDES_REFERENCE: &[u8] = b" -- $(MAKEOVERRIDES)";
+
 pub(super) struct State {
     options: std::rc::Rc<RefCell<Options>>,
     dirty: Cell<bool>,
@@ -853,13 +855,16 @@ impl Engine {
                             .is_some_and(|location| !location.file.is_null())
                         && !binding.raw_value().contains(&b'$')
                 });
+            let authored_override = !unchanged
+                && name == b"MAKEFLAGS"
+                && self.database.has_authored_makeflags_override_reference();
             let reopen_unchanged = unchanged
                 && self.options.sync_mutex.is_some()
                 && binding.is_some_and(|value| nonempty_flag_source(value.raw_value()));
             let unchanged_makeflags =
                 (unchanged && name == b"MAKEFLAGS" && has_binding).then(|| {
                     self.initial_flags
-                        .strip_suffix(b" -- $(MAKEOVERRIDES)")
+                        .strip_suffix(PUBLIC_COMMAND_OVERRIDES_REFERENCE)
                         .or_else(|| {
                             self.initial_flags
                                 .strip_suffix(b" -- $(-*-command-variables-*-)")
@@ -879,8 +884,8 @@ impl Engine {
                 Some(prefix.to_vec())
             } else if !unchanged {
                 let reference = self.database.command_overrides_reference();
-                let public_overrides = self.database.command_overrides_name() == b"MAKEOVERRIDES";
-                let canonical_prefix_len = binding
+                let public_overrides = reference == PUBLIC_COMMAND_OVERRIDES_REFERENCE;
+                let canonical = binding
                     .filter(|binding| {
                         name == b"MAKEFLAGS"
                             && self.command_replay
@@ -889,7 +894,20 @@ impl Engine {
                     })
                     .and_then(|binding| {
                         let raw = binding.raw_value();
-                        let prefix = raw.strip_suffix(reference).unwrap_or(raw);
+                        let (prefix, written_reference) =
+                            if let Some(prefix) = raw.strip_suffix(reference) {
+                                (prefix, Some(reference))
+                            } else if !public_overrides
+                                && binding.origin() == origin(self.options.environment_override)
+                                && let Some(prefix) =
+                                    raw.strip_suffix(PUBLIC_COMMAND_OVERRIDES_REFERENCE)
+                            {
+                                // A later .POSIX directive selects the next publication.
+                                // The canonical value already present can still be public.
+                                (prefix, Some(PUBLIC_COMMAND_OVERRIDES_REFERENCE))
+                            } else {
+                                (raw, None)
+                            };
                         let (literal, eval_bytes) =
                             if let Some(literal) = prefix.strip_suffix(EVAL_FLAGS_REFERENCE) {
                                 let evals = self.database.variables.get(EVAL_FLAGS_NAME).filter(
@@ -906,22 +924,20 @@ impl Engine {
                         (!literal.contains(&b'$')
                             && !prefix.windows(4).any(|part| part == b" -- ")
                             && prefix == self.options.makeflags_for_phase(false))
-                        .then_some(literal.len() + eval_bytes)
+                        .then_some((literal.len() + eval_bytes, written_reference))
                     });
-                let has_suffix =
-                    binding.is_some_and(|binding| binding.raw_value().ends_with(reference));
                 // The reader can republish flags without the startup
                 // override reference. In that case there are no words to replay.
-                let omitted_overrides = canonical_prefix_len.is_some()
-                    && !has_suffix
+                let omitted_overrides = canonical.is_some_and(|(_, reference)| reference.is_none())
                     && public_overrides
                     && self.initial_flags.ends_with(reference)
                     && binding.is_some_and(|binding| {
                         binding.origin() == origin(self.options.environment_override)
                     });
-                let reuse_suffix = canonical_prefix_len.is_some()
-                    && has_suffix
-                    && if public_overrides {
+                let written_suffix = canonical
+                    .and_then(|(extent, reference)| reference.map(|reference| (extent, reference)));
+                let reuse_suffix = written_suffix.is_some_and(|(_, reference)| {
+                    if reference == PUBLIC_COMMAND_OVERRIDES_REFERENCE {
                         crate::command_variables::has_default_snapshot(&self.database.variables)
                             || self.database.variables.get(b"MAKEOVERRIDES").is_some_and(
                                 |overrides| {
@@ -934,14 +950,16 @@ impl Engine {
                     } else {
                         // The published POSIX suffix refers to the snapshot directly.
                         crate::command_variables::has_automatic_snapshot(&self.database.variables)
-                    };
+                    }
+                });
                 let expression = [b"$(".as_slice(), name, b")"].concat();
                 match self.expand_global(&expression, None) {
                     Ok(mut value) => {
                         if omitted_overrides {
                             command_overrides = Some(Vec::new());
                         }
-                        let encoded = name == b"MAKEFLAGS"
+                        let encoded = !authored_override
+                            && name == b"MAKEFLAGS"
                             && self.database.variables.get(name).is_some_and(|variable| {
                                 Database::has_command_overrides_reference(variable.raw_value())
                             });
@@ -949,15 +967,14 @@ impl Engine {
                             // An encoded eval can end in an escaped space and
                             // "--". Use the verified prefix extent before
                             // looking for the actual override separator.
-                            let boundary =
-                                if let Some(end) = canonical_prefix_len.filter(|_| has_suffix) {
-                                    value
-                                        .get(end..)
-                                        .is_some_and(|suffix| suffix.starts_with(b" -- "))
-                                        .then_some(end)
-                                } else {
-                                    value.windows(4).position(|part| part == b" -- ")
-                                };
+                            let boundary = if let Some((end, _)) = written_suffix {
+                                value
+                                    .get(end..)
+                                    .is_some_and(|suffix| suffix.starts_with(b" -- "))
+                                    .then_some(end)
+                            } else {
+                                value.windows(4).position(|part| part == b" -- ")
+                            };
                             if let Some(boundary) = boundary {
                                 if reuse_suffix {
                                     command_overrides = Some(value.split_off(boundary + 4));
@@ -982,7 +999,7 @@ impl Engine {
                 if let Some(jobs) = self.apply_runtime_flag_source(value)? {
                     file_jobs = Some(jobs);
                 }
-                if literal_override {
+                if literal_override || authored_override {
                     // The explicit source supplied all its replay operands.
                     // Do not expand MAKEOVERRIDES as a separate fallback.
                     command_overrides = Some(Vec::new());

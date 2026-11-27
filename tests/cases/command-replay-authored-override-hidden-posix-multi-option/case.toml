@@ -1,0 +1,17 @@
+id = "command-replay-authored-override-hidden-posix-multi-option"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "A literal multi-option prefix uses the authored hidden snapshot in both phases."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["-rRk", "--no-print-directory", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|file|krR -j1 --no-print-directory -- $(MAKEOVERRIDES)
+READ|override|from-cli|undefined||override|recursive|--no-print-directory -sk -- $(-*-command-variables-*-)
+RUN|override|from-cli|undefined||override|--no-print-directory -sk -- $(-*-command-variables-*-)
+ENV|--no-print-directory -sk -- MARK=from-cli
+'''
