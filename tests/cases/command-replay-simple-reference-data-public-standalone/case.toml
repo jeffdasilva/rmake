@@ -1,0 +1,17 @@
+id = "command-replay-simple-reference-data-public-standalone"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "Standalone literal public reference text leaves command bindings undefined and adds no expansion effect."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|krR -j1 --no-print-directory -- $(MAKEOVERRIDES)
+READ|undefined||undefined||simple|--silent -- $(MAKEOVERRIDES)
+RUN|undefined||undefined||simple|--silent -- $(MAKEOVERRIDES)
+ENV|--silent -- $(MAKEOVERRIDES)|
+'''

@@ -1,0 +1,21 @@
+id = "command-replay-simple-reference-data-canonical-public-control"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "A live canonical publication uses the public override binding for replay and later export."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|krR -j1 --no-print-directory -- $(MAKEOVERRIDES)
+READ|undefined||undefined||recursive|krRs -j1 --no-print-directory -- $(MAKEOVERRIDES)
+ALIAS|run|undefined
+RUN|environment|from-public|environment|undefined|recursive|krRs -j1 --no-print-directory -- $(MAKEOVERRIDES)
+CONSUME-BEGIN
+CONSUME|from-public
+ALIAS|run|environment
+ENV|krRs -j1 --no-print-directory -- MARK=from-public SIDE=environment|
+'''
