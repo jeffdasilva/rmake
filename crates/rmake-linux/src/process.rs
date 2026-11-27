@@ -22,6 +22,7 @@ const F_SETFD: c_int = 2;
 const FD_CLOEXEC: c_int = 1;
 const EBADF: c_int = 9;
 static STARTUP_CLOSED_STREAMS: AtomicU8 = AtomicU8::new(0);
+static CLI_INHERITED_OPEN_STREAMS: AtomicU8 = AtomicU8::new(0);
 static CLI_UNAVAILABLE_OUTPUTS: AtomicU8 = AtomicU8::new(0);
 
 unsafe extern "C" {
@@ -57,9 +58,11 @@ pub(crate) fn remember_inherited_streams() {
 /// Rust fills missing standard streams with placeholders. Keep those slots
 /// occupied in the parent, and let exec close them unless a child redirects.
 pub fn preserve_closed_startup_streams() {
+    let inherited_closed = STARTUP_CLOSED_STREAMS.load(Ordering::Relaxed);
+    CLI_INHERITED_OPEN_STREAMS.store(ALL_STANDARD_STREAMS & !inherited_closed, Ordering::Relaxed);
     // GNU checks again when none of the three streams was initially open.
     // That case keeps the existing output path and inherited stdin handling.
-    let closed = match STARTUP_CLOSED_STREAMS.load(Ordering::Relaxed) {
+    let closed = match inherited_closed {
         ALL_STANDARD_STREAMS => STDIN_MASK,
         streams => streams,
     };
@@ -84,6 +87,11 @@ pub fn preserve_closed_startup_streams() {
         *errno = saved;
     }
     CLI_UNAVAILABLE_OUTPUTS.store(marked & OUTPUT_MASK, Ordering::Relaxed);
+}
+
+pub(crate) fn cli_inherited_stream_was_open(descriptor: c_int) -> bool {
+    STANDARD_STREAMS.contains(&descriptor)
+        && CLI_INHERITED_OPEN_STREAMS.load(Ordering::Relaxed) & (1 << descriptor) != 0
 }
 
 pub(crate) fn startup_output_was_closed(descriptor: c_int) -> bool {

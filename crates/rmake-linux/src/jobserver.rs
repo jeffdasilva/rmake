@@ -638,7 +638,13 @@ impl Jobserver {
     }
 
     fn join_pipe(read: c_int, write: c_int, auth: &[u8]) -> io::Result<Self> {
-        if read < 3 || write < 3 || read == write {
+        // A recursive GNU child can inherit pipe endpoints in formerly vacant
+        // standard slots. Require those slots to have been open at CLI entry.
+        if read == write
+            || [read, write]
+                .into_iter()
+                .any(|fd| fd < 3 && !crate::process::cli_inherited_stream_was_open(fd))
+        {
             return Err(io::Error::from(io::ErrorKind::InvalidInput));
         }
         // Startup can occupy previously closed slots advertised by stale
