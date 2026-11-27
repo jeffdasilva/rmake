@@ -323,7 +323,7 @@ impl RuleDeclaration {
         for (location, message) in self.warnings.drain(..) {
             record_warning(warnings, context, location, message);
         }
-        for (location, message) in self.group_warnings.drain(..).rev() {
+        for (location, message) in self.group_warnings.drain(..) {
             record_warning(warnings, context, location, message);
         }
         self.grouped = false;
@@ -6632,6 +6632,15 @@ impl Database {
         }
         let single_target = declaration.targets.len() == 1;
         let has_recipes = !declaration.recipes.is_empty();
+        let group_location = if grouped && !double_colon {
+            declaration
+                .recipes
+                .first()
+                .map(|recipe| recipe.location.clone())
+        } else {
+            None
+        };
+        let mut existing_group_members = HashSet::new();
         let mut recipe_targets = HashSet::new();
         let mut duplicate_prerequisites = None;
         for (ordinal, target) in declaration.targets.iter().enumerate() {
@@ -6709,11 +6718,17 @@ impl Database {
                 }
             };
             if grouped || (declaration.patterns.len() > 1) {
-                if grouped && !double_colon && rule.group.is_some() {
-                    declaration.group_warnings.push((
-                        declaration.recipes[0].location.clone(),
-                        Diagnostic::system(Message::OverrideGroupMembership(target)),
-                    ));
+                if let Some(location) = &group_location
+                    && rule.group.is_some()
+                {
+                    if implicit {
+                        declaration.group_warnings.push((
+                            location.clone(),
+                            Diagnostic::system(Message::OverrideGroupMembership(target)),
+                        ));
+                    } else if !recipe_targets.contains(target.as_slice()) {
+                        existing_group_members.insert(target.as_slice());
+                    }
                 }
                 let group = rule.group.get_or_insert_with(Default::default);
                 group.targets = declaration.targets.clone();
@@ -6910,6 +6925,22 @@ impl Database {
                 .get_mut(target)
                 .expect("repeated explicit rule")
                 .promote_appended_prerequisites(start, appended_at);
+        }
+        if let Some(location) = group_location {
+            if implicit {
+                declaration.group_warnings.reverse();
+            } else {
+                // GNU walks the group's target occurrences in reverse. Each
+                // visit then has membership for any later visit to that target.
+                for target in declaration.targets.iter().rev() {
+                    if !existing_group_members.insert(target.as_slice()) {
+                        declaration.group_warnings.push((
+                            location.clone(),
+                            Diagnostic::system(Message::OverrideGroupMembership(target)),
+                        ));
+                    }
+                }
+            }
         }
         drop(prerequisite_names);
         prerequisite_text.clear();
