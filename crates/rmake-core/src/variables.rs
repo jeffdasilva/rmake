@@ -513,6 +513,7 @@ impl ExpandError {
             | Self::WordIndexZero
             | Self::WordlistIndexBounds(_)
             | Self::InvalidInteger { .. } => true,
+            Self::InsufficientArguments { function, .. } => arity(function).is_some(),
             Self::System(message) => matches!(
                 message.id,
                 MessageId::WordFirstInvalid

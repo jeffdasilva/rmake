@@ -6778,6 +6778,247 @@
         "ENOTDIR",
         "C"
       ]
+    },
+    {
+      "id": "nls-eval-builtin-arity-location-eager-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72642024242866696c65203e3e7365656e2c696e646578293129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** insufficient number of arguments (1) to function 'word'.  Stop.\n",
+        "seen": "anchor\nbefore\nindex\n"
+      }
+    },
+    {
+      "id": "nls-eval-builtin-arity-location-lazy-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d2024242869662024242866696c65203e3e7365656e2c636f6e646974696f6e2979657329290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** insufficient number of arguments (1) to function 'if'. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-eval-builtin-arity-location-call-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d2024242863616c6c20666f72656163682c24242866696c65203e3e7365656e2c6e616d65296974656d2c24242866696c65203e3e7365656e2c6c697374296f6e652074776f29290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** insufficient number of arguments (2) to function 'foreach'.  Stop.\n",
+        "seen": "anchor\nbefore\nname\nlist\n"
+      }
+    },
+    {
+      "id": "nls-eval-builtin-arity-location-missing-callee-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d2024242863616c6c2063616c6c29290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** insufficient number of arguments (0) to function 'call'. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-eval-builtin-arity-location-included-definition-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "696e636c7564652062696e64696e672e6d6b0a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a",
+        "binding.mk": "4f55544552203d2024286576616c2056203a3d2024242863616c6c20666f72656163682c24242866696c65203e3e7365656e2c6e616d65296974656d2c24242866696c65203e3e7365656e2c6c697374296f6e652074776f29290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "binding.mk:1: *** insufficient number of arguments (2) to function 'foreach'. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nname\nlist\n"
+      }
+    },
+    {
+      "id": "nls-eval-builtin-arity-location-direct-eager-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24286576616c2056203a3d20242428776f72642024242866696c65203e3e7365656e2c696e646578293129290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:3: *** insufficient number of arguments (1) to function 'word'.  Stop.\n",
+        "seen": "anchor\nbefore\nindex\n"
+      }
+    },
+    {
+      "id": "nls-eval-builtin-arity-location-direct-lazy-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24286576616c2056203a3d2024242869662024242866696c65203e3e7365656e2c636f6e646974696f6e2979657329290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:3: *** insufficient number of arguments (1) to function 'if'. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\n"
+      }
+    },
+    {
+      "id": "nls-eval-builtin-arity-location-inner-definition-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "494e4e4552203d202428776f726420242866696c65203e3e7365656e2c696e6465782931290a4f55544552203d2024286576616c2056203a3d20242428494e4e455229290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** insufficient number of arguments (1) to function 'word'.  Stop.\n",
+        "seen": "anchor\nbefore\nindex\n"
+      }
+    },
+    {
+      "id": "nls-eval-builtin-arity-location-valid-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72642024242866696c65203e3e7365656e2c696e64657829312c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "before\nvalue=[alpha]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nindex\ntext\nafter\n"
+      }
+    },
+    {
+      "id": "nls-eval-builtin-arity-location-user-error-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d2024242866696c65203e3e7365656e2c75736572292424286572726f7220757365722d6d65737361676529290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:4: *** user-message.  Stop.\n",
+        "seen": "anchor\nbefore\nuser\n"
+      }
     }
   ]
 }
