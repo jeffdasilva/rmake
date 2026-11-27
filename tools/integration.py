@@ -168,15 +168,45 @@ def freshness_errors(fresh, noop, rebuilt):
     return errors
 
 
-def recovery_metadata(work, names):
+def retained_file_metadata(work, names):
     observed = {}
     for name in sorted(names):
         metadata = (work / safe_name(name)).lstat()
         if not stat.S_ISREG(metadata.st_mode):
-            raise h.HarnessError('missing-output recovery needs a regular retained output: ' + name)
+            raise h.HarnessError('retained output must be a regular file: ' + name)
         observed[name] = {'device': metadata.st_dev, 'inode': metadata.st_ino,
                           'mtime_ns': metadata.st_mtime_ns, 'ctime_ns': metadata.st_ctime_ns}
     return observed
+
+
+def staged_reinstall(step, work, files, removed, install_command):
+    stage = work / 'stage'
+    if stage.resolve(strict=True) != work.resolve(strict=True) / 'stage' or not stage.is_dir():
+        raise h.HarnessError('staged uninstall requires a real disposable stage directory')
+    prefix = 'work/stage/'
+    installed = {name for name, entry in files.items()
+                 if name.startswith(prefix) and entry['type'] != 'directory'}
+    if installed != {prefix + str(safe_name(name)) for name in removed}:
+        raise h.HarnessError('staged uninstall needs the exact installed payload')
+
+    marker_name = 'stage/usr/lib/.integration-keep'
+    marker = work / marker_name
+    with marker.open('xb') as stream:
+        stream.write(b'preserve the unowned staged file\n')
+    with_marker = files | h.snapshot({'work/' + marker_name: marker})
+    without_payload = {name: entry for name, entry in with_marker.items() if name not in installed}
+    retained = {name.removeprefix('work/') for name, entry in without_payload.items()
+                if name.startswith('work/') and entry['type'] == 'file'}
+    before = retained_file_metadata(work, retained)
+
+    uninstalled = step('uninstall', [*install_command[:-1], 'uninstall'])
+    if uninstalled.filesystem != without_payload or retained_file_metadata(work, retained) != before:
+        raise h.HarnessError('staged uninstall changed files beyond the installed payload')
+    reinstalled = step('reinstall', install_command)
+    if reinstalled.filesystem != with_marker or retained_file_metadata(work, retained) != before:
+        raise h.HarnessError('staged reinstall did not reproduce the installed payload')
+    marker.unlink()
+    return {'removed_and_restored': sorted(removed), 'physically_retained': sorted(retained)}
 
 
 def rebuilt_header(project, original):
@@ -261,6 +291,7 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
         stdout = ('\n'.join(clean_rebuild['stdout_lines']) + '\n').encode()
         expected_streams['clean'] = stdout.replace(b'@MAKE@', os.fsencode(runtime / 'bin/make'))
     staged = project.get('staged_install')
+    uninstall = None
     smoke_command = project['smoke']
     if staged is not None:
         if change is None:
@@ -272,6 +303,12 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
         expected_steps += 2
         expected_streams.update(dict.fromkeys(
             ('fresh-install', 'install'), bytes.fromhex(staged['stdout_hex'])))
+        uninstall = staged.get('uninstall')
+        if uninstall is not None:
+            row['uninstall_args'] = [*STAGED_INSTALL_ARGS[:-1], 'uninstall']
+            expected_steps += 3
+            expected_streams['uninstall'] = bytes.fromhex(uninstall['stdout_hex'])
+            expected_streams['reinstall'] = expected_streams['install']
     for index, binary in enumerate(binaries):
         h.reset_workspace(case, runtime, binary)
         environment = h.clean_environment(runtime, environment_plan)
@@ -347,6 +384,12 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
             expected_smoke = bytes.fromhex(project['smoke_stdout_hex'])
             if not validate_smoke(smoke, expected_smoke):
                 run['errors'].append('independent executable smoke bytes')
+            elif uninstall is not None:
+                run['staged_reinstall_witness'] = staged_reinstall(
+                    step, runtime / 'work', smoke.filesystem, uninstall['removed'], install_command)
+                reinstall_smoke = step('reinstall-smoke', smoke_command, 10)
+                if not validate_smoke(reinstall_smoke, expected_smoke):
+                    run['errors'].append('independent reinstalled shared library smoke bytes')
             if recovery is not None:
                 work = runtime / 'work'
                 output = work / recovery_name
@@ -359,7 +402,7 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
                         raise h.HarnessError('missing-output recovery needs an ELF executable')
                 preserved = set(recovery['preserve'])
                 preserved.update(str(path.relative_to(work)) for path in output.parent.glob('*.o'))
-                before = recovery_metadata(work, preserved)
+                before = retained_file_metadata(work, preserved)
                 output.unlink()
                 witness = {'output': recovery_name, 'absent': not os.path.lexists(output),
                            'before': {key: original[key] for key in ('sha256', 'mode')},
@@ -370,7 +413,7 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
                 recovered = step('recover-missing-output', command)
                 replacement = recovered.filesystem.get('work/' + recovery_name, {})
                 witness['after'] = {key: replacement.get(key) for key in ('sha256', 'mode')}
-                after = recovery_metadata(work, preserved)
+                after = retained_file_metadata(work, preserved)
                 witness['preserved_after'] = after
                 if recovered.filesystem != smoke.filesystem or before != after:
                     run['errors'].append('missing-output recovery changed output bytes, modes or retained files')
