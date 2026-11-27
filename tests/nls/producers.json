@@ -7019,6 +7019,247 @@
         "stderr": "Makefile:4: *** user-message.  Stop.\n",
         "seen": "anchor\nbefore\nuser\n"
       }
+    },
+    {
+      "id": "nls-eval-unterminated-location-function-paren-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "646566696e652047454e4552415445440a56203a3d20242866696c65203e3e7365656e2c7072696f7229242873747269702066696e6973680a656e6465660a4f55544552203d2024286576616c20242876616c75652047454e45524154454429290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:4: *** unterminated call to function 'strip': missing ')'.  Stop.\n",
+        "seen": "anchor\nbefore\nprior\n"
+      }
+    },
+    {
+      "id": "nls-eval-unterminated-location-function-brace-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "646566696e652047454e4552415445440a56203a3d20242866696c65203e3e7365656e2c7072696f7229247b73747269702066696e6973680a656e6465660a4f55544552203d2024286576616c20242876616c75652047454e45524154454429290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:4: *** appel \u00e0 la fonction \u00ab\u00a0strip\u00a0\u00bb non termin\u00e9\u00a0: \u00ab\u00a0}\u00a0\u00bb manquant. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nprior\n"
+      }
+    },
+    {
+      "id": "nls-eval-unterminated-location-reference-paren-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "646566696e652047454e4552415445440a56203a3d20242866696c65203e3e7365656e2c7072696f722924284d495353494e470a656e6465660a4f55544552203d2024286576616c20242876616c75652047454e45524154454429290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:4: *** r\u00e9f\u00e9rence incompl\u00e8te \u00e0 une variable. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nprior\n"
+      }
+    },
+    {
+      "id": "nls-eval-unterminated-location-reference-brace-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "646566696e652047454e4552415445440a56203a3d20242866696c65203e3e7365656e2c7072696f7229247b4d495353494e470a656e6465660a4f55544552203d2024286576616c20242876616c75652047454e45524154454429290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:4: *** unterminated variable reference.  Stop.\n",
+        "seen": "anchor\nbefore\nprior\n"
+      }
+    },
+    {
+      "id": "nls-eval-unterminated-location-included-owner-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "646566696e652047454e4552415445440a56203a3d20242866696c65203e3e7365656e2c7072696f7229242873747269702066696e6973680a656e6465660a696e636c75646520646566696e6974696f6e2e6d6b0a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a",
+        "definition.mk": "4f55544552203d2024286576616c20242876616c75652047454e45524154454429290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "definition.mk:1: *** appel \u00e0 la fonction \u00ab\u00a0strip\u00a0\u00bb non termin\u00e9\u00a0: \u00ab\u00a0)\u00a0\u00bb manquant. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nprior\n"
+      }
+    },
+    {
+      "id": "nls-eval-unterminated-location-direct-function-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "646566696e652047454e4552415445440a56203a3d20242866696c65203e3e7365656e2c7072696f7229242873747269702066696e6973680a656e6465660a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24286576616c20242876616c75652047454e45524154454429290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:6: *** appel \u00e0 la fonction \u00ab\u00a0strip\u00a0\u00bb non termin\u00e9\u00a0: \u00ab\u00a0)\u00a0\u00bb manquant. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nprior\n"
+      }
+    },
+    {
+      "id": "nls-eval-unterminated-location-direct-reference-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "646566696e652047454e4552415445440a56203a3d20242866696c65203e3e7365656e2c7072696f7229247b4d495353494e470a656e6465660a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24286576616c20242876616c75652047454e45524154454429290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:6: *** unterminated variable reference.  Stop.\n",
+        "seen": "anchor\nbefore\nprior\n"
+      }
+    },
+    {
+      "id": "nls-eval-unterminated-location-inner-owner-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "494e4e4552203d20242866696c65203e3e7365656e2c7072696f7229242873747269702066696e6973680a4f55544552203d2024286576616c2056203a3d20242428494e4e455229290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** appel \u00e0 la fonction \u00ab\u00a0strip\u00a0\u00bb non termin\u00e9\u00a0: \u00ab\u00a0)\u00a0\u00bb manquant. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nprior\n"
+      }
+    },
+    {
+      "id": "nls-eval-unterminated-location-valid-fragment-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "646566696e652047454e4552415445440a56203a3d20242866696c65203e3e7365656e2c7072696f72292428737472697020206f6b20202074657874202020290a656e6465660a4f55544552203d2024286576616c20242876616c75652047454e45524154454429290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "before\nvalue=[ok text]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nprior\nafter\n"
+      }
+    },
+    {
+      "id": "nls-eval-unterminated-location-parser-missing-separator-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-s"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "646566696e652047454e4552415445440a6d616c666f726d65642d6c696e650a656e6465660a4f55544552203d2024286576616c20242876616c75652047454e45524154454429290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:7: *** s\u00e9parateur manquant. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\n"
+      }
     }
   ]
 }
