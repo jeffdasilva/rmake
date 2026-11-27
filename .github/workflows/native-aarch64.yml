@@ -48,6 +48,23 @@ jobs:
           make --keep-going test-process-restarts test-restart-pipe test-jobserver
           test-native-spawn-stdio test-native-spawn-stdio-release
           test-native-restart-stdio test-native-restart-stdio-release
+      - name: Check native module remake and reload
+        shell: bash
+        timeout-minutes: 3
+        run: |
+          set -- \
+            --case native-pruned-remake-reload-phony \
+            --case native-pruned-remake-reload-double-colon \
+            --case native-pruned-remake-reload-admitted-control \
+            --case native-pruned-remake-reload-mixed \
+            --case native-reload-read-order-reverse \
+            --case native-reload-read-order-aligned-control \
+            --case native-optional-remake-reload-failed-recipe \
+            --case native-optional-remake-reload-successful-recipe
+          for kind in debug release; do
+            python3 tools/native_modules.py "$@" --candidate "target/$kind/rmake" \
+              --report "artifacts/native/aarch64-remake-reload-$kind.json"
+          done
       - name: Check developer flows
         run: |
           make test-developer-flows

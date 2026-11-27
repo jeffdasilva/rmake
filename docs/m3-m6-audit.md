@@ -205,7 +205,8 @@ NUL boundaries, rebinding and cancellation.
   update state when recipe, shell, or export expansion fails before the
   affected command runs. This includes required reader parse failures,
   user errors, and built-in arity diagnostics. This also applies when serial
-  shell configuration fails after an optimized no-op, before a child launches.
+  shell or export preparation fails after an optimized no-op, before the
+  first child launches.
   Optional includes from target-specific shell configuration also retain
   their missing timestamps while the parallel job queue is idle or holds
   one separate ordinary recipe.
@@ -331,6 +332,12 @@ latest search's runtime metadata is still available to the recipe.
 
 Named-target `MAKEFLAGS +=` assignments preserve their current outer global
 value through live option changes, recipe expansion and recursive export.
+
+Top-level serial implicit search outside makefile remaking records the current
+directory for a fixed, immediately resolved basename with an explicit
+declaration in a nonterminal candidate when dry-run alone is active at search
+entry and no path search is configured. Enabling dry-run in a rejected secondary
+expansion preserves the directory observation of the search already in progress.
 
 **What remains**
 

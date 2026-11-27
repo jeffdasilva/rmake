@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
 from contextlib import redirect_stderr
+from dataclasses import replace
 import io
 import json
 from pathlib import Path
@@ -10,6 +11,33 @@ import unittest
 from unittest.mock import patch
 
 import musl_smoke as smoke
+
+
+class MuslNativeModelsTests(unittest.TestCase):
+    def test_pruned_reload_models_have_separate_musl_lifetimes(self):
+        previous = (
+            'native-setup-result-negative-one',
+            'native-setup-result-negative-one-optional-explicit-and-repeat',
+        )
+        pruned = ('phony', 'double-colon', 'admitted-control', 'mixed')
+        models = smoke.native_smoke_models()
+        self.assertEqual([model.id for model in models],
+                         [*previous, *('native-pruned-remake-reload-' + name for name in pruned)])
+        shared = {model.id: model for model in smoke.native_modules.models()}
+        for model in models:
+            with self.subTest(model=model.id):
+                original = shared[model.id]
+                if model.id in previous:
+                    self.assertEqual(model, original)
+                    continue
+                self.assertNotEqual(model.seen, original.seen)
+                self.assertEqual(model, replace(original, seen=model.seen))
+                before_goal, finalizers = model.seen.split(b'goal\n')
+                self.assertEqual(before_goal.count(b':open\n'), len(model.modules))
+                self.assertEqual(before_goal.count(b':setup\n'),
+                                 len(model.modules) + model.id.endswith(('admitted-control', 'mixed')))
+                self.assertNotIn(b':close\n', before_goal)
+                self.assertEqual(finalizers, b'a:close\nb:close\n' if model.id.endswith('mixed') else b'a:close\n')
 
 
 class MuslProjectReportsTests(unittest.TestCase):

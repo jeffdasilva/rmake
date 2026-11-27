@@ -12084,14 +12084,20 @@ impl Engine {
         let mut compatibility_needed = false;
         let mut cancelled = Vec::new();
         let intermediate = !session.active.is_empty();
-        let ordinary_local_search = !intermediate
+        let local_search = !intermediate
             && !archive_search
             && search.branch.is_none()
             && !self.remaking
             && self.active_makefile_remake.is_none()
             && !self.parallel_graph()
-            && !MakefileModes::from_options(&self.options).active()
             && rmake_core::filenames::archive_parts(target).is_none();
+        let modes = MakefileModes::from_options(&self.options);
+        let ordinary_local_search = local_search && !modes.active();
+        let dry_run_local_search = local_search
+            && modes.only_dry_run()
+            && !self.database.has_vpaths()
+            && self.vpath_dirs.is_empty()
+            && self.gpath_dirs.is_empty();
         let mut variables = None;
         for chain in [false, true] {
             if chain && !candidates.is_empty() {
@@ -12288,9 +12294,18 @@ impl Engine {
                             // needs a directory observation, including the current directory.
                             let relative_directory =
                                 !name.starts_with(b"/") && name.contains(&b'/');
-                            let refresh_declared_directory = ordinary_local_search
-                                && !deferred
-                                && (relative_directory || (!terminal && !stem_derived))
+                            let fixed_nonterminal = !terminal && !stem_derived;
+                            let dry_run_basename = dry_run_local_search
+                                && fixed_nonterminal
+                                && !name.contains(&b'/')
+                                && !name.starts_with(b"-l")
+                                && !name.starts_with(b"~")
+                                && MakefileModes::from_options(&self.options).only_dry_run()
+                                && !self.database.has_vpaths();
+                            let refresh_declared_directory = !deferred
+                                && ((ordinary_local_search
+                                    && (relative_directory || fixed_nonterminal))
+                                    || dry_run_basename)
                                 && rmake_core::filenames::archive_parts(name).is_none()
                                 && !self.aliases.contains_source_or_destination(name)
                                 && self.database.rules.get(name).is_some_and(|rule| {
@@ -19153,7 +19168,7 @@ impl Engine {
         } = state;
         let variables = &mut variables;
         let mut failed_executable_attempt = false;
-        let mut configuration_after_noop = false;
+        let mut preparation_after_noop = false;
         while let Some((index, bytes, recipe)) = expanded.pop_front() {
             self.observe_interrupt();
             if self.interrupt.is_some() {
@@ -19177,7 +19192,7 @@ impl Engine {
                 command = trim_leading(&command[1..]);
             }
             flow.visit(index, force);
-            let observe_preparation_failure = (!ran || configuration_after_noop)
+            let observe_preparation_failure = (!ran || preparation_after_noop)
                 && !force
                 && !command.is_empty()
                 && !one_shell
@@ -19195,8 +19210,7 @@ impl Engine {
                 && self.serial_or_owned_two_job_pipe(parallel);
             let first_configuration_include =
                 observe_preparation_failure.then_some(self.database.makefiles.len());
-            let observe_export_failure = !ran && observe_preparation_failure;
-            configuration_after_noop = false;
+            preparation_after_noop = false;
             // GNU expands configuration before a dry-run/query decision, after
             // all recipe bodies have expanded. A nonempty expansion consisting
             // only of blanks/modifiers still reaches configuration; a zero-byte
@@ -19380,8 +19394,9 @@ impl Engine {
             };
             if crate::recipe_flow::optimized_noop(&invocation) {
                 // The no-op counts as a command without registering a child.
-                // The next serial shell configuration can still stop before a launch.
-                configuration_after_noop = !parallel
+                // The next serial command can still stop in shell or export
+                // preparation before the first launch.
+                preparation_after_noop = !parallel
                     && observe_preparation_failure
                     && !self.aliases.contains_source_or_destination(target)
                     && self.database.rules.get(target).is_some_and(|rule| {
@@ -19467,7 +19482,7 @@ impl Engine {
                 let mut emitted_order = Vec::new();
                 let mut inherited_mflags = false;
                 let first_required_export_include =
-                    observe_export_failure.then_some(self.database.makefiles.len());
+                    observe_preparation_failure.then_some(self.database.makefiles.len());
                 let first_export_include = (self.ordinary_include_open_times
                     && !self.remaking
                     && self.active_makefile_remake.is_none()

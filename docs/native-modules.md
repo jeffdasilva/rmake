@@ -133,6 +133,11 @@ A query verdict or an unsuccessful ordinary serial remake leaves
 already-unloaded modules closed. The failure cases include optional sources
 whose recipe fails or whose rule is missing.
 
+The x86-64 dynamic musl smoke gate covers the phony, unconditional double-colon,
+admitted, and mixed remake cases with marker-only modules. The pinned musl
+loader keeps their images mapped after `dlclose`. An admitted reload can repeat
+setup, while each constructor runs once and each finalizer runs at process exit.
+
 Dropping the runtime does not prematurely run shared-library finalizers. At
 process exit, the interpreter stays alive while libc invokes module finalizers
 through the request bridge.
@@ -175,8 +180,11 @@ module reloads and user suffix recipes.
 
 The native adapters and C fixtures are original work. They include no copied or
 translated GNU implementation, header or test. GNU Make serves only as the test
-reference and never as a runtime fallback. The qualified registration and
-lifecycle cases use the pinned C-locale x86-64 Linux/glibc profile.
+reference and never as a runtime fallback. The full registration and lifecycle
+gate uses the pinned C-locale x86-64 Linux/glibc profile. The native AArch64
+glibc job runs selected serial module-remake cases with the debug and release
+builds. They cover pruned remake candidates, reload read order, and successful
+and failed optional-include recipes.
 
 The [retained evidence index](../tests/native/README.md#retained-evidence-and-open-profiles)
 links historical qualification and measurement records for their exact binaries.
