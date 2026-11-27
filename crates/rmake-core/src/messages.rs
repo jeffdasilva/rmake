@@ -11,6 +11,7 @@ pub enum MessageId {
     MissingSeparator,
     MissingSeparatorTabs,
     MissingSeparatorConditional,
+    MissingRuleBeforeRecipe,
     UnterminatedFunction,
     IntcmpFirst,
     IntcmpSecond,
@@ -123,11 +124,12 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 113] = [
+    pub const ALL: [Self; 114] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
         Self::MissingSeparatorConditional,
+        Self::MissingRuleBeforeRecipe,
         Self::UnterminatedFunction,
         Self::IntcmpFirst,
         Self::IntcmpSecond,
@@ -249,6 +251,7 @@ impl MessageId {
                 tabs: self == Self::MissingSeparatorTabs,
             },
             Self::MissingSeparatorConditional => Message::MissingSeparatorConditional,
+            Self::MissingRuleBeforeRecipe => Message::MissingRuleBeforeRecipe,
             Self::UnterminatedFunction => Message::UnterminatedFunction {
                 name: b"function",
                 close: b')',
@@ -506,6 +509,7 @@ impl MessageId {
             Self::MissingSeparatorConditional => {
                 c"missing separator (ifeq/ifneq must be followed by whitespace)"
             }
+            Self::MissingRuleBeforeRecipe => c"missing rule before recipe",
             Self::UnterminatedFunction => c"unterminated call to function '%s': missing '%c'",
             Self::IntcmpFirst => c"non-numeric first argument to 'intcmp' function: '%s'",
             Self::IntcmpSecond => c"non-numeric second argument to 'intcmp' function: '%s'",
@@ -711,6 +715,7 @@ pub enum Message<'a> {
         tabs: bool,
     },
     MissingSeparatorConditional,
+    MissingRuleBeforeRecipe,
     UnterminatedFunction {
         name: &'a [u8],
         close: u8,
@@ -900,6 +905,7 @@ impl<'a> Message<'a> {
             Self::MissingSeparator { tabs: false } => MessageId::MissingSeparator,
             Self::MissingSeparator { tabs: true } => MessageId::MissingSeparatorTabs,
             Self::MissingSeparatorConditional => MessageId::MissingSeparatorConditional,
+            Self::MissingRuleBeforeRecipe => MessageId::MissingRuleBeforeRecipe,
             Self::UnterminatedFunction { .. } => MessageId::UnterminatedFunction,
             Self::InvalidIntcmp {
                 second: false,
@@ -1084,6 +1090,7 @@ impl<'a> Message<'a> {
             Self::Stop
             | Self::MissingSeparator { .. }
             | Self::MissingSeparatorConditional
+            | Self::MissingRuleBeforeRecipe
             | Self::BuiltinRecipe
             | Self::Ignored
             | Self::NoTargets { .. }

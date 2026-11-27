@@ -6068,6 +6068,15 @@ impl Database {
             }
             self.finish_declaration(declaration, &location, context)?;
             let raw_rule_end = separator::<true>(text, b';').unwrap_or(text.len());
+            // Leading whitespace has already been removed from the source.
+            if raw_rule_end == 0 {
+                self.retain_native_reader_error(&location, context);
+                return Err(ParseError::system(
+                    location,
+                    Message::MissingRuleBeforeRecipe,
+                    context,
+                ));
+            }
             let (text, rule_end) = unquote_semicolons::<true>(text, raw_rule_end);
             // Keep the raw assignment tail until a source word has produced
             // an inline recipe boundary during expansion.

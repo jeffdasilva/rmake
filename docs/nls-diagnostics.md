@@ -143,6 +143,9 @@ in C and French, with German and Japanese catalog fallback.
 Legacy declarations that begin with an explicit target warn for each following
 pattern target. The localized warning retains its source location and the
 selected recipe still runs.
+An unquoted semicolon with a blank rule prefix reports a missing rule before
+the recipe. The parser reports it before recipes run, including for anonymous
+`--eval` input.
 Native controls change private French or C `LC_MESSAGES` during include failures
 and warning publication, then check restoration to the global selection.
 

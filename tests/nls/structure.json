@@ -1,5 +1,5 @@
 {
-  "classification": "47 GNU2-qualified structural NLS models. Only machine-specific input LOCPATH is supplied by the verified test profile.",
+  "classification": "59 GNU2-qualified structural NLS models. Only machine-specific input LOCPATH is supplied by the verified test profile.",
   "original_models_sha256": "bfbf1aba4a8f821ef33bbc2014a2a4fbc00649a4498988b455794582bad4766c",
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
   "rows": [
@@ -1114,6 +1114,292 @@
         "LC_ALL": "fr_FR.UTF-8",
         "LANG": "fr_FR.UTF-8",
         "LANGUAGE": "xx_missing:ja:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-c-eval-missing",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=; @printf \"forbidden\\n\" > seen\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** missing rule before recipe.  Stop.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-c-file-spaced",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a20203b20407072696e74662022666f7262696464656e5c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:4: *** missing rule before recipe.  Stop.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-c-file-only-semicolon",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a3b0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:4: *** missing rule before recipe.  Stop.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-fr-eval-missing",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=; @printf \"forbidden\\n\" > seen\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** règle manquante avant la recette. Arrêt.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-fr-file-missing",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a3b20407072696e74662022666f7262696464656e5c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:4: *** règle manquante avant la recette. Arrêt.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-de-eval-missing",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=; @printf \"forbidden\\n\" > seen\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:de:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** Es fehlt eine Regel vor dem Rezept.  Schluss.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-ja-file-missing",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a3b20407072696e74662022666f7262696464656e5c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:ja:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:4: *** レシピの前のルールが不足しています.  中止.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-fr-eval-valid-inline",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=unused: ; @:\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-ja-file-comment",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a23203b20407072696e74662022666f7262696464656e5c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:ja:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-fr-file-empty-expansion",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a2428554e534554293b20407072696e74662022666f7262696464656e5c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-fr-file-recipe-prefix",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "2e524543495045505245464958203d203b0a616c6c3a0a3b407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-fr-file-escaped-semicolon",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a5c3b0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
       },
       "modules": [],
       "expected": {
