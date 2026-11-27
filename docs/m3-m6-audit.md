@@ -48,8 +48,10 @@ at the end of this audit.
   command-line snapshot replays that expanded snapshot. When the reader
   republishes canonical `MAKEFLAGS` without its public override suffix,
   post-read replay has no override words. A later `MAKEOVERRIDES` definition
-  can supply the suffix on the next publication. The original command-line
-  source is read again in the next process image after a restart.
+  can supply the suffix on the next publication. Canonical flags with the
+  automatic command-line eval reference use the same replay path. The encoded
+  eval arguments remain flag data. The original command-line source is read
+  again in the next process image after a restart.
   The startup preload list uses one expansion of `MAKEFILES` after command-line
   eval. An absent binding can warn at that point, while a defined empty binding
   leaves the preload list empty.

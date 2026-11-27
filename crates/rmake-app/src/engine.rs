@@ -3484,11 +3484,11 @@ impl Engine {
                 return Err(());
             }
         }
-        if let Err(error) =
-            self.database
-                .variables
-                .define_literal(b"-*-eval-flags-*-", &encoded, Origin::Automatic)
-        {
+        if let Err(error) = self.database.variables.define_literal(
+            rmake_core::variables::EVAL_FLAGS_NAME,
+            &encoded,
+            Origin::Automatic,
+        ) {
             self.expansion_error(None, &error);
             return Err(());
         }

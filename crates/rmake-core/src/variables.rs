@@ -30,6 +30,10 @@ const DIRECT_DEPTH: usize = 96;
 const DIRECT_MACHINES: usize = 8;
 pub const MAX_OUTPUT: usize = 16 * 1024 * 1024;
 
+/// The private binding and reference used to serialize command-line evals in MAKEFLAGS.
+pub const EVAL_FLAGS_NAME: &[u8] = b"-*-eval-flags-*-";
+pub const EVAL_FLAGS_REFERENCE: &[u8] = b" $(-*-eval-flags-*-)";
+
 #[cfg(test)]
 mod shell_effect_tests {
     use super::*;
@@ -10088,7 +10092,7 @@ fn warn_missing(
             | b"MAKEOVERRIDES"
             | b".DEFAULT"
             | b"-*-command-variables-*-"
-            | b"-*-eval-flags-*-"
+            | EVAL_FLAGS_NAME
             | b"VPATH"
             | b"GPATH"
     ) {

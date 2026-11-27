@@ -825,7 +825,9 @@ impl<'a> ExpansionContext<'a> {
         }
         database.update_mflags(&result.value, result.environment_override, named_target)?;
         if result.eval_reference {
-            result.value.extend_from_slice(b" $(-*-eval-flags-*-)");
+            result
+                .value
+                .extend_from_slice(crate::variables::EVAL_FLAGS_REFERENCE);
         }
         let overrides_name = database.command_overrides_name();
         let overrides_reference = database.command_overrides_reference();

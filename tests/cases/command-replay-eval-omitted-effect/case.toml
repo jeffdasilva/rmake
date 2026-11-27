@@ -1,0 +1,19 @@
+id = "command-replay-eval-omitted-effect"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "Skip the unpublished alias and run the command-line eval once."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--eval=EARLY := $(file >>seen,EVAL)started", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+EVAL
+ENTRY|command line|from-cli|krR -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|started
+READ|undefined||krRs -j1 --no-print-directory $(-*-eval-flags-*-)|started
+RUN|undefined||undefined||undefined|krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)
+ALIAS|run|undefined
+ENV|krRs -j1 --no-print-directory --eval=EARLY\ :=\ $$(file\ >>seen,EVAL)started -- MARK=from-public SIDE=undefined
+'''

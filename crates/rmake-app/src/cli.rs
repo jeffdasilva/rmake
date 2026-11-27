@@ -1500,7 +1500,7 @@ impl Options {
     pub fn makeflags_for_phase(&self, remaking: bool) -> Vec<u8> {
         let mut flags = self.recursive_flags_for_phase(true, remaking);
         if !self.evals.is_empty() {
-            flags.extend_from_slice(b" $(-*-eval-flags-*-)");
+            flags.extend_from_slice(rmake_core::variables::EVAL_FLAGS_REFERENCE);
         }
         flags
     }
