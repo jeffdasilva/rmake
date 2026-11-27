@@ -61128,6 +61128,594 @@
         }
       ],
       "trusted_trace_sha256": "eb49b21fa0d4afae8f13d01d90eb17ef5f57a6a25e00ac4a31200e205ae4d558"
+    },
+    "database-phase-configured-include-shell-j2-missing": {
+      "template_sha256": "e08b1e87d27fb73c82364b986e58e6cb94344f986864c39ea92fb02ca62e1d3b",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "3421f95094a60a68aa42611cf608ffbbd6381af461548043d41684a5cf01cec8"
+    },
+    "database-phase-configured-include-shell-j2-present": {
+      "template_sha256": "f44daf729ecee22b4cdf2865ef34e9ea94806d95986ef0ec40832322396c25a9",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "3421f95094a60a68aa42611cf608ffbbd6381af461548043d41684a5cf01cec8"
+    },
+    "database-phase-configured-include-shell-j1-missing": {
+      "template_sha256": "dddcd30ec7d22214d3e33af54fe7c743e5acb549173e88d358c5f55fe33df935",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "3421f95094a60a68aa42611cf608ffbbd6381af461548043d41684a5cf01cec8"
+    },
+    "database-phase-configured-include-flags-j2-missing": {
+      "template_sha256": "a1b7ae98fe5d8ebdecf4141f5cce971855d4b25f4f0c623788bc8661369fb003",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "3421f95094a60a68aa42611cf608ffbbd6381af461548043d41684a5cf01cec8"
+    },
+    "database-phase-configured-include-flags-j2-present": {
+      "template_sha256": "5a3430b1457459fd039d3f9d2b5aceb0274194817355897f5077a15e45219f41",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "3421f95094a60a68aa42611cf608ffbbd6381af461548043d41684a5cf01cec8"
+    },
+    "database-phase-configured-include-flags-j1-missing": {
+      "template_sha256": "a102736477febc44c877f58cad212a284cae21179c8083f980b45dd7f67cc402",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ],
+            [
+              "add",
+              "696e632e6d6b"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "3421f95094a60a68aa42611cf608ffbbd6381af461548043d41684a5cf01cec8"
     }
   }
 }

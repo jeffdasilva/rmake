@@ -2489,12 +2489,16 @@ impl Engine {
         let direct_heads = self.direct_named_head_reads();
         let observe_recipe_includes = self.ordinary_include_open_times
             && !direct_heads
-            && site == ScopedExpansionSite::RecipeBody
+            && matches!(
+                site,
+                ScopedExpansionSite::RecipeBody | ScopedExpansionSite::ShellConfiguration
+            )
             && !self.remaking
             && self.active_makefile_remake.is_none()
             && !MakefileModes::from_options(&self.options).active()
             && (self.parallel_jobs.is_empty()
-                || (self.parallel_jobs.len() == 1
+                || (site == ScopedExpansionSite::RecipeBody
+                    && self.parallel_jobs.len() == 1
                     && self
                         .parallel_jobs
                         .primary
