@@ -388,6 +388,7 @@ pub enum ExpandError {
         count: usize,
     },
     WordIndexZero,
+    WordlistIndexBounds(crate::messages::OwnedMessage),
     WordIndexError(Vec<u8>),
     ExpansionLimit,
 }
@@ -417,7 +418,9 @@ impl ExpandError {
         use crate::messages::{Message, MessageRef};
         let message = match self {
             Self::Located { error, .. } => return error.system_message(),
-            Self::System(message) => return Some(MessageRef::Owned(message)),
+            Self::System(message) | Self::WordlistIndexBounds(message) => {
+                return Some(MessageRef::Owned(message));
+            }
             Self::FileArgument(error) => error.message(),
             Self::UnterminatedReference => Message::UnterminatedReference,
             Self::RecursiveVariable(name) => Message::RecursiveVariable(name),
@@ -489,6 +492,20 @@ impl ExpandError {
         }
     }
 
+    /// Identify built-in arity, word index bounds, and intcmp numeric errors.
+    pub fn is_builtin_arity_or_numeric_error(&self) -> bool {
+        match self {
+            Self::WordIndexZero | Self::WordlistIndexBounds(_) | Self::InvalidInteger { .. } => {
+                true
+            }
+            Self::InsufficientArguments { function, .. } => arity(function).is_some(),
+            Self::Located { error, .. } | Self::RenderedSystem { error, .. } => {
+                error.is_builtin_arity_or_numeric_error()
+            }
+            _ => false,
+        }
+    }
+
     fn at(self, location: Option<&Arc<Location>>) -> Self {
         if let Self::RenderedSystem { error, diagnostic } = self {
             return Self::RenderedSystem {
@@ -512,7 +529,9 @@ impl ExpandError {
         match self {
             Self::RenderedSystem { diagnostic, .. } => diagnostic.clone(),
             Self::Located { error, .. } => error.diagnostic(),
-            Self::System(message) => Diagnostic::system_owned(message.clone()),
+            Self::System(message) | Self::WordlistIndexBounds(message) => {
+                Diagnostic::system_owned(message.clone())
+            }
             Self::UnlocatedError(message) => Diagnostic::Unlocated(message.clone()),
             Self::FileArgument(error) => Diagnostic::system(error.message()),
             Self::FileError(message)
@@ -560,7 +579,9 @@ impl fmt::Display for ExpandError {
         match self {
             Self::Located { error, .. } => error.fmt(output),
             Self::RenderedSystem { diagnostic, .. } => diagnostic.fmt(output),
-            Self::System(message) => output.write_str(&String::from_utf8_lossy(&message.english())),
+            Self::System(message) | Self::WordlistIndexBounds(message) => {
+                output.write_str(&String::from_utf8_lossy(&message.english()))
+            }
             Self::FileArgument(error) => Diagnostic::system(error.message()).fmt(output),
             Self::FileError(message)
             | Self::UnlocatedError(message)
@@ -5409,17 +5430,23 @@ impl Expansion<'_, '_> {
             b"wordlist" => {
                 let start = word_index(first, WordIndexOperand::WordlistFirst)?;
                 if start < 1 {
-                    return Err(ExpandError::system(Message::InvalidWordIndex {
-                        operand: WordIndexOperand::WordlistFirst,
-                        problem: WordIndexProblem::Invalid(start.to_string().as_bytes()),
-                    }));
+                    return Err(ExpandError::WordlistIndexBounds(
+                        Message::InvalidWordIndex {
+                            operand: WordIndexOperand::WordlistFirst,
+                            problem: WordIndexProblem::Invalid(start.to_string().as_bytes()),
+                        }
+                        .owned(),
+                    ));
                 }
                 let end = word_index(&args[1], WordIndexOperand::WordlistSecond)?;
                 if end < 0 {
-                    return Err(ExpandError::system(Message::InvalidWordIndex {
-                        operand: WordIndexOperand::WordlistSecond,
-                        problem: WordIndexProblem::Invalid(end.to_string().as_bytes()),
-                    }));
+                    return Err(ExpandError::WordlistIndexBounds(
+                        Message::InvalidWordIndex {
+                            operand: WordIndexOperand::WordlistSecond,
+                            problem: WordIndexProblem::Invalid(end.to_string().as_bytes()),
+                        }
+                        .owned(),
+                    ));
                 }
                 if end < start {
                     return Ok(Vec::new());
@@ -6947,6 +6974,29 @@ mod tests {
             let error = VariableStore::new().expand(expression).unwrap_err();
             assert_eq!(error.diagnostic().as_bytes(), expected);
         }
+    }
+
+    #[test]
+    fn fatal_configuration_classifies_builtin_arity_and_numeric_errors() {
+        let store = VariableStore::new();
+        for (expression, classified) in [
+            (b"$(word 0,x)".as_slice(), true),
+            (b"$(wordlist 0,1,x)", true),
+            (b"$(wordlist 1,-1,x)", true),
+            (b"$(wordlist text,1,x)", false),
+            (b"$(wordlist 1,9223372036854775808,x)", false),
+            (b"$(join one)", true),
+            (b"$(intcmp x,1)", true),
+        ] {
+            let error = store.expand(expression).unwrap_err();
+            assert_eq!(error.is_builtin_arity_or_numeric_error(), classified);
+        }
+        let native_arity = ExpandError::InsufficientArguments {
+            function: b"native-func".to_vec(),
+            count: 1,
+        };
+        assert!(!native_arity.is_builtin_arity_or_numeric_error());
+        assert!(!ExpandError::Cancelled.is_builtin_arity_or_numeric_error());
     }
 
     #[test]

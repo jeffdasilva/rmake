@@ -358,8 +358,11 @@ static void close_native_stdout(void) {
     }
 }
 static pthread_once_t stdout_close_once = PTHREAD_ONCE_INIT;
+extern int rm_cli_startup_stdout_was_closed(void);
 static void register_stdout_once(void) {
-    if (fcntl(STDOUT_FILENO, F_GETFD) >= 0)
+    /* The CLI keeps Rust's placeholder open in the parent. Use the
+       inherited stdout state to decide finalizer ownership in that case. */
+    if (!rm_cli_startup_stdout_was_closed() && fcntl(STDOUT_FILENO, F_GETFD) >= 0)
         atexit(close_native_stdout);
 }
 void rm_set_regular_output_append(int fd) {

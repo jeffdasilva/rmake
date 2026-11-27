@@ -334,7 +334,7 @@ def group_size(group: int) -> int:
     return count
 
 
-def child_limits(timeout: float) -> None:
+def child_limits(timeout: float, *, close_stdout: bool = False) -> None:
     os.umask(0o022)
     resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
     resource.setrlimit(resource.RLIMIT_FSIZE, (MAX_FILE_BYTES, MAX_FILE_BYTES))
@@ -343,12 +343,15 @@ def child_limits(timeout: float) -> None:
     _soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     target = min(256, hard) if hard != resource.RLIM_INFINITY else 256
     resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+    if close_stdout:
+        os.close(1)
 
 
 def capture(command: list[str], cwd: Path, environment: dict[str, str], timeout: float,
             merged: bool = False, *, observe: Callable[[int, bytes], None] | None = None,
             observe_streams: Callable[[bytes, bytes], None] | None = None,
             executable: str | None = None,
+            close_stdout: bool = False,
             ) -> tuple[bytes, bytes, int, str | None, bool]:
     """Bound the process group; stream observers receive cumulative captured bytes.
 
@@ -359,7 +362,7 @@ def capture(command: list[str], cwd: Path, environment: dict[str, str], timeout:
                                stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT if merged else subprocess.PIPE,
                                start_new_session=True, close_fds=True,
-                               preexec_fn=lambda: child_limits(timeout))
+                               preexec_fn=lambda: child_limits(timeout, close_stdout=close_stdout))
     selector = selectors.DefaultSelector()
     buffers = {"stdout": bytearray(), "stderr": bytearray()}
     for name, stream in (("stdout", process.stdout), ("stderr", process.stderr)):
@@ -423,14 +426,14 @@ def capture(command: list[str], cwd: Path, environment: dict[str, str], timeout:
 def execute(case: Case, root: Path, executable: Path, *,
             observe: Callable[[int, bytes], None] | None = None,
             observe_streams: Callable[[bytes, bytes], None] | None = None,
-            argv0: str | None = None) -> Observation:
+            argv0: str | None = None, close_stdout: bool = False) -> Observation:
     reset_workspace(case, root, executable)
     program = str(root / "bin" / "make")
     out, err, status, limit, leftovers = capture(
         [program if argv0 is None else argv0, *case.args], root / "work",
         clean_environment(root, case.environment), case.timeout, case.output == "merged",
         observe=observe, observe_streams=observe_streams,
-        executable=program if argv0 is not None else None)
+        executable=program if argv0 is not None else None, close_stdout=close_stdout)
     files = snapshot({name: root / name for name in ("work", "home", "tmp")})
     return Observation(out, err, status, limit, files, leftovers)
 

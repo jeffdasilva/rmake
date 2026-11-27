@@ -9409,10 +9409,10 @@ impl Engine {
         }
     }
 
-    /// A user error during command configuration leaves the already reserved
-    /// logical slot outstanding while the real children drain.
+    /// Keep the configuration slot through the fatal wait for user errors
+    /// and the covered built-in argument errors.
     fn retain_configuration_abort(&mut self, permit: &mut Option<Permit>, error: &ExpandError) {
-        if error.is_user_error()
+        if (error.is_user_error() || error.is_builtin_arity_or_numeric_error())
             && self.aborted_recipe_permit.is_none()
             && self.interrupt.is_none()
             && rmake_linux::signals::pending().is_none()
@@ -18918,6 +18918,13 @@ impl Engine {
                 crate::process::Invocation::Direct { program, args }
                 | crate::process::Invocation::Shell { program, args } => (program, args),
             };
+            if rmake_linux::process::startup_outputs_were_closed()
+                && let Some(buffer) = &output
+            {
+                // GNU clears a pending output mutex before expanding the child
+                // environment when neither inherited output can use a spool.
+                let _ = buffer.child_spool();
+            }
             self.output.start();
             // A recipe flushes the public streams before building its child
             // environment. A write failure does not decide the launch result.

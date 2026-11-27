@@ -400,6 +400,310 @@
       },
       "observer": "bytes-before-a-release=1\nbytes-before-b-release=2\nfinal-count=2\nreturned=2b2b\n",
       "seed": "585a"
+    },
+    {
+      "id": "fatal-word-configuration-token-pipe",
+      "mode": "config-abort",
+      "transport": "pipe",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,config)$(word 0,x)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** first argument to 'word' function must be greater than 0.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-word-body-token-pipe",
+      "mode": "body-abort",
+      "transport": "pipe",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb:; @$(file >b.phase,body)$(word 0,x)\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:5: *** first argument to 'word' function must be greater than 0.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "body\n"
+      },
+      "observer": "bytes-at-abort-wait=1\nfinal-count=1\nreturned=51\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-user-configuration-token-pipe",
+      "mode": "config-abort",
+      "transport": "pipe",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,config)$(error config-stop)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** config-stop.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-word-configuration-token-fifo",
+      "mode": "config-abort",
+      "transport": "fifo",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,config)$(word 0,x)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** first argument to 'word' function must be greater than 0.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\nfifo-identity=retained\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-word-body-token-fifo",
+      "mode": "body-abort",
+      "transport": "fifo",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb:; @$(file >b.phase,body)$(word 0,x)\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:5: *** first argument to 'word' function must be greater than 0.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "body\n"
+      },
+      "observer": "bytes-at-abort-wait=1\nfinal-count=1\nreturned=51\nfifo-identity=retained\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-user-configuration-token-fifo",
+      "mode": "config-abort",
+      "transport": "fifo",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,config)$(error config-stop)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** config-stop.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\nfifo-identity=retained\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-wordlist-first-token-pipe",
+      "mode": "config-abort",
+      "transport": "pipe",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,config)$(wordlist 0,1,x)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** invalid first argument to 'wordlist' function: '0'.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-wordlist-second-token-pipe",
+      "mode": "config-abort",
+      "transport": "pipe",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,config)$(wordlist 1,-1,x)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** invalid second argument to 'wordlist' function: '-1'.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-arity-token-pipe",
+      "mode": "config-abort",
+      "transport": "pipe",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,config)$(join one)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** insufficient number of arguments (1) to function 'join'.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-intcmp-token-pipe",
+      "mode": "config-abort",
+      "transport": "pipe",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,config)$(intcmp x,1)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** non-numeric first argument to 'intcmp' function: 'x'.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-wordlist-body-token-pipe",
+      "mode": "body-abort",
+      "transport": "pipe",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb:; @$(file >b.phase,body)$(wordlist 0,1,x)\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:5: *** invalid first argument to 'wordlist' function: '0'.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "body\n"
+      },
+      "observer": "bytes-at-abort-wait=1\nfinal-count=1\nreturned=51\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-wordlist-first-token-fifo",
+      "mode": "config-abort",
+      "transport": "fifo",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,config)$(wordlist 0,1,x)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** invalid first argument to 'wordlist' function: '0'.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\nfifo-identity=retained\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-wordlist-second-token-fifo",
+      "mode": "config-abort",
+      "transport": "fifo",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,config)$(wordlist 1,-1,x)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** invalid second argument to 'wordlist' function: '-1'.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\nfifo-identity=retained\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-arity-token-fifo",
+      "mode": "config-abort",
+      "transport": "fifo",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,config)$(join one)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** insufficient number of arguments (1) to function 'join'.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\nfifo-identity=retained\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-intcmp-token-fifo",
+      "mode": "config-abort",
+      "transport": "fifo",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb: .SHELLFLAGS = $(file >b.phase,config)$(intcmp x,1)\nb:; @./witness attempt\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:6: *** non-numeric first argument to 'intcmp' function: 'x'.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "config\n"
+      },
+      "observer": "bytes-at-abort-wait=0\nfinal-count=1\nreturned=2b\nfifo-identity=retained\n",
+      "seed": "51"
+    },
+    {
+      "id": "fatal-wordlist-body-token-fifo",
+      "mode": "body-abort",
+      "transport": "fifo",
+      "args": [],
+      "makefile": ".PHONY: all a b\nall: a b\na:\n\t@./witness a\nb:; @$(file >b.phase,body)$(wordlist 0,1,x)\n",
+      "stdout": "a:start\na:done\n",
+      "stderr": "Makefile:5: *** invalid first argument to 'wordlist' function: '0'.  Stop.\nmake: *** Waiting for unfinished jobs....\n",
+      "status": 2,
+      "created": [
+        "a.ready",
+        "a.release"
+      ],
+      "other_files": {
+        "b.phase": "body\n"
+      },
+      "observer": "bytes-at-abort-wait=1\nfinal-count=1\nreturned=51\nfifo-identity=retained\n",
+      "seed": "51"
     }
   ]
 }

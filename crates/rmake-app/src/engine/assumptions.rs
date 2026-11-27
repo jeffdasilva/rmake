@@ -25,6 +25,7 @@ pub(super) struct Files {
     old: SystemTime,
     new: SystemTime,
     new_active: bool,
+    published: bool,
 }
 impl Files {
     pub(super) fn from_options(options: &Options) -> Result<Option<Box<Self>>, &'static [u8]> {
@@ -59,10 +60,12 @@ impl Files {
             old,
             new,
             new_active: true,
+            published: false,
         })))
     }
     pub(super) fn bind(&mut self, database: &mut Database, options: &Options, new_active: bool) {
         self.new_active = new_active;
+        self.published = true;
         let new_files = if new_active {
             options.new_files.as_slice()
         } else {
@@ -92,6 +95,13 @@ impl Files {
     }
     pub(super) fn is_new_time(&self, time: Option<SystemTime>) -> bool {
         time == Some(self.new)
+    }
+    pub(super) fn published_age(&self, name: &[u8]) -> Option<SystemTime> {
+        if self.published {
+            self.time(name)
+        } else {
+            None
+        }
     }
     fn time(&self, name: &[u8]) -> Option<SystemTime> {
         self.entries.get(name).and_then(|entry| {

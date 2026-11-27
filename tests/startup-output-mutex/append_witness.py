@@ -71,9 +71,18 @@ def inspect_recipe():
     Path("seen").write_text("\n".join(rows) + "\n")
 
 
+def inspect_mutex():
+    flags = os.environ.get("MAKEFLAGS", "").split()
+    flag = "present" if any(value.startswith("--sync-mutex=fnm:") for value in flags) else "absent"
+    lock = "present" if list(Path("scratch").glob("Gm*")) else "absent"
+    Path("seen-child").write_text(f"flag={flag} lock={lock} value={os.environ['OBSERVE']}\n")
+
+
 if sys.argv[1:] == ["inspect"]:
     inspect()
 elif sys.argv[1:] == ["inspect-recipe"]:
     inspect_recipe()
+elif sys.argv[1:] == ["inspect-mutex"]:
+    inspect_mutex()
 else:
     launch(sys.argv[1], sys.argv[2:])

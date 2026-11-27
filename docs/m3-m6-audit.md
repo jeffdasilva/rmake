@@ -53,6 +53,11 @@ at the end of this audit.
   then each active new operand, even when the name shares an age record.
   After a restart, the delayed file-table publication records all retained
   new operands in order. Shared names keep one logical age record.
+  The database prints the published what-if timestamp for an unvisited
+  ordinary file record, including a dump before a generated source restart.
+  An unvisited assumed-old record also shows its published successful
+  update. An active what-if operand for the same file replaces its age.
+  A reader failure before publication preserves the unchecked file state.
   Startup include options cache each accepted operand after filename preparation.
   Search construction records each existing directory in scan order and preserves
   its cache event even when a later `-I-` clears it from the search list.
@@ -618,8 +623,13 @@ and line/target synchronization. Further combinations remain required.
   [compact pipe pressure](../tests/resource-fd-pipe/README.md),
   [FIFO pressure and protected-directory failures](../tests/resource-fd-fifo/README.md)
   and [overlapping recipe descriptors](../tests/resource-fd-parallel/README.md).
-- [Jobserver token release](../tests/jobserver-release/README.md),
-  [private wake slots](../tests/jobserver-wake-slots/README.md) and
+- [Jobserver token release](../tests/jobserver-release/README.md) includes a
+  held implicit recipe while the parent reports a shell configuration error.
+  The word and wordlist index, built-in arity, and intcmp number cases
+  record the paid slot through the fatal wait and the returned byte after the
+  worker ends on a borrowed pipe or FIFO. Index errors in the recipe body
+  check the before-reservation boundary.
+- [Private wake slots](../tests/jobserver-wake-slots/README.md) and
   [owned/borrowed pipe flags](../tests/jobserver-read-flags/README.md).
 - [Stdin file-size limits](../tests/resource-file-size/README.md) and
   [stdout file-size limits](../tests/stdout-file-size/README.md).

@@ -61,9 +61,10 @@ class NativeModuleTests(unittest.TestCase):
             def prepare(model, directory, compiler):
                 events.append('compile')
                 return self.case, [{'compiler': compiler}]
-            def execute(case, root, binary):
+            def execute(case, root, binary, *, close_stdout):
                 self.assertIs(case, self.case)
                 self.assertEqual(root.name, 'runtime')
+                self.assertEqual(close_stdout, self.model.close_stdout)
                 events.append(str(binary))
                 return self.good
             with tempfile.TemporaryDirectory() as directory, patch.object(n, 'prepare', side_effect=prepare), patch.object(n.h, 'execute', side_effect=execute):
@@ -112,8 +113,8 @@ class NativeModuleTests(unittest.TestCase):
 
     def test_original_inventory_covers_native_lifetime_and_fatal_boundaries(self):
         models = n.models()
-        self.assertEqual(len(models), 565)
-        self.assertEqual(len({m.id for m in models}), 565)
+        self.assertEqual(len(models), 567)
+        self.assertEqual(len({m.id for m in models}), 567)
         self.assertEqual(sum(m.id.startswith('native-setup-result-') for m in models), 5)
         self.assertEqual(sum(m.id.startswith('native-loader-debug-') for m in models), 6)
         self.assertEqual(sum(m.id.startswith('native-directory-epoch-') for m in models), 5)

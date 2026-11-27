@@ -434,6 +434,19 @@ impl Engine {
         };
         let peer_time =
             branch.and_then(|ordinal| self.database_group_peer_times.get(name)?.get(ordinal));
+        // Publication sets the assumed age before the first visit, while
+        // existing observations own the record's clock after a visit.
+        let published_age = if let Some(assumptions) = &self.assumptions
+            && branch.is_none()
+            && !detached_head
+            && timestamp_outcome.is_none()
+            && observed.is_none()
+            && !times.contains_key(name)
+        {
+            assumptions.published_age(name)
+        } else {
+            None
+        };
         let (database_result, cached) = if let Some(GroupPeerTime::Observed(time)) = peer_time {
             (DatabaseResult::ObservedGroup, *time)
         } else {
@@ -451,7 +464,8 @@ impl Engine {
                             .and_then(|observation| observation.as_ref())
                             .and_then(|(_, time)| *time)
                     })
-                    .or_else(retained),
+                    .or_else(retained)
+                    .or(published_age),
             };
             (result, cached)
         };
@@ -510,8 +524,11 @@ impl Engine {
         // its intermediate marker.
         // In grouped rules the reported time can stay unchecked after
         // a recipe changes the file, so use the update outcome as well.
+        let intermediate_unvisited = outcome.is_none()
+            && (matches!(view.time, FileTime::Unchecked)
+                || (published_age.is_some() && !view.phony && matches!(view.time, FileTime::Old)));
         if (named_secondary || globally_intermediate)
-            && ((outcome.is_none() && matches!(view.time, FileTime::Unchecked))
+            && (intermediate_unvisited
                 || (self.options.question
                     && timestamp.is_none()
                     && matches!(view.time, FileTime::Missing)
@@ -553,6 +570,11 @@ impl Engine {
             || self.pending_double_colon.contains_key(name)
         {
             view.status = FileStatus::DependenciesRunning;
+        } else if !unchecked && published_age.is_some() && self.ignores_file_rules(name) {
+            // A what-if assumption can replace the age, while the old-file
+            // assumption still marks the record successfully updated.
+            view.updated = true;
+            view.status = FileStatus::Success;
         }
         let automatic = variables
             .map(|variables| {

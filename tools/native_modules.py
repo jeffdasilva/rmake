@@ -49,6 +49,7 @@ class Model:
     mtimes_ns: dict[str, int] = field(default_factory=dict)
     symlinks: dict[str, str] = field(default_factory=dict)
     output: str = 'separate'
+    close_stdout: bool = False
 
 
 def expression_model(ident: str, expression: bytes, result: bytes, *,
@@ -163,6 +164,7 @@ def models() -> list[Model]:
     result.extend(secondary_scope_models())
     result.extend(retained_double_branch_models())
     result.extend(finalizer_shell_models())
+    result.extend(finalizer_stdout_models())
     result.extend(fatal_scope_models())
     result.extend(word_zero_finalizer_models())
     result.extend(builtin_arity_finalizer_models())
@@ -869,6 +871,24 @@ def finalizer_shell_models() -> list[Model]:
         model('missing-program', source, ordinary + closed,
               b'make: rmake-native-finalizer-missing-command: Bad file descriptor\n',
               environment={'PROBE_FINALIZER_SHELL_FORM': 'missing'}),
+    ]
+
+
+def finalizer_stdout_models() -> list[Model]:
+    return [
+        Model(
+            'native-finalizer-stdout-' + name,
+            {'Makefile': b'load ./stdout_rebind.so\nall:;@:\n', 'seen': b'anchor\n'},
+            {'exit_code': 0, 'stdout_hex': '', 'stderr_hex': diagnostic.hex()},
+            b'anchor\nrebound\n',
+            (Module('stdout_rebind.c', 'stdout_rebind.so'),),
+            args=('-rR', '--no-print-directory', '-j1', 'all'),
+            close_stdout=close_stdout,
+        )
+        for name, close_stdout, diagnostic in (
+            ('inherited-open', False, b'finalizer fd1=closed\n'),
+            ('inherited-closed', True, b'finalizer fd1=open\n'),
+        )
     ]
 
 
@@ -2346,14 +2366,16 @@ def run_campaign(selected: list[Model], oracle: Path, candidate: Path | None,
     records = []
     for model in selected:
         case, compilation = prepare(model, inputs / model.id, compiler)
-        observations = [h.execute(case, runtime, binary) for binary in
-                        ([oracle, oracle] if candidate is None else [oracle, oracle, candidate])]
+        observations = [
+            h.execute(case, runtime, binary, close_stdout=model.close_stdout)
+            for binary in ([oracle, oracle] if candidate is None else [oracle, oracle, candidate])
+        ]
         judgment = assess(model, case, observations)
         record = {'id': model.id, 'args': list(model.args), 'environment': model.environment,
                   'expected': model.expected, 'expected_seen_hex': model.seen.hex(),
                   'input_files_hex': {name: value.hex() for name, value in model.files.items()},
                   'input_mtimes_ns': model.mtimes_ns, 'input_symlinks': model.symlinks, 'output': model.output,
-                  'compilation': compilation, **judgment}
+                  'close_stdout': model.close_stdout, 'compilation': compilation, **judgment}
         records.append(record)
         print(('PASS ' if judgment['passed'] else 'FAIL ') + model.id, flush=True)
     return {'classification': ('Original native-module oracle model qualification; zero conformance or exception credit'

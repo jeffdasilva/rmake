@@ -45,8 +45,12 @@ def execute(model, inputs, runtime, binaries, witness):
         files['observer'] = model['observer']
         for name, value in files.items():
             expected['work/' + name] = file_record(value)
+        launch_options = []
+        if model.get('transport') == 'fifo':
+            launch_options.append('--fifo')
+            expected['work/borrowed.pool'] = {'type': 'fifo', 'mode': 0o600}
         command = ['/usr/bin/python3', 'launch.py', model['mode'], model['seed'],
-                   str(roots['bin'] / 'make'), *flags]
+                   *launch_options, str(roots['bin'] / 'make'), *flags]
         out, err, status, bound, left = h.capture(command, roots['work'], h.clean_environment(runtime),
                                                  case.timeout)
         filesystem = h.snapshot(roots)

@@ -41,6 +41,8 @@ IDS = (
     "closed-output-both-recurse-sync",
     "closed-output-both-explicit-redirects",
     "closed-output-stdout-write-failure",
+    "closed-output-both-target-mutex-before-export",
+    "closed-output-stdout-target-mutex-before-export-control",
 )
 
 
