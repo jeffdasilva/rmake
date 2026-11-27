@@ -2822,12 +2822,14 @@ impl Engine {
             .is_some_and(|remake| remake.optional)
     }
 
-    fn missing_required_source_remake(&self) -> bool {
-        self.remaking
-            && self
-                .active_makefile_remake
-                .as_ref()
-                .is_some_and(|remake| !remake.optional && remake.open_error.is_some())
+    fn required_source_remake(&self) -> Option<&MakefileRemake> {
+        if !self.remaking || self.parallel_makefile_remakes {
+            return None;
+        }
+        // Intermediate inspection can temporarily clear the optional flag.
+        self.active_makefile_remake
+            .as_ref()
+            .filter(|remake| !remake.optional && !remake.retain_failure)
     }
 
     fn retain_remake_failure(&self) -> bool {
@@ -13716,15 +13718,19 @@ impl Engine {
             let tentative_member = self.discard_missing_archive_name(target);
             let optional = self.optional_remake();
             let keep_going = self.options.keep_going;
-            let missing_source_chain = self.missing_required_source_remake()
-                && parent.is_none_or(|parent| {
-                    parent.branch.is_none()
-                        && rmake_core::filenames::archive_parts(parent.target).is_none()
-                        && self
-                            .database
-                            .rules
-                            .get(parent.target)
-                            .is_some_and(|rule| rule.grouped_targets().is_none())
+            let required_source_missing_rule =
+                self.required_source_remake().is_some_and(|remake| {
+                    if let Some(parent) = parent {
+                        parent.branch.is_none()
+                            && rmake_core::filenames::archive_parts(parent.target).is_none()
+                            && self
+                                .database
+                                .rules
+                                .get(parent.target)
+                                .is_some_and(|rule| rule.grouped_targets().is_none())
+                    } else {
+                        remake.open_error.is_some()
+                    }
                 });
             let stopping_missing_rule = !optional
                 && !keep_going
@@ -13734,7 +13740,10 @@ impl Engine {
                             self.database_unchecked_times.borrow().contains(target)
                                 || self.retained_permanent_archive(archive)
                         }
-                        None => !self.parallel_graph() && (!self.remaking || missing_source_chain),
+                        None => {
+                            !self.parallel_graph()
+                                && (!self.remaking || required_source_missing_rule)
+                        }
                     });
             self.missing_rule_parents
                 .insert(target.to_vec(), parent.map(|parent| parent.target.to_vec()));
@@ -17249,7 +17258,7 @@ impl Engine {
             merge_child(&mut outcome, child);
             let interrupted_child = match child.database_result {
                 DatabaseResult::UnfinishedUpdate => {
-                    !self.remaking || self.missing_required_source_remake()
+                    !self.remaking || self.required_source_remake().is_some()
                 }
                 DatabaseResult::StoppedAfterChildFailure => !self.remaking,
                 _ => false,

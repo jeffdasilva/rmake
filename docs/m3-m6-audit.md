@@ -186,7 +186,8 @@ NUL boundaries, rebinding and cancellation.
   uncompleted file record when no rule can rebuild it and keep-going is off.
   When a declared required include depends on an unbuildable prerequisite,
   the dump also leaves that prerequisite and its waiting single-colon
-  ancestors unupdated.
+  ancestors unupdated. A source that opened successfully keeps its physical
+  timestamp in the dump.
   A launched child retains its completed failure while its waiting ordinary
   ancestors remain unupdated when traversal stops.
   An ordinary serial keep-going prerequisite consumer samples the failed
