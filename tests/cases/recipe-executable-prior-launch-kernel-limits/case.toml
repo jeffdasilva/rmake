@@ -1,0 +1,20 @@
+id = "recipe-executable-prior-launch-kernel-limits"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+provenance = "Original bounded Linux kernel argument and filename limits paired against GNU Make 4.4.1."
+args = ["-rR", "--no-print-directory"]
+
+[expected]
+exit_code = 0
+stdout = """\
+verified argument limit direct
+verified argument limit ignored
+verified argument limit parallel target
+verified argument limit healthy prior control
+verified filename limit direct
+verified filename limit ignored
+verified filename limit parallel target
+verified filename limit healthy prior control
+verified in-range missing filename control
+"""
+stderr = ""

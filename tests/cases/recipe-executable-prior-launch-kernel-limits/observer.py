@@ -27,26 +27,49 @@ except OSError as error:
 else:
     raise SystemExit('the argument-limit fixture did not reach E2BIG')
 
-LAUNCH_ERROR = b'make[1]: /usr/bin/true: Argument list too long\n'
+filename_limit = os.pathconf('.', 'PC_NAME_MAX')
+if not 0 < filename_limit <= 1024:
+    raise SystemExit('unsupported filesystem component limit for the filename-limit fixture')
+in_range = b'./' + b'x' * filename_limit
+over_limit = in_range + b'x'
+for path, expected_errno in ((over_limit, errno.ENAMETOOLONG), (in_range, errno.ENOENT)):
+    try:
+        os.stat(path)
+    except OSError as error:
+        if error.errno != expected_errno:
+            raise
+    else:
+        raise SystemExit('the filename-limit fixture unexpectedly found the path')
+
 PRIOR_ERROR = b'make[1]: ./prior: No such file or directory\n'
 FATAL = b'make[1]: *** [worker.mk:3: all] Error 127\n'
 IGNORED = b'make[1]: [worker.mk:3: all] Error 127 (ignored)\n'
 PRIOR_OUT = b'prior-out\n'
 PRIOR_ERR = b'prior-err\n'
 
-cases = (
-    ('direct', ('-j1', '-Onone'), True, False, False, 2,
-     PRIOR_OUT, PRIOR_ERR + LAUNCH_ERROR + PRIOR_ERROR + FATAL),
-    ('ignored', ('-j1', '-Onone'), True, True, True, 0,
-     PRIOR_OUT + PRIOR_ERR + LAUNCH_ERROR + PRIOR_ERROR + IGNORED + b'continued\n', b''),
-    ('parallel target', ('-j2', '-Otarget'), True, False, True, 2,
-     PRIOR_ERROR + PRIOR_OUT + PRIOR_ERR + LAUNCH_ERROR + FATAL, b''),
-    ('healthy prior control', ('-j1', '-Onone'), False, False, False, 2,
-     PRIOR_OUT, PRIOR_ERR + LAUNCH_ERROR + FATAL),
-)
+cases = []
+for limit, recipe_command, launch_error in (
+    ('argument limit', b'/usr/bin/true ' + argument,
+     b'make[1]: /usr/bin/true: Argument list too long\n'),
+    ('filename limit', over_limit, b'make[1]: ' + over_limit + b': File name too long\n'),
+):
+    cases.extend((
+        (f'{limit} direct', recipe_command, ('-j1', '-Onone'), True, False, False, 2,
+         PRIOR_OUT, PRIOR_ERR + launch_error + PRIOR_ERROR + FATAL),
+        (f'{limit} ignored', recipe_command, ('-j1', '-Onone'), True, True, True, 0,
+         PRIOR_OUT + PRIOR_ERR + launch_error + PRIOR_ERROR + IGNORED + b'continued\n', b''),
+        (f'{limit} parallel target', recipe_command, ('-j2', '-Otarget'), True, False, True, 2,
+         PRIOR_ERROR + PRIOR_OUT + PRIOR_ERR + launch_error + FATAL, b''),
+        (f'{limit} healthy prior control', recipe_command, ('-j1', '-Onone'), False, False, False, 2,
+         PRIOR_OUT, PRIOR_ERR + launch_error + FATAL),
+    ))
+cases.append((
+    'in-range missing filename control', in_range, ('-j1', '-Onone'), True, False, False, 2,
+    PRIOR_OUT, PRIOR_ERR + b'make[1]: ' + in_range + b': No such file or directory\n' + PRIOR_ERROR + FATAL,
+))
 
 failures = []
-for name, options, removed, ignored, merged, status, stdout, stderr in cases:
+for name, recipe_command, options, removed, ignored, merged, status, stdout, stderr in cases:
     with tempfile.TemporaryDirectory(dir='.') as scratch:
         work = Path(scratch)
         tmp = work/'tmp'
@@ -61,7 +84,7 @@ for name, options, removed, ignored, merged, status, stdout, stderr in cases:
         worker = work/'worker.mk'
         modifier = b'-@' if ignored else b'@'
         worker.write_bytes(
-            b'all:\n\t@./prior\n\t' + modifier + b'/usr/bin/true ' + argument +
+            b'all:\n\t@./prior\n\t' + modifier + recipe_command +
             b'\n\t@printf "continued\\n"; printf "effect\\n" > ran\n'
         )
         command = [sys.argv[1], '-f', 'worker.mk', *options, 'all']

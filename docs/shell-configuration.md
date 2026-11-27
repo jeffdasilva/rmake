@@ -203,7 +203,7 @@ Without synchronization, its diagnostic follows the lookup failure and
 precedes the recipe error. With recursive output synchronization, it appears
 before the pending recipe output. The lookup failure and recipe error keep
 their order within that output. Ignoring the recipe error preserves both
-executable diagnostics. A launch rejected by the Linux argument limit
+executable diagnostics. A launch rejected by the Linux argument or filename limit
 uses the same recheck and output order.
 
 An ordinary parallel recipe continuation keeps the latest successfully
