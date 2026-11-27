@@ -22,7 +22,7 @@ const F_SETFD: c_int = 2;
 const FD_CLOEXEC: c_int = 1;
 const EBADF: c_int = 9;
 static STARTUP_CLOSED_STREAMS: AtomicU8 = AtomicU8::new(0);
-static CLI_INHERITED_OPEN_OUTPUTS: AtomicU8 = AtomicU8::new(0);
+static CLI_INHERITED_OPEN_STREAMS: AtomicU8 = AtomicU8::new(0);
 static CLI_UNAVAILABLE_OUTPUTS: AtomicU8 = AtomicU8::new(0);
 
 unsafe extern "C" {
@@ -59,7 +59,7 @@ pub(crate) fn remember_inherited_streams() {
 /// occupied in the parent, and let exec close them unless a child redirects.
 pub fn preserve_closed_startup_streams() {
     let inherited_closed = STARTUP_CLOSED_STREAMS.load(Ordering::Relaxed);
-    CLI_INHERITED_OPEN_OUTPUTS.store(OUTPUT_MASK & !inherited_closed, Ordering::Relaxed);
+    CLI_INHERITED_OPEN_STREAMS.store(ALL_STANDARD_STREAMS & !inherited_closed, Ordering::Relaxed);
     // GNU checks again when none of the three streams was initially open.
     // That case keeps the existing output path and inherited stdin handling.
     let closed = match inherited_closed {
@@ -89,9 +89,9 @@ pub fn preserve_closed_startup_streams() {
     CLI_UNAVAILABLE_OUTPUTS.store(marked & OUTPUT_MASK, Ordering::Relaxed);
 }
 
-pub(crate) fn cli_inherited_output_was_open(descriptor: c_int) -> bool {
-    matches!(descriptor, 1 | 2)
-        && CLI_INHERITED_OPEN_OUTPUTS.load(Ordering::Relaxed) & (1 << descriptor) != 0
+pub(crate) fn cli_inherited_stream_was_open(descriptor: c_int) -> bool {
+    STANDARD_STREAMS.contains(&descriptor)
+        && CLI_INHERITED_OPEN_STREAMS.load(Ordering::Relaxed) & (1 << descriptor) != 0
 }
 
 pub(crate) fn startup_output_was_closed(descriptor: c_int) -> bool {
