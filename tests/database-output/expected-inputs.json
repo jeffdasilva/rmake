@@ -84418,6 +84418,1199 @@
         }
       ],
       "trusted_trace_sha256": "cf981b5b6187e940f73a4780de80ad16cfc0709d615b0d9e565b50c2dffee6a0"
+    },
+    "database-phase-implicit-directory-generation-missing-prerequisite": {
+      "template_sha256": "e630404ad68dd8e15d736a20ba6cc961ea6495cbdeb4e851fbf9e14adb4d8c01",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "after",
+              true
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "b891464a0ab35a5a77580eaa7ffc667f9bfa256d81a398ad85da8b0a93a1a499"
+    },
+    "database-phase-implicit-directory-generation-present-prerequisite": {
+      "template_sha256": "b676248b31c3a5df6ec263d9384cf8e785a3169c07467c53239e448b5f817ecd",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "after",
+              true
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "8a253da9ca7b21d2d8a8ec3502a0f6d96881598947b1c46a1e240a30f312be91"
+    },
+    "database-phase-implicit-directory-generation-scan-before-write": {
+      "template_sha256": "194a348801694c959d877aadc1c60bfe0330bbbac9a7623e8a651fccfde43fde",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "probe",
+              "d0",
+              null,
+              false
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "after",
+              true
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "e7a21d42b28e84d907bd18bac803a5ede1288cd3251470d645a10330b1dd7ac5"
+    },
+    "database-phase-implicit-directory-generation-unchanged-generation-control": {
+      "template_sha256": "20a988e613e13f50e66a3f545e1553f14436440ebdde0e15e36756bc1c2ce111",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "aee4ff6e71c3035ea8aedde056d8b32619f7893fbd150e5b259b0d2745511962"
+    },
+    "database-phase-implicit-directory-generation-scan-after-write-control": {
+      "template_sha256": "d645f9e4f23f6b81b60533667dee582131c8013139f1d755ca7d27ba1bbbe0e5",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "after",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              null,
+              false
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "c1b71c636adf9375c5249cc2c88003fa17343a50d750db55104112f2b9ea60d8"
+    },
+    "database-phase-implicit-directory-relative-present-prerequisite": {
+      "template_sha256": "5accfb7bd451487dcb61ae5918794449fc97c69ebc2f06618295afdeb93ed05d",
+      "capture_paths": [
+        ".",
+        "source"
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f75726365"
+            ],
+            [
+              "open",
+              "d1",
+              "source",
+              "before",
+              true
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0",
+            "source": "d1"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "c9221f28e49c4b19910e5420a86f55fecdd2f1d9943955e0280a0ee94e8ff255"
+    },
+    "database-phase-implicit-directory-relative-missing-prerequisite": {
+      "template_sha256": "32a8507aa4dfc5bce386023ed6596bc0803b63b6e2f69a57fcc7acadfb116717",
+      "capture_paths": [
+        ".",
+        "source"
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f75726365"
+            ],
+            [
+              "open",
+              "d1",
+              "source",
+              "before",
+              true
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0",
+            "source": "d1"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "7551fcdd0d52c1fbed51ba8247e79f5f60d9a0267dd991f98650460dcc327013"
+    },
+    "database-phase-implicit-directory-relative-scan-before-write": {
+      "template_sha256": "3bfc96c3b68b68dee0b5373d28000f9096dcaab3572400eda3c5381759d0a122",
+      "capture_paths": [
+        ".",
+        "source"
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "736f75726365"
+            ],
+            [
+              "open",
+              "d1",
+              "source",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d1",
+              null,
+              false
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "open",
+              "d1",
+              "source",
+              "after",
+              true
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0",
+            "source": "d1"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "44ed7220851e1b1ca4bd779d26679dca7f3c23d6d5ba626dcf3e987a23e1d6b6"
+    },
+    "database-phase-implicit-directory-relative-scan-after-write-control": {
+      "template_sha256": "39dd360fb39420f59d556b8ce8390f85d7e1cb9cd56990cef7adb64258c51ee6",
+      "capture_paths": [
+        ".",
+        "source"
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "736f75726365"
+            ],
+            [
+              "open",
+              "d1",
+              "source",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d1",
+              null,
+              false
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "736f757263652f6d6964646c65"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0",
+            "source": "d1"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "5e357daefdbf1f6a034b35987deb392f73f606ef99bca5b3784b5f6ac1eb6900"
     }
   }
 }
