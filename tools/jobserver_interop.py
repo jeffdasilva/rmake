@@ -102,14 +102,15 @@ def execute(root: Path, parent: Path, child: Path, style: str, borrowed: bool,
 
 
 def execute_low_wire(root: Path, parent: Path, child: Path, closed_streams: tuple[int, ...],
-                     mode: str, *, reset: bool = False):
+                     mode: str, *, parent_jobs: int = 2, reset_jobs: int | None = None):
     child_alias = root / 'bin/child/make'
-    args = ('-rR', '--no-print-directory', '-j2', '--jobserver-style=pipe', '-O' + mode, 'all')
+    args = ('-rR', '--no-print-directory', f'-j{parent_jobs}', '--jobserver-style=pipe',
+            '-O' + mode, 'all')
     expected_status = 0
     expected_stderr = ''
-    if reset and 2 not in closed_streams:
-        expected_stderr = 'make[1]: warning: -j1 forced in makefile: resetting jobserver mode.\n'
-    if reset and 1 in closed_streams:
+    if reset_jobs is not None and 2 not in closed_streams:
+        expected_stderr = f'make[1]: warning: -j{reset_jobs} forced in makefile: resetting jobserver mode.\n'
+    if reset_jobs == 1 and 1 in closed_streams:
         expected_status = 2
         expected_stderr += ('make[1]: write error: stdout: Bad file descriptor\n'
                             'make: *** [Makefile:5: all] Error 1\n')
@@ -122,9 +123,12 @@ def execute_low_wire(root: Path, parent: Path, child: Path, closed_streams: tupl
     child_alias.unlink(missing_ok=True)
     child_alias.symlink_to(child)
     work = root / 'work'
-    if reset:
+    if reset_jobs is not None:
         makefile = work / 'Child.mk'
-        makefile.write_bytes(b'MAKEFLAGS += -j1\n' + makefile.read_bytes())
+        flags = f'MAKEFLAGS += -j{reset_jobs}'
+        if reset_jobs > 1:
+            flags += ' --jobserver-style=pipe'
+        makefile.write_bytes((flags + '\n').encode() + makefile.read_bytes())
     startup_streams = ','.join(map(str, closed_streams)) or 'open'
     command = ['/usr/bin/python3', 'witness.py', startup_streams, str(root / 'bin/make'), *case.args]
     out, err, status, limit, leftovers = harness.capture(
@@ -153,11 +157,18 @@ def execute_low_wire(root: Path, parent: Path, child: Path, closed_streams: tupl
             streams[fd] = b'closed'
     seen = b' '.join(streams) + b'\n'
     seen_wire = b' '.join(streams[fd] if fd < 3 else b'closed' for fd in wire) + b'\n'
-    state = 'retired' if reset else 'original'
+    state = 'original'
+    if reset_jobs is not None:
+        state = 'retired' if reset_jobs == 1 else 'replacement'
     seen_parent = (' '.join(f'parent{fd}={state}' for fd in wire) + '\n').encode()
-    for name, expected in [('parent-auth', auth), ('child-auth', b'\n' if reset else auth),
-                           ('wire', verified_pipe), ('seen-child', seen), ('seen-wire', seen_wire),
-                           ('seen-parent', seen_parent)]:
+    anchors = [('parent-auth', auth), ('child-auth', b'\n' if reset_jobs == 1 else auth),
+               ('wire', verified_pipe), ('seen-child', seen), ('seen-wire', seen_wire),
+               ('seen-parent', seen_parent)]
+    if reset_jobs != 1:
+        active_state = 'original' if reset_jobs is None else 'new'
+        active = f'{wire[0]},{wire[1]} {active_state} '.encode() + seen_wire
+        anchors.append(('seen-active', active))
+    for name, expected in anchors:
         if not (work / name).is_file() or (work / name).read_bytes() != expected:
             errors.append('file anchor: ' + name)
     if any((root / 'tmp').iterdir()):
@@ -214,24 +225,29 @@ def main() -> int:
     results.append(dict(style='sentinel-bytes', parent='rmake', child='rmake', seed_hex='515a',
                         expected_hex='2b2b', errors=errors))
     print(('FAIL' if errors else 'PASS'), 'ordinary sentinel token bytes', errors)
-    wire_profiles = [(closed, mode, False) for closed, mode in LOW_WIRE_PROFILES]
-    wire_profiles.extend((closed, 'none', True) for closed in RESET_WIRE_STREAMS)
-    for closed_streams, mode, reset in wire_profiles:
+    wire_profiles = [(closed, mode, 2, None) for closed, mode in LOW_WIRE_PROFILES]
+    wire_profiles.extend((closed, 'none', 2, 1) for closed in RESET_WIRE_STREAMS)
+    wire_profiles.extend([((), 'none', 3, None), ((), 'none', 3, 2)])
+    for closed_streams, mode, parent_jobs, reset_jobs in wire_profiles:
         baseline, baseline_errors, baseline_wires = execute_low_wire(
-            destination, reference, reference, closed_streams, mode, reset=reset)
+            destination, reference, reference, closed_streams, mode,
+            parent_jobs=parent_jobs, reset_jobs=reset_jobs)
         repeated, repeat_errors, repeat_wires = execute_low_wire(
-            destination, reference, reference, closed_streams, mode, reset=reset)
+            destination, reference, reference, closed_streams, mode,
+            parent_jobs=parent_jobs, reset_jobs=reset_jobs)
         observed, errors, candidate_wires = execute_low_wire(
-            destination, reference, candidate, closed_streams, mode, reset=reset)
+            destination, reference, candidate, closed_streams, mode,
+            parent_jobs=parent_jobs, reset_jobs=reset_jobs)
         errors += baseline_errors + repeat_errors + harness.differences(baseline, repeated)
         errors += harness.differences(baseline, observed)
         results.append(dict(style='pipe-inherited-wire', parent='gnu', child='rmake',
-                            closed_streams=closed_streams, output_sync=mode, reset=reset,
+                            closed_streams=closed_streams, output_sync=mode, parent_jobs=parent_jobs,
+                            reset_jobs=reset_jobs,
                             parent_wires={'oracle': baseline_wires, 'oracle_repeat': repeat_wires,
                                           'candidate': candidate_wires},
                             errors=errors))
         print(('FAIL' if errors else 'PASS'), 'GNU parent pipe wire',
-              closed_streams or 'open streams', mode, 'reset' if reset else 'inherited', errors)
+              closed_streams or 'open streams', mode, parent_jobs, reset_jobs, errors)
     report = dict(profile_id=profile['profile_id'], candidate=identity,
                   fixture_sha256={p.name: harness.sha256_file(p) for p in (ROOT / 'tests/jobserver').iterdir()},
                   low_wire_fixture_sha256={p.name: harness.sha256_file(p) for p in LOW_WIRE_FIXTURE.iterdir()},

@@ -835,28 +835,39 @@ impl Jobserver {
         Ok(())
     }
 
-    /// Drop the borrowed wire when a makefile forces the CLI back to serial.
-    pub fn retire_inherited_pipe(self) {
-        if !crate::process::cli_has_inherited_streams() {
+    /// Retire the borrowed CLI wire before a makefile's serial or owned pipe reset.
+    pub fn retire_inherited_pipe(self, serial: bool) {
+        if !crate::process::cli_has_inherited_streams()
+            || (!serial && !crate::process::cli_standard_streams_are_open())
+        {
             return;
         }
-        if let Some(pipe) = self.recursive_exec_pipe() {
+        // A replacement pipe needs the standard slots to remain occupied.
+        let can_retire = |wire: [c_int; 2]| serial || wire.into_iter().all(|fd| fd >= 3);
+        if let Some(pipe) = self.recursive_exec_pipe()
+            && can_retire(pipe.incoming)
+        {
             for (index, reader) in [true, false].into_iter().enumerate() {
                 if let Ok(identity) = pipe_identity(pipe.owned[index].as_raw_fd(), Some(reader)) {
                     retire_pipe_descriptor(pipe.incoming[index], reader, identity);
                 }
             }
-        } else {
-            for endpoint in [&self.0.reader, &self.0.writer] {
-                if let Endpoint::Inherited {
-                    descriptor,
-                    reader,
-                    identity,
-                } = endpoint
-                {
-                    retire_pipe_descriptor(*descriptor, *reader, *identity);
-                }
-            }
+        } else if let (
+            Endpoint::Inherited {
+                descriptor: read,
+                identity: read_identity,
+                ..
+            },
+            Endpoint::Inherited {
+                descriptor: write,
+                identity: write_identity,
+                ..
+            },
+        ) = (&self.0.reader, &self.0.writer)
+            && can_retire([*read, *write])
+        {
+            retire_pipe_descriptor(*read, true, *read_identity);
+            retire_pipe_descriptor(*write, false, *write_identity);
         }
     }
 

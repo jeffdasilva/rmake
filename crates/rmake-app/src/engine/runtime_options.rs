@@ -943,10 +943,14 @@ impl Engine {
                 });
                 self.stderr(&message);
             }
+            let serial = jobs == 1;
+            let replace_pipe = jobs > 1
+                && jobs != usize::MAX
+                && self.options.jobserver_style.as_deref() == Some(b"pipe");
             if let Some(server) = self.jobserver.take()
-                && jobs == 1
+                && (serial || replace_pipe)
             {
-                server.retire_inherited_pipe();
+                server.retire_inherited_pipe(serial);
             }
             self.options.jobserver_auth = None;
         }
