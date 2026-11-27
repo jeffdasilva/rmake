@@ -182,6 +182,10 @@ OS error bytes come from an independent libc call.
 
 The [producer models](../tests/nls/producers.json) cover up-to-date summaries,
 cycle drops, static-pattern errors and warnings about text after directives.
+Zero-operand `$(call ...)` returns empty for built-ins whose minimum is zero,
+after evaluating the callee name. An explicit empty argument still invokes
+the built-in. The arity models check both forms and preserve argument effects
+and the real errors for built-ins with required operands.
 The `file` function has typed errors for a missing name, an extra read argument
 or an invalid operation. Tests preserve source lines, side effects and raw
 argument bytes. [Low-resolution timestamp models](../tests/nls/low-resolution.json)

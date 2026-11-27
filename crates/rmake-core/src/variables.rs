@@ -5851,11 +5851,10 @@ pub(crate) fn arity(name: &[u8]) -> Option<(usize, Option<usize>)> {
         | b"join" => Some((2, Some(2))),
         b"if" => Some((2, Some(3))),
         b"intcmp" => Some((2, Some(5))),
-        b"error" | b"info" | b"warning" | b"realpath" => Some((0, Some(1))),
-        b"or" | b"and" | b"call" => Some((1, None)),
         b"strip" | b"sort" | b"words" | b"firstword" | b"lastword" | b"dir" | b"notdir"
         | b"suffix" | b"basename" | b"origin" | b"flavor" | b"value" | b"abspath" | b"wildcard"
-        | b"shell" | b"eval" => Some((1, Some(1))),
+        | b"shell" | b"eval" | b"error" | b"info" | b"warning" | b"realpath" => Some((0, Some(1))),
+        b"or" | b"and" | b"call" => Some((1, None)),
         b"file" => Some((1, Some(2))),
         _ => None,
     }

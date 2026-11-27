@@ -979,6 +979,10 @@ impl Expansion<'_, '_> {
             if values.len() < minimum {
                 return Err(self.too_few_builtin_arguments(name, values.len()));
             }
+            if values.is_empty() {
+                m.values.push(Vec::new());
+                return Ok(());
+            }
             if let Some(max) = maximum {
                 values.truncate(max);
             }
