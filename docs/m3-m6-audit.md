@@ -41,8 +41,11 @@ at the end of this audit.
   An unchanged `MAKEFLAGS` replay also records its encoded command-line eval
   reference when present.
   When the reader changes canonical `MAKEFLAGS`, post-read command replay
-  consumes the already expanded default command-variable suffix. The original
-  command-line source is read again in the next process image after a restart.
+  consumes the already expanded default command-variable suffix. The ordinary
+  non-POSIX suffix also reuses the result of a file-defined recursive
+  `MAKEOVERRIDES` so its expansion effects run once before the first recipe.
+  The original command-line source is read again in the next process image
+  after a restart.
   The startup preload list uses one expansion of `MAKEFILES` after command-line
   eval. An absent binding can warn at that point, while a defined empty binding
   leaves the preload list empty.

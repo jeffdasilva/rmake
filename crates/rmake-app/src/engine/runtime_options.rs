@@ -867,11 +867,11 @@ impl Engine {
             let value = if let Some(prefix) = unchanged_makeflags.filter(|_| changed) {
                 Some(prefix.to_vec())
             } else if !unchanged {
-                // Reuse a pure canonical suffix at command replay. Dynamic
-                // prefixes and user declarations keep their existing reads.
-                let reuse_snapshot = name == b"MAKEFLAGS"
+                // A recursive file-defined MAKEOVERRIDES can produce
+                // effects during canonical MAKEFLAGS expansion. Reuse the
+                // expanded bytes to avoid repeating those effects.
+                let canonical_suffix = name == b"MAKEFLAGS"
                     && self.command_replay
-                    && crate::command_variables::has_default_snapshot(&self.database.variables)
                     && binding.is_some_and(|binding| {
                         binding.definition().is_none()
                             && binding.flavor() == Flavor::Recursive
@@ -884,6 +884,17 @@ impl Engine {
                                         && prefix == self.options.makeflags_for_phase(false)
                                 })
                     });
+                let reuse_suffix = canonical_suffix
+                    && (crate::command_variables::has_default_snapshot(&self.database.variables)
+                        || (self.database.command_overrides_name() == b"MAKEOVERRIDES"
+                            && self.database.variables.get(b"MAKEOVERRIDES").is_some_and(
+                                |overrides| {
+                                    overrides.origin() == Origin::File
+                                        && overrides.definition().is_some()
+                                        && overrides.flavor() == Flavor::Recursive
+                                        && !overrides.raw_value().is_empty()
+                                },
+                            )));
                 let expression = [b"$(".as_slice(), name, b")"].concat();
                 match self.expand_global(&expression, None) {
                     Ok(mut value) => {
@@ -895,7 +906,7 @@ impl Engine {
                             && let Some(boundary) =
                                 value.windows(4).position(|part| part == b" -- ")
                         {
-                            if reuse_snapshot {
+                            if reuse_suffix {
                                 command_overrides = Some(value.split_off(boundary + 4));
                             }
                             value.truncate(boundary);
