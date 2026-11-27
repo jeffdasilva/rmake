@@ -2823,8 +2823,29 @@ impl Engine {
     }
 
     fn required_source_remake(&self) -> Option<&MakefileRemake> {
-        if !self.remaking || (self.parallel_makefile_remakes && !self.parallel_jobs.is_empty()) {
+        if !self.remaking {
             return None;
+        }
+        if self.parallel_makefile_remakes && !self.parallel_jobs.is_empty() {
+            let (name, worker) = self.parallel_jobs.primary.iter().next()?;
+            // A running optional source is drained separately from the
+            // required missing rule. Leave other overlapping jobs alone.
+            if self.parallel_jobs.len() != 1
+                || worker.child.is_none()
+                || worker.before.is_none()
+                || worker.phony
+                || worker.recursive
+                || worker.continuation.branch.is_some()
+                || !worker
+                    .continuation
+                    .remake
+                    .as_ref()
+                    .is_some_and(|remake| remake.optional)
+                || !self.makefile_names.contains(name)
+                || self.running_groups.contains_key(name)
+            {
+                return None;
+            }
         }
         // Intermediate inspection can temporarily clear the optional flag.
         self.active_makefile_remake
