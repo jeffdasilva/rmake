@@ -11,8 +11,11 @@ The catalog flows validate the owned files and install all 63 package assets
 through a staging path containing a space. The gate checks the full installed
 layout, bytes, modes and link topology and verifies the source tree is preserved.
 
-The fixture runs warm oracle bootstrap, six real Cargo clean modes (including
-parallel pipe jobserver and `-n`, `-q`, `-t` guards), and three benchmark
+The fixture runs warm oracle bootstrap and retries it after a real advisory
+lock conflict in the same disposable workspace. It compares both transcripts
+and checks that the installed oracle and lock file are preserved. It also
+runs six real Cargo clean modes (including parallel pipe jobserver and
+`-n`, `-q`, `-t` guards), and three benchmark
 preconditions. `clean` checks a real compiled target, preserves unselected
 and neighboring targets, and never runs against the original checkout. The
 benchmark cases require the real oracle and release prerequisites, exact

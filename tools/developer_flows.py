@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -18,6 +19,8 @@ import rust
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'tests/developer-flows'
+BOOTSTRAP_LINE = b'python3 tools/oracle.py bootstrap\n'
+BOOTSTRAP_RETRY = 'warm-bootstrap-oracle-lock-retry'
 BUILD_LINE = b'python3 tools/rust.py cargo build --workspace --release --locked\n'
 CLEAN_LINE = b'python3 tools/rust.py cargo clean\n'
 FINISHED = re.compile(rb'(?m)^    Finished `release` profile \[optimized\] target\(s\) in ([0-9]+(?:\.[0-9]+)?s)\n')
@@ -33,7 +36,7 @@ CLEAN_CASES = {
 VALIDATION_CASES = {'bench-validation': 'oracle', 'bench-compare-validation': 'comparison'}
 CATALOG_CASES = ('catalog-check', 'catalog-install-staged')
 READ_ONLY_CASES = ('help', 'doctor')
-CASE_IDS = ('warm-bootstrap-oracle', *READ_ONLY_CASES, *CATALOG_CASES, *CLEAN_CASES,
+CASE_IDS = ('warm-bootstrap-oracle', BOOTSTRAP_RETRY, *READ_ONLY_CASES, *CATALOG_CASES, *CLEAN_CASES,
             'bench-invalid-repeat', 'bench-invalid-suite', 'bench-compare-missing-executable',
             *VALIDATION_CASES)
 
@@ -58,6 +61,12 @@ def digest_tree(root):
     if not root.exists():
         return None
     return h.snapshot({'tree': root})
+
+
+def run_records(runs):
+    return [{'engine': name, 'stdout_hex': out.hex(), 'stderr_hex': err.hex(),
+             'status': status, 'limit': limit, 'leftover_processes': children}
+            for name, (out, err, status, limit, children) in runs]
 
 
 class Subject:
@@ -254,14 +263,49 @@ class Subject:
                 'catalog flow changed source assets')
         return result
 
+    def observe_warm_bootstrap(self, binary):
+        result = self.run(binary, 'bootstrap-oracle')
+        want = BOOTSTRAP_LINE + self.verified
+        require(result == (want, b'', 0, None, False), f'warm bootstrap model: {result!r}')
+        require((self.work / '.tools/oracle.lock').is_file(), 'oracle did not take its lock')
+        require(not (self.work / '.tools/downloads').exists(), 'warm oracle attempted a download')
+        return result
+
+    def observe_bootstrap_lock_retry(self, binary, protected):
+        tools = self.work / '.tools'
+        lock_path = tools / 'oracle.lock'
+        recipe = b'\t$(PYTHON) tools/oracle.py bootstrap'
+        line = (self.work / 'Makefile').read_bytes().splitlines().index(recipe) + 1
+        diagnostic = (b'oracle: another oracle bootstrap is already running\n'
+                      + f'make: *** [Makefile:{line}: bootstrap-oracle] Error 2\n'.encode())
+        with lock_path.open('ab') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            owner = os.fstat(lock.fileno())
+            before = digest_tree(tools)
+            blocked = self.run(binary, 'bootstrap-oracle')
+            require(blocked == (BOOTSTRAP_LINE, diagnostic, 2, None, False),
+                    f'contended bootstrap model: {blocked!r}')
+            require(os.path.samestat(owner, lock_path.lstat()) and digest_tree(tools) == before,
+                    'contended bootstrap changed the lock or installed tools')
+            require(self.protected() == protected, 'contended bootstrap changed protected inputs')
+            with lock_path.open('ab') as contender:
+                try:
+                    fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    pass
+                else:
+                    raise h.HarnessError('bootstrap contention did not preserve the held lock')
+        retried = self.observe_warm_bootstrap(binary)
+        require(os.path.samestat(owner, lock_path.lstat()) and digest_tree(tools) == before,
+                'bootstrap retry changed the lock or installed tools')
+        return blocked, retried
+
     def observe(self, case, binary):
         before = self.protected()
         if case == 'warm-bootstrap-oracle':
-            result = self.run(binary, 'bootstrap-oracle')
-            want = b'python3 tools/oracle.py bootstrap\n' + self.verified
-            require(result == (want, b'', 0, None, False), f'warm bootstrap model: {result!r}')
-            require((self.work / '.tools/oracle.lock').is_file(), 'oracle did not take its lock')
-            require(not (self.work / '.tools/downloads').exists(), 'warm oracle attempted a download')
+            result = self.observe_warm_bootstrap(binary)
+        elif case == BOOTSTRAP_RETRY:
+            result = self.observe_bootstrap_lock_retry(binary, before)
         elif case in READ_ONLY_CASES:
             result = self.observe_read_only(case, binary)
         elif case in CATALOG_CASES:
@@ -349,12 +393,15 @@ def main():
                     except h.HarnessError as error:
                         errors.append(f'{name}: {error}')
                 qualified = len(runs) == 3 and all(output == runs[0][1] for _, output in runs)
-                results.append({'id': case, 'pass': qualified, 'errors': errors,
-                                **({'benchmark_report_sha256': subject.benchmark_reports[case]}
-                                   if case in subject.benchmark_reports else {}), 'runs': [
-                    {'engine': name, 'stdout_hex': out.hex(), 'stderr_hex': err.hex(),
-                     'status': status, 'limit': limit, 'leftover_processes': children}
-                    for name, (out, err, status, limit, children) in runs]})
+                row = {'id': case, 'pass': qualified, 'errors': errors}
+                if case in subject.benchmark_reports:
+                    row['benchmark_report_sha256'] = subject.benchmark_reports[case]
+                if case == BOOTSTRAP_RETRY:
+                    row['contended_runs'] = run_records((name, blocked) for name, (blocked, _) in runs)
+                    row['runs'] = run_records((name, retried) for name, (_, retried) in runs)
+                else:
+                    row['runs'] = run_records(runs)
+                results.append(row)
                 print('PASS' if qualified else 'FAIL', case, errors, flush=True)
     finally:
         os.umask(previous_umask)
