@@ -343,7 +343,8 @@ covers mixed required and optional failure policies.
   output. A local symlink loop triggers the recheck in ordinary serial output.
   In a serial dry run, a forced direct command that fails to find its executable
   also triggers the recheck. This covers ignored failures and recursive output
-  synchronization.
+  synchronization. The recheck also applies to an unignored forced direct
+  lookup failure in a serial query with unsynchronized output.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)

@@ -209,6 +209,8 @@ the recheck in ordinary serial output.
 With serial `-n`, a missing executable on a forced direct command triggers the
 same recheck, including ignored failures. Recursive output synchronization
 prints the recheck diagnostic before the pending recipe output.
+With serial `-q` and direct output, an unignored missing executable on a forced
+direct command also triggers the recheck before the recipe error.
 
 An ordinary parallel recipe continuation keeps the latest successfully
 launched path through skipped commands and ignored lookup failures.

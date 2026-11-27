@@ -1,7 +1,7 @@
-id = "recipe-executable-prior-launch-forced-dry"
+id = "recipe-executable-prior-launch-forced-modes"
 requirement = "process.recipe-executable-path"
 candidate = "required"
-provenance = "Original dry-run forced executable witnesses paired against GNU Make 4.4.1."
+provenance = "Original forced executable dry-run and query witnesses paired against GNU Make 4.4.1."
 args = ["-rR", "--no-print-directory"]
 
 [expected]
@@ -33,5 +33,15 @@ verified serial target mode split
 verified serial target mode merged
 verified serial line mode split
 verified serial line mode merged
+verified query forced missing split
+verified query forced missing merged
+verified query healthy prior control split
+verified query healthy prior control merged
+verified query first child exit 1 split
+verified query first child exit 1 merged
+verified query next child exit 1 split
+verified query next child exit 1 merged
+verified query skipped second line split
+verified query skipped second line merged
 """
 stderr = ""

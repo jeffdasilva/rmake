@@ -19657,17 +19657,21 @@ impl Engine {
                     const ELOOP: i32 = 40;
                     let sync_mode = self.output.mode();
                     let modes = MakefileModes::from_options(&self.options);
-                    let forced_dry_lookup = force
+                    let forced_mode = if modes.dry_run {
+                        !modes.question
+                            && matches!(
+                                sync_mode,
+                                crate::output::Mode::None | crate::output::Mode::Recurse
+                            )
+                    } else {
+                        modes.question && !ignore && sync_mode == crate::output::Mode::None
+                    };
+                    let forced_lookup = force
                         && direct
                         && !parallel
                         && !one_shell
-                        && modes.dry_run
-                        && !modes.question
                         && !modes.touch
-                        && matches!(
-                            sync_mode,
-                            crate::output::Mode::None | crate::output::Mode::Recurse
-                        )
+                        && forced_mode
                         && err.kind() == io::ErrorKind::NotFound;
                     if (executable_launch_failed
                         || err.kind() == io::ErrorKind::ArgumentListTooLong
@@ -19675,7 +19679,7 @@ impl Engine {
                         && !self.remaking
                         && remake.is_none()
                         && branch.is_none()
-                        && (!modes.active() || forced_dry_lookup)
+                        && (!modes.active() || forced_lookup)
                         && !self.running_groups.contains_key(target)
                         && rmake_core::filenames::archive_parts(target).is_none()
                         && let Some(path) = previous_executable.as_deref()
