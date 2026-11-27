@@ -188,6 +188,8 @@ the built-in. The arity models check both forms and preserve argument effects
 and the real errors for built-ins with required operands. When a recursive
 definition emits the failing call through `eval`, the diagnostic keeps that
 definition's location. A top-level `eval` uses the active reader location.
+Unterminated built-in calls and variable references follow the same location
+rule and retain the effects from preceding expansions.
 When `call` names the built-in `call`, the inner dispatch receives the already
 expanded operands. The selected branch of a lazy built-in still performs its
 own expansion. The models check the order of effects, literal operand bytes,

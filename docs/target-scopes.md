@@ -237,6 +237,11 @@ inherited-append marker even when its origin cannot replace the value. Losing
 `?=` and `+=` preserve that marker. Unqualified assignments reset privacy in both
 cases. Immediate RHS evaluation still precedes the metadata change.
 
+A conditional `MAKEFLAGS` declaration for two plain named targets can
+stop while reading the second target. The first target completes the canonical
+flag reset. GNU reports a malformed target-specific definition when the
+expanded flags reach the original assignment name.
+
 Hidden private global bindings do not supply export/unexport policy to an
 independent local binding. Explicit local policy and export-all mode still apply.
 An unspecified child policy can inherit an ancestor policy even when a child

@@ -42,6 +42,12 @@ maintainer scripts and system package installation are not used. Immutable
 lock-keyed prefixes preserve existing runtimes, and concurrent bootstrap writers
 use a profile lock. Corrupt archives or installed trees fail verification.
 
+The enabled reference also keys its build directory on the host library paths
+and hashes resolved by the verified SDK. A host library update selects a fresh
+reference directory. Bootstrap publishes the current profile after the Guile
+smoke check and runtime verification. Earlier reference directories preserve
+their build provenance.
+
 The portable path has been exercised from a cold HTTPS cache, then a warm cache.
 The enabled reference requires actual `guile` capability and an independently
 authored Scheme result. Fresh source extraction prevents stale disabled objects

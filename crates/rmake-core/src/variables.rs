@@ -514,10 +514,12 @@ impl ExpandError {
         use crate::messages::MessageId;
         match self {
             Self::FileArgument(_)
+            | Self::UnterminatedReference
             | Self::WordIndexZero
             | Self::WordlistIndexBounds(_)
             | Self::InvalidInteger { .. } => true,
-            Self::InsufficientArguments { function, .. } => arity(function).is_some(),
+            Self::InsufficientArguments { function, .. }
+            | Self::UnterminatedFunction { function, .. } => arity(function).is_some(),
             Self::System(message) => matches!(
                 message.id,
                 MessageId::WordFirstInvalid

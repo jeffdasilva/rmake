@@ -326,6 +326,28 @@ def publish_reference_profile(destination, record):
         profile.replace(destination / 'reference-profile.json')
 
 
+def runtime_dependencies(binary, env):
+    """Record the resolved library identities without loader addresses."""
+    result = run(['/usr/bin/ldd', str(binary)], env=env, timeout=10)
+    paths = set()
+    for line in os.fsdecode(result.stdout).splitlines():
+        path = line.strip().split(' => ', 1)[-1].rsplit(' (', 1)[0]
+        if path == 'not found':
+            raise ProfileError('Guile runtime dependency unavailable: ' + line.strip())
+        if path.startswith('/'):
+            paths.add(Path(path).resolve(strict=True))
+    if not paths:
+        raise ProfileError('cannot identify dynamically linked Guile runtime')
+    return [{'path': str(path), 'sha256': digest(path.read_bytes())} for path in sorted(paths)]
+
+
+def sdk_host_runtime_dependencies(prefix, env):
+    binary = prefix / 'usr/bin/guile-3.0'
+    prefix = prefix.resolve()
+    return [entry for entry in runtime_dependencies(binary, env)
+            if not Path(entry['path']).is_relative_to(prefix)]
+
+
 def build_reference(destination):
     """Build the fixed GNU source solely as a separate comparison executable."""
     configuration = json.loads((ROOT / 'oracle/manifest.json').read_text())
@@ -333,9 +355,12 @@ def build_reference(destination):
     archive = ROOT / '.tools/downloads/make-4.4.1.tar.gz'
     if not archive.is_file() or digest(archive.read_bytes()) != source_identity:
         raise ProfileError('bootstrap the pinned disabled oracle archive first')
+    env = environment(destination)
+    package_prefix = Path(env['RMAKE_GUILE_PREFIX'])
     compiler = Path('/usr/bin/cc').resolve()
     inputs = {'source_sha256': source_identity, 'tool_lock_sha256': digest(lock_path().read_bytes()),
-              'compiler_sha256': digest(compiler.read_bytes()), 'destination': str(destination)}
+              'compiler_sha256': digest(compiler.read_bytes()), 'destination': str(destination),
+              'host_runtime_dependencies': sdk_host_runtime_dependencies(package_prefix, env)}
     identity = digest(json.dumps(inputs, sort_keys=True).encode())
     parent = destination / 'references'; parent.mkdir(exist_ok=True)
     prefix = parent / identity
@@ -356,8 +381,6 @@ def build_reference(destination):
         failed = Path(tempfile.mkdtemp(prefix='failed-reference-', dir=parent))
         prefix.rename(failed / 'partial-install')
     prefix.mkdir()
-    env = environment(destination)
-    package_prefix = prefix_for(destination)
     library = package_prefix / 'usr/lib' / multiarch()
     env.update({'CFLAGS': '-O2 -g0',
                 'CPPFLAGS': shlex.join(['-I' + str(package_prefix / 'usr/include'),
@@ -384,13 +407,10 @@ def build_reference(destination):
     lines = result.stdout.splitlines()
     if result.stderr or len(lines) != 2 or not lines[0].startswith(b'FEATURES=[') or b'guile' not in lines[0][10:-1].split() or lines[1] != b'RESULT=[42]':
         raise ProfileError('enabled GNU reference capability did not qualify')
-    dependencies = run(['/usr/bin/ldd', str(binary)], env=env, timeout=10)
-    runtime = []
-    for line in dependencies.stdout.decode().splitlines():
-        paths = [word for word in line.split() if word.startswith('/')]
-        if paths:
-            path = Path(paths[0]).resolve()
-            runtime.append({'path': str(path), 'sha256': digest(path.read_bytes())})
+    runtime = runtime_dependencies(binary, env)
+    # A host update during compilation must select a fresh key on retry.
+    if sdk_host_runtime_dependencies(package_prefix, env) != inputs['host_runtime_dependencies']:
+        raise ProfileError('Guile SDK host runtime changed during the reference build')
     profile = {'schema_version': 1, 'classification': 'Separate Guile-enabled GNU4.4.1 comparison profile; zero rmake implementation/compatibility credit',
                'inputs': inputs, 'environment': env, 'commands': commands,
                'binary': {'path': str(binary), 'sha256': digest(binary.read_bytes())},

@@ -1,0 +1,22 @@
+id = "recursion-command-eval-omitted-effect"
+requirement = "recursion.environment"
+candidate = "required"
+description = "The child runs the inherited eval once and receives the alias value exported after an omitted suffix."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--eval=EARLY := $(file >>seen,EVAL)started", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+EVAL
+ENTRY|command line|from-cli|krR -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|started
+READ|undefined||krRs -j1 --no-print-directory $(-*-eval-flags-*-)|started
+RUN|undefined||undefined||undefined|krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)
+ALIAS|run|undefined
+ENV|krRs -j1 --no-print-directory --eval=EARLY\ :=\ $$(file\ >>seen,EVAL)started -- MARK=from-public SIDE=undefined
+EVAL
+CHILD_READ|1|file|started|command line|from-public|command line|undefined|krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)
+CHILD_RUN|1|file|started|command line|from-public|command line|undefined|krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|krRs -j1 --no-print-directory --eval=EARLY\ :=\ $$(file\ >>seen,EVAL)started -- SIDE=undefined MARK=from-public
+'''

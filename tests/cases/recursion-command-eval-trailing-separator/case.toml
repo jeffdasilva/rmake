@@ -1,0 +1,21 @@
+id = "recursion-command-eval-trailing-separator"
+requirement = "recursion.environment"
+candidate = "required"
+description = "The child receives both encoded eval arguments and the published alias through the actual separator."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--eval=EARLY := kept --", "--eval=EARLY += later --", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|krR -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|kept -- later --
+READ|undefined||krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|kept -- later --
+ALIAS|run|undefined
+RUN|environment|from-public|environment|undefined|undefined|krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)
+ALIAS|run|environment
+ENV|krRs -j1 --no-print-directory --eval=EARLY\ :=\ kept\ -- --eval=EARLY\ +=\ later\ -- -- MARK=from-public SIDE=environment
+CHILD_READ|1|file|kept -- later --|command line|from-public|command line|environment|krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)
+CHILD_RUN|1|file|kept -- later --|command line|from-public|command line|environment|krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|krRs -j1 --no-print-directory --eval=EARLY\ :=\ kept\ -- --eval=EARLY\ +=\ later\ -- -- SIDE=environment MARK=from-public
+'''
