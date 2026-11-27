@@ -1,6 +1,6 @@
 # Test real-project builds
 
-The integration suite compares GNU Make 4.4.1 and rmake on **18 pinned profiles
+The integration suite compares GNU Make 4.4.1 and rmake on **19 pinned profiles
 across ten projects**. Each profile uses the project's own Makefiles and
 checks a specific build configuration. The
 [manifest](../tests/integration/projects.json) is the authority for source
@@ -60,6 +60,7 @@ All profiles use the C locale and the manifest's compiler and environment inputs
 | `gnu-make-4.4.1` | `all`, serial | Build GNU Make, change its version header and execute original stdin rules. |
 | `gnu-make-4.4.1-parallel-fifo` | `all`, two FIFO slots, recursive synchronization | Parallel GNU Make build with exact recursive announcements. |
 | `zstd-1.5.7` | `zstd-release`, serial | Recursive CLI build, no-op copy behavior and version-header rebuild. |
+| `zstd-1.5.7-pipe-fallback` | `zstd-release`, four pipe slots, recursive synchronization | Indirect recursion falls back to a one-job compile with an exact warning. |
 | `busybox-1.37.0` | `defconfig` | Configuration-only comparison with independent output digests. |
 | `busybox-1.37.0-executable` | `allnoconfig`, then `busybox`, serial | Minimal executable configuration, build, no-op, rebuild and printf result. |
 | `bzip2-1.0.8` | `bzip2`, serial | Static library and executable rebuild after editing a C source, then a compression round trip. |
@@ -163,6 +164,12 @@ CLI through the recursive `zstd-release` target. Its hash-based copy check must
 preserve the published binary's timestamp on a no-op. Changing the version in
 `lib/zstd.h` must rebuild `programs/zstd` and change its reported version. Both
 versions compress and decompress the same independent input.
+
+The pipe fallback profile starts with four job slots and recursive output
+synchronization. The programs Makefile expands its inner make command through
+a variable, so the innermost make receives no pipe jobserver and compiles with
+one job. Fresh, no-op and header-rebuild phases require the exact jobserver
+unavailable warning on stderr. Both executable checks require empty stderr.
 
 The BusyBox configuration profile compares the original `defconfig` target.
 Independent digests cover the anchored configuration stream, `.config` and
