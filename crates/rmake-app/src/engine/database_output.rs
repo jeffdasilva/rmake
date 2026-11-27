@@ -111,7 +111,7 @@ impl Engine {
 
     /// Acquiring the post-read special-file policy is one semantic lookup
     /// phase, independent of later cached flag tests during graph traversal.
-    pub(super) fn record_database_file_policy(&mut self) {
+    pub(super) fn record_database_file_policy(&mut self, last_lookup: Option<&[u8]>) {
         self.database_file_policy_prepared = true;
         if let Some(history) = self.database.database_history() {
             for name in [
@@ -127,6 +127,9 @@ impl Engine {
                 b".NOTPARALLEL",
             ] {
                 history.record_file_lookup(name);
+                if Some(name) == last_lookup {
+                    break;
+                }
             }
         }
     }
