@@ -867,25 +867,33 @@ impl Engine {
             let value = if let Some(prefix) = unchanged_makeflags.filter(|_| changed) {
                 Some(prefix.to_vec())
             } else if !unchanged {
-                // A recursive file-defined MAKEOVERRIDES can produce
-                // effects during canonical MAKEFLAGS expansion. Reuse the
-                // expanded bytes to avoid repeating those effects.
-                let canonical_suffix = name == b"MAKEFLAGS"
+                let reference = self.database.command_overrides_reference();
+                let public_overrides = self.database.command_overrides_name() == b"MAKEOVERRIDES";
+                let canonical_makeflags = name == b"MAKEFLAGS"
                     && self.command_replay
                     && binding.is_some_and(|binding| {
+                        let raw = binding.raw_value();
+                        let prefix = raw.strip_suffix(reference).unwrap_or(raw);
                         binding.definition().is_none()
                             && binding.flavor() == Flavor::Recursive
-                            && binding
-                                .raw_value()
-                                .strip_suffix(self.database.command_overrides_reference())
-                                .is_some_and(|prefix| {
-                                    !prefix.contains(&b'$')
-                                        && !prefix.windows(4).any(|part| part == b" -- ")
-                                        && prefix == self.options.makeflags_for_phase(false)
-                                })
+                            && !prefix.contains(&b'$')
+                            && !prefix.windows(4).any(|part| part == b" -- ")
+                            && prefix == self.options.makeflags_for_phase(false)
                     });
-                let reuse_suffix = canonical_suffix
-                    && if self.database.command_overrides_name() == b"MAKEOVERRIDES" {
+                let has_suffix =
+                    binding.is_some_and(|binding| binding.raw_value().ends_with(reference));
+                // The reader can republish flags without the startup
+                // override reference. In that case there are no words to replay.
+                let omitted_overrides = canonical_makeflags
+                    && !has_suffix
+                    && public_overrides
+                    && self.initial_flags.ends_with(reference)
+                    && binding.is_some_and(|binding| {
+                        binding.origin() == origin(self.options.environment_override)
+                    });
+                let reuse_suffix = canonical_makeflags
+                    && has_suffix
+                    && if public_overrides {
                         crate::command_variables::has_default_snapshot(&self.database.variables)
                             || self.database.variables.get(b"MAKEOVERRIDES").is_some_and(
                                 |overrides| {
@@ -902,6 +910,9 @@ impl Engine {
                 let expression = [b"$(".as_slice(), name, b")"].concat();
                 match self.expand_global(&expression, None) {
                     Ok(mut value) => {
+                        if omitted_overrides {
+                            command_overrides = Some(Vec::new());
+                        }
                         let encoded = name == b"MAKEFLAGS"
                             && self.database.variables.get(name).is_some_and(|variable| {
                                 Database::has_command_overrides_reference(variable.raw_value())
