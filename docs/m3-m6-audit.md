@@ -184,6 +184,9 @@ NUL boundaries, rebinding and cancellation.
   The active ordinary prerequisite chain retains that state in a dump.
   A direct serial remake of a missing required include also retains the
   uncompleted file record when no rule can rebuild it and keep-going is off.
+  When a declared required include depends on an unbuildable prerequisite,
+  the dump also leaves that prerequisite and its waiting single-colon
+  ancestors unupdated.
   A launched child retains its completed failure while its waiting ordinary
   ancestors remain unupdated when traversal stops.
   An ordinary serial keep-going prerequisite consumer samples the failed

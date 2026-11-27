@@ -2822,6 +2822,14 @@ impl Engine {
             .is_some_and(|remake| remake.optional)
     }
 
+    fn missing_required_source_remake(&self) -> bool {
+        self.remaking
+            && self
+                .active_makefile_remake
+                .as_ref()
+                .is_some_and(|remake| !remake.optional && remake.open_error.is_some())
+    }
+
     fn retain_remake_failure(&self) -> bool {
         self.active_makefile_remake
             .as_ref()
@@ -13708,11 +13716,16 @@ impl Engine {
             let tentative_member = self.discard_missing_archive_name(target);
             let optional = self.optional_remake();
             let keep_going = self.options.keep_going;
-            let direct_missing_source = parent.is_none()
-                && self
-                    .active_makefile_remake
-                    .as_ref()
-                    .is_some_and(|remake| remake.open_error.is_some());
+            let missing_source_chain = self.missing_required_source_remake()
+                && parent.is_none_or(|parent| {
+                    parent.branch.is_none()
+                        && rmake_core::filenames::archive_parts(parent.target).is_none()
+                        && self
+                            .database
+                            .rules
+                            .get(parent.target)
+                            .is_some_and(|rule| rule.grouped_targets().is_none())
+                });
             let stopping_missing_rule = !optional
                 && !keep_going
                 && (tentative_member
@@ -13721,7 +13734,7 @@ impl Engine {
                             self.database_unchecked_times.borrow().contains(target)
                                 || self.retained_permanent_archive(archive)
                         }
-                        None => !self.parallel_graph() && (!self.remaking || direct_missing_source),
+                        None => !self.parallel_graph() && (!self.remaking || missing_source_chain),
                     });
             self.missing_rule_parents
                 .insert(target.to_vec(), parent.map(|parent| parent.target.to_vec()));
@@ -17234,10 +17247,14 @@ impl Engine {
                 continue;
             };
             merge_child(&mut outcome, child);
-            if matches!(
-                child.database_result,
-                DatabaseResult::UnfinishedUpdate | DatabaseResult::StoppedAfterChildFailure
-            ) && !self.remaking
+            let interrupted_child = match child.database_result {
+                DatabaseResult::UnfinishedUpdate => {
+                    !self.remaking || self.missing_required_source_remake()
+                }
+                DatabaseResult::StoppedAfterChildFailure => !self.remaking,
+                _ => false,
+            };
+            if interrupted_child
                 && !self.parallel_graph()
                 && !self.options.keep_going
                 && branch.is_none()
