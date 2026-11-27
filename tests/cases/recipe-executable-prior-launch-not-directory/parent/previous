@@ -1,0 +1,3 @@
+#!/bin/sh
+printf "child\n"
+{ rm -- "$0"; rmdir -- ./parent; printf replaced > ./parent; exit 0; }

@@ -2966,8 +2966,13 @@ impl Engine {
     ) {
         if status.and_then(std::process::ExitStatus::code) == Some(127)
             && let Some(executable) = executable
-            && let Err(error) = rmake_linux::process::recheck_executable(executable)
         {
+            self.report_recipe_executable_recheck(executable);
+        }
+    }
+
+    fn report_recipe_executable_recheck(&self, executable: &Path) {
+        if let Err(error) = rmake_linux::process::recheck_executable(executable) {
             let detail = rmake_linux::filesystem::source_error_detail(&error);
             self.stderr(&[executable.as_os_str().as_bytes(), b": ", &detail].concat());
         }
@@ -19458,21 +19463,25 @@ impl Engine {
                     // GNU rechecks the last successfully spawned command
                     // when the next executable lookup fails.
                     if executable_launch_failed
-                        && err.kind() == io::ErrorKind::NotFound
                         && !parallel
-                        && !ignore
                         && !self.remaking
                         && remake.is_none()
                         && branch.is_none()
                         && !MakefileModes::from_options(&self.options).active()
-                        && self.output.mode() != crate::output::Mode::Recurse
                         && !self.running_groups.contains_key(target)
                         && rmake_core::filenames::archive_parts(target).is_none()
-                        && let Some(path) = previous_executable.as_ref()
-                        && let Err(error) = std::fs::metadata(path)
+                        && let Some(path) = previous_executable.as_deref()
                     {
-                        let detail = rmake_linux::filesystem::source_error_detail(&error);
-                        self.stderr(&[path.as_os_str().as_bytes(), b": ", &detail].concat());
+                        if self.output.mode() == crate::output::Mode::Recurse {
+                            // The failed launch and recipe error stay in the
+                            // recipe buffer. The reap diagnostic is global.
+                            let selected = self.output.current();
+                            self.output.select(None);
+                            self.report_recipe_executable_recheck(path);
+                            self.output.select(selected.as_ref());
+                        } else {
+                            self.report_recipe_executable_recheck(path);
+                        }
                     }
                     Some("Error 127".to_owned())
                 }

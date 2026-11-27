@@ -1,0 +1,12 @@
+id = "recipe-executable-prior-launch-ignored-missing"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+description = "An ignored missing command reports the unlinked prior executable before resuming."
+provenance = "Original Makefile and executable witnesses compared with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "all"]
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout = "child\nmake: ./missing: No such file or directory\nmake: ./prior: No such file or directory\nmake: [Makefile:3: all] Error 127 (ignored)\ncontinued\n"
+stderr = ""

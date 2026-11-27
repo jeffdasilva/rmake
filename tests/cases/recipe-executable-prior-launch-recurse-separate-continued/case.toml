@@ -1,0 +1,11 @@
+id = "recipe-executable-prior-launch-recurse-separate-continued"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+description = "The global recheck precedes buffered stderr while an ignored failure permits continuation."
+provenance = "Original Makefile and executable witnesses compared with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-Orecurse", "all"]
+
+[expected]
+exit_code = 0
+stdout = "prior-out\nlate-out\n"
+stderr = "make: ./prior: No such file or directory\nprior-err\nmake: [Makefile:2: all] Error 7 (ignored)\nmake: ./missing: No such file or directory\nmake: [Makefile:3: all] Error 127 (ignored)\nlate-err\n"

@@ -1,0 +1,4 @@
+#!/bin/sh
+printf "prior-out\n"
+printf "prior-err\n" >&2
+exit 7

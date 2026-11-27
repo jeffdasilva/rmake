@@ -307,12 +307,15 @@ covers mixed required and optional failure policies.
   child exit. The same timestamp is recorded when serial `-q` stops at an
   ordinary line after a real child or an ignored executable launch failure.
   This leaves the existing target cleanup rules in effect.
-  Ordinary serial recipes now report a failed stat of the last launched
-  executable after an unignored missing-executable error, before the recipe's
-  terminal error. When a launched recipe child exits 127, serial and parallel
-  recipes check the selected path before printing the recipe error.
-  Rechecking the prior executable after an ignored launch error, other launch
-  failures, and launch errors with recursive output synchronization remain open.
+  Ordinary serial recipes report the last launched executable's failed
+  recheck after a later missing-executable, permission, or non-directory
+  launch error. This also covers ignored launch failures and prior
+  executables that lose owner execute permission or become empty.
+  Recursive output synchronization publishes the prior-executable diagnostic
+  before pending recipe output, with the failed launch and recipe error
+  remaining in their original order inside that output. When a launched
+  recipe child exits 127, serial and parallel recipes check the selected
+  path before printing the recipe error.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)

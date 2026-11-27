@@ -1,0 +1,12 @@
+id = "recipe-executable-prior-launch-recurse-merged-warnings"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+description = "The global recheck follows a reader warning and precedes buffered recipe output."
+provenance = "Original Makefile and executable witnesses compared with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-Orecurse", "all"]
+output = "merged"
+
+[expected]
+exit_code = 2
+stdout = "Makefile:1: reader warning\nmake: ./prior: No such file or directory\nMakefile:4: recipe warning\nprior-out\nprior-err\nmake: [Makefile:3: all] Error 7 (ignored)\nmake: ./missing: No such file or directory\nmake: *** [Makefile:4: all] Error 127\n"
+stderr = ""
