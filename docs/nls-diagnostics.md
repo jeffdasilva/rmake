@@ -191,8 +191,10 @@ expanded operands. The selected branch of a lazy built-in still performs its
 own expansion. The models check the order of effects, literal operand bytes,
 and the localized error from an invalid `word` argument.
 The `file` function has typed errors for a missing name, an extra read argument
-or an invalid operation. Tests preserve source lines, side effects and raw
-argument bytes. [Low-resolution timestamp models](../tests/nls/low-resolution.json)
+or an invalid operation. Through `eval`, these errors still use the innermost
+recursive definition's location when one is active. Filesystem and parser
+errors use the reader location. Tests cover both locations, eager side effects
+and raw argument bytes. [Low-resolution timestamp models](../tests/nls/low-resolution.json)
 use fixed timestamps to check warning publication and effects in C and French.
 The [debug option models](../tests/nls/debug-options.json) check invalid debug
 requests at startup and during secondary expansion. They cover French,

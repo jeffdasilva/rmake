@@ -5675,6 +5675,266 @@
         "stderr": "Makefile:2: *** insufficient number of arguments (0) to function 'call'.  Stop.\n",
         "seen": "anchor\nbefore\n"
       }
+    },
+    {
+      "id": "nls-eval-file-argument-location-missing-name-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4641494c203d2024286576616c2058203a3d2024242866696c65203c2c24242866696c65203e3e7365656e2c7268732929290a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:1: *** file: missing filename.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-file-argument-location-read-extra-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4641494c203d2024286576616c2058203a3d2024242866696c65203c616273656e742c24242866696c65203e3e7365656e2c7268732929290a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:1: *** file : trop d'arguments. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-file-argument-location-invalid-fallback",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx-rmake-missing:fr"
+      },
+      "files": {
+        "Makefile": "4641494c203d2024286576616c2058203a3d2024242866696c6520696e76616c69642c24242866696c65203e3e7365656e2c7268732929290a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:1: *** file : op\u00e9ration invalide\u00a0: invalid. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-file-argument-location-multiline-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "646566696e6520424f44590a41203d2072656164790a58203a3d20242866696c65203c2c242866696c65203e3e7365656e2c72687329290a656e6465660a4641494c203d2024286576616c20242876616c756520424f445929290a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:5: *** file: missing filename.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-file-argument-location-included-binding-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "696e636c7564652062696e64696e672e6d6b0a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a",
+        "binding.mk": "4641494c203d2024286576616c2058203a3d2024242866696c65203c2c24242866696c65203e3e7365656e2c7268732929290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "binding.mk:1: *** file : fichier manquant. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-file-argument-location-inner-binding-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a4641494c203d20242866696c65203c2c242866696c65203e3e7365656e2c72687329290a4f55544552203d2024286576616c2058203a3d202424284641494c29290a24284f55544552290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** file: missing filename.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-file-argument-location-direct-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a24286576616c2058203a3d2024242866696c65203c2c24242866696c65203e3e7365656e2c7268732929290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** file: missing filename.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-file-argument-location-parser-fatal-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4641494c203d2024286576616c2024242866696c65203e3e7365656e2c72687329706c61696e2d6d616c666f726d65642d6c696e65290a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:3: *** missing separator.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-file-argument-location-user-error-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4641494c203d2024286576616c2058203a3d2024242866696c65203e3e7365656e2c726873292424286572726f7220757365722d6d65737361676529290a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:3: *** user-message.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-file-argument-location-open-error-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4641494c203d2024286576616c2058203a3d2024242866696c65203e3e7365656e2c7268732924242866696c65203c706172656e742f6368696c6429290a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a",
+        "parent": "66696c650a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:3: *** open: parent/child: @OS_DETAIL@.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      },
+      "errno_fact": [
+        "ENOTDIR",
+        "C"
+      ]
+    },
+    {
+      "id": "nls-eval-file-argument-location-missing-read-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "50415353203d2024286576616c2058203a3d2024242866696c65203e3e7365656e2c7268732924242866696c65203c616273656e7429290a242866696c65203e3e7365656e2c6265666f7265290a242850415353290a2428696e666f2076616c75653d5b242858295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "value=[]\n",
+        "stderr": "",
+        "seen": "anchor\nbefore\nrhs\nafter\n"
+      }
     }
   ]
 }

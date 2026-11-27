@@ -646,7 +646,7 @@ impl Expansion<'_, '_> {
                     let prior = self.logical_depth;
                     self.logical_depth = depth + 1;
                     let direct = if input.len() <= MAX_OUTPUT {
-                        self.direct_expression(input)
+                        self.direct_expression(input, location.as_ref())
                     } else {
                         Some(Err(ExpandError::ExpansionLimit))
                     };
@@ -787,7 +787,8 @@ impl Expansion<'_, '_> {
                 if name == b"call" {
                     self.machine_call(m, values, depth, nearest)?;
                 } else {
-                    m.values.push(self.eager_function(&name, &values)?);
+                    m.values
+                        .push(self.eager_function(&name, &values, nearest.as_ref())?);
                 }
             }
             Kind::ArgValue(name, args, index, mut values) => {
@@ -1003,7 +1004,8 @@ impl Expansion<'_, '_> {
                     .collect::<Result<Vec<_>, _>>()?;
                 m.job(Kind::Function(name.to_vec(), args), depth, nearest)?;
             } else {
-                m.values.push(self.eager_function(name, &values)?);
+                m.values
+                    .push(self.eager_function(name, &values, nearest.as_ref())?);
             }
             return Ok(());
         }

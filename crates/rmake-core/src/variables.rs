@@ -4328,7 +4328,7 @@ impl Expansion<'_, '_> {
                 && direct::references_only(input)
             {
                 self.expand_inner(input)
-            } else if let Some(result) = self.direct_expression(input) {
+            } else if let Some(result) = self.direct_expression(input, None) {
                 result
             } else {
                 self.expand_machine(input)
@@ -5109,26 +5109,21 @@ impl Expansion<'_, '_> {
         }
     }
 
-    fn evaluate_buffer(&mut self, first: &[u8]) -> Result<Vec<u8>, ExpandError> {
-        let location = self.context.location;
-        self.evaluate_buffer_at(first, location)
-    }
-
     fn evaluate_buffer_at(
         &mut self,
         first: &[u8],
         location: Option<&Location>,
+        expanding_location: Option<&Arc<Location>>,
     ) -> Result<Vec<u8>, ExpandError> {
         let active = self.snapshot_active();
+        let mut context = self.context.reborrow();
+        if let Some(location) = expanding_location {
+            context.eval_file_argument_location = Some(Arc::clone(location));
+        }
         let result = match &mut self.store {
-            StoreAccess::Database(db) => db.evaluate_in(
-                first,
-                location,
-                None,
-                &mut self.bindings,
-                active,
-                self.context.reborrow(),
-            ),
+            StoreAccess::Database(db) => {
+                db.evaluate_in(first, location, None, &mut self.bindings, active, context)
+            }
             StoreAccess::Scoped {
                 database,
                 variables,
@@ -5139,7 +5134,7 @@ impl Expansion<'_, '_> {
                     Some(*variables),
                     &mut self.bindings,
                     active,
-                    self.context.reborrow(),
+                    context,
                 );
                 database.refresh_scoped_variables(variables);
                 result
@@ -5219,11 +5214,28 @@ impl Expansion<'_, '_> {
         Ok(value)
     }
 
-    fn eager_function(&mut self, name: &[u8], args: &[Vec<u8>]) -> Result<Vec<u8>, ExpandError> {
+    fn eager_function(
+        &mut self,
+        name: &[u8],
+        args: &[Vec<u8>],
+        nearest: Option<&Arc<Location>>,
+    ) -> Result<Vec<u8>, ExpandError> {
         if name == b"eval" {
-            self.evaluate_buffer(args.first().map(Vec::as_slice).unwrap_or_default())
+            self.evaluate_buffer_at(
+                args.first().map(Vec::as_slice).unwrap_or_default(),
+                self.context.location,
+                nearest,
+            )
         } else {
-            self.eager_builtin(name, args)
+            self.eager_builtin(name, args).map_err(|error| {
+                if nearest.is_none() && matches!(error, ExpandError::FileArgument(_)) {
+                    // A recursive variable's definition can still own file
+                    // argument validation inside an evaluated buffer.
+                    error.at(self.context.eval_file_argument_location.as_ref())
+                } else {
+                    error
+                }
+            })
         }
     }
 
@@ -5607,7 +5619,7 @@ impl crate::native::NativeHost for Expansion<'_, '_> {
 
     fn evaluate(&mut self, input: &[u8], location: Option<&Location>) -> Result<(), ExpandError> {
         let location = location.or(self.context.location);
-        self.evaluate_buffer_at(input, location).map(|_| ())
+        self.evaluate_buffer_at(input, location, None).map(|_| ())
     }
 
     fn emit(&mut self, event: Output<'_>) -> bool {
