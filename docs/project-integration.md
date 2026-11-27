@@ -37,6 +37,10 @@ an existing candidate, add `--candidate PATH`. The runner accepts repeated
 `--case` options and rejects unknown IDs. A reference-only pass validates the
 selected observations without qualifying a candidate.
 
+When using a provisioned reference from another checkout, pass its executable
+with `--oracle PATH` and its verified profile with `--oracle-profile PATH`.
+Without the profile option, the runner uses the current checkout's profile.
+
 ## Choose a profile
 
 Parallel rows specify the jobserver transport and output synchronization mode.

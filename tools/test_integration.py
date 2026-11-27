@@ -319,5 +319,20 @@ class IntegrationTests(unittest.TestCase):
             self.assertEqual(error.exception.code, 2)
             network.assert_not_called(); execute.assert_not_called()
 
+    def test_explicit_oracle_profile_is_used_for_verification(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            binary = root / 'reference make'
+            profile = root / 'reference profile.json'
+            report = root / 'report.json'
+            with (patch.object(i, 'archive_for'),
+                  patch.object(i.oracle, 'verify',
+                               side_effect=i.oracle.OracleError('reference rejected')) as verify):
+                with self.assertRaisesRegex(i.oracle.OracleError, 'reference rejected'):
+                    i.main(['--case', 'xxhash-0.8.3', '--oracle', str(binary),
+                            '--oracle-profile', str(profile), '--report', str(report)])
+            verify.assert_called_once_with(binary, profile)
+            self.assertFalse(report.exists())
+
 
 if __name__ == '__main__': unittest.main()
