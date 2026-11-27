@@ -55,6 +55,9 @@ at the end of this audit.
   new operands in order. Shared names keep one logical age record.
   The database prints the published what-if timestamp for an unvisited
   ordinary file record, including a dump before a generated source restart.
+  An unvisited assumed-old record also shows its published successful
+  update. An active what-if operand for the same file replaces its age.
+  A reader failure before publication preserves the unchecked file state.
   Startup include options cache each accepted operand after filename preparation.
   Search construction records each existing directory in scan order and preserves
   its cache event even when a later `-I-` clears it from the search list.
