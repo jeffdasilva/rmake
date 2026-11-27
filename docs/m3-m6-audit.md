@@ -205,7 +205,8 @@ NUL boundaries, rebinding and cancellation.
   update state when recipe, shell, or export expansion fails before the
   affected command runs. This includes required reader parse failures,
   user errors, and built-in arity diagnostics. This also applies when serial
-  shell configuration fails after an optimized no-op, before a child launches.
+  shell or export preparation fails after an optimized no-op, before the
+  first child launches.
   Optional includes from target-specific shell configuration also retain
   their missing timestamps while the parallel job queue is idle or holds
   one separate ordinary recipe.
