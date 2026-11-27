@@ -4198,7 +4198,7 @@ impl Expansion<'_, '_> {
         if entered {
             self.binding_context = Some(variable.definition.clone());
         }
-        let result = self.expand(&variable.value);
+        let result = self.expand_at(&variable.value, variable.definition.as_ref());
         if entered {
             self.binding_context = None;
         }
@@ -4302,6 +4302,14 @@ impl Expansion<'_, '_> {
     }
 
     fn expand(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
+        self.expand_at(input, None)
+    }
+
+    fn expand_at(
+        &mut self,
+        input: &[u8],
+        nearest: Option<&Arc<Location>>,
+    ) -> Result<Vec<u8>, ExpandError> {
         if self.context.is_cancelled() {
             return Err(ExpandError::Cancelled);
         }
@@ -4328,10 +4336,10 @@ impl Expansion<'_, '_> {
                 && direct::references_only(input)
             {
                 self.expand_inner(input)
-            } else if let Some(result) = self.direct_expression(input, None) {
+            } else if let Some(result) = self.direct_expression(input, nearest) {
                 result
             } else {
-                self.expand_machine(input)
+                self.expand_machine(input, nearest.cloned())
             }
         } else {
             self.expand_inner(input)

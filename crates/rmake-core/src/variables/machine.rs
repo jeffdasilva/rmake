@@ -302,7 +302,11 @@ impl<'a> Machine<'a> {
     }
 }
 impl Expansion<'_, '_> {
-    pub(super) fn expand_machine(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
+    pub(super) fn expand_machine(
+        &mut self,
+        input: &[u8],
+        nearest: Option<Arc<Location>>,
+    ) -> Result<Vec<u8>, ExpandError> {
         self.machine_nesting += 1;
         let active_start = self.active.len();
         let bindings_start = self.bindings.len();
@@ -314,7 +318,7 @@ impl Expansion<'_, '_> {
             extra: Rc::new(Budget::default()),
         };
         let result = (|| {
-            m.read(Source::borrowed(input), logical_start, None)?;
+            m.read(Source::borrowed(input), logical_start, nearest)?;
             while let Some(Job {
                 kind,
                 depth,
