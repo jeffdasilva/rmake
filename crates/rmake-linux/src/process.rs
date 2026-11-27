@@ -15,7 +15,8 @@ use std::sync::atomic::{AtomicU8, Ordering};
 
 const STANDARD_STREAMS: [c_int; 3] = [0, 1, 2];
 const STDIN_MASK: u8 = 0b001;
-const ALL_STANDARD_STREAMS: u8 = 0b111;
+const OUTPUT_MASK: u8 = 0b110;
+const ALL_STANDARD_STREAMS: u8 = STDIN_MASK | OUTPUT_MASK;
 const F_GETFD: c_int = 1;
 const F_SETFD: c_int = 2;
 const FD_CLOEXEC: c_int = 1;
@@ -82,11 +83,15 @@ pub fn preserve_closed_startup_streams() {
         }
         *errno = saved;
     }
-    CLI_UNAVAILABLE_OUTPUTS.store(marked & !STDIN_MASK, Ordering::Relaxed);
+    CLI_UNAVAILABLE_OUTPUTS.store(marked & OUTPUT_MASK, Ordering::Relaxed);
 }
 
 pub(crate) fn startup_output_was_closed(descriptor: c_int) -> bool {
     CLI_UNAVAILABLE_OUTPUTS.load(Ordering::Relaxed) & (1 << descriptor) != 0
+}
+
+pub fn startup_outputs_were_closed() -> bool {
+    CLI_UNAVAILABLE_OUTPUTS.load(Ordering::Relaxed) == OUTPUT_MASK
 }
 
 /// Probe an executable candidate using the caller's effective credentials.

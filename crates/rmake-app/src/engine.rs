@@ -18918,6 +18918,13 @@ impl Engine {
                 crate::process::Invocation::Direct { program, args }
                 | crate::process::Invocation::Shell { program, args } => (program, args),
             };
+            if rmake_linux::process::startup_outputs_were_closed()
+                && let Some(buffer) = &output
+            {
+                // GNU clears a pending output mutex before expanding the child
+                // environment when neither inherited output can use a spool.
+                let _ = buffer.child_spool();
+            }
             self.output.start();
             // A recipe flushes the public streams before building its child
             // environment. A write failure does not decide the launch result.

@@ -494,6 +494,62 @@
       "stderr": "/usr/bin/printf: write error: Bad file descriptor\nmake: *** [Makefile:1: all] Error 1\n",
       "status": 2,
       "merged": false
+    },
+    {
+      "id": "closed-output-both-target-mutex-before-export",
+      "append_mode": "closed-both",
+      "environment": {
+        "MAKE_TMPDIR": "scratch"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Otarget",
+        "--jobserver-style=pipe",
+        "all"
+      ],
+      "inputs": {
+        "Makefile": "export OBSERVE = $(file >seen,flag=$(if $(filter --sync-mutex=fnm:%,$(MAKEFLAGS)),present,absent) lock=$(if $(wildcard scratch/Gm*),present,absent))observed\nall:;@/usr/bin/python3 append_witness.py inspect-mutex\n",
+        "scratch/anchor": ""
+      },
+      "seen": "flag=present lock=absent\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "merged": false,
+      "updates": {
+        "seen-child": "flag=present lock=absent value=observed\n"
+      }
+    },
+    {
+      "id": "closed-output-stdout-target-mutex-before-export-control",
+      "append_mode": "closed-stdout",
+      "environment": {
+        "MAKE_TMPDIR": "scratch"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Otarget",
+        "--jobserver-style=pipe",
+        "all"
+      ],
+      "inputs": {
+        "Makefile": "export OBSERVE = $(file >seen,flag=$(if $(filter --sync-mutex=fnm:%,$(MAKEFLAGS)),present,absent) lock=$(if $(wildcard scratch/Gm*),present,absent))observed\nall:;@/usr/bin/python3 append_witness.py inspect-mutex\n",
+        "scratch/anchor": ""
+      },
+      "seen": "flag=present lock=present\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "merged": false,
+      "updates": {
+        "seen-child": "flag=present lock=present value=observed\n"
+      }
     }
   ]
 }

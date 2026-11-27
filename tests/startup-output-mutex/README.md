@@ -24,6 +24,8 @@ control separately checks the recipe spool and inherited pipe flags.
 The closed-output profiles keep stdin open and check direct recipe inheritance,
 line, target and recursive synchronization, and explicit output redirection.
 A recipe write to a closed stdout must fail while the open stderr still drains.
+With both outputs closed, the named mutex is removed before a silent recipe
+expands its exported environment. Its `MAKEFLAGS` entry remains visible.
 
 Run `make test-startup-output-mutex` or
 `make test-startup-output-mutex-release`. The existing live and passive
