@@ -16963,15 +16963,16 @@ impl Engine {
                         && !self.reopened_include_times.contains(dependency)
                         && rmake_core::filenames::archive_parts(dependency).is_none()
                         && self.special(b".INTERMEDIATE", dependency, false)
-                        && self.database.rules.get(dependency).is_some_and(|rule| {
+                        && (self.database.rules.get(dependency).is_some_and(|rule| {
                             rule.double_colon.is_none()
                                 && rule.grouped_targets().is_none()
                                 && rule.implicit_pattern.is_none()
                                 && !rule.default_recipe
-                        })
+                        }) || self.plain_double_colon_recipe_pair(dependency))
                     {
                         // The parent consumes the settled timestamp before
-                        // intermediate cleanup can remove the file.
+                        // intermediate cleanup, including the shared time of a
+                        // completed double-colon chain.
                         child = self.observe_updated(dependency, child);
                     }
                     merge_child(&mut state.outcome, child);

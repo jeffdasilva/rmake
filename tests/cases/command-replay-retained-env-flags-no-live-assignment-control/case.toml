@@ -1,0 +1,18 @@
+id = "command-replay-retained-env-flags-no-live-assignment-control"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "Entering POSIX under -e without a live assignment leaves public overrides out of the reader replay."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--environment-overrides", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|ekrR -j1 --no-print-directory -- $(MAKEOVERRIDES)|
+READ|undefined||ekrR -j1 --no-print-directory -- $(MAKEOVERRIDES)|
+ALIAS|run|undefined
+RUN|environment override|from-public|environment override|undefined|ekrR -j1 --no-print-directory -- $(-*-command-variables-*-)
+ENV|ekrR -j1 --no-print-directory -- MARK=from-cli
+'''

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import fcntl
 import json
 import os
@@ -21,10 +22,14 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'tests/developer-flows'
 BOOTSTRAP_LINE = b'python3 tools/oracle.py bootstrap\n'
 BOOTSTRAP_RETRY = 'warm-bootstrap-oracle-lock-retry'
+ORACLE_INTEGRITY_RETRY = 'warm-bootstrap-oracle-integrity-retry'
 CATALOG_RETRY = 'catalog-install-validation-retry'
+CATALOG_DESTINATION_RETRY = 'catalog-install-destination-retry'
+CATALOG_PACKAGE_DIR = 'usr/share/rmake/locale'
 CLEAN_RETRY = 'clean-invalid-manifest-retry'
 FAILED_PHASE_REPORTS = {
-    BOOTSTRAP_RETRY: 'contended_runs', CATALOG_RETRY: 'rejected_runs',
+    BOOTSTRAP_RETRY: 'contended_runs', ORACLE_INTEGRITY_RETRY: 'rejected_runs',
+    CATALOG_RETRY: 'rejected_runs', CATALOG_DESTINATION_RETRY: 'rejected_runs',
     CLEAN_RETRY: 'invalid_manifest_runs',
 }
 BUILD_LINE = b'python3 tools/rust.py cargo build --workspace --release --locked\n'
@@ -41,9 +46,10 @@ CLEAN_CASES = {
     CLEAN_RETRY: ((), False, False),
 }
 VALIDATION_CASES = {'bench-validation': 'oracle', 'bench-compare-validation': 'comparison'}
-CATALOG_CASES = ('catalog-check', 'catalog-install-staged', CATALOG_RETRY)
+CATALOG_CASES = ('catalog-check', 'catalog-install-staged', CATALOG_RETRY, CATALOG_DESTINATION_RETRY)
 READ_ONLY_CASES = ('help', 'doctor')
-CASE_IDS = ('warm-bootstrap-oracle', BOOTSTRAP_RETRY, *READ_ONLY_CASES, *CATALOG_CASES, *CLEAN_CASES,
+CASE_IDS = ('warm-bootstrap-oracle', BOOTSTRAP_RETRY, ORACLE_INTEGRITY_RETRY, *READ_ONLY_CASES,
+            *CATALOG_CASES, *CLEAN_CASES,
             'bench-invalid-repeat', 'bench-invalid-suite', 'bench-compare-missing-executable',
             *VALIDATION_CASES)
 
@@ -68,6 +74,19 @@ def digest_tree(root):
     if not root.exists():
         return None
     return h.snapshot({'tree': root})
+
+
+def catalog_package_layout(sources, pending_languages=()):
+    parents = ('tree', 'tree/usr', 'tree/usr/share', 'tree/usr/share/rmake')
+    expected = {name: {'type': 'directory', 'mode': 0o755} for name in parents}
+    prefix = f'tree/{CATALOG_PACKAGE_DIR}'
+    for name, item in sources.items():
+        relative = name.removeprefix('tree')
+        if relative == '/README.md' or relative[1:].partition('/')[0] in pending_languages:
+            continue
+        mode = 0o755 if item['type'] == 'directory' else 0o644
+        expected[prefix + relative] = {**item, 'mode': mode}
+    return expected
 
 
 def run_records(runs):
@@ -236,9 +255,14 @@ class Subject:
         return result
 
     def run_catalog_install(self, binary, stage):
-        destination = stage / 'usr/share/rmake/locale'
+        destination = stage / CATALOG_PACKAGE_DIR
         stdout = b'python3 tools/catalogs.py --install "' + os.fsencode(destination) + b'"\n'
         return self.run(binary, f'DESTDIR={stage}', 'PREFIX=/usr', 'catalog-install'), stdout
+
+    def catalog_install_failure(self, diagnostic):
+        recipe = b'\t$(PYTHON) tools/catalogs.py --install "$(DESTDIR)$(CATALOG_INSTALL_DIR)"'
+        line = (self.work / 'Makefile').read_bytes().splitlines().index(recipe) + 1
+        return diagnostic + f'make: *** [Makefile:{line}: catalog-install] Error 1\n'.encode()
 
     def observe_catalogs(self, case, binary):
         sources = self.work / 'catalogs'
@@ -256,13 +280,7 @@ class Subject:
             try:
                 result, stdout = self.run_catalog_install(binary, stage)
                 require(result == (stdout, b'', 0, None, False), f'catalog install: {result!r}')
-                parents = ('tree', 'tree/usr', 'tree/usr/share', 'tree/usr/share/rmake')
-                expected = {name: {'type': 'directory', 'mode': 0o755} for name in parents}
-                prefix = 'tree/usr/share/rmake/locale'
-                for name, item in original.items():
-                    if name != 'tree/README.md':
-                        mode = 0o755 if item['type'] == 'directory' else 0o644
-                        expected[prefix + name.removeprefix('tree')] = {**item, 'mode': mode}
+                expected = catalog_package_layout(original)
                 require(sum(item['type'] == 'file' for item in expected.values()) == 63,
                         'catalog package input inventory changed')
                 require(digest_tree(stage) == expected, 'catalog package bytes or layout differ')
@@ -283,10 +301,7 @@ class Subject:
         original_bytes = asset.read_bytes()
         script = self.work / 'tools/catalogs.py'
         script_hash = h.sha256_file(script)
-        recipe = b'\t$(PYTHON) tools/catalogs.py --install "$(DESTDIR)$(CATALOG_INSTALL_DIR)"'
-        line = (self.work / 'Makefile').read_bytes().splitlines().index(recipe) + 1
-        diagnostic = (b'catalogs: catalog asset hash differs: fr.po\n'
-                      + f'make: *** [Makefile:{line}: catalog-install] Error 1\n'.encode())
+        diagnostic = self.catalog_install_failure(b'catalogs: catalog asset hash differs: fr.po\n')
         try:
             asset.write_bytes(original_bytes + b'\n# disposable catalog validation control\n')
             invalid_mtime = asset.stat().st_mtime_ns
@@ -308,6 +323,66 @@ class Subject:
                 'catalog retry changed the restored asset modification time')
         return rejected, retried
 
+    def observe_catalog_destination_retry(self, binary, protected):
+        sources = self.work / 'catalogs'
+        script = self.work / 'tools/catalogs.py'
+        original = digest_tree(sources)
+        script_hash = h.sha256_file(script)
+        stage = self.root / 'package stage'
+        destination = stage / CATALOG_PACKAGE_DIR
+        obstruction = destination / 'fr'
+        anchors = (stage / 'packaging-notes', destination / 'local-stage-note')
+        languages = (sources / 'languages.txt').read_text(encoding='ascii').splitlines()
+        pending = languages[languages.index(obstruction.name):]
+        # Sources and notices are installed before compiled locales.
+        partial = catalog_package_layout(original, pending)
+        complete = catalog_package_layout(original)
+        require(sum(item['type'] == 'file' for item in complete.values()) == 63,
+                'catalog package input inventory changed')
+        require(not os.path.lexists(stage), 'catalog stage must start absent')
+
+        def anchor_metadata():
+            states = [path.stat() for path in anchors]
+            return [(state.st_dev, state.st_ino, state.st_mtime_ns) for state in states]
+
+        try:
+            destination.mkdir(parents=True)
+            for anchor in anchors:
+                anchor.write_bytes(b'preserve staged package notes\n')
+            for name in ('COPYING', 'de/LC_MESSAGES/make.mo', 'ja/LC_MESSAGES/make.mo'):
+                installed = destination / name
+                installed.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(sources / name, installed)
+            obstruction.write_bytes(b'owned regular directory obstruction\n')
+            original_obstruction = obstruction.stat()
+            original_anchors = anchor_metadata()
+            before = digest_tree(stage)
+            blocked = os.fspath(obstruction / 'LC_MESSAGES')
+            diagnostic = self.catalog_install_failure(
+                f'catalogs: [Errno {errno.ENOTDIR}] Not a directory: {blocked!r}\n'.encode())
+            rejected, stdout = self.run_catalog_install(binary, stage)
+            require(rejected == (stdout, diagnostic, 2, None, False),
+                    f'catalog destination failure: {rejected!r}')
+            require(digest_tree(stage) == (before | partial), 'partial catalog stage differs')
+            remaining = obstruction.stat()
+            require(os.path.samestat(original_obstruction, remaining)
+                    and remaining.st_mtime_ns == original_obstruction.st_mtime_ns
+                    and anchor_metadata() == original_anchors,
+                    'rejected catalog install replaced an obstruction or staged anchor')
+            require(digest_tree(sources) == original and h.sha256_file(script) == script_hash
+                    and self.protected() == protected, 'rejected catalog install changed protected inputs')
+
+            obstruction.unlink()
+            retried, stdout = self.run_catalog_install(binary, stage)
+            require(retried == (stdout, b'', 0, None, False), f'catalog install retry: {retried!r}')
+            require(digest_tree(stage) == (before | complete)
+                    and anchor_metadata() == original_anchors, 'catalog retry changed staged files')
+            require(digest_tree(sources) == original and h.sha256_file(script) == script_hash,
+                    'catalog retry changed source assets')
+        finally:
+            h.remove_tree(stage)
+        return rejected, retried
+
     def observe_warm_bootstrap(self, binary):
         result = self.run(binary, 'bootstrap-oracle')
         want = BOOTSTRAP_LINE + self.verified
@@ -316,19 +391,22 @@ class Subject:
         require(not (self.work / '.tools/downloads').exists(), 'warm oracle attempted a download')
         return result
 
+    def rejected_bootstrap(self, diagnostic):
+        recipe = b'\t$(PYTHON) tools/oracle.py bootstrap'
+        line = (self.work / 'Makefile').read_bytes().splitlines().index(recipe) + 1
+        failure = f'make: *** [Makefile:{line}: bootstrap-oracle] Error 2\n'.encode()
+        return BOOTSTRAP_LINE, diagnostic + failure, 2, None, False
+
     def observe_bootstrap_lock_retry(self, binary, protected):
         tools = self.work / '.tools'
         lock_path = tools / 'oracle.lock'
-        recipe = b'\t$(PYTHON) tools/oracle.py bootstrap'
-        line = (self.work / 'Makefile').read_bytes().splitlines().index(recipe) + 1
-        diagnostic = (b'oracle: another oracle bootstrap is already running\n'
-                      + f'make: *** [Makefile:{line}: bootstrap-oracle] Error 2\n'.encode())
+        expected = self.rejected_bootstrap(b'oracle: another oracle bootstrap is already running\n')
         with lock_path.open('ab') as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             owner = os.fstat(lock.fileno())
             before = digest_tree(tools)
             blocked = self.run(binary, 'bootstrap-oracle')
-            require(blocked == (BOOTSTRAP_LINE, diagnostic, 2, None, False),
+            require(blocked == expected,
                     f'contended bootstrap model: {blocked!r}')
             require(os.path.samestat(owner, lock_path.lstat()) and digest_tree(tools) == before,
                     'contended bootstrap changed the lock or installed tools')
@@ -344,6 +422,46 @@ class Subject:
         require(os.path.samestat(owner, lock_path.lstat()) and digest_tree(tools) == before,
                 'bootstrap retry changed the lock or installed tools')
         return blocked, retried
+
+    def observe_oracle_integrity_retry(self, binary, protected):
+        installed = self.profile / 'bin/make'
+        marker = installed.with_suffix('.invoked')
+        tools = self.work / '.tools'
+        lock_path = tools / 'oracle.lock'
+        with lock_path.open('ab'):
+            pass
+        original_lock = lock_path.stat()
+        original = installed.stat()
+        authentic = installed.read_bytes()
+        verified_sha = h.sha256_file(installed)
+        before = digest_tree(tools)
+        require(not marker.exists(), 'oracle execution marker was already present')
+        try:
+            installed.write_bytes(b'#!/bin/sh\nprintf "unexpected\\n" > "$0.invoked"\nexit 91\n')
+            wrong_sha = h.sha256_file(installed)
+            require(verified_sha != wrong_sha, 'replacement has the verified digest')
+            invalid_tools = digest_tree(tools)
+            invalid_protected = {**protected, 'profile': digest_tree(self.profile)}
+            expected = self.rejected_bootstrap(
+                f'oracle: oracle binary SHA256 mismatch: expected {verified_sha}, '
+                f'got {wrong_sha}; executable was not run\n'.encode())
+            rejected = self.run(binary, 'bootstrap-oracle')
+            require(rejected == expected, f'bootstrap integrity failure: {rejected!r}')
+            require(not marker.exists() and os.path.samestat(original, installed.stat())
+                    and os.path.samestat(original_lock, lock_path.stat())
+                    and digest_tree(tools) == invalid_tools and self.protected() == invalid_protected,
+                    'rejected bootstrap executed the replacement or changed its workspace')
+        finally:
+            installed.write_bytes(authentic)
+            os.utime(installed, ns=(original.st_atime_ns, original.st_mtime_ns))
+        require(digest_tree(tools) == before and self.protected() == protected,
+                'oracle integrity control was not restored')
+        retried = self.observe_warm_bootstrap(binary)
+        require(os.path.samestat(original, installed.stat())
+                and installed.stat().st_mtime_ns == original.st_mtime_ns
+                and os.path.samestat(original_lock, lock_path.stat()) and digest_tree(tools) == before,
+                'bootstrap retry changed the restored install or lock')
+        return rejected, retried
 
     def observe_clean_manifest_rejection(self, binary, target, other):
         manifest = self.work / 'Cargo.toml'
@@ -387,10 +505,14 @@ class Subject:
             result = self.observe_warm_bootstrap(binary)
         elif case == BOOTSTRAP_RETRY:
             result = self.observe_bootstrap_lock_retry(binary, before)
+        elif case == ORACLE_INTEGRITY_RETRY:
+            result = self.observe_oracle_integrity_retry(binary, before)
         elif case in READ_ONLY_CASES:
             result = self.observe_read_only(case, binary)
         elif case == CATALOG_RETRY:
             result = self.observe_catalog_install_retry(binary, before)
+        elif case == CATALOG_DESTINATION_RETRY:
+            result = self.observe_catalog_destination_retry(binary, before)
         elif case in CATALOG_CASES:
             result = self.observe_catalogs(case, binary)
         elif case in CLEAN_CASES:

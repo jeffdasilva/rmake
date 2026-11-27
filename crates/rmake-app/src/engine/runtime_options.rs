@@ -843,6 +843,16 @@ impl Engine {
             let binding = self.database.variables.get(name);
             let has_binding = binding.is_some();
             let unchanged = binding.is_none_or(|value| value.raw_value() == *initial);
+            let literal_override = !unchanged
+                && name == b"MAKEFLAGS"
+                && self.command_replay
+                && binding.is_some_and(|binding| {
+                    binding.origin() == Origin::Override
+                        && binding
+                            .definition()
+                            .is_some_and(|location| !location.file.is_null())
+                        && !binding.raw_value().contains(&b'$')
+                });
             let reopen_unchanged = unchanged
                 && self.options.sync_mutex.is_some()
                 && binding.is_some_and(|value| nonempty_flag_source(value.raw_value()));
@@ -971,6 +981,11 @@ impl Engine {
                 // Nested effects therefore see and publish current state.
                 if let Some(jobs) = self.apply_runtime_flag_source(value)? {
                     file_jobs = Some(jobs);
+                }
+                if literal_override {
+                    // The explicit source supplied all its replay operands.
+                    // Do not expand MAKEOVERRIDES as a separate fallback.
+                    command_overrides = Some(Vec::new());
                 }
             } else {
                 // GNU rereads the actual published load spelling after reading.

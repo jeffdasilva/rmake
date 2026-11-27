@@ -1,0 +1,18 @@
+id = "command-replay-retained-env-flags-posix-replace"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "A losing replacement under -e also decodes the retained public command assignments at File origin."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--environment-overrides", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|ekrR -j1 --no-print-directory -- $(MAKEOVERRIDES)|
+ALIAS|read|undefined
+READ|file|from-public|ekrR -j1 --no-print-directory -- $(-*-command-variables-*-)|
+RUN|environment override|from-cli|file|undefined|ekrR -j1 --no-print-directory -- $(-*-command-variables-*-)
+ENV|ekrR -j1 --no-print-directory -- MARK=from-cli
+'''

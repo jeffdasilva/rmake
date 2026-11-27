@@ -1,0 +1,17 @@
+id = "command-replay-retained-env-flags-file-wins-control"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "A File append that wins without -e follows the existing POSIX hidden command snapshot."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|krR -j1 --no-print-directory -- $(MAKEOVERRIDES)|
+READ|undefined||krRs -j1 --no-print-directory -- $(-*-command-variables-*-)|
+RUN|environment|from-cli|undefined||krRs -j1 --no-print-directory -- $(-*-command-variables-*-)
+ENV|krRs -j1 --no-print-directory -- MARK=from-cli
+'''

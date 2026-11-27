@@ -48,7 +48,9 @@ at the end of this audit.
   command-line snapshot replays that expanded snapshot. When the reader
   republishes canonical `MAKEFLAGS` without its public override suffix,
   post-read replay has no override words. A later `MAKEOVERRIDES` definition
-  can supply the suffix on the next publication. Canonical flags with the
+  can supply the suffix on the next publication. A literal `override MAKEFLAGS`
+  in the Makefile supplies its own replay operands, so post-read replay skips
+  the separate `MAKEOVERRIDES` lookup. Canonical flags with the
   automatic command-line eval reference use the same replay path. The encoded
   eval arguments remain flag data. The original command-line source is read
   again in the next process image after a restart.
@@ -246,9 +248,12 @@ NUL boundaries, rebinding and cancellation.
   file record.
   Borrowing a .DEFAULT recipe preserves the file’s target classification.
   Named `.INTERMEDIATE` policy is visible on ordinary file rows before
-  a visit and when the file is an explicit goal.
+  a visit and when the file is an explicit goal. Ordinary serial double-colon
+  branches retain that marker when unvisited or when their first visit finds
+  no file.
   A serial parent that rebuilds a deferred named intermediate consumes its
-  settled timestamp before cleanup, so the dump retains that observation.
+  settled timestamp before cleanup. Completed plain double-colon branches
+  report the shared final timestamp or checked absence on both records.
   The post-read file policy marks .PHONY prerequisites as targets before
   visits begin, including when a later setup diagnostic stops traversal.
   This publication also enables the .PRECIOUS marker for file and pattern
