@@ -12283,17 +12283,13 @@ impl Engine {
                             let stem_derived = candidate.stem_dependencies.contains(&index);
                             // A relative prerequisite with a directory component
                             // is observed even before the first filesystem change.
-                            // A fixed absolute prerequisite in a nonterminal rule
-                            // also needs its own directory observation.
+                            // A fixed prerequisite in a nonterminal rule also
+                            // needs a directory observation, including the current directory.
                             let relative_directory =
                                 !name.starts_with(b"/") && name.contains(&b'/');
                             let refresh_declared_directory = ordinary_local_search
                                 && !deferred
-                                && (relative_directory
-                                    || (!terminal
-                                        && !stem_derived
-                                        && (name.starts_with(b"/")
-                                            || self.filesystem.borrow().generation() != 0)))
+                                && (relative_directory || (!terminal && !stem_derived))
                                 && rmake_core::filenames::archive_parts(name).is_none()
                                 && !self.aliases.contains_source_or_destination(name)
                                 && self.database.rules.get(name).is_some_and(|rule| {
