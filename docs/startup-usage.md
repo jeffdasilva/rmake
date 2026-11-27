@@ -12,8 +12,11 @@ Empty `-C` and `-f` operands are rejected before filename preparation. A path
 that exhausts its `./` components uses the same canonical fallback as the
 filename helper, without indexing the original buffer past its bounds. An
 explicitly empty `-j` operand is distinct from bare `-j`.
+An unescaped trailing space or tab in inherited startup flags can supply an
+empty operand. A required option reports the corresponding localized
+empty-argument diagnostic within that argument source.
 
-`make test-startup-usage` checks 74 original cases in C and French, including
+`make test-startup-usage` checks 84 original cases in C and French, including
 ordered effects, startup source boundaries, raw argument bytes, zero and empty
 job counts, directory normalization and full stderr. An empty shuffle operand
 prints the full usage output. Later explicit assignments can still run in the
