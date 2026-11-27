@@ -588,7 +588,15 @@ impl Engine {
         }
         let automatic = variables
             .map(|variables| {
-                if branch.is_none() {
+                // Later branches can update the shared named declaration
+                // after the head's automatic bindings were captured.
+                if branch.is_none()
+                    || (is_head
+                        && self.ordinary_include_open_times
+                        && self.database.has_plain_double_colon_rules(name)
+                        && !self.aliases.contains_source_or_destination(name)
+                        && rmake_core::filenames::archive_parts(name).is_none())
+                {
                     variables.database_file_definitions_with_scope(view.target_variables)
                 } else {
                     variables.database_file_definitions()
