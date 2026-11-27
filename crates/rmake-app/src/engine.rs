@@ -13708,6 +13708,11 @@ impl Engine {
             let tentative_member = self.discard_missing_archive_name(target);
             let optional = self.optional_remake();
             let keep_going = self.options.keep_going;
+            let direct_missing_source = parent.is_none()
+                && self
+                    .active_makefile_remake
+                    .as_ref()
+                    .is_some_and(|remake| remake.open_error.is_some());
             let stopping_missing_rule = !optional
                 && !keep_going
                 && (tentative_member
@@ -13716,7 +13721,7 @@ impl Engine {
                             self.database_unchecked_times.borrow().contains(target)
                                 || self.retained_permanent_archive(archive)
                         }
-                        None => !self.remaking && !self.parallel_graph(),
+                        None => !self.parallel_graph() && (!self.remaking || direct_missing_source),
                     });
             self.missing_rule_parents
                 .insert(target.to_vec(), parent.map(|parent| parent.target.to_vec()));
