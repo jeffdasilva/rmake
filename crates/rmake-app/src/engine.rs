@@ -16816,15 +16816,49 @@ impl Engine {
                         .is_some_and(|child| self.prerequisite_stale(state.comparison, *child))
             });
             self.apply_graph_abort(&mut state.outcome);
-            if state.stale && !state.outcome.failed && !state.outcome.question_outdated {
+            if state.stale
+                && !state.outcome.failed
+                && !state.outcome.question_outdated
+                && !state.deferred_intermediates.is_empty()
+            {
+                let observe_named_intermediate = !self.remaking
+                    && self.active_makefile_remake.is_none()
+                    && !self.parallel_graph()
+                    && state.branch.is_none()
+                    && state.group.is_none()
+                    && self.ordinary_queries.first_verdict.is_none()
+                    && !MakefileModes::from_options(&self.options).active();
                 for dependency in &state.deferred_intermediates {
-                    let child = self.build(
+                    let mut child = self.build(
                         dependency,
                         Some(state.scope_parent(target)),
                         state.depth + 1,
                     );
+                    let pending = self.pending(dependency);
+                    if observe_named_intermediate
+                        && !pending
+                        && child.ran
+                        && !child.failed
+                        && !child.question_outdated
+                        && child.completion == CompletionTime::Refresh
+                        && !child.search_after_update
+                        && !self.aliases.contains_source_or_destination(dependency)
+                        && !self.reopened_include_times.contains(dependency)
+                        && rmake_core::filenames::archive_parts(dependency).is_none()
+                        && self.special(b".INTERMEDIATE", dependency, false)
+                        && self.database.rules.get(dependency).is_some_and(|rule| {
+                            rule.double_colon.is_none()
+                                && rule.grouped_targets().is_none()
+                                && rule.implicit_pattern.is_none()
+                                && !rule.default_recipe
+                        })
+                    {
+                        // The parent consumes the settled timestamp before
+                        // intermediate cleanup can remove the file.
+                        child = self.observe_updated(dependency, child);
+                    }
                     merge_child(&mut state.outcome, child);
-                    waiting |= self.pending(dependency);
+                    waiting |= pending;
                 }
             }
         }

@@ -202,6 +202,8 @@ NUL boundaries, rebinding and cancellation.
   Borrowing a .DEFAULT recipe preserves the file’s target classification.
   Named `.INTERMEDIATE` policy is visible on ordinary file rows before
   a visit and when the file is an explicit goal.
+  A serial parent that rebuilds a deferred named intermediate consumes its
+  settled timestamp before cleanup, so the dump retains that observation.
   The post-read file policy marks .PHONY prerequisites as targets before
   visits begin, including when a later setup diagnostic stops traversal.
 - [Eval allocation investigation](eval-allocation-profiles.md) retains experiments

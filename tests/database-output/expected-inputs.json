@@ -60052,6 +60052,548 @@
         }
       ],
       "trusted_trace_sha256": "94d026c7b2fb037d84555870a18ca4d4b66d1e770b40a513288a5c02b422314c"
+    },
+    "database-phase-deferred-intermediate-clock-no-write": {
+      "template_sha256": "262522613aa1a2888e9a6781930daa77068d27fd5fa37a901c9aa18809239f4d",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "2e494e5445524d454449415445"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "2e494e5445524d454449415445"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "21278f8ebbb69229c767858cfad9380374af75864d7b818e2453206c38f3501c"
+    },
+    "database-phase-deferred-intermediate-clock-written-then-removed": {
+      "template_sha256": "7c028951e4c38322807f03866b806e67abdb3809606a8bc7a833b12afd6dc9df",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "2e494e5445524d454449415445"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "2e494e5445524d454449415445"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "21278f8ebbb69229c767858cfad9380374af75864d7b818e2453206c38f3501c"
+    },
+    "database-phase-deferred-intermediate-clock-unmarked-no-write-control": {
+      "template_sha256": "9000e525790ddbbab5e80910a2b096c6ba27bbff70abde34168468d820daaefb",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "1572ab700fce4668937a30d06e3d2660f581080a55a4058085bf57a84a79eb8d"
+    },
+    "database-phase-deferred-intermediate-clock-unmarked-write-control": {
+      "template_sha256": "189ed653360a752159900955a4a0e9295e737655691f9fe7301ac8151a334579",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "1572ab700fce4668937a30d06e3d2660f581080a55a4058085bf57a84a79eb8d"
+    },
+    "database-phase-deferred-intermediate-clock-preexisting-control": {
+      "template_sha256": "659f158fe267cc0b58ee716ab17abeb8830adb7648476db033bffe64c4c68287",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "2e494e5445524d454449415445"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "2e494e5445524d454449415445"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "706c61696e"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "dcd97d434dc153e994ebb3caad0f52021bb05374a4f95cfd2720378cd1351346"
     }
   }
 }
