@@ -335,9 +335,10 @@ value through live option changes, recipe expansion and recursive export.
 
 Top-level serial implicit search outside makefile remaking records the current
 directory for a fixed, immediately resolved basename with an explicit
-declaration in a nonterminal candidate when dry-run alone is active at search
-entry and no path search is configured. Enabling dry-run in a rejected secondary
-expansion preserves the directory observation of the search already in progress.
+declaration in a nonterminal candidate when dry-run or question mode is active
+alone at both search entry and the observation, with no path search configured.
+Enabling dry-run in a rejected secondary expansion preserves the directory
+observation of the search already in progress.
 
 **What remains**
 
@@ -767,6 +768,13 @@ existing eager, raw, or call argument behavior.
 GNU Make remains an external test reference and cannot serve as a runtime
 implementation fallback.
 
+The hosted AArch64 glibc job for PR #1006 matched two GNU runs for eight selected
+marker-only lifecycle models in each build. The hosted x86-64 dynamic musl job
+for PR #1009 matched four marker-only reload models and two setup controls in
+the optimized build.
+[AArch64 glibc run](https://github.com/jeffdasilva/rmake/actions/runs/46014378962/job/140557643523) ·
+[Dynamic musl run](https://github.com/jeffdasilva/rmake/actions/runs/46017304171/job/140567601576)
+
 The optional Guile application needs broader asynchronous entry points, value
 conversions, error backtraces and resource acceptance. The reference-variable
 fatal-wait behavior remains open. The independent Guile component safety gate
@@ -815,10 +823,11 @@ interfaces retain their separate compatibility and correctness requirements.
 The [pinned project corpus](project-integration.md) includes serial leaf builds,
 recursive builds and shared jobservers. It covers xxHash, zlib, Lua, GNU gzip,
 GNU Patch and GNU Make itself, with exact comparisons across build, no-op and
-header-rebuild phases and independent executable checks. All 18 pinned profiles
-passed in the default development and optimized builds at `2d04affea`. The
-two runs retained 608 raw report parts.
-[Compared revision](https://github.com/jeffdasilva/rmake/commit/2d04affea8da71f6edb426be09367d37206b00e9)
+header-rebuild phases and independent executable checks. All 19 pinned profiles
+matched two GNU runs in each default build at `8f75a838b`. The comparison
+restored and hash-checked 640 raw records, including the Zstandard pipe
+fallback with an innermost `-j1` build.
+[Exact project comparison](https://github.com/jeffdasilva/rmake/pull/1007)
 
 The hosted AArch64 glibc and x86-64 dynamic musl gates check these phases and
 the checksum for pinned xxHash 0.8.3. AArch64 glibc also runs both pinned Lua
