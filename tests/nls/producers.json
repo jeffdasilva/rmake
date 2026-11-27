@@ -6211,6 +6211,305 @@
         "stderr": "Makefile:3: *** insufficient number of arguments (1) to function 'word'. Arr\u00eat.\n",
         "seen": "anchor\nbefore\nindex\n"
       }
+    },
+    {
+      "id": "nls-eval-word-index-location-word-zero-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72642024242866696c65203e3e7365656e2c696e64657829302c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** first argument to 'word' function must be greater than 0.  Stop.\n",
+        "seen": "anchor\nbefore\nindex\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-word-index-location-word-negative-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72642024242866696c65203e3e7365656e2c696e646578292d312c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** le premier argument de la fonction \u00ab\u00a0word\u00a0\u00bb doit \u00eatre sup\u00e9rieur \u00e0 0. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nindex\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-word-index-location-word-empty-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72642024242866696c65203e3e7365656e2c696e646578292c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** invalid first argument to 'word' function: empty value.  Stop.\n",
+        "seen": "anchor\nbefore\nindex\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-word-index-location-word-overflow-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72642024242866696c65203e3e7365656e2c696e64657829393232333337323033363835343737353830382c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** invalid first argument to 'word' function: '9223372036854775808' out of range. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nindex\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-word-index-location-wordlist-first-text-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72646c6973742024242866696c65203e3e7365656e2c7374617274296261642c24242866696c65203e3e7365656e2c656e6429322c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** invalid first argument to 'wordlist' function: 'bad'.  Stop.\n",
+        "seen": "anchor\nbefore\nstart\nend\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-word-index-location-wordlist-second-text-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72646c6973742024242866696c65203e3e7365656e2c737461727429312c24242866696c65203e3e7365656e2c656e64296261642c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** invalid second argument to 'wordlist' function: 'bad'. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nstart\nend\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-word-index-location-wordlist-first-empty-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72646c6973742024242866696c65203e3e7365656e2c7374617274292c24242866696c65203e3e7365656e2c656e6429322c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** invalid first argument to 'wordlist' function: empty value. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nstart\nend\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-word-index-location-wordlist-second-empty-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72646c6973742024242866696c65203e3e7365656e2c737461727429312c24242866696c65203e3e7365656e2c656e64292c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** invalid second argument to 'wordlist' function: empty value.  Stop.\n",
+        "seen": "anchor\nbefore\nstart\nend\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-word-index-location-wordlist-first-overflow-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72646c6973742024242866696c65203e3e7365656e2c737461727429393232333337323033363835343737353830382c24242866696c65203e3e7365656e2c656e6429322c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** invalid first argument to 'wordlist' function: '9223372036854775808' out of range.  Stop.\n",
+        "seen": "anchor\nbefore\nstart\nend\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-word-index-location-wordlist-second-overflow-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "4f55544552203d2024286576616c2056203a3d20242428776f72646c6973742024242866696c65203e3e7365656e2c737461727429312c24242866696c65203e3e7365656e2c656e6429393232333337323033363835343737353830382c24242866696c65203e3e7365656e2c7465787429616c706861206265746129290a242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24284f55544552290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:1: *** invalid second argument to 'wordlist' function: '9223372036854775808' out of range. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nstart\nend\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-word-index-location-word-direct-zero-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a56203a3d202428776f726420242866696c65203e3e7365656e2c696e64657829302c242866696c65203e3e7365656e2c7465787429616c7068612062657461290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:3: *** le premier argument de la fonction \u00ab\u00a0word\u00a0\u00bb doit \u00eatre sup\u00e9rieur \u00e0 0. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nindex\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-word-index-location-wordlist-direct-second-text-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a56203a3d202428776f72646c69737420242866696c65203e3e7365656e2c737461727429312c242866696c65203e3e7365656e2c656e64296261642c242866696c65203e3e7365656e2c7465787429616c7068612062657461290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:3: *** invalid second argument to 'wordlist' function: 'bad'.  Stop.\n",
+        "seen": "anchor\nbefore\nstart\nend\ntext\n"
+      }
+    },
+    {
+      "id": "nls-eval-word-index-location-word-direct-eval-arity-fr",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "files": {
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a2428696e666f206265666f7265290a24286576616c2056203a3d2024242863616c6c20776f72642c24242866696c65203e3e7365656e2c696e646578293129290a2428696e666f2076616c75653d5b242856295d290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "before\n",
+        "stderr": "Makefile:3: *** insufficient number of arguments (1) to function 'word'. Arr\u00eat.\n",
+        "seen": "anchor\nbefore\nindex\n"
+      }
     }
   ]
 }

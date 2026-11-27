@@ -507,11 +507,24 @@ impl ExpandError {
     }
 
     fn uses_eval_argument_location(&self) -> bool {
+        use crate::messages::MessageId;
         match self {
-            Self::FileArgument(_) | Self::WordlistIndexBounds(_) | Self::InvalidInteger { .. } => {
-                true
-            }
-            Self::System(message) => message.id == crate::messages::MessageId::WordFirstInvalid,
+            Self::FileArgument(_)
+            | Self::WordIndexZero
+            | Self::WordlistIndexBounds(_)
+            | Self::InvalidInteger { .. } => true,
+            Self::System(message) => matches!(
+                message.id,
+                MessageId::WordFirstInvalid
+                    | MessageId::WordFirstEmpty
+                    | MessageId::WordFirstOutOfRange
+                    | MessageId::WordlistFirstInvalid
+                    | MessageId::WordlistFirstEmpty
+                    | MessageId::WordlistFirstOutOfRange
+                    | MessageId::WordlistSecondInvalid
+                    | MessageId::WordlistSecondEmpty
+                    | MessageId::WordlistSecondOutOfRange
+            ),
             _ => false,
         }
     }
