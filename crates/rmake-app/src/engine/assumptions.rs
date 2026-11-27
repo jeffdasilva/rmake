@@ -138,11 +138,18 @@ impl Engine {
             return;
         };
         files.new_active = true;
+        // As in the initial publication, each retained operand enters the
+        // file table even when it shares an age record with another operand.
+        for path in &self.options.new_files {
+            let name = rmake_core::filenames::without_dot_prefix(path.as_os_str().as_bytes());
+            if let Some(entry) = files.entries.get_mut(name) {
+                Files::bind_record(&mut self.database, name, &mut entry.bits);
+            }
+        }
         for (name, entry) in &mut files.entries {
             if entry.new_count == 0 {
                 continue;
             }
-            Files::bind_record(&mut self.database, name, &mut entry.bits);
             if entry.bits & DOUBLE_COLON != 0 {
                 if self.file_traversals.has_outcome(name) {
                     files.cached_double_colon_pass.insert(name.clone(), None);
