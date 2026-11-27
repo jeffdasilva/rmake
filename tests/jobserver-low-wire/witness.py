@@ -38,14 +38,29 @@ def exec_submake(executable):
     if access != [os.O_RDONLY, os.O_WRONLY]:
         raise RuntimeError("wire directions must be read and write")
     Path("wire").write_text(f"{read},{write} same-pipe read-only write-only\n")
+    Path("wire-identity").write_text(f"{reader.st_dev},{reader.st_ino}\n")
     os.execv(executable, [executable, "-f", "Child.mk", "child"])
+
+
+def parent_wire_state(descriptor, identity):
+    path = Path(f"/proc/{os.getppid()}/fd/{descriptor}")
+    try:
+        metadata = path.stat()
+    except FileNotFoundError:
+        return "closed"
+    return "original" if (metadata.st_dev, metadata.st_ino) == identity else "replacement"
 
 
 def inspect():
     auth = Path("wire").read_text().split()[0]
-    wire = (int(fd) for fd in auth.split(","))
+    wire = [int(fd) for fd in auth.split(",")]
+    identity_file = Path("wire-identity")
+    identity = tuple(map(int, identity_file.read_text().split(",")))
+    identity_file.unlink()
     Path("seen-child").write_text(" ".join(describe(fd) for fd in (0, 1, 2)) + "\n")
     Path("seen-wire").write_text(" ".join(describe(fd) for fd in wire) + "\n")
+    states = [f"parent{fd}={parent_wire_state(fd, identity)}" for fd in wire]
+    Path("seen-parent").write_text(" ".join(states) + "\n")
 
 
 if sys.argv[1:] == ["inspect"]:
