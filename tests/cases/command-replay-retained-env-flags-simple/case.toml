@@ -1,0 +1,21 @@
+id = "command-replay-retained-env-flags-simple"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "A losing simple assignment completes its immediate RHS effect before replaying the retained public overrides."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--environment-overrides", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|ekrR -j1 --no-print-directory -- $(MAKEOVERRIDES)|
+RHS
+ALIAS|read|undefined
+READ|file|from-public|ekrR -j1 --no-print-directory -- $(MAKEOVERRIDES)|
+ALIAS|run|file
+RUN|environment override|from-public|environment override|file|ekrR -j1 --no-print-directory -- $(MAKEOVERRIDES)
+ALIAS|run|environment override
+ENV|ekrR -j1 --no-print-directory -- MARK=from-public SIDE=environment override
+'''

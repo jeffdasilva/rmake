@@ -1,0 +1,19 @@
+id = "command-replay-late-posix-public-environment-control"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "Under -e the losing assignment retains the unchanged environment-override flag string."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--environment-overrides", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|ekrR -j1 --no-print-directory -- $(MAKEOVERRIDES)|
+ALIAS|read|undefined
+READ|file|from-public|ekrR -j1 --no-print-directory -- $(MAKEOVERRIDES)|
+ALIAS|run|file
+RUN|environment override|from-public|environment override|file|ekrR -j1 --no-print-directory -- $(-*-command-variables-*-)
+ENV|ekrR -j1 --no-print-directory -- MARK=from-cli
+'''

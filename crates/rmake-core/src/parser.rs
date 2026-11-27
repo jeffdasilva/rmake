@@ -3390,7 +3390,6 @@ impl Database {
             };
         if replay_flags {
             let ordinary_file_assignment = origin == Origin::File
-                && matches!(spec.kind, Assignment::Recursive | Assignment::Append)
                 && definition.is_some()
                 && self.evaluation_depth == 0
                 && self.evaluation_scope.is_none()

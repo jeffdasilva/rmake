@@ -1,0 +1,18 @@
+id = "command-replay-late-posix-public-changed-encoded-evals"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "Replay a previously published public suffix after two encoded eval operands ending in delimiter-like text."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--eval=EARLY := kept --", "--eval=EARLY += later --", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|krR -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|kept -- later --
+READ|undefined||krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|kept -- later --
+ALIAS|run|undefined
+RUN|environment|from-public|environment|undefined|krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(-*-command-variables-*-)
+ENV|krRs -j1 --no-print-directory --eval=EARLY\ :=\ kept\ -- --eval=EARLY\ +=\ later\ -- -- MARK=from-cli
+'''
