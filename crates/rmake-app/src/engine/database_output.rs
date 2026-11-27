@@ -451,7 +451,19 @@ impl Engine {
                             .and_then(|observation| observation.as_ref())
                             .and_then(|(_, time)| *time)
                     })
-                    .or_else(retained),
+                    .or_else(retained)
+                    .or_else(|| {
+                        let assumptions = self.assumptions.as_ref()?;
+                        if branch.is_some()
+                            || timestamp_outcome.is_some()
+                            || observed.is_some()
+                            || times.contains_key(name)
+                        {
+                            return None;
+                        }
+                        // Publication sets the assumed age before the first visit.
+                        assumptions.active_new_time(name)
+                    }),
             };
             (result, cached)
         };

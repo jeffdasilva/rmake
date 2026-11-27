@@ -93,6 +93,9 @@ impl Files {
     pub(super) fn is_new_time(&self, time: Option<SystemTime>) -> bool {
         time == Some(self.new)
     }
+    pub(super) fn active_new_time(&self, name: &[u8]) -> Option<SystemTime> {
+        self.time(name).filter(|time| *time == self.new)
+    }
     fn time(&self, name: &[u8]) -> Option<SystemTime> {
         self.entries.get(name).and_then(|entry| {
             if entry.bits & DOUBLE_COLON != 0 {

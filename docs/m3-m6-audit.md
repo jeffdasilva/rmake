@@ -53,6 +53,8 @@ at the end of this audit.
   then each active new operand, even when the name shares an age record.
   After a restart, the delayed file-table publication records all retained
   new operands in order. Shared names keep one logical age record.
+  The database prints the published what-if timestamp for an unvisited
+  ordinary file record, including a dump before a generated source restart.
   Startup include options cache each accepted operand after filename preparation.
   Search construction records each existing directory in scan order and preserves
   its cache event even when a later `-I-` clears it from the search list.
