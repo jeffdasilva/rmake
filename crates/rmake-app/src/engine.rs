@@ -6408,15 +6408,12 @@ impl Engine {
                 // goal activity only for recipes started in that phase.
                 self.file_traversals.clear_recipe_activity();
             }
-            // A query verdict leaves any objects unloaded by the remake pass
-            // in that state for the ordinary goals.
-            if !remake_question {
+            let ordinary_serial_remake = !modes.active() && self.job_slots() == 1;
+            // GNU reloads after us_none. A query or an unsuccessful ordinary
+            // serial remake leaves already-unloaded objects closed.
+            if !remake_question && (!ordinary_serial_remake || !unsuccessful_remake) {
                 let mut modules = crate::native::unloaded();
-                if modules.len() > 1
-                    && !unsuccessful_remake
-                    && !modes.active()
-                    && self.job_slots() == 1
-                {
+                if modules.len() > 1 && ordinary_serial_remake {
                     let mut pending: HashSet<_> = modules.iter().map(Vec::as_slice).collect();
                     let read_order: Vec<_> = read_files
                         .iter()
