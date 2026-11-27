@@ -885,16 +885,20 @@ impl Engine {
                                 })
                     });
                 let reuse_suffix = canonical_suffix
-                    && (crate::command_variables::has_default_snapshot(&self.database.variables)
-                        || (self.database.command_overrides_name() == b"MAKEOVERRIDES"
-                            && self.database.variables.get(b"MAKEOVERRIDES").is_some_and(
+                    && if self.database.command_overrides_name() == b"MAKEOVERRIDES" {
+                        crate::command_variables::has_default_snapshot(&self.database.variables)
+                            || self.database.variables.get(b"MAKEOVERRIDES").is_some_and(
                                 |overrides| {
                                     overrides.origin() == Origin::File
                                         && overrides.definition().is_some()
                                         && overrides.flavor() == Flavor::Recursive
                                         && !overrides.raw_value().is_empty()
                                 },
-                            )));
+                            )
+                    } else {
+                        // The published POSIX suffix refers to the snapshot directly.
+                        crate::command_variables::has_automatic_snapshot(&self.database.variables)
+                    };
                 let expression = [b"$(".as_slice(), name, b")"].concat();
                 match self.expand_global(&expression, None) {
                     Ok(mut value) => {

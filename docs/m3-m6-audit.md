@@ -44,8 +44,9 @@ at the end of this audit.
   consumes the already expanded default command-variable suffix. The ordinary
   non-POSIX suffix also reuses the result of a file-defined recursive
   `MAKEOVERRIDES` so its expansion effects run once before the first recipe.
-  The original command-line source is read again in the next process image
-  after a restart.
+  A changed canonical POSIX suffix that directly names the automatic
+  command-line snapshot replays that expanded snapshot. The original
+  command-line source is read again in the next process image after a restart.
   The startup preload list uses one expansion of `MAKEFILES` after command-line
   eval. An absent binding can warn at that point, while a defined empty binding
   leaves the preload list empty.
