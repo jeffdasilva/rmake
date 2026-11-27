@@ -132,9 +132,16 @@ def execute_low_wire(root: Path, parent: Path, child: Path, closed_streams: tupl
     if limit or leftovers or (status and (status, out, err) != (expected_status, b'', expected_stderr.encode())):
         raise harness.HarnessError(
             f'jobserver low-wire fixture stopped with {status=}, {limit=}, {leftovers=}, {err=}')
+    # Retain the actual descriptor observations in the report. The filesystem
+    # comparison uses the retirement witness after checking pipe and pidfd identity.
+    raw_path = work / 'seen-parent-raw.json'
+    raw_parent_wires = json.loads(raw_path.read_bytes()) if raw_path.is_file() else None
+    raw_path.unlink(missing_ok=True)
     files = harness.snapshot({name: root / name for name in ('work', 'home', 'tmp')})
     observation = harness.Observation(out, err, status, limit, files, leftovers)
     errors = harness.expectation_errors(case, observation)
+    if raw_parent_wires is None:
+        errors.append('file anchor: seen-parent-raw.json')
     # The quiet parent creates its pipe in the next two vacant descriptor slots.
     wire = (closed_streams + (3, 4))[:2]
     auth = f'--jobserver-auth={wire[0]},{wire[1]}\n'.encode()
@@ -146,7 +153,7 @@ def execute_low_wire(root: Path, parent: Path, child: Path, closed_streams: tupl
             streams[fd] = b'closed'
     seen = b' '.join(streams) + b'\n'
     seen_wire = b' '.join(streams[fd] if fd < 3 else b'closed' for fd in wire) + b'\n'
-    state = 'closed' if reset else 'original'
+    state = 'retired' if reset else 'original'
     seen_parent = (' '.join(f'parent{fd}={state}' for fd in wire) + '\n').encode()
     for name, expected in [('parent-auth', auth), ('child-auth', b'\n' if reset else auth),
                            ('wire', verified_pipe), ('seen-child', seen), ('seen-wire', seen_wire),
@@ -155,7 +162,7 @@ def execute_low_wire(root: Path, parent: Path, child: Path, closed_streams: tupl
             errors.append('file anchor: ' + name)
     if any((root / 'tmp').iterdir()):
         errors.append('jobserver temporary resource leaked')
-    return observation, errors
+    return observation, errors, raw_parent_wires
 
 
 def main() -> int:
@@ -210,16 +217,19 @@ def main() -> int:
     wire_profiles = [(closed, mode, False) for closed, mode in LOW_WIRE_PROFILES]
     wire_profiles.extend((closed, 'none', True) for closed in RESET_WIRE_STREAMS)
     for closed_streams, mode, reset in wire_profiles:
-        baseline, baseline_errors = execute_low_wire(
+        baseline, baseline_errors, baseline_wires = execute_low_wire(
             destination, reference, reference, closed_streams, mode, reset=reset)
-        repeated, repeat_errors = execute_low_wire(
+        repeated, repeat_errors, repeat_wires = execute_low_wire(
             destination, reference, reference, closed_streams, mode, reset=reset)
-        observed, errors = execute_low_wire(
+        observed, errors, candidate_wires = execute_low_wire(
             destination, reference, candidate, closed_streams, mode, reset=reset)
         errors += baseline_errors + repeat_errors + harness.differences(baseline, repeated)
         errors += harness.differences(baseline, observed)
         results.append(dict(style='pipe-inherited-wire', parent='gnu', child='rmake',
-                            closed_streams=closed_streams, output_sync=mode, reset=reset, errors=errors))
+                            closed_streams=closed_streams, output_sync=mode, reset=reset,
+                            parent_wires={'oracle': baseline_wires, 'oracle_repeat': repeat_wires,
+                                          'candidate': candidate_wires},
+                            errors=errors))
         print(('FAIL' if errors else 'PASS'), 'GNU parent pipe wire',
               closed_streams or 'open streams', mode, 'reset' if reset else 'inherited', errors)
     report = dict(profile_id=profile['profile_id'], candidate=identity,
