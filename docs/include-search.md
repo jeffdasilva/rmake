@@ -15,8 +15,10 @@ Trailing slashes are removed for lookup and `.INCLUDE_DIRS`, but retained in
 `MAKEFLAGS`. Spaces and backslashes are escaped for recursive flag decoding.
 
 `.INCLUDE_DIRS` is a default-origin simple variable. Overriding its value does
-not reconfigure search. Include reads retain the resolved path in `MAKEFILE_LIST`
-and the remake graph, while diagnostics use the requested include spelling.
+not reconfigure search. After an ordinary include search finds a file,
+`MAKEFILE_LIST` and the remake graph use an existing normalized file record
+when present. A new record retains the resolved path. Diagnostics use the
+requested include spelling.
 Optional includes suppress missing-file errors, but not fatal parse or directory
 read errors. Recipe-time eval uses the same runtime reader. Each read opens the
 file again: no negative result or file content is cached across effects.

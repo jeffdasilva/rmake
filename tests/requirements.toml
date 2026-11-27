@@ -759,9 +759,9 @@ id = "includes.search"
 title = "Included makefile search and recursive path options"
 status = "fixture-ready"
 candidate_status = "partial"
-candidate_required = 54
+candidate_required = 57
 reference = "https://www.gnu.org/software/make/manual/html_node/Include.html"
-fixture_count = 54
+fixture_count = 57
 cases = [
   "include-search-absolute-no-search",
   "include-search-after-reset",
@@ -811,6 +811,9 @@ cases = [
   "include-search-repeat-separator",
   "include-search-required-missing",
   "include-search-reset",
+  "include-search-resolved-existing-owner",
+  "include-search-resolved-new-owner",
+  "include-search-resolved-prerequisite-owner",
   "include-search-short-separate",
   "include-search-space",
   "include-search-tilde-include",

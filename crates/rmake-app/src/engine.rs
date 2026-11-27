@@ -3255,20 +3255,6 @@ impl Engine {
         );
     }
 
-    fn enter_preload_file<'a>(&mut self, name: &'a [u8]) -> &'a [u8] {
-        // The selected spelling is cached before probing the normalized key.
-        let lookup = rmake_core::filenames::without_dot_prefix(name);
-        if let Some(history) = self.database.database_history() {
-            history.intern(name);
-            history.record_file_lookup(lookup);
-        }
-        if self.database.file_records.contains(lookup) {
-            return lookup;
-        }
-        self.database.file_records.insert(name);
-        name
-    }
-
     fn read_startup_makefiles(&mut self) -> Result<(), ()> {
         let names = match self.expand_global(b"$(MAKEFILES)", None) {
             Ok(names) => names,
@@ -3331,8 +3317,9 @@ impl Engine {
                     resolved_name,
                     detail,
                 }) => {
-                    let filename =
-                        self.enter_preload_file(resolved_name.as_deref().unwrap_or(name));
+                    let filename = self
+                        .database
+                        .enter_makefile_source(resolved_name.as_deref().unwrap_or(name));
                     self.database.makefiles.push(Makefile {
                         name: filename.to_vec(),
                         optional: true,
@@ -3347,7 +3334,7 @@ impl Engine {
                     return Err(());
                 }
             };
-            let filename = self.enter_preload_file(&file.name);
+            let filename = self.database.enter_makefile_source(&file.name);
             self.database.makefiles.push(Makefile {
                 name: filename.to_vec(),
                 optional: true,

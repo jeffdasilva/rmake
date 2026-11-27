@@ -5317,6 +5317,29 @@ impl Database {
         self.native_fatal_context = Some(Box::new(retained));
     }
 
+    /// Bind a makefile spelling to its existing normalized owner.
+    /// A newly entered source retains the original spelling.
+    pub fn enter_makefile_source<'a>(&mut self, name: &'a [u8]) -> &'a [u8] {
+        // The selected spelling is cached before probing the normalized key.
+        let lookup = crate::filenames::without_dot_prefix(name);
+        if let Some(history) = self.database_history() {
+            history.intern(name);
+            history.record_file_lookup(lookup);
+        }
+        if self.file_records.contains(lookup) {
+            return lookup;
+        }
+        self.file_records.insert(name);
+        name
+    }
+
+    fn enter_exact_include_source(&mut self, name: &[u8]) {
+        if let Some(history) = &self.database_history {
+            history.intern(name);
+        }
+        self.file_records.enter_prerequisite(name);
+    }
+
     fn append_makefile_list_at(
         &mut self,
         filename: &[u8],
@@ -5411,25 +5434,29 @@ impl Database {
                             });
                         }
                     };
-                    let file_identity = match &result {
-                        Ok(included) => included.name.as_slice(),
-                        Err((resolved_name, _)) => resolved_name.as_deref().unwrap_or(&path),
-                    };
-                    if let Some(history) = &self.database_history {
-                        history.intern(file_identity);
-                    }
-                    self.file_records.enter_prerequisite(file_identity);
                     match result {
                         Ok(included) => {
+                            // Select the previously registered owner after an
+                            // ordinary reader search. Eval-buffer observations
+                            // still use the exact filename returned by the open.
+                            let name = if evaluated_at.is_none()
+                                && included.name.starts_with(b"./")
+                                && included.name != path
+                            {
+                                self.enter_makefile_source(&included.name)
+                            } else {
+                                self.enter_exact_include_source(&included.name);
+                                &included.name
+                            };
                             self.makefiles.push(Makefile {
-                                name: included.name.clone(),
+                                name: name.to_vec(),
                                 optional,
                                 missing: false,
                                 location: Some(location.clone()),
                                 read_error: None,
                             });
                             self.append_makefile_list_at(
-                                &included.name,
+                                name,
                                 &Location {
                                     file: path.as_slice().into(),
                                     line: 1,
@@ -5449,8 +5476,10 @@ impl Database {
                             ));
                         }
                         Err((resolved_name, detail)) => {
+                            let name = resolved_name.unwrap_or(path);
+                            self.enter_exact_include_source(&name);
                             self.makefiles.push(Makefile {
-                                name: resolved_name.unwrap_or(path),
+                                name,
                                 optional,
                                 missing: true,
                                 location: Some(location),

@@ -1,0 +1,20 @@
+id = "include-search-resolved-prerequisite-owner"
+requirement = "includes.search"
+candidate = "required"
+description = "Repeated reads bind the same preentered prerequisite through two retained include operands."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--no-print-directory", "--jobs=1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = """
+SEARCH|././home-dir/inc home-dir/inc|rR -I- -I~/inc -Ihome-dir/inc -j1 --no-print-directory
+READ|Makefile home-dir/inc/part.mk
+READ|Makefile home-dir/inc/part.mk home-dir/inc/part.mk
+RUN|Makefile home-dir/inc/part.mk home-dir/inc/part.mk|read
+"""
+stderr = """
+part.mk:2: included source
+part.mk:2: included source
+"""
