@@ -121,8 +121,9 @@ def project_profiles(plan):
         source = sources.get(profile['project'])
         if source is None:
             raise h.HarnessError('integration profile does not name a pinned source')
-        fields = ('args', 'expected_build_stdout_hex', 'configure', 'target', 'watched',
-                  'header', 'header_rebuild', 'smoke', 'smoke_stdout_hex', 'staged_install',
+        fields = ('args', 'expected_build_stdout_hex', 'expected_build_stderr_hex',
+                  'configure', 'target', 'watched', 'header', 'header_rebuild',
+                  'smoke', 'smoke_stdout_hex', 'staged_install',
                   'configuration', 'snapshot', *opt_in_workflows)
         defaults = {field: value for field, value in source.items() if field not in opt_in_workflows}
         case = {**defaults, **{field: profile[field] for field in fields if field in profile}, 'id': name}
@@ -282,16 +283,20 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
     if configuration is not None:
         expected_steps += 1
         row['configuration_command'] = [str(runtime / 'bin/make'), *configuration['args']]
-    expected_streams = {}
+    expected_stdout = {}
     if 'expected_build_stdout_hex' in project:
-        expected_streams.update(dict.fromkeys(
+        expected_stdout.update(dict.fromkeys(
             ('fresh', 'noop', 'rebuild', 'recover-missing-output', 'rebuild-after-clean'),
             bytes.fromhex(project['expected_build_stdout_hex'])))
+    expected_stderr = {}
+    if 'expected_build_stderr_hex' in project:
+        expected_stderr.update(dict.fromkeys(
+            ('fresh', 'noop', 'rebuild'), bytes.fromhex(project['expected_build_stderr_hex'])))
     clean_rebuild = project.get('clean_rebuild')
     if clean_rebuild is not None:
         expected_steps += 3
         stdout = ('\n'.join(clean_rebuild['stdout_lines']) + '\n').encode()
-        expected_streams['clean'] = stdout.replace(b'@MAKE@', os.fsencode(runtime / 'bin/make'))
+        expected_stdout['clean'] = stdout.replace(b'@MAKE@', os.fsencode(runtime / 'bin/make'))
     staged = project.get('staged_install')
     uninstall = None
     smoke_command = project['smoke']
@@ -303,14 +308,14 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
         row['install_witness_sha256'] = h.sha256_file(witness)
         row['install_args'] = list(STAGED_INSTALL_ARGS)
         expected_steps += 2
-        expected_streams.update(dict.fromkeys(
+        expected_stdout.update(dict.fromkeys(
             ('fresh-install', 'install'), bytes.fromhex(staged['stdout_hex'])))
         uninstall = staged.get('uninstall')
         if uninstall is not None:
             row['uninstall_args'] = [*STAGED_INSTALL_ARGS[:-1], 'uninstall']
             expected_steps += 3
-            expected_streams['uninstall'] = bytes.fromhex(uninstall['stdout_hex'])
-            expected_streams['reinstall'] = expected_streams['install']
+            expected_stdout['uninstall'] = bytes.fromhex(uninstall['stdout_hex'])
+            expected_stdout['reinstall'] = expected_stdout['install']
     for index, binary in enumerate(binaries):
         h.reset_workspace(case, runtime, binary)
         environment = h.clean_environment(runtime, environment_plan)
@@ -330,8 +335,10 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
             run['parts'].append(persist_part(parts, f"{project['id']}-{index}-{label}", raw_observation(value)))
             if not successful(value):
                 raise h.HarnessError(label + ': status/process bounds')
-            expected = expected_streams.get(label)
-            if expected is not None and (value.stdout != expected or value.stderr):
+            stdout = expected_stdout.get(label)
+            stderr = expected_stderr.get(label, b'' if stdout is not None else None)
+            if ((stdout is not None and value.stdout != stdout)
+                    or (stderr is not None and value.stderr != stderr)):
                 run['errors'].append(label + ': independent stream bytes')
             return value
         try:

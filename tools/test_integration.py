@@ -4,6 +4,7 @@ import gzip
 import hashlib
 import io
 import json
+import os
 import shutil
 import socket
 import sys
@@ -98,6 +99,68 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(parallel['expected_build_stdout_hex'], serial['expected_build_stdout_hex'])
         self.assertNotEqual(serial['smoke_stdout_hex'],
                             serial['header_rebuild']['fresh_smoke_stdout_hex'])
+
+    def test_zstd_pipe_fallback_pins_the_nested_warning_and_reuses_serial_inputs(self):
+        cases = i.project_profiles(json.loads(i.MANIFEST.read_text()))
+        serial, source = cases['zstd-1.5.7']
+        fallback, pinned = cases['zstd-1.5.7-pipe-fallback']
+        self.assertIs(serial, source)
+        self.assertIs(pinned, source)
+        warning = b"make[2]: warning: jobserver unavailable: using -j1.  Add '+' to parent make rule.\n"
+        self.assertEqual(fallback, dict(
+            serial, id='zstd-1.5.7-pipe-fallback', expected_build_stderr_hex=warning.hex(),
+            args=['-j4', '--jobserver-style=pipe', '--output-sync=recurse', *serial['args'][1:]]))
+        self.assertNotIn('expected_build_stderr_hex', serial)
+
+    def test_build_stderr_checks_only_build_phases_and_preserves_existing_stream_checks(self):
+        plan = json.loads(i.MANIFEST.read_text())
+        fallback, _ = i.project_profiles(plan)['zstd-1.5.7-pipe-fallback']
+        warning = bytes.fromhex(fallback['expected_build_stderr_hex'])
+        change = fallback['header_rebuild']
+        phases = ('fresh', 'fresh-smoke', 'noop', 'rebuild', 'smoke')
+
+        def errors(project, stdout_by_phase, stderr_by_phase):
+            with tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                fixture, runtime, parts = (root / name for name in ('fixture', 'runtime', 'parts'))
+                for directory in (fixture, runtime, parts, fixture / 'lib', fixture / 'programs'):
+                    directory.mkdir()
+                (fixture / project['header']).write_bytes(bytes.fromhex(change['before_hex']))
+                observations = iter(zip(phases, stdout_by_phase, stderr_by_phase, strict=True))
+
+                def observe(_command, runtime, _environment, _timeout):
+                    phase, stdout, stderr = next(observations)
+                    if phase in ('fresh', 'rebuild'):
+                        binary = runtime / 'work' / project['watched'][0]
+                        binary.write_bytes(b'\x7fELF')
+                        stamp = 10 if phase == 'fresh' else 20
+                        os.utime(binary, ns=(stamp, stamp))
+                    return h.Observation(stdout, stderr, 0, None, {})
+
+                with patch.object(i, 'observe', side_effect=observe) as captured:
+                    result = i.campaign(project, fixture, runtime, [root / 'make'], plan, parts)
+                self.assertEqual(captured.call_count, len(phases))
+                return result['runs'][0]['errors']
+
+        fresh_smoke = bytes.fromhex(change['fresh_smoke_stdout_hex'])
+        smoke = bytes.fromhex(fallback['smoke_stdout_hex'])
+        varying_stdout = (b'fresh\n', fresh_smoke, b'noop\n', b'rebuild\n', smoke)
+        exact_stderr = (warning, b'', warning, warning, b'')
+        self.assertEqual(errors(fallback, varying_stdout, exact_stderr), [])
+        self.assertEqual(errors(fallback, varying_stdout, (b'', warning, warning + b'!', b'!', warning)), [
+            'fresh: independent stream bytes', 'independent fresh executable smoke bytes',
+            'noop: independent stream bytes', 'rebuild: independent stream bytes',
+            'independent executable smoke bytes',
+        ])
+
+        exact_stdout = (b'build\n', fresh_smoke, b'build\n', b'build\n', smoke)
+        both = dict(fallback, expected_build_stdout_hex=b'build\n'.hex())
+        self.assertEqual(errors(both, exact_stdout, exact_stderr), [])
+        self.assertEqual(errors(both, varying_stdout, exact_stderr), [
+            f'{phase}: independent stream bytes' for phase in ('fresh', 'noop', 'rebuild')])
+        legacy = {key: value for key, value in both.items() if key != 'expected_build_stderr_hex'}
+        self.assertEqual(errors(legacy, exact_stdout, (b'', b'', warning, b'', b'')),
+                         ['noop: independent stream bytes'])
 
     def test_missing_output_recovery_is_opt_in_for_the_lua_pipe_profile(self):
         cases = i.project_profiles(json.loads(i.MANIFEST.read_text()))

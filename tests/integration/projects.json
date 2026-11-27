@@ -510,6 +510,28 @@
       "expected_build_stdout_hex": "4d616b696e6720616c6c20696e206c69620a4d616b696e6720616c6c20696e207372630a4d616b696e6720616c6c20696e2074657374730a"
     },
     {
+      "id": "zstd-1.5.7-pipe-fallback",
+      "project": "zstd-1.5.7",
+      "args": [
+        "-j4",
+        "--jobserver-style=pipe",
+        "--output-sync=recurse",
+        "--no-print-directory",
+        "-s",
+        "V=1",
+        "CC=/usr/bin/cc",
+        "CFLAGS=-O1 -g0",
+        "LDFLAGS=-Wl,--build-id=none",
+        "HAVE_ZLIB=0",
+        "HAVE_LZMA=0",
+        "HAVE_LZ4=0",
+        "ZSTD_LEGACY_SUPPORT=0",
+        "HASH=/usr/bin/md5sum",
+        "HAVE_HASH=1"
+      ],
+      "expected_build_stderr_hex": "6d616b655b325d3a207761726e696e673a206a6f6273657276657220756e617661696c61626c653a207573696e67202d6a312e202041646420272b2720746f20706172656e74206d616b652072756c652e0a"
+    },
+    {
       "id": "busybox-1.37.0-executable",
       "project": "busybox-1.37.0",
       "args": [
