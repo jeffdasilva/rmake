@@ -19468,12 +19468,20 @@ impl Engine {
                         && remake.is_none()
                         && branch.is_none()
                         && !MakefileModes::from_options(&self.options).active()
-                        && self.output.mode() != crate::output::Mode::Recurse
                         && !self.running_groups.contains_key(target)
                         && rmake_core::filenames::archive_parts(target).is_none()
                         && let Some(path) = previous_executable.as_deref()
                     {
-                        self.report_recipe_executable_recheck(path);
+                        if self.output.mode() == crate::output::Mode::Recurse {
+                            // The failed launch and recipe error stay in the
+                            // recipe buffer. The reap diagnostic is global.
+                            let selected = self.output.current();
+                            self.output.select(None);
+                            self.report_recipe_executable_recheck(path);
+                            self.output.select(selected.as_ref());
+                        } else {
+                            self.report_recipe_executable_recheck(path);
+                        }
                     }
                     Some("Error 127".to_owned())
                 }

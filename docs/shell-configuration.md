@@ -197,11 +197,13 @@ used for that command. A failed stat, a directory, missing owner execute
 permission, or an empty executable produces an additional diagnostic before
 the recipe error. Serial and parallel recipes retain the path selected at
 launch, including paths resolved through the child's search path.
-With ordinary serial execution and output synchronization disabled, a later
-missing, inaccessible or non-directory executable lookup also checks the
-previously launched path.
-Its diagnostic follows the lookup failure and precedes the recipe error.
-Ignoring the recipe error preserves both executable diagnostics.
+In an ordinary serial recipe, a later missing, inaccessible or
+non-directory executable lookup also checks the previously launched path.
+Without synchronization, its diagnostic follows the lookup failure and
+precedes the recipe error. With recursive output synchronization, it appears
+before the pending recipe output. The lookup failure and recipe error keep
+their order within that output. Ignoring the recipe error preserves both
+executable diagnostics.
 
 Shell capture opens its pipe before executable selection. A failed lookup or
 launch retains the pipe ends for the interpreter's lifetime. A pipe allocation

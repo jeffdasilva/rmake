@@ -1,0 +1,4 @@
+all:
+	-@./prior
+	-@./missing
+	@./continuation
