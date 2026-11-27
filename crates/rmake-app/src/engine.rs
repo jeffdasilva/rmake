@@ -9409,10 +9409,10 @@ impl Engine {
         }
     }
 
-    /// A user error during command configuration leaves the already reserved
-    /// logical slot outstanding while the real children drain.
+    /// Retain the configuration slot for a user error or a nonpositive word
+    /// index while already running children drain.
     fn retain_configuration_abort(&mut self, permit: &mut Option<Permit>, error: &ExpandError) {
-        if error.is_user_error()
+        if (error.is_user_error() || error.is_nonpositive_word_index())
             && self.aborted_recipe_permit.is_none()
             && self.interrupt.is_none()
             && rmake_linux::signals::pending().is_none()

@@ -20,6 +20,14 @@ in the mixed-engine gate. The current normal assertion expects the two
 `+` bytes observed in GNU Make, and checks the original output and
 filesystem against both GNU repetitions.
 
+The nonpositive word-index error during shell configuration retains a paid
+slot through the fatal wait, then returns the protocol byte after the running
+implicit recipe exits. Pipe and FIFO fixtures sample capacity before releasing
+that recipe and check the returned byte and borrowed FIFO identity. The same
+word error in the recipe body leaves the original byte available throughout.
+An explicit `$(error ...)` during configuration exercises the retained-slot
+control on each transport.
+
 Parent or group cancellation has separate fixtures and still checks
 original-byte recovery for outstanding rmake leases. Those tests retain the
 observed GNU capacity loss. These ordinary release cases add no safety

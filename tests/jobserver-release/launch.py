@@ -15,22 +15,33 @@ seed = bytes.fromhex(sys.argv[2])
 two_workers = mode in ('held-dispatch-two-paid-first', 'held-dispatch-two-implicit-first')
 if len(seed) != (2 if two_workers else 1):
     raise SystemExit('fixture seed does not match its worker count')
-reader, writer = os.pipe()
+command = sys.argv[3:]
+fifo = None
+if command[0] == '--fifo':
+    command = command[1:]
+    fifo = Path('borrowed.pool')
+    os.mkfifo(fifo, 0o600)
+    reader = writer = os.open(fifo, os.O_RDWR | os.O_NONBLOCK)
+    auth = f'fifo:{fifo}'
+else:
+    reader, writer = os.pipe()
+    if (reader, writer) != (3, 4):
+        raise SystemExit('fixture did not receive its declared pipe slots')
+    auth = f'{reader},{writer}'
 stderr_reader, stderr_writer = os.pipe()
-if (reader, writer) != (3, 4):
-    raise SystemExit('fixture did not receive its declared pipe slots')
 os.write(writer, seed)
 child = os.fork()
 if child == 0:
     os.close(stderr_reader)
     os.dup2(stderr_writer, 2)
     os.close(stderr_writer)
-    for fd in (reader, writer):
-        os.set_inheritable(fd, True)
-    os.environ['MAKEFLAGS'] = ' -j --jobserver-auth=3,4'
+    if fifo is None:
+        for fd in (reader, writer):
+            os.set_inheritable(fd, True)
+    os.environ['MAKEFLAGS'] = f' -j --jobserver-auth={auth}'
     if not two_workers:
         resource.setrlimit(resource.RLIMIT_NOFILE, (8, 8))
-    os.execv(sys.argv[3], sys.argv[3:])
+    os.execv(command[0], command)
 os.close(stderr_writer)
 os.set_blocking(stderr_reader, False)
 errors = bytearray()
@@ -119,7 +130,11 @@ os.close(stderr_reader)
 count = available()
 events.append(f'final-count={count}')
 events.append('returned=' + (os.read(reader, count).hex() if count else ''))
-os.close(writer)
-os.close(reader)
+if fifo is not None:
+    if not os.path.samestat(os.fstat(reader), fifo.stat()):
+        raise SystemExit('borrowed FIFO identity changed')
+    events.append('fifo-identity=retained')
+for fd in {reader, writer}:
+    os.close(fd)
 Path('observer').write_text('\n'.join(events) + '\n')
 raise SystemExit(os.waitstatus_to_exitcode(status))

@@ -489,6 +489,17 @@ impl ExpandError {
         }
     }
 
+    /// Identify the word function's nonpositive-index error through diagnostic wrappers.
+    pub fn is_nonpositive_word_index(&self) -> bool {
+        match self {
+            Self::WordIndexZero => true,
+            Self::Located { error, .. } | Self::RenderedSystem { error, .. } => {
+                error.is_nonpositive_word_index()
+            }
+            _ => false,
+        }
+    }
+
     fn at(self, location: Option<&Arc<Location>>) -> Self {
         if let Self::RenderedSystem { error, diagnostic } = self {
             return Self::RenderedSystem {
