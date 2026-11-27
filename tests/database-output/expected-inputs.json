@@ -88458,6 +88458,106 @@
         }
       ],
       "trusted_trace_sha256": "d915f4615f4a2e81240d6de97dfe01462bc72f7d2cdc8f23dfabcd0a737060ac"
+    },
+    "database-phase-implicit-directory-known-basename-startup-question": {
+      "template_sha256": "f1b80d9334e638bc66693fabfcb2d0527f41fa79a96b8e2bf6e730f258a1ffed",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "7265616479"
+            ],
+            [
+              "add",
+              "7265616479"
+            ],
+            [
+              "add",
+              "7265616479"
+            ],
+            [
+              "add",
+              "7265616479"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "add",
+              "7265616479"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "9844046e6f6be272e26c172ec14915b0bd2c25724771a81ef44c14ac4b54c536"
     }
   }
 }
