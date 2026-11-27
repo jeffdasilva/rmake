@@ -6507,7 +6507,7 @@ impl Database {
                     &mut self.warnings,
                     context,
                     location.clone(),
-                    "*** mixed implicit and normal rules: deprecated syntax".into(),
+                    Diagnostic::system(Message::DeprecatedMixedRuleSyntax),
                 );
             }
             if target == b".DEFAULT" && empty_dependencies {

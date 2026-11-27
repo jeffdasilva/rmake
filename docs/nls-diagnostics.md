@@ -140,6 +140,9 @@ lines, order and raw target names. A following user warning keeps its own bytes.
 Mixed implicit and normal or static pattern rules use the translated parser
 message. The models check anonymous `--eval` input and Makefile line locations
 in C and French, with German and Japanese catalog fallback.
+Legacy declarations that begin with an explicit target warn for each following
+pattern target. The localized warning retains its source location and the
+selected recipe still runs.
 Native controls change private French or C `LC_MESSAGES` during include failures
 and warning publication, then check restoration to the global selection.
 

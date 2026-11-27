@@ -85,6 +85,7 @@ pub enum MessageId {
     TargetPatternWithoutPercent,
     MixedImplicitStaticPatterns,
     MixedImplicitNormalRules,
+    DeprecatedMixedRuleSyntax,
     DirectiveTail,
     DefineTail,
     EndefTail,
@@ -122,7 +123,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 112] = [
+    pub const ALL: [Self; 113] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -201,6 +202,7 @@ impl MessageId {
         Self::TargetPatternWithoutPercent,
         Self::MixedImplicitStaticPatterns,
         Self::MixedImplicitNormalRules,
+        Self::DeprecatedMixedRuleSyntax,
         Self::DirectiveTail,
         Self::DefineTail,
         Self::EndefTail,
@@ -412,6 +414,7 @@ impl MessageId {
             Self::TargetPatternWithoutPercent => Message::TargetPatternWithoutPercent,
             Self::MixedImplicitStaticPatterns => Message::MixedImplicitStaticPatterns,
             Self::MixedImplicitNormalRules => Message::MixedImplicitNormalRules,
+            Self::DeprecatedMixedRuleSyntax => Message::DeprecatedMixedRuleSyntax,
             Self::DirectiveTail => Message::DirectiveTail(b"ifeq"),
             Self::DefineTail => Message::DefineTail,
             Self::EndefTail => Message::EndefTail,
@@ -597,6 +600,9 @@ impl MessageId {
             Self::TargetPatternWithoutPercent => c"target pattern contains no '%%'",
             Self::MixedImplicitStaticPatterns => c"mixed implicit and static pattern rules",
             Self::MixedImplicitNormalRules => c"mixed implicit and normal rules",
+            Self::DeprecatedMixedRuleSyntax => {
+                c"*** mixed implicit and normal rules: deprecated syntax"
+            }
             Self::DirectiveTail => c"extraneous text after '%s' directive",
             Self::DefineTail => c"extraneous text after 'define' directive",
             Self::EndefTail => c"extraneous text after 'endef' directive",
@@ -814,6 +820,7 @@ pub enum Message<'a> {
     TargetPatternWithoutPercent,
     MixedImplicitStaticPatterns,
     MixedImplicitNormalRules,
+    DeprecatedMixedRuleSyntax,
     InvalidLibraryPattern(&'a [u8]),
     AliasedRecipeSource {
         path: &'a [u8],
@@ -1011,6 +1018,7 @@ impl<'a> Message<'a> {
             Self::TargetPatternWithoutPercent => MessageId::TargetPatternWithoutPercent,
             Self::MixedImplicitStaticPatterns => MessageId::MixedImplicitStaticPatterns,
             Self::MixedImplicitNormalRules => MessageId::MixedImplicitNormalRules,
+            Self::DeprecatedMixedRuleSyntax => MessageId::DeprecatedMixedRuleSyntax,
             Self::DirectiveTail(_) => MessageId::DirectiveTail,
             Self::DefineTail => MessageId::DefineTail,
             Self::EndefTail => MessageId::EndefTail,
@@ -1101,6 +1109,7 @@ impl<'a> Message<'a> {
             | Self::TargetPatternWithoutPercent
             | Self::MixedImplicitStaticPatterns
             | Self::MixedImplicitNormalRules
+            | Self::DeprecatedMixedRuleSyntax
             | Self::DefineTail
             | Self::EndefTail
             | Self::NulReaderWarning
