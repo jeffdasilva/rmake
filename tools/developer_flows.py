@@ -21,6 +21,8 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'tests/developer-flows'
 BOOTSTRAP_LINE = b'python3 tools/oracle.py bootstrap\n'
 BOOTSTRAP_RETRY = 'warm-bootstrap-oracle-lock-retry'
+CATALOG_RETRY = 'catalog-install-validation-retry'
+FAILED_PHASE_REPORTS = {BOOTSTRAP_RETRY: 'contended_runs', CATALOG_RETRY: 'rejected_runs'}
 BUILD_LINE = b'python3 tools/rust.py cargo build --workspace --release --locked\n'
 CLEAN_LINE = b'python3 tools/rust.py cargo clean\n'
 FINISHED = re.compile(rb'(?m)^    Finished `release` profile \[optimized\] target\(s\) in ([0-9]+(?:\.[0-9]+)?s)\n')
@@ -34,7 +36,7 @@ CLEAN_CASES = {
     'clean-default-directory': ((), False, True),
 }
 VALIDATION_CASES = {'bench-validation': 'oracle', 'bench-compare-validation': 'comparison'}
-CATALOG_CASES = ('catalog-check', 'catalog-install-staged')
+CATALOG_CASES = ('catalog-check', 'catalog-install-staged', CATALOG_RETRY)
 READ_ONLY_CASES = ('help', 'doctor')
 CASE_IDS = ('warm-bootstrap-oracle', BOOTSTRAP_RETRY, *READ_ONLY_CASES, *CATALOG_CASES, *CLEAN_CASES,
             'bench-invalid-repeat', 'bench-invalid-suite', 'bench-compare-missing-executable',
@@ -228,6 +230,11 @@ class Subject:
         require(digest_tree(self.work) == original, f'{case} changed its worktree')
         return result
 
+    def run_catalog_install(self, binary, stage):
+        destination = stage / 'usr/share/rmake/locale'
+        stdout = b'python3 tools/catalogs.py --install "' + os.fsencode(destination) + b'"\n'
+        return self.run(binary, f'DESTDIR={stage}', 'PREFIX=/usr', 'catalog-install'), stdout
+
     def observe_catalogs(self, case, binary):
         sources = self.work / 'catalogs'
         original = digest_tree(sources)
@@ -241,10 +248,8 @@ class Subject:
             require(result == (stdout, b'', 0, None, False), f'catalog check: {result!r}')
             require(not stage.exists(), 'catalog check created package output')
         else:
-            destination = stage / 'usr/share/rmake/locale'
             try:
-                result = self.run(binary, f'DESTDIR={stage}', 'PREFIX=/usr', 'catalog-install')
-                stdout = b'python3 tools/catalogs.py --install "' + os.fsencode(destination) + b'"\n'
+                result, stdout = self.run_catalog_install(binary, stage)
                 require(result == (stdout, b'', 0, None, False), f'catalog install: {result!r}')
                 parents = ('tree', 'tree/usr', 'tree/usr/share', 'tree/usr/share/rmake')
                 expected = {name: {'type': 'directory', 'mode': 0o755} for name in parents}
@@ -262,6 +267,41 @@ class Subject:
         require(digest_tree(sources) == original and h.sha256_file(script) == original_script,
                 'catalog flow changed source assets')
         return result
+
+    def observe_catalog_install_retry(self, binary, protected):
+        sources = self.work / 'catalogs'
+        asset = sources / 'fr.po'
+        clock = asset.stat()
+        stage = self.root / 'package stage'
+        require(not os.path.lexists(stage), 'catalog stage must start absent')
+        original = digest_tree(sources)
+        original_bytes = asset.read_bytes()
+        script = self.work / 'tools/catalogs.py'
+        script_hash = h.sha256_file(script)
+        recipe = b'\t$(PYTHON) tools/catalogs.py --install "$(DESTDIR)$(CATALOG_INSTALL_DIR)"'
+        line = (self.work / 'Makefile').read_bytes().splitlines().index(recipe) + 1
+        diagnostic = (b'catalogs: catalog asset hash differs: fr.po\n'
+                      + f'make: *** [Makefile:{line}: catalog-install] Error 1\n'.encode())
+        try:
+            asset.write_bytes(original_bytes + b'\n# disposable catalog validation control\n')
+            invalid_mtime = asset.stat().st_mtime_ns
+            invalid = digest_tree(sources)
+            rejected, stdout = self.run_catalog_install(binary, stage)
+            require(rejected == (stdout, diagnostic, 2, None, False),
+                    f'catalog validation failure: {rejected!r}')
+            require(not os.path.lexists(stage), 'rejected catalog install created package output')
+            require(digest_tree(sources) == invalid and asset.stat().st_mtime_ns == invalid_mtime
+                    and h.sha256_file(script) == script_hash
+                    and self.protected() == protected, 'rejected catalog install changed protected inputs')
+        finally:
+            asset.write_bytes(original_bytes)
+            os.utime(asset, ns=(clock.st_atime_ns, clock.st_mtime_ns))
+            h.remove_tree(stage)
+        require(digest_tree(sources) == original, 'catalog validation control was not restored')
+        retried = self.observe_catalogs('catalog-install-staged', binary)
+        require(asset.stat().st_mtime_ns == clock.st_mtime_ns,
+                'catalog retry changed the restored asset modification time')
+        return rejected, retried
 
     def observe_warm_bootstrap(self, binary):
         result = self.run(binary, 'bootstrap-oracle')
@@ -308,6 +348,8 @@ class Subject:
             result = self.observe_bootstrap_lock_retry(binary, before)
         elif case in READ_ONLY_CASES:
             result = self.observe_read_only(case, binary)
+        elif case == CATALOG_RETRY:
+            result = self.observe_catalog_install_retry(binary, before)
         elif case in CATALOG_CASES:
             result = self.observe_catalogs(case, binary)
         elif case in CLEAN_CASES:
@@ -396,8 +438,8 @@ def main():
                 row = {'id': case, 'pass': qualified, 'errors': errors}
                 if case in subject.benchmark_reports:
                     row['benchmark_report_sha256'] = subject.benchmark_reports[case]
-                if case == BOOTSTRAP_RETRY:
-                    row['contended_runs'] = run_records((name, blocked) for name, (blocked, _) in runs)
+                if (failure := FAILED_PHASE_REPORTS.get(case)) is not None:
+                    row[failure] = run_records((name, blocked) for name, (blocked, _) in runs)
                     row['runs'] = run_records((name, retried) for name, (_, retried) in runs)
                 else:
                     row['runs'] = run_records(runs)

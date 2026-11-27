@@ -10,6 +10,9 @@ the pinned Cargo and oracle in order without changing the worktree.
 The catalog flows validate the owned files and install all 63 package assets
 through a staging path containing a space. The gate checks the full installed
 layout, bytes, modes and link topology and verifies the source tree is preserved.
+A validation retry alters a private copy of `fr.po`, checks that the installer
+rejects it before creating the stage, then restores its bytes and modification
+time and repeats the install in the same workspace.
 
 The fixture runs warm oracle bootstrap and retries it after a real advisory
 lock conflict in the same disposable workspace. It compares both transcripts

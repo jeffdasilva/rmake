@@ -206,6 +206,26 @@ def models():
                 makeflags=b'-z ' + INHERITED, seen=b'inherited-effect\n')
     yield Model('failed-gnu-source-stops-following-sources', (CLI,), SHORT.replace(b'{argv}', b''),
                 makeflags=INHERITED, gnumakeflags=b'-z')
+    yield Model('inherited-tail-long-include', (CLI,), empty(b'-I'),
+                makeflags=b'--include-dir ')
+    yield Model('inherited-tail-short-include', (CLI,), empty(b'-I'),
+                gnumakeflags=b'rRI\t', makeflags=b'--debug=unknown')
+    fr_include = "make: l'option «\u00a0-I\u00a0» a besoin d'une chaîne non vide comme argument\n".encode()
+    yield Model('inherited-tail-fr-include', (), fr_include, makeflags=b'--include-dir\t ',
+                french=True)
+    yield Model('inherited-tail-eval', (CLI,), empty(b'-E'), makeflags=b'--eval ')
+    yield Model('inherited-tail-directory', (), empty(b'-C'), gnumakeflags=b'--directory ')
+    yield Model('inherited-tail-no-blank-control',
+                errors=b": option '--include-dir' requires an argument\n",
+                makeflags=b'--include-dir')
+    yield Model('inherited-tail-attached-empty-control', (), fr_include,
+                makeflags=b'--include-dir=', french=True)
+    yield Model('inherited-tail-escaped-blank-control', makeflags=b'--include-dir \\ ',
+                status=0, usage=False, goal=b'all')
+    yield Model('inherited-tail-no-operand-control', makeflags=b'-s ',
+                status=0, usage=False, goal=b'all')
+    yield Model('inherited-tail-blank-only-control', gnumakeflags=b' \t ',
+                status=0, usage=False, goal=b'all')
     yield Model('deferred-eval-skipped', (b'-z', b'-E', b'$(file >seen,deferred)'), SHORT)
     yield Model('literal-option-looking-goal', (b'--', b'-z'), status=0, usage=False, goal=b'-z')
     yield Model('explicit-dot-directory', (b'-C', b'.///'), status=0, usage=False, goal=b'all')

@@ -886,7 +886,9 @@ impl Options {
         let mut inherited_options = Self::default();
         for flags in [gnumakeflags, makeflags].into_iter().flatten() {
             let mut tokens = Vec::new();
-            Self::append_flags(&mut tokens, flags.as_bytes());
+            if Self::append_flags(&mut tokens, flags.as_bytes()) {
+                tokens.push(OsString::new());
+            }
             let count = tokens.len();
             inherited_options = Self::parse_continued_with::<String>(
                 tokens,
@@ -972,7 +974,7 @@ impl Options {
         self
     }
 
-    fn append_flags(combined: &mut Vec<OsString>, flags: &[u8]) {
+    fn append_flags(combined: &mut Vec<OsString>, flags: &[u8]) -> bool {
         let raw = flags;
         let mut decoded = Vec::with_capacity(raw.len());
         let mut pos = 0;
@@ -983,7 +985,7 @@ impl Options {
             }
             pos += 1;
         }
-        Self::append_expanded_flags(combined, &decoded);
+        Self::append_expanded_flags(combined, &decoded)
     }
 
     pub(crate) fn replay_published_load_limit(&mut self, flags: &[u8]) {
@@ -999,7 +1001,8 @@ impl Options {
 
     // Expanded file flags have already consumed their make-dollar quoting.
     // GNU skips C whitespace once at the start, then separates only SP/TAB.
-    pub(crate) fn append_expanded_flags(combined: &mut Vec<OsString>, mut bytes: &[u8]) {
+    // Report an empty final word separately for inherited startup decoding.
+    pub(crate) fn append_expanded_flags(combined: &mut Vec<OsString>, mut bytes: &[u8]) -> bool {
         while bytes
             .first()
             .is_some_and(|byte| matches!(byte, b' ' | b'\t'..=b'\r'))
@@ -1022,6 +1025,7 @@ impl Options {
             }
             i += 1;
         }
+        let empty_tail = token.is_empty() && !tokens.is_empty();
         if !token.is_empty() {
             tokens.push(token);
         }
@@ -1034,6 +1038,7 @@ impl Options {
         // Keep every marker until decoding. `--` can be an operand, and
         // only the first unconsumed marker ends the options for this source.
         combined.extend(tokens.into_iter().map(OsString::from_vec));
+        empty_tail
     }
 
     /// Decode changed file bindings after reading. Existing switches persist;

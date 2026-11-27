@@ -8775,6 +8775,18 @@ impl Engine {
                 || !(self.options.dry_run || self.options.question || self.options.touch))
     }
 
+    fn serial_or_owned_two_job_pipe(&self, parallel: bool) -> bool {
+        if parallel {
+            self.jobserver.as_ref().is_some_and(|server| {
+                server.owned_slots() == Some(2)
+                    && !server.uses_compact_pipe()
+                    && !server.auth().starts_with(b"fifo:")
+            })
+        } else {
+            self.jobserver.is_none() && self.options.jobs.unwrap_or(1) == 1
+        }
+    }
+
     fn settle_optional_remake_pass(
         &mut self,
         previous_progress: u64,
@@ -15909,6 +15921,7 @@ impl Engine {
                 {
                     *time = GroupPeerTime::Outcome;
                 }
+                self.retain_interrupted_double_colon_times(target, ordinal, result);
                 self.record_graph_failure(result);
                 state.active = None;
                 if result.fatal || (result.failed && !self.options.keep_going) {
@@ -18276,6 +18289,13 @@ impl Engine {
                 continue;
             }
             self.active_peers.remove(&peer);
+            if group.ordinary
+                && !group.implicit
+                && outcome.database_result == DatabaseResult::UnfinishedRecipeExpansion
+            {
+                // Expansion stopped before a command could update any peer.
+                continue;
+            }
             if unstarted_query
                 && (group.ordinary
                     || (self.remaking && !group.implicit && self.makefile_names.contains(&peer)))
@@ -18710,6 +18730,18 @@ impl Engine {
                             failed_required_include
                                 .unwrap_or(RecipeExpansionInterruption::Unfinished),
                         );
+                    } else if !one_shell
+                        && self.idle_recipe_expansion_dump(parallel)
+                        && if branch.is_none() {
+                            self.unfinished_explicit_group_expansion(target)
+                        } else {
+                            !phony
+                                && before.is_none()
+                                && self.plain_double_colon_recipe_pair(target)
+                        }
+                    {
+                        execution.expansion_interruption =
+                            Some(RecipeExpansionInterruption::Unfinished);
                     }
                     return execution;
                 }
@@ -18971,6 +19003,83 @@ impl Engine {
         execution
     }
 
+    fn idle_recipe_expansion_dump(&self, parallel: bool) -> bool {
+        self.output.database_requested()
+            && self.output.mode() == crate::output::Mode::None
+            && !self.remaking
+            && self.active_makefile_remake.is_none()
+            && !self.options.keep_going
+            && !MakefileModes::from_options(&self.options).active()
+            && self.parallel_jobs.is_empty()
+            && self.serial_or_owned_two_job_pipe(parallel)
+    }
+
+    fn unfinished_explicit_group_expansion(&self, target: &[u8]) -> bool {
+        self.running_groups.get(target).is_some_and(|group| {
+            group.ordinary
+                && !group.implicit
+                && group.double_colon.is_none()
+                && group.members.iter().all(|(name, _, _)| {
+                    !self.aliases.contains_source_or_destination(name)
+                        && rmake_core::filenames::archive_parts(name).is_none()
+                        && (name.as_slice() == target || !self.file_traversals.has_outcome(name))
+                })
+        })
+    }
+
+    fn plain_double_colon_recipe_pair(&self, target: &[u8]) -> bool {
+        self.assumptions.is_none()
+            && !self.shuffle.enabled()
+            && !self.aliases.contains_source_or_destination(target)
+            && rmake_core::filenames::archive_parts(target).is_none()
+            && self
+                .database
+                .rules
+                .get(target)
+                .and_then(|rule| rule.double_colon.as_ref())
+                .is_some_and(|branches| {
+                    branches.len() == 2
+                        && branches.iter().all(|rule| {
+                            rule.group.is_none()
+                                && rule.implicit_pattern.is_none()
+                                && !rule.default_recipe
+                                && rule.dependencies.is_empty()
+                                && rule.secondary.is_none()
+                                && rule.recipes.is_some()
+                        })
+                })
+    }
+
+    fn retain_interrupted_double_colon_times(
+        &mut self,
+        target: &[u8],
+        ordinal: usize,
+        outcome: Outcome,
+    ) {
+        if ordinal != 1
+            || outcome.database_result != DatabaseResult::UnfinishedRecipeExpansion
+            || outcome.time.is_some()
+            || self.database_group_peer_times.contains_key(target)
+            || !self
+                .database_branch_outcomes
+                .get(&(target.to_vec(), 0))
+                .is_some_and(|first| first.ran && !first.failed && first.time.is_none())
+        {
+            return;
+        }
+        // Finishing without a child leaves the completed head unchecked when
+        // the next expansion stops. A real child already owns its clock.
+        let first = if self.database_unchecked_times.borrow().contains(target) {
+            GroupPeerTime::Outcome
+        } else {
+            GroupPeerTime::Unchecked
+        };
+        self.database_group_peer_times.insert(
+            target.to_vec(),
+            vec![first, GroupPeerTime::Observed(outcome.time)],
+        );
+    }
+
     fn continue_recipe_inner(
         &mut self,
         target: &[u8],
@@ -19034,15 +19143,7 @@ impl Engine {
                 && rmake_core::filenames::archive_parts(target).is_none()
                 && !self.options.keep_going
                 && !MakefileModes::from_options(&self.options).active()
-                && if parallel {
-                    self.jobserver.as_ref().is_some_and(|server| {
-                        server.owned_slots() == Some(2)
-                            && !server.uses_compact_pipe()
-                            && !server.auth().starts_with(b"fifo:")
-                    })
-                } else {
-                    self.jobserver.is_none() && self.options.jobs.unwrap_or(1) == 1
-                };
+                && self.serial_or_owned_two_job_pipe(parallel);
             let first_configuration_include =
                 observe_preparation_failure.then_some(self.database.makefiles.len());
             // GNU expands configuration before a dry-run/query decision, after
