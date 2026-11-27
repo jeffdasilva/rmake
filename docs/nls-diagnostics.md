@@ -186,6 +186,10 @@ Zero-operand `$(call ...)` returns empty for built-ins whose minimum is zero,
 after evaluating the callee name. An explicit empty argument still invokes
 the built-in. The arity models check both forms and preserve argument effects
 and the real errors for built-ins with required operands.
+When `call` names the built-in `call`, the inner dispatch receives the already
+expanded operands. The selected branch of a lazy built-in still performs its
+own expansion. The models check the order of effects, literal operand bytes,
+and the localized error from an invalid `word` argument.
 The `file` function has typed errors for a missing name, an extra read argument
 or an invalid operation. Tests preserve source lines, side effects and raw
 argument bytes. [Low-resolution timestamp models](../tests/nls/low-resolution.json)

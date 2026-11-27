@@ -5431,6 +5431,250 @@
         "stderr": "",
         "seen": "anchor\nbefore\ncallee-effect\nresult=[]\ncontinued\n"
       }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-direct-sort",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c20736f72742c6220612c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nouter-extra\nvalue=[a b]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-sort",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2063616c6c2c736f72742c6220612c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nouter-extra\nvalue=[a b]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-sort-two-dispatches",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2063616c6c2c63616c6c2c736f72742c6220612c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nouter-extra\nvalue=[a b]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-direct-if",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2069662c312c24242866696c65203e3e7365656e2c63686f73656e297965732c24242866696c65203e3e7365656e2c756e63686f73656e296e6f2c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nouter-extra\nchosen\nvalue=[yes]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-if",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2063616c6c2c69662c312c24242866696c65203e3e7365656e2c63686f73656e297965732c24242866696c65203e3e7365656e2c756e63686f73656e296e6f2c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\nouter-extra\nchosen\nvalue=[yes]\ncontinued\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-fr-direct-word",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c20776f72642c6261642c6120622c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** invalid first argument to 'word' function: 'bad'. Arrêt.\n",
+        "seen": "anchor\nbefore\nouter-extra\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-fr-word",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2063616c6c2c776f72642c6261642c6120622c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** invalid first argument to 'word' function: 'bad'. Arrêt.\n",
+        "seen": "anchor\nbefore\nouter-extra\n"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-direct-file",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2066696c652c3e7772697474656e2c242866696c65203e3e7365656e2c746578742d6f706572616e6429626f647924242866696c65203e3e7365656e2c7265646973706174636865642d74657874292c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\ntext-operand\nouter-extra\nvalue=[]\ncontinued\n"
+      },
+      "updates": {
+        "written": "626f6479242866696c65203e3e7365656e2c7265646973706174636865642d74657874290a"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-file",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2063616c6c2c66696c652c3e7772697474656e2c242866696c65203e3e7365656e2c746578742d6f706572616e6429626f647924242866696c65203e3e7365656e2c7265646973706174636865642d74657874292c242866696c65203e3e7365656e2c6f757465722d65787472612924242866696c65203e3e7365656e2c7265646973706174636865642d657874726129290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\nbefore\ntext-operand\nouter-extra\nvalue=[]\ncontinued\n"
+      },
+      "updates": {
+        "written": "626f6479242866696c65203e3e7365656e2c7265646973706174636865642d74657874290a"
+      }
+    },
+    {
+      "id": "nls-nested-builtin-call-c-required-callee",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "242866696c65203e3e7365656e2c6265666f7265290a56414c5545203a3d20242863616c6c2063616c6c290a242866696c65203e3e7365656e2c76616c75653d5b242856414c5545295d290a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e3e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:2: *** insufficient number of arguments (0) to function 'call'.  Stop.\n",
+        "seen": "anchor\nbefore\n"
+      }
     }
   ]
 }
