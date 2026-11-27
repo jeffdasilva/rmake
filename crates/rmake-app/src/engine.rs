@@ -19450,13 +19450,14 @@ impl Engine {
                             command.stdin(std::process::Stdio::from(stdin));
                         }
                     }
-                    if let Some(server) = &self.jobserver {
-                        server.configure_child(&mut command, force)?;
-                    }
                     if !stdin_owner && descriptor_limited_pool.is_none() {
                         command.stdin(rmake_linux::process::closed_stdin()?);
                     }
-                    if let Some(spool) = output.as_ref().and_then(|buffer| buffer.child_spool()) {
+                    let spool = output.as_ref().and_then(|buffer| buffer.child_spool());
+                    if let Some(server) = &self.jobserver {
+                        server.configure_child_with_spool(&mut command, force, spool.as_deref())?;
+                    }
+                    if let Some(spool) = spool {
                         // Descriptor pressure can leave room for the spool but
                         // no room to clone it or open std's spawn error pipe.
                         if stdin_owner

@@ -103,7 +103,8 @@ def execute(root: Path, parent: Path, child: Path, style: str, borrowed: bool,
 
 def execute_low_wire(root: Path, parent: Path, child: Path, closed_streams: tuple[int, ...],
                      mode: str, *, parent_jobs: int = 2, file_jobs: int | None = None,
-                     file_style: str | None = None, file_operator: str = '+='):
+                     file_style: str | None = None, file_operator: str = '+=',
+                     forced_mode: str | None = None):
     child_alias = root / 'bin/child/make'
     args = ('-rR', '--no-print-directory', f'-j{parent_jobs}', '--jobserver-style=pipe',
             '-O' + mode, 'all')
@@ -126,6 +127,9 @@ def execute_low_wire(root: Path, parent: Path, child: Path, closed_streams: tupl
     child_alias.unlink(missing_ok=True)
     child_alias.symlink_to(child)
     work = root / 'work'
+    if forced_mode is not None:
+        prefix = b'MAKEFLAGS += -Orecurse\n' if forced_mode == 'recurse' else b''
+        (work / 'Child.mk').write_bytes(prefix + (work / 'Forced.mk').read_bytes())
     if file_jobs is not None:
         makefile = work / 'Child.mk'
         flags = f'MAKEFLAGS {file_operator} -j{file_jobs}'
@@ -165,8 +169,13 @@ def execute_low_wire(root: Path, parent: Path, child: Path, closed_streams: tupl
     for fd in closed_streams:
         if fd == 0 or mode == 'none':
             streams[fd] = b'closed'
+    if forced_mode == 'recurse':
+        streams[1:] = [b'file/access=2/append=1'] * 2
+    elif forced_mode == 'none':
+        streams[1] = b'pipe/access=0/append=0'
     seen = b' '.join(streams) + b'\n'
-    seen_wire = b' '.join(streams[fd] if fd < 3 else b'closed' for fd in wire) + b'\n'
+    high_wire = b'closed' if forced_mode is None else b'pipe/access=1/append=0'
+    wire_states = b' '.join(streams[fd] if fd < 3 else high_wire for fd in wire) + b'\n'
     state = 'original'
     if reset_jobs is not None:
         state = 'retired' if reset_jobs == 1 else 'replacement'
@@ -178,15 +187,20 @@ def execute_low_wire(root: Path, parent: Path, child: Path, closed_streams: tupl
     else:
         child_auth = auth
     anchors = [('parent-auth', auth), ('child-auth', child_auth),
-               ('wire', verified_pipe), ('seen-child', seen), ('seen-wire', seen_wire),
+               ('wire', verified_pipe), ('seen-child', seen), ('seen-wire', wire_states),
                ('seen-parent', seen_parent)]
     if default_style:
         anchors.append(('initial-jobserver', auth))
+    if forced_mode is not None:
+        outputs = b'fd1=spool/flags=0 fd2=spool/flags=0' if forced_mode == 'recurse' else (
+            b'fd1=wire/flags=0 fd2=other/flags=0')
+        anchors.extend([('seen-output-mode', f'-O{forced_mode}\n'.encode()),
+                        ('seen-forced', outputs + b' fd3=wire/flags=0 distinct-outputs\n')])
     if reset_jobs != 1:
         active_state = 'original' if reset_jobs is None else 'new'
-        active = f'{wire[0]},{wire[1]} {active_state} '.encode() + seen_wire
+        active = f'{wire[0]},{wire[1]} {active_state} '.encode() + wire_states
         if child_auth == fifo_auth:
-            active = f'fifo {wire[0]},{wire[1]} new mode=0600 borrowed=absent '.encode() + seen_wire
+            active = f'fifo {wire[0]},{wire[1]} new mode=0600 borrowed=absent '.encode() + wire_states
         anchors.append(('seen-active', active))
     for name, expected in anchors:
         if not (work / name).is_file() or (work / name).read_bytes() != expected:
@@ -245,17 +259,19 @@ def main() -> int:
     results.append(dict(style='sentinel-bytes', parent='rmake', child='rmake', seed_hex='515a',
                         expected_hex='2b2b', errors=errors))
     print(('FAIL' if errors else 'PASS'), 'ordinary sentinel token bytes', errors)
-    wire_profiles = [(closed, mode, 2, None, None, '+=') for closed, mode in LOW_WIRE_PROFILES]
-    wire_profiles.extend((closed, 'none', 2, 1, None, '+=') for closed in RESET_WIRE_STREAMS)
-    wire_profiles.extend([((), 'none', 3, None, None, '+='),
-                          ((), 'none', 3, 2, 'pipe', '+='),
-                          ((), 'none', 3, 2, 'fifo', '+='),
-                          ((), 'none', 3, 2, None, ':='),
-                          ((), 'none', 3, 2, None, '+='),
-                          ((), 'none', 3, 3, None, ':=')])
-    for closed_streams, mode, parent_jobs, file_jobs, file_style, file_operator in wire_profiles:
+    wire_profiles = [(closed, mode, 2, None, None, '+=', None) for closed, mode in LOW_WIRE_PROFILES]
+    wire_profiles.extend((closed, 'none', 2, 1, None, '+=', None) for closed in RESET_WIRE_STREAMS)
+    wire_profiles.extend([((), 'none', 3, None, None, '+=', None),
+                          ((), 'none', 3, 2, 'pipe', '+=', None),
+                          ((), 'none', 3, 2, 'fifo', '+=', None),
+                          ((), 'none', 3, 2, None, ':=', None),
+                          ((), 'none', 3, 2, None, '+=', None),
+                          ((), 'none', 3, 3, None, ':=', None),
+                          ((1,), 'none', 2, None, None, '+=', 'none'),
+                          ((1,), 'none', 2, None, None, '+=', 'recurse')])
+    for closed_streams, mode, parent_jobs, file_jobs, file_style, file_operator, forced_mode in wire_profiles:
         file_options = dict(parent_jobs=parent_jobs, file_jobs=file_jobs, file_style=file_style,
-                            file_operator=file_operator)
+                            file_operator=file_operator, forced_mode=forced_mode)
         baseline, baseline_errors, baseline_wires = execute_low_wire(
             destination, reference, reference, closed_streams, mode, **file_options)
         repeated, repeat_errors, repeat_wires = execute_low_wire(

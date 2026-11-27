@@ -124,7 +124,45 @@ def inspect_active_wire(parent, borrowed_identity):
     Path("seen-active").write_text(f"{wire[0]},{wire[1]} {state} {states}\n")
 
 
-def inspect():
+def inspect_forced_output(parent, wire, borrowed_identity):
+    raw = {}
+    states = []
+    for fd in sorted({1, 2, *wire}):
+        metadata = os.fstat(fd)
+        identity = (metadata.st_dev, metadata.st_ino)
+        flags = fcntl.fcntl(fd, fcntl.F_GETFD)
+        matches = []
+        for entry in (parent / "fd").iterdir():
+            try:
+                endpoint = entry.stat()
+            except FileNotFoundError:
+                continue
+            if (endpoint.st_dev, endpoint.st_ino) == identity:
+                matches.append(int(entry.name))
+        if identity == borrowed_identity:
+            state = "wire"
+        elif (matches and stat.S_ISREG(metadata.st_mode)
+              and stat.S_IMODE(metadata.st_mode) == 0o600 and metadata.st_nlink == 0):
+            state = "spool"
+        else:
+            state = "other"
+        states.append(f"fd{fd}={state}/flags={flags}")
+        raw[fd] = {"identity": identity, "parent_descriptors": sorted(matches),
+                   "link": os.readlink(f"/proc/self/fd/{fd}"), "flags": flags, "state": state,
+                   "mode": f"{stat.S_IMODE(metadata.st_mode):04o}", "link_count": metadata.st_nlink}
+    if raw[1]["identity"] != raw[2]["identity"]:
+        states.append("distinct-outputs")
+    Path("seen-forced").write_text(" ".join(states) + "\n")
+    return raw
+
+
+def inspect(forced=False):
+    if forced:
+        flags = os.environ["MAKEFLAGS"].split()
+        auth, = [flag for flag in flags if flag.startswith("--jobserver-auth=")]
+        output, = [flag for flag in flags if flag.startswith("-O")]
+        Path("child-auth").write_text(auth + "\n")
+        Path("seen-output-mode").write_text(output + "\n")
     auth = Path("wire").read_text().split()[0]
     wire = [int(fd) for fd in auth.split(",")]
     identity_file = Path("wire-identity")
@@ -143,11 +181,15 @@ def inspect():
     active_fifo = inspect_active_wire(parent, identity)
     if active_fifo is not None:
         raw_wires["active_fifo"] = active_fifo
+    if forced:
+        raw_wires["forced_child"] = inspect_forced_output(parent, wire, identity)
     Path("seen-parent-raw.json").write_text(json.dumps(raw_wires) + "\n")
 
 
 if sys.argv[1:] == ["inspect"]:
     inspect()
+elif sys.argv[1:] == ["inspect-forced"]:
+    inspect(forced=True)
 elif sys.argv[1] == "submake":
     exec_submake(sys.argv[2])
 else:
