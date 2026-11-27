@@ -24,6 +24,11 @@ unsafe extern "C" {
     fn rm_write_standard(error: c_int, bytes: *const u8, length: usize) -> usize;
 }
 
+#[unsafe(no_mangle)]
+extern "C" fn rm_cli_startup_stdout_was_closed() -> c_int {
+    crate::process::startup_output_was_closed(1).into()
+}
+
 /// Render the C finalizer diagnostic. C owns the optional allocation
 /// when the full message exceeds the caller's stack buffer.
 #[unsafe(no_mangle)]
