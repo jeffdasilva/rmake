@@ -9409,10 +9409,10 @@ impl Engine {
         }
     }
 
-    /// Retain the configuration slot for a user error or a nonpositive word
-    /// index while already running children drain.
+    /// Keep the configuration slot through the fatal wait for user errors
+    /// and the covered built-in argument errors.
     fn retain_configuration_abort(&mut self, permit: &mut Option<Permit>, error: &ExpandError) {
-        if (error.is_user_error() || error.is_nonpositive_word_index())
+        if (error.is_user_error() || error.is_builtin_arity_or_numeric_error())
             && self.aborted_recipe_permit.is_none()
             && self.interrupt.is_none()
             && rmake_linux::signals::pending().is_none()

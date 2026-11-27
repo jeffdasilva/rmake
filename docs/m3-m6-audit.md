@@ -624,10 +624,11 @@ and line/target synchronization. Further combinations remain required.
   [FIFO pressure and protected-directory failures](../tests/resource-fd-fifo/README.md)
   and [overlapping recipe descriptors](../tests/resource-fd-parallel/README.md).
 - [Jobserver token release](../tests/jobserver-release/README.md) includes a
-  held implicit recipe while the parent reports a nonpositive word index
-  during shell configuration. On a borrowed pipe or FIFO, it records the paid
-  slot through the fatal wait and the returned byte after the worker ends.
-  The same error in the recipe body checks the before-reservation boundary.
+  held implicit recipe while the parent reports a shell configuration error.
+  The word and wordlist index, built-in arity, and intcmp number cases
+  record the paid slot through the fatal wait and the returned byte after the
+  worker ends on a borrowed pipe or FIFO. Index errors in the recipe body
+  check the before-reservation boundary.
 - [Private wake slots](../tests/jobserver-wake-slots/README.md) and
   [owned/borrowed pipe flags](../tests/jobserver-read-flags/README.md).
 - [Stdin file-size limits](../tests/resource-file-size/README.md) and

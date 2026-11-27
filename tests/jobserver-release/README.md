@@ -26,7 +26,9 @@ implicit recipe exits. Pipe and FIFO fixtures sample capacity before releasing
 that recipe and check the returned byte and borrowed FIFO identity. The same
 word error in the recipe body leaves the original byte available throughout.
 An explicit `$(error ...)` during configuration exercises the retained-slot
-control on each transport.
+control on each transport. Wordlist bounds, a built-in arity error and an
+intcmp number error also keep the slot through the wait. The wordlist body
+control preserves the original byte before reservation.
 
 Parent or group cancellation has separate fixtures and still checks
 original-byte recovery for outstanding rmake leases. Those tests retain the
