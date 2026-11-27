@@ -50,10 +50,13 @@ at the end of this audit.
   post-read replay has no override words. A later `MAKEOVERRIDES` definition
   can supply the suffix on the next publication. A literal `override MAKEFLAGS`
   in the Makefile supplies its own replay operands, so post-read replay skips
-  the separate `MAKEOVERRIDES` lookup. Canonical flags with the
-  automatic command-line eval reference use the same replay path. The encoded
-  eval arguments remain flag data. The original command-line source is read
-  again in the next process image after a restart.
+  the separate `MAKEOVERRIDES` lookup. A recursive `override MAKEFLAGS` with a
+  literal option prefix and an explicit public or hidden command-variable
+  reference decodes the complete expansion during the read and after it. The
+  post-read decode consumes those operands without a separate lookup.
+  Canonical flags with the automatic command-line eval reference use the same
+  replay path. The encoded eval arguments remain flag data. The original
+  command-line source is read again in the next process image after a restart.
   The startup preload list uses one expansion of `MAKEFILES` after command-line
   eval. An absent binding can warn at that point, while a defined empty binding
   leaves the preload list empty.

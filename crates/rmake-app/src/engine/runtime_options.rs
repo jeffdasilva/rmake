@@ -855,6 +855,9 @@ impl Engine {
                             .is_some_and(|location| !location.file.is_null())
                         && !binding.raw_value().contains(&b'$')
                 });
+            let authored_override = !unchanged
+                && name == b"MAKEFLAGS"
+                && self.database.has_authored_makeflags_override_reference();
             let reopen_unchanged = unchanged
                 && self.options.sync_mutex.is_some()
                 && binding.is_some_and(|value| nonempty_flag_source(value.raw_value()));
@@ -955,7 +958,8 @@ impl Engine {
                         if omitted_overrides {
                             command_overrides = Some(Vec::new());
                         }
-                        let encoded = name == b"MAKEFLAGS"
+                        let encoded = !authored_override
+                            && name == b"MAKEFLAGS"
                             && self.database.variables.get(name).is_some_and(|variable| {
                                 Database::has_command_overrides_reference(variable.raw_value())
                             });
@@ -995,7 +999,7 @@ impl Engine {
                 if let Some(jobs) = self.apply_runtime_flag_source(value)? {
                     file_jobs = Some(jobs);
                 }
-                if literal_override {
+                if literal_override || authored_override {
                     // The explicit source supplied all its replay operands.
                     // Do not expand MAKEOVERRIDES as a separate fallback.
                     command_overrides = Some(Vec::new());
