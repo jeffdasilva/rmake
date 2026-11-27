@@ -357,7 +357,8 @@ impl Engine {
         // Post-read policy classifies each phony prerequisite as a target.
         view.phony = self.database_file_policy_prepared && self.special(b".PHONY", name, false);
         view.is_target |= view.phony;
-        view.precious = self.special_for_rule(b".PRECIOUS", name);
+        view.precious =
+            self.database_file_policy_prepared && self.special_for_rule(b".PRECIOUS", name);
         view.command_line = is_head
             && self
                 .options

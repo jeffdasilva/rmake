@@ -251,6 +251,8 @@ NUL boundaries, rebinding and cancellation.
   settled timestamp before cleanup, so the dump retains that observation.
   The post-read file policy marks .PHONY prerequisites as targets before
   visits begin, including when a later setup diagnostic stops traversal.
+  This publication also enables the .PRECIOUS marker for file and pattern
+  records.
 - [Eval allocation investigation](eval-allocation-profiles.md) retains experiments
   rejected after elapsed-time regressions and the selected runtime controls.
 
