@@ -1,0 +1,11 @@
+id = "recipe-executable-exit-127-parallel-directory"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+description = "A parallel recipe with a pipe jobserver reports when its executable path becomes a directory before exit 127."
+provenance = "Original Makefile and executable fixture with independently recorded GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-j2", "--jobserver-style=pipe", "all"]
+
+[expected]
+exit_code = 2
+stdout = "child\n"
+stderr = "make: ./runner: Permission denied\nmake: *** [Makefile:2: all] Error 127\n"

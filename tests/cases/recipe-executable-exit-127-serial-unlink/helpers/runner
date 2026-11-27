@@ -1,0 +1,4 @@
+#!/bin/sh
+printf "child\n"
+rm -- "$0"
+exit 127

@@ -1,0 +1,12 @@
+id = "recipe-executable-exit-127-serial-empty"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+description = "Line output sync preserves the executable format error and continuation after an ignored exit 127."
+provenance = "Original Makefile and executable fixture with independently recorded GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-Oline", "all"]
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout = "child\nmake: ./runner: Exec format error\nmake: [Makefile:2: all] Error 127 (ignored)\ncontinued\n"
+stderr = ""

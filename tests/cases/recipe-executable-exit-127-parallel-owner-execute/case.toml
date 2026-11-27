@@ -1,0 +1,12 @@
+id = "recipe-executable-exit-127-parallel-owner-execute"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+description = "A parallel recipe with target output sync reports missing owner execute permission after an ignored exit 127."
+provenance = "Original Makefile and executable fixture with independently recorded GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-j2", "-Otarget", "all"]
+output = "merged"
+
+[expected]
+exit_code = 0
+stdout = "make: ./runner: Permission denied\nchild\nmake: [Makefile:2: all] Error 127 (ignored)\ncontinued\n"
+stderr = ""

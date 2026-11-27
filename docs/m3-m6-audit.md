@@ -298,8 +298,10 @@ covers mixed required and optional failure policies.
   This leaves the existing target cleanup rules in effect.
   Ordinary serial recipes now report a failed stat of the last launched
   executable after an unignored missing-executable error, before the recipe's
-  terminal error. Ignored errors, child exit 127, other prior executable
-  failures, and recursive output synchronization remain open.
+  terminal error. When a launched recipe child exits 127, serial and parallel
+  recipes check the selected path before printing the recipe error.
+  Rechecking the prior executable after an ignored launch error, other launch
+  failures, and launch errors with recursive output synchronization remain open.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)
