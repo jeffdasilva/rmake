@@ -19125,6 +19125,7 @@ impl Engine {
             if crate::recipe_flow::optimized_noop(&invocation) {
                 continue;
             }
+            let direct = matches!(&invocation, crate::process::Invocation::Direct { .. });
             let (program, arguments) = match invocation {
                 crate::process::Invocation::Direct { program, args }
                 | crate::process::Invocation::Shell { program, args } => (program, args),
@@ -19655,13 +19656,24 @@ impl Engine {
                     const ENAMETOOLONG: i32 = 36;
                     const ELOOP: i32 = 40;
                     let sync_mode = self.output.mode();
+                    let modes = MakefileModes::from_options(&self.options);
+                    let forced_dry_lookup = force
+                        && direct
+                        && !parallel
+                        && !one_shell
+                        && !ignore
+                        && modes.dry_run
+                        && !modes.question
+                        && !modes.touch
+                        && sync_mode == crate::output::Mode::None
+                        && err.kind() == io::ErrorKind::NotFound;
                     if (executable_launch_failed
                         || err.kind() == io::ErrorKind::ArgumentListTooLong
                         || matches!(err.raw_os_error(), Some(ENAMETOOLONG | ELOOP)))
                         && !self.remaking
                         && remake.is_none()
                         && branch.is_none()
-                        && !MakefileModes::from_options(&self.options).active()
+                        && (!modes.active() || forced_dry_lookup)
                         && !self.running_groups.contains_key(target)
                         && rmake_core::filenames::archive_parts(target).is_none()
                         && let Some(path) = previous_executable.as_deref()
