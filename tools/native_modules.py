@@ -152,6 +152,7 @@ def models() -> list[Model]:
     result.extend(lifecycle_models())
     result.extend(reload_order_models())
     result.extend(optional_remake_reload_models())
+    result.extend(pruned_remake_reload_models())
     result.extend(setup_result_models())
     result.extend(loader_debug_models())
     result.extend(additional_models())
@@ -350,6 +351,48 @@ def optional_remake_reload_models() -> list[Model]:
             mtimes_ns={'module_a.so': INPUT_TIME_NS, 'seed': INPUT_TIME_NS + 1_000_000_000},
         ))
     return models
+
+
+def pruned_remake_reload_models() -> list[Model]:
+    body = (b'include retained.mk\n$(file >>seen,reader)\n$(info reader=[$(.LOADED)])\n'
+            b'.PHONY: all\n'
+            b'all: ; @$(file >>seen,goal)/usr/bin/printf "%s\\n" '
+            b'"goal=[$(.LOADED)] restart=[$(MAKE_RESTARTS)]"\n'
+            b'retained.mk: | module_a.so\n')
+    module_a = Module('reload_order.c', 'module_a.so')
+    module_b = Module('reload_order.c', 'module_b.so', ('MODULE_B',))
+
+    def model(name, modules, rules, marks, reloaded=b''):
+        loads = b''.join(b'load ' + module.filename.encode() + b'\n' for module in modules)
+        program = b'.DEFAULT_GOAL := all\n' + loads + body + rules
+        loaded = b' '.join(module.filename.encode() for module in modules)
+        stdout = b'include=retained\nreader=[' + loaded + b']\ngoal=[' + loaded + reloaded + b'] restart=[]\n'
+        return Model(
+            'native-pruned-remake-reload-' + name,
+            {'Makefile': program, 'retained.mk': b'$(info include=retained)\n',
+             'seed': b'newer\n', 'seen': b'anchor\n'},
+            {'exit_code': 0, 'stdout_hex': stdout.hex(), 'stderr_hex': ''},
+            b'anchor\n' + marks, modules,
+            args=('-rR', '--no-print-directory', '-j1', '-s', 'all'),
+            mtimes_ns={**{module.filename: INPUT_TIME_NS for module in modules},
+                       'seed': INPUT_TIME_NS + 1_000_000_000},
+        )
+
+    command = b' ; @/usr/bin/printf "module-remake\\n" >>seen\n'
+    remade = b'a:open\na:setup\nreader\na:close\nmodule-remake\n'
+    mixed_rules = (b'.PHONY: module_a.so\n'
+                   b'module_a.so: ; @/usr/bin/printf "module-remake:a\\n" >>seen\n'
+                   b'module_b.so: seed | module_a.so ; @/usr/bin/printf "module-remake:b\\n" >>seen\n')
+    mixed_marks = (b'b:open\nb:setup\na:open\na:setup\nreader\n'
+                   b'a:close\nmodule-remake:a\nb:close\nmodule-remake:b\n'
+                   b'b:open\nb:setup\ngoal\nb:close\n')
+    return [
+        model('phony', (module_a,), b'.PHONY: module_a.so\nmodule_a.so:' + command, remade + b'goal\n'),
+        model('double-colon', (module_a,), b'module_a.so::' + command, remade + b'goal\n'),
+        model('admitted-control', (module_a,), b'module_a.so: seed' + command,
+              remade + b'a:open\na:setup\ngoal\na:close\n', b' module_a.so'),
+        model('mixed', (module_b, module_a), mixed_rules, mixed_marks, b' module_b.so'),
+    ]
 
 
 def setup_result_models() -> list[Model]:

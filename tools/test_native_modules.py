@@ -113,10 +113,11 @@ class NativeModuleTests(unittest.TestCase):
 
     def test_original_inventory_covers_native_lifetime_and_fatal_boundaries(self):
         models = n.models()
-        self.assertEqual(len(models), 578)
-        self.assertEqual(len({m.id for m in models}), 578)
+        self.assertEqual(len(models), 582)
+        self.assertEqual(len({m.id for m in models}), 582)
         self.assertEqual(sum(m.id.startswith('native-reload-read-order-') for m in models), 6)
         self.assertEqual(sum(m.id.startswith('native-optional-remake-reload-') for m in models), 5)
+        self.assertEqual(sum(m.id.startswith('native-pruned-remake-reload-') for m in models), 4)
         self.assertEqual(sum(m.id.startswith('native-setup-result-') for m in models), 5)
         self.assertEqual(sum(m.id.startswith('native-loader-debug-') for m in models), 6)
         self.assertEqual(sum(m.id.startswith('native-directory-epoch-') for m in models), 5)
