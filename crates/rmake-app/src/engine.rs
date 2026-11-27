@@ -2514,7 +2514,7 @@ impl Engine {
                 }
                 ScopedExpansionSite::RecipeBody => RequiredIncludeReads::Missing,
                 ScopedExpansionSite::ShellConfiguration if self.parallel_jobs.is_empty() => {
-                    RequiredIncludeReads::Missing
+                    RequiredIncludeReads::All
                 }
                 _ => RequiredIncludeReads::Ignore,
             };
@@ -19270,7 +19270,7 @@ impl Engine {
                     && !MakefileModes::from_options(&self.options).active())
                 .then(|| {
                     let required = if self.parallel_jobs.is_empty() {
-                        RequiredIncludeReads::Missing
+                        RequiredIncludeReads::All
                     } else {
                         RequiredIncludeReads::Ignore
                     };
