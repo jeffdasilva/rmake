@@ -19626,10 +19626,11 @@ impl Engine {
                 Err(err) => {
                     let detail = rmake_linux::filesystem::source_error_detail(&err);
                     self.stderr(&[program.as_slice(), b": ", &detail].concat());
-                    // GNU rechecks the last successfully spawned command
-                    // when the next executable lookup fails.
+                    // GNU also rechecks the previous command when the
+                    // kernel rejects the next launch's argument list.
                     let sync_mode = self.output.mode();
-                    if executable_launch_failed
+                    if (executable_launch_failed
+                        || err.kind() == io::ErrorKind::ArgumentListTooLong)
                         && !self.remaking
                         && remake.is_none()
                         && branch.is_none()

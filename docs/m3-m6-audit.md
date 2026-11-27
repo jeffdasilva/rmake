@@ -334,7 +334,8 @@ covers mixed required and optional failure policies.
   path before printing the recipe error. A parallel recipe continuation
   also retains the latest launch across a no-child line and ignored
   launch failures. Target, line and recursive sync keep their respective
-  output dump boundaries around the recheck.
+  output dump boundaries around the recheck. A launch rejected with E2BIG
+  also rechecks the prior executable in direct and target-sync output.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)
