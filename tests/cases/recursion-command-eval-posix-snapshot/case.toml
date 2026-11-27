@@ -1,0 +1,19 @@
+id = "recursion-command-eval-posix-snapshot"
+requirement = "recursion.environment"
+candidate = "required"
+description = "The child runs both encoded evals and inherits the original command variable from the POSIX snapshot."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--eval=EARLY = first", "--eval=EARLY += second", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|krR -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|first second
+READ|undefined||krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(-*-command-variables-*-)|first second
+RUN|environment|from-cli|undefined||undefined|krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(-*-command-variables-*-)
+ENV|krRs -j1 --no-print-directory --eval=EARLY\ =\ first --eval=EARLY\ +=\ second -- MARK=from-cli
+CHILD_READ|1|file|first second|command line|from-cli|undefined||krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)
+CHILD_RUN|1|file|first second|command line|from-cli|undefined||krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|krRs -j1 --no-print-directory --eval=EARLY\ =\ first --eval=EARLY\ +=\ second -- MARK=from-cli
+'''

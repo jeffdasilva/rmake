@@ -273,6 +273,8 @@ snapshot at both process entries. The remake and goal witnesses distinguish
 the omitted public suffix from explicit republication and the POSIX hidden
 snapshot. Separate one-child cases check the exported flag bytes and the
 child's command-line values and origins.
+Inherited command-line eval cases also check effects in both processes and
+literal delimiter bytes in the child's received flags.
 
 **Evidence**
 
