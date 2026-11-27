@@ -252,7 +252,8 @@ NUL boundaries, rebinding and cancellation.
   branches retain that marker when unvisited or when their first visit finds
   no file.
   A serial parent that rebuilds a deferred named intermediate consumes its
-  settled timestamp before cleanup, so the dump retains that observation.
+  settled timestamp before cleanup. Completed plain double-colon branches
+  report the shared final timestamp or checked absence on both records.
   The post-read file policy marks .PHONY prerequisites as targets before
   visits begin, including when a later setup diagnostic stops traversal.
   This publication also enables the .PRECIOUS marker for file and pattern
