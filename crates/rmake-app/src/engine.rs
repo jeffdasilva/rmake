@@ -1526,6 +1526,12 @@ enum ScopedExpansionSite {
     ShellConfiguration,
 }
 
+enum RequiredIncludeReads {
+    Ignore,
+    Missing,
+    All,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PrerequisiteVisit {
     First,
@@ -2502,9 +2508,14 @@ impl Engine {
             && !MakefileModes::from_options(&self.options).active()
             && (self.parallel_jobs.is_empty() || self.one_running_ordinary_recipe());
         let first_recipe_include = observe_recipe_includes.then(|| {
-            let include_required =
-                site == ScopedExpansionSite::RecipeBody && self.parallel_jobs.is_empty();
-            (self.database.makefiles.len(), include_required)
+            let required = match site {
+                ScopedExpansionSite::RecipeBody if self.parallel_jobs.is_empty() => {
+                    RequiredIncludeReads::All
+                }
+                ScopedExpansionSite::RecipeBody => RequiredIncludeReads::Missing,
+                _ => RequiredIncludeReads::Ignore,
+            };
+            (self.database.makefiles.len(), required)
         });
         let mut target_reads = TargetReads {
             visits: &self.file_traversals,
@@ -2558,8 +2569,8 @@ impl Engine {
         for (name, opened) in open_results {
             self.retain_include_open_time(name, opened);
         }
-        if let Some((first, include_required)) = first_recipe_include {
-            self.retain_scoped_include_open_times(first, include_required);
+        if let Some((first, required)) = first_recipe_include {
+            self.retain_scoped_include_open_times(first, required);
         }
         result
     }
@@ -2582,7 +2593,7 @@ impl Engine {
         .then_some(job)
     }
 
-    fn retain_scoped_include_open_times(&mut self, first: usize, include_required: bool) {
+    fn retain_scoped_include_open_times(&mut self, first: usize, required: RequiredIncludeReads) {
         // The reader records the directive's optional policy and the
         // selected file identity together.
         let observations: Vec<_> = self
@@ -2591,6 +2602,11 @@ impl Engine {
             .iter()
             .skip(first)
             .filter(|file| {
+                let include_required = match required {
+                    RequiredIncludeReads::Ignore => false,
+                    RequiredIncludeReads::Missing => file.missing,
+                    RequiredIncludeReads::All => true,
+                };
                 (file.optional || include_required) && !self.file_traversals.has_outcome(&file.name)
             })
             .map(|file| (file.name.clone(), !file.missing))
@@ -19327,7 +19343,10 @@ impl Engine {
                             }
                             Err(err) => {
                                 if let Some(first) = first_export_include {
-                                    self.retain_scoped_include_open_times(first, false);
+                                    self.retain_scoped_include_open_times(
+                                        first,
+                                        RequiredIncludeReads::Ignore,
+                                    );
                                 }
                                 self.expansion_error(variable.definition(), &err);
                                 return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
@@ -19338,7 +19357,7 @@ impl Engine {
                     }
                 }
                 if let Some(first) = first_export_include {
-                    self.retain_scoped_include_open_times(first, false);
+                    self.retain_scoped_include_open_times(first, RequiredIncludeReads::Ignore);
                 }
                 if !export_selected(
                     &environment_variables,

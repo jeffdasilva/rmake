@@ -173,7 +173,7 @@ NUL boundaries, rebinding and cancellation.
   when the file has no completed visit and the parallel job queue is idle or
   holds one separate ordinary recipe.
   Required includes in the same recipe-body phase retain the failed open
-  while the parallel job queue is idle.
+  while the parallel job queue is idle or holds one separate ordinary recipe.
   A parse failure in a required source just opened by that idle recipe
   leaves its parent file unupdated and retains the included source location.
   With one launched phony sibling, a required source parse failure also leaves
