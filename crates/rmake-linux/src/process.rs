@@ -13,6 +13,7 @@ use std::process::Stdio;
 use std::sync::atomic::{AtomicU8, Ordering};
 
 const STANDARD_STREAMS: [c_int; 3] = [0, 1, 2];
+const STDIN_MASK: u8 = 0b001;
 const ALL_STANDARD_STREAMS: u8 = 0b111;
 const F_GETFD: c_int = 1;
 const F_SETFD: c_int = 2;
@@ -54,7 +55,12 @@ pub(crate) fn remember_inherited_streams() {
 /// Rust fills missing standard streams with placeholders. Keep those slots
 /// occupied in the parent, and let exec close them unless a child redirects.
 pub fn preserve_closed_startup_streams() {
-    let closed = STARTUP_CLOSED_STREAMS.load(Ordering::Relaxed);
+    // GNU checks again when none of the three streams was initially open.
+    // That case keeps the existing output path and inherited stdin handling.
+    let closed = match STARTUP_CLOSED_STREAMS.load(Ordering::Relaxed) {
+        ALL_STANDARD_STREAMS => STDIN_MASK,
+        streams => streams,
+    };
     if closed == 0 {
         return;
     }
@@ -75,11 +81,7 @@ pub fn preserve_closed_startup_streams() {
         }
         *errno = saved;
     }
-    // GNU caches its initial stream check once any stream is open. With all
-    // three closed, later descriptor reuse is a separate synchronization case.
-    if closed != ALL_STANDARD_STREAMS {
-        CLI_UNAVAILABLE_OUTPUTS.store(marked, Ordering::Relaxed);
-    }
+    CLI_UNAVAILABLE_OUTPUTS.store(marked & !STDIN_MASK, Ordering::Relaxed);
 }
 
 pub(crate) fn startup_output_was_closed(descriptor: c_int) -> bool {
