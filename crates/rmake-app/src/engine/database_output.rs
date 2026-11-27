@@ -700,6 +700,7 @@ pub(super) fn print_startup(host: &startup_exit::Host) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::engine::ImplicitSearchEntry;
 
     fn engine() -> Engine {
         let launch = Engine::invocation(
@@ -730,7 +731,7 @@ mod tests {
                 .read(source.as_bytes(), b"Makefile")
                 .unwrap();
             let plan = engine
-                .plan_implicit_update(b"marker.out", 0, true, None)
+                .plan_implicit_update(b"marker.out", 0, ImplicitSearchEntry::GraphRoot)
                 .unwrap()
                 .unwrap();
             for (index, name) in children.iter().enumerate() {
@@ -788,7 +789,7 @@ mod tests {
             .unwrap();
         assert!(
             engine
-                .plan_implicit_update(b"marker.out", 0, true, None)
+                .plan_implicit_update(b"marker.out", 0, ImplicitSearchEntry::GraphRoot)
                 .unwrap()
                 .is_none()
         );
@@ -812,7 +813,7 @@ mod tests {
             )
             .unwrap();
         let plan = engine
-            .plan_implicit_update(b"marker.out", 0, false, Some(0))
+            .plan_implicit_update(b"marker.out", 0, ImplicitSearchEntry::DoubleColon(Some(0)))
             .unwrap()
             .unwrap();
         assert!(

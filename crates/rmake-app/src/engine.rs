@@ -18,6 +18,7 @@ use crate::makefiles::{IncludeSearch, source_open_exhausted};
 use crate::recipe_flow::{
     Cleanup, Execution, Flow, RecipeExpansionInterruption, Shutdown, Status, TouchCompletion,
 };
+use rmake_core::database::History;
 use rmake_core::diagnostic::{
     Diagnostic, ExpansionContext, IncludeError, IncludeFailure, Output, OutputReceiver, ScopeParent,
 };
@@ -1655,6 +1656,7 @@ struct ImplicitSelection {
     explicit_names: Vec<Vec<u8>>,
     intermediate_names: Vec<Vec<u8>>,
     single_stem_input: bool,
+    sibling_history_prepared: bool,
 }
 
 enum ImplicitFilenames {
@@ -1679,6 +1681,7 @@ struct ImplicitSearchSession {
     active: Vec<usize>,
     budget: usize,
     debug_depth: usize,
+    graph_root: bool,
     root_children: Vec<ImplicitSelection>,
     published: HashMap<Vec<u8>, PublishedImplicit>,
     scope_revision: usize,
@@ -1696,6 +1699,12 @@ struct PendingImplicitRoot {
     selection: ImplicitSelection,
     children: Vec<ImplicitSelection>,
     published: HashMap<Vec<u8>, PublishedImplicit>,
+}
+
+enum ImplicitSearchEntry {
+    GraphRoot,
+    Intermediate,
+    DoubleColon(Option<usize>),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -11637,7 +11646,12 @@ impl Engine {
             Some(rule) => (true, rule.record_only.then(|| rule.dependencies.clone())),
             None => (false, Some(Vec::new())),
         };
-        let Ok(plan) = self.plan_implicit_update(target, debug_depth, true, None) else {
+        let entry = if graph_visit {
+            ImplicitSearchEntry::GraphRoot
+        } else {
+            ImplicitSearchEntry::Intermediate
+        };
+        let Ok(plan) = self.plan_implicit_update(target, debug_depth, entry) else {
             return false;
         };
         if plan.is_none()
@@ -11666,15 +11680,17 @@ impl Engine {
         &mut self,
         target: &[u8],
         debug_depth: usize,
-        record_attempt: bool,
-        branch: Option<usize>,
+        entry: ImplicitSearchEntry,
     ) -> Result<Option<PendingImplicitRoot>, ()> {
         if self.terminal_prerequisites.contains(target) {
             return Ok(None);
         }
-        if record_attempt {
+        let branch = if let ImplicitSearchEntry::DoubleColon(branch) = entry {
+            branch
+        } else {
             self.database_implicit.insert(target.to_vec());
-        }
+            None
+        };
         // Retain the attempted lookup for the database. With no rules, only
         // implicit tracing needs to visit the empty search phases.
         if self.database.database_implicit_rules().is_empty()
@@ -11690,6 +11706,7 @@ impl Engine {
             active: Vec::new(),
             budget: 100_000,
             debug_depth,
+            graph_root: matches!(entry, ImplicitSearchEntry::GraphRoot),
             root_children: Vec::new(),
             published: HashMap::new(),
             scope_revision: 0,
@@ -11756,23 +11773,45 @@ impl Engine {
         }
         let inferred: HashMap<_, _> = children
             .iter()
-            .map(|child| (child.name.as_slice(), &child.rule))
+            .map(|child| (child.name.as_slice(), child))
             .collect();
-        let plain_child_history = self.database.database_history().and_then(|history| {
-            self.plain_implicit_child_input(parent, &children, placement)
-                .map(|(input, stem, pattern)| (history.clone(), input, stem, pattern))
-        });
+        let history = self.database.database_history();
+        let single_child_input = if history.is_some()
+            && placement == ImplicitPlacement::Root
+            && parent.single_stem_input
+            && let [child] = children.as_slice()
+            && self.plain_implicit_history_allowed()
+        {
+            self.plain_implicit_child_input(&parent.name, child)
+        } else {
+            None
+        };
+        let history = history
+            .filter(|_| {
+                single_child_input.is_some()
+                    || children.iter().any(|child| child.sibling_history_prepared)
+            })
+            .cloned();
         for child in &children {
             self.retain_implicit_selection_history(child, ImplicitPlacement::Descendant);
         }
         // Process candidate inputs in reverse order when their owner accepts.
         for dependency in parent.rule.dependencies.iter().rev() {
             if let Some(child) = inferred.get(dependency.name.as_slice()) {
-                if let Some((history, input, stem, pattern)) = &plain_child_history {
-                    // The sole child accepted its leaf before this parent attached it.
-                    history.intern(input);
-                    history.intern(stem);
-                    history.record_file_lookup(pattern);
+                let retained = history.as_ref().and_then(|history| {
+                    if child.sibling_history_prepared {
+                        return child
+                            .rule
+                            .implicit_pattern
+                            .as_deref()
+                            .map(|pattern| (history, pattern));
+                    }
+                    single_child_input.map(|input @ (_, _, pattern)| {
+                        Self::prepare_implicit_child_history(history, input);
+                        (history, pattern)
+                    })
+                });
+                if let Some((history, pattern)) = retained {
                     self.database
                         .file_records
                         .enter_prerequisite(&dependency.name);
@@ -11780,10 +11819,15 @@ impl Engine {
                 } else {
                     self.database.file_records.insert(&dependency.name);
                 }
-                for input in child.dependencies.iter().filter(|dep| dep.name != b".WAIT") {
+                for input in child
+                    .rule
+                    .dependencies
+                    .iter()
+                    .filter(|dep| dep.name != b".WAIT")
+                {
                     self.database.file_records.insert(&input.name);
                 }
-                if let Some((history, _, _, _)) = &plain_child_history {
+                if let Some((history, _)) = retained {
                     history.intern(&dependency.name);
                     history.record_file_lookup(&dependency.name);
                 }
@@ -11869,35 +11913,38 @@ impl Engine {
         }
     }
 
+    fn plain_implicit_history_allowed(&self) -> bool {
+        self.options.no_rules
+            && !self.remaking
+            && self.active_makefile_remake.is_none()
+            && !self.parallel_graph()
+            && !MakefileModes::from_options(&self.options).active()
+            && !self.database.has_vpaths()
+            && self.vpath_dirs.is_empty()
+            && self.gpath_dirs.is_empty()
+    }
+
+    fn plain_implicit_basename(&self, name: &[u8]) -> bool {
+        !name.contains(&b'/')
+            && !name.starts_with(b"-l")
+            && !name.starts_with(b"~")
+            && rmake_core::filenames::archive_parts(name).is_none()
+            && !self.aliases.contains_source_or_destination(name)
+    }
+
     fn plain_implicit_child_input<'a>(
         &self,
-        parent: &ImplicitSelection,
-        children: &'a [ImplicitSelection],
-        placement: ImplicitPlacement,
+        parent: &[u8],
+        child: &'a ImplicitSelection,
     ) -> Option<(&'a [u8], &'a [u8], &'a [u8])> {
-        let [child] = children else { return None };
         let [input] = child.rule.dependencies.as_slice() else {
             return None;
         };
-        if placement != ImplicitPlacement::Root
-            || !parent.single_stem_input
-            || !child.single_stem_input
-            || !self.options.no_rules
-            || self.remaking
-            || self.active_makefile_remake.is_some()
-            || self.parallel_graph()
-            || MakefileModes::from_options(&self.options).active()
-            || self.database.has_vpaths()
-            || !self.vpath_dirs.is_empty()
-            || !self.gpath_dirs.is_empty()
+        if !child.single_stem_input
             || self.database.file_records.contains(&child.name)
-            || [&parent.name, &child.name, &input.name].iter().any(|name| {
-                name.contains(&b'/')
-                    || name.starts_with(b"-l")
-                    || name.starts_with(b"~")
-                    || rmake_core::filenames::archive_parts(name).is_some()
-                    || self.aliases.contains_source_or_destination(name)
-            })
+            || [parent, &child.name, &input.name]
+                .into_iter()
+                .any(|name| !self.plain_implicit_basename(name))
         {
             return None;
         }
@@ -11923,6 +11970,15 @@ impl Engine {
             child.rule.stem.as_deref()?,
             child.rule.implicit_pattern.as_deref()?,
         ))
+    }
+
+    fn prepare_implicit_child_history(
+        history: &History,
+        (input, stem, pattern): (&[u8], &[u8], &[u8]),
+    ) {
+        history.intern(input);
+        history.intern(stem);
+        history.record_file_lookup(pattern);
     }
 
     fn retain_implicit_selection_history(
@@ -11971,6 +12027,7 @@ impl Engine {
             explicit_names: _,
             intermediate_names,
             single_stem_input: _,
+            sibling_history_prepared: _,
         } = selection;
         let descendant = placement == ImplicitPlacement::Descendant;
         let detached = placement == ImplicitPlacement::DoubleColonRoot;
@@ -12062,7 +12119,11 @@ impl Engine {
     ) -> Result<Option<Rule>, ()> {
         let depth = depth + usize::from(self.remaking);
         Ok(
-            match self.plan_implicit_update(target, depth, false, branch)? {
+            match self.plan_implicit_update(
+                target,
+                depth,
+                ImplicitSearchEntry::DoubleColon(branch),
+            )? {
                 Some(plan) => self.install_implicit_plan(plan, ImplicitPlacement::DoubleColonRoot),
                 None => self.default_update_rule(target, depth, true),
             },
@@ -12242,6 +12303,35 @@ impl Engine {
                 if stem_too_long {
                     continue;
                 }
+                let record_sibling_history = chain
+                    && session.graph_root
+                    && !intermediate
+                    && !archive_search
+                    && search.branch.is_none()
+                    && candidate.rule.dependencies.len() > 1
+                    && candidate.stem_dependencies.len() == candidate.rule.dependencies.len()
+                    && candidate.rule.secondary.is_none()
+                    && candidate.rule.group.is_none()
+                    && !candidate.rule.terminal
+                    && !self.shuffle.enabled()
+                    && self.database.database_history().is_some()
+                    && self.plain_implicit_history_allowed()
+                    && self.plain_implicit_basename(target)
+                    && {
+                        let mut names = HashSet::new();
+                        candidate.rule.dependencies.iter().all(|dependency| {
+                            let name = dependency.name.as_slice();
+                            !dependency.order_only
+                                && !dependency.hidden
+                                && !name.is_empty()
+                                && name != b".WAIT"
+                                && self.plain_implicit_basename(name)
+                                && !name
+                                    .iter()
+                                    .any(|byte| byte.is_ascii_whitespace() || b"*?[".contains(byte))
+                                && names.insert(name)
+                        })
+                    };
                 let mut plan = Vec::new();
                 let mut explicit_names = Vec::new();
                 let mut intermediate_names = Vec::new();
@@ -12567,9 +12657,21 @@ impl Engine {
                                             event_depth,
                                         ),
                                     );
-                                    if let Some(child) =
+                                    if let Some(mut child) =
                                         self.implicit_plan(name, session, compatibility, None)?
                                     {
+                                        // GNU keeps a successful child's preparations even if
+                                        // a later prerequisite rejects the parent candidate.
+                                        if record_sibling_history
+                                            && child.prepared_scope.is_none()
+                                            && self.plain_implicit_history_allowed()
+                                            && let Some(history) = self.database.database_history()
+                                            && let Some(input) =
+                                                self.plain_implicit_child_input(target, &child)
+                                        {
+                                            Self::prepare_implicit_child_history(history, input);
+                                            child.sibling_history_prepared = true;
+                                        }
                                         plan.push(child);
                                     } else {
                                         if let Some(label) = &debug_label {
@@ -12647,6 +12749,7 @@ impl Engine {
                         intermediate_names,
                         prepared_scope: search.intermediate_scope.take().map(Box::new),
                         single_stem_input,
+                        sibling_history_prepared: false,
                     };
                     if intermediate {
                         self.publish_implicit_children(
@@ -16352,9 +16455,11 @@ impl Engine {
                     .database_branch_implicit
                     .insert((target.to_vec(), ordinal))
             {
-                let Ok(plan) =
-                    self.plan_implicit_update(target, state.depth, false, implicit_branch)
-                else {
+                let Ok(plan) = self.plan_implicit_update(
+                    target,
+                    state.depth,
+                    ImplicitSearchEntry::DoubleColon(implicit_branch),
+                ) else {
                     state.combined.failed = true;
                     state.combined.fatal = true;
                     state.branches.clear();
@@ -21343,6 +21448,7 @@ mod tests {
                     intermediate_names: Vec::new(),
                     prepared_scope: None,
                     single_stem_input: false,
+                    sibling_history_prepared: false,
                 },
                 children: Vec::new(),
                 published: HashMap::new(),
