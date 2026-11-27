@@ -1,0 +1,17 @@
+id = "command-replay-literal-override-ordinary-explicit-words"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "A literal MAKEFLAGS override supplies the complete post-read replay."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["-rRk", "--no-print-directory", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|krR -j1 --no-print-directory -- $(MAKEOVERRIDES)|
+READ|override|explicit|--silent -- MARK=explicit SIDE=published|
+RUN|override|explicit|override|published|--silent -- MARK=explicit SIDE=published
+ENV|--silent -- MARK=explicit SIDE=published
+'''

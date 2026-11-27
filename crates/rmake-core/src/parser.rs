@@ -28,6 +28,8 @@ use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
+const PUBLIC_COMMAND_OVERRIDES_REFERENCE: &[u8] = b" -- $(MAKEOVERRIDES)";
+
 fn source_read_error_at(
     file: SourceName,
     detail: Vec<u8>,
@@ -3387,7 +3389,14 @@ impl Database {
                 !self.canonical_flags_published || self.variables.has_special_makeflags()
             };
         if replay_flags {
-            self.reset_assigned_flags(origin, None, context.reborrow())?;
+            let ordinary_file_assignment = origin == Origin::File
+                && matches!(spec.kind, Assignment::Recursive | Assignment::Append)
+                && definition.is_some()
+                && self.evaluation_depth == 0
+                && self.evaluation_scope.is_none()
+                && self.target_read.is_none()
+                && self.evaluation_bindings.is_empty();
+            self.reset_assigned_flags(origin, None, ordinary_file_assignment, context.reborrow())?;
             return Ok(flag_binding);
         }
         Ok(None)
@@ -3455,12 +3464,23 @@ impl Database {
         &mut self,
         origin: Origin,
         named_target: Option<&[u8]>,
+        ordinary_file_assignment: bool,
         mut context: ExpansionContext<'_>,
     ) -> Result<usize, ExpandError> {
-        let encoded_overrides = self
-            .variables
-            .get(b"MAKEFLAGS")
-            .is_some_and(|variable| Self::has_command_overrides_reference(variable.raw_value()));
+        let encoded_overrides = self.variables.get(b"MAKEFLAGS").is_some_and(|variable| {
+            let raw = variable.raw_value();
+            // Under -e the file assignment can leave the original canonical
+            // value in place. The live setter decodes that public suffix at
+            // the attempted assignment's origin, even after .POSIX enables
+            // the hidden suffix for subsequent publications.
+            let replay_public_overrides = ordinary_file_assignment
+                && self.canonical_flags_published
+                && variable.origin() == Origin::EnvironmentOverride
+                && variable.flavor() == Flavor::Recursive
+                && variable.definition().is_none()
+                && raw.ends_with(PUBLIC_COMMAND_OVERRIDES_REFERENCE);
+            !replay_public_overrides && Self::has_command_overrides_reference(raw)
+        });
         let value = self.expand_with(b"$(MAKEFLAGS)", context.reborrow())?;
         let extent = value.len();
         context.update_makeflags_in(self, origin, value, encoded_overrides, named_target)?;
@@ -4141,7 +4161,8 @@ impl Database {
             });
             let destination = (!matches!(owner, ConditionalFlagBinding::Current)).then_some(target);
             database.evaluation_scope = Some(std::mem::take(read));
-            let result = database.reset_assigned_flags(assignment.origin, destination, context);
+            let result =
+                database.reset_assigned_flags(assignment.origin, destination, false, context);
             *read = database.evaluation_scope.take().expect("named flag scope");
             let extent = result?;
             read.qualify_named_flags(owner, assignment.private, assignment.export);
@@ -4874,7 +4895,7 @@ impl Database {
         if self.posix {
             b" -- $(-*-command-variables-*-)"
         } else {
-            b" -- $(MAKEOVERRIDES)"
+            PUBLIC_COMMAND_OVERRIDES_REFERENCE
         }
     }
 

@@ -1,0 +1,17 @@
+id = "command-replay-literal-override-posix-env-append"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "A literal MAKEFLAGS override supplies the complete post-read replay."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["-rRk", "--no-print-directory", "--jobs=1", "-e", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|ekrR -j1 --no-print-directory -- $(MAKEOVERRIDES)|
+READ|undefined||ekrR -j1 --no-print-directory --silent|
+RUN|undefined||undefined||ekrR -j1 --no-print-directory --silent
+ENV|ekrR -j1 --no-print-directory --silent
+'''

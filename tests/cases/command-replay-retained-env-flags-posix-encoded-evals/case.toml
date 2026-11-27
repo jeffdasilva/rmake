@@ -1,0 +1,18 @@
+id = "command-replay-retained-env-flags-posix-encoded-evals"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "Two encoded eval inputs ending in delimiter-like text retain their exact values while the public override is replayed."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--environment-overrides", "--eval=EARLY := kept --", "--eval=EARLY += later --", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|ekrR -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|kept -- later --
+ALIAS|read|undefined
+READ|file|from-public|ekrR -j1 --no-print-directory $(-*-eval-flags-*-) -- $(-*-command-variables-*-)|kept -- later --
+RUN|environment override|from-cli|file|undefined|ekrR -j1 --no-print-directory $(-*-eval-flags-*-) -- $(-*-command-variables-*-)
+ENV|ekrR -j1 --no-print-directory --eval=EARLY\ :=\ kept\ -- --eval=EARLY\ +=\ later\ -- -- MARK=from-cli
+'''
