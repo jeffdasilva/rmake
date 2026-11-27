@@ -76,6 +76,13 @@ verifying the private locale and GNU Make catalog. The optimized rmake build
 then runs the same diagnostics against the verified reference and retains its
 own report.
 
+The parser and stdin step runs nine selected mixed-rule and missing-rule models
+against GNU twice for each of the development and optimized builds. It covers
+fatal diagnostics from a Makefile and `--eval`, warnings that allow the recipe
+to run, and valid controls. German and Japanese use `LANGUAGE` fallback over
+the existing French locale data. The hosted job retains the native AArch64
+reports for both builds.
+
 ## Language and profile coverage
 
 The [catalog selection gate](../tests/catalog-coverage/README.md) exercises all
