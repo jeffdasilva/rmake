@@ -341,6 +341,159 @@
       "stderr": "",
       "status": 0,
       "merged": false
+    },
+    {
+      "id": "closed-output-stdout-direct",
+      "append_mode": "closed-stdout",
+      "environment": {},
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "inputs": {
+        "Makefile": "all:;@/usr/bin/python3 append_witness.py inspect-recipe\n"
+      },
+      "seen": "recipe1 closed\nrecipe2 pipe append=0 nonblock=0\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "merged": false
+    },
+    {
+      "id": "closed-output-stderr-direct",
+      "append_mode": "closed-stderr",
+      "environment": {},
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "inputs": {
+        "Makefile": "all:;@/usr/bin/python3 append_witness.py inspect-recipe\n"
+      },
+      "seen": "recipe1 pipe append=0 nonblock=0\nrecipe2 closed\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "merged": false
+    },
+    {
+      "id": "closed-output-stdout-target-sync",
+      "append_mode": "closed-stdout",
+      "environment": {},
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Otarget",
+        "--jobserver-style=pipe",
+        "all"
+      ],
+      "inputs": {
+        "Makefile": "all:;@/usr/bin/python3 append_witness.py inspect-recipe\n"
+      },
+      "seen": "recipe1 closed\nrecipe2 file append=1 nonblock=0\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "merged": false
+    },
+    {
+      "id": "closed-output-stderr-line-sync",
+      "append_mode": "closed-stderr",
+      "environment": {},
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Oline",
+        "--jobserver-style=pipe",
+        "all"
+      ],
+      "inputs": {
+        "Makefile": "all:;@/usr/bin/python3 append_witness.py inspect-recipe\n"
+      },
+      "seen": "recipe1 file append=1 nonblock=0\nrecipe2 closed\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "merged": false
+    },
+    {
+      "id": "closed-output-both-recurse-sync",
+      "append_mode": "closed-both",
+      "environment": {},
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "-Orecurse",
+        "all"
+      ],
+      "inputs": {
+        "Makefile": "all:;@/usr/bin/python3 append_witness.py inspect-recipe\n"
+      },
+      "seen": "recipe1 closed\nrecipe2 closed\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "merged": false
+    },
+    {
+      "id": "closed-output-both-explicit-redirects",
+      "append_mode": "closed-both",
+      "environment": {},
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Otarget",
+        "--jobserver-style=pipe",
+        "all"
+      ],
+      "inputs": {
+        "Makefile": "all:;@/usr/bin/python3 append_witness.py inspect-recipe >redirect-out 2>redirect-err\n"
+      },
+      "seen": "recipe1 file append=0 nonblock=0\nrecipe2 file append=0 nonblock=0\n",
+      "remove": [],
+      "stdout": "",
+      "stderr": "",
+      "status": 0,
+      "merged": false,
+      "updates": {
+        "redirect-out": "",
+        "redirect-err": ""
+      }
+    },
+    {
+      "id": "closed-output-stdout-write-failure",
+      "append_mode": "closed-stdout",
+      "environment": {},
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j2",
+        "-Otarget",
+        "--jobserver-style=pipe",
+        "all"
+      ],
+      "inputs": {
+        "Makefile": "all:;@/usr/bin/printf \"recipe\\n\"\n"
+      },
+      "seen": null,
+      "remove": [],
+      "stdout": "",
+      "stderr": "/usr/bin/printf: write error: Bad file descriptor\nmake: *** [Makefile:1: all] Error 1\n",
+      "status": 2,
+      "merged": false
     }
   ]
 }

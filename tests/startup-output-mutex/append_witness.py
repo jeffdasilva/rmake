@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright 2026 Jeff DaSilva
 """Prepare inherited output slots and record parent and recipe flag ownership."""
+import errno
 import fcntl
 import os
 from pathlib import Path
@@ -10,6 +11,11 @@ import tempfile
 
 
 def launch(mode, argv):
+    closed = {"closed-stdout": (1,), "closed-stderr": (2,), "closed-both": (1, 2)}.get(mode)
+    if closed is not None:
+        for fd in closed:
+            os.close(fd)
+        os.execv(argv[0], argv)
     for fd in (1, 2):
         if mode == "regular":
             with tempfile.TemporaryFile(dir=".") as output:
@@ -52,7 +58,22 @@ def inspect():
     Path("seen").write_text("\n".join(rows) + "\n")
 
 
+def inspect_recipe():
+    rows = []
+    for fd in (1, 2):
+        try:
+            description = describe(os.fstat(fd), fcntl.fcntl(fd, fcntl.F_GETFL))
+        except OSError as error:
+            if error.errno != errno.EBADF:
+                raise
+            description = "closed"
+        rows.append(f"recipe{fd} {description}")
+    Path("seen").write_text("\n".join(rows) + "\n")
+
+
 if sys.argv[1:] == ["inspect"]:
     inspect()
+elif sys.argv[1:] == ["inspect-recipe"]:
+    inspect_recipe()
 else:
     launch(sys.argv[1], sys.argv[2:])

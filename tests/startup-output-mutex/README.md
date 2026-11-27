@@ -21,6 +21,10 @@ They check pipe and device flags, existing append and nonblocking flags, and
 append writes after a seek on inherited regular files. The synchronized
 control separately checks the recipe spool and inherited pipe flags.
 
+The closed-output profiles keep stdin open and check direct recipe inheritance,
+line, target and recursive synchronization, and explicit output redirection.
+A recipe write to a closed stdout must fail while the open stderr still drains.
+
 Run `make test-startup-output-mutex` or
 `make test-startup-output-mutex-release`. The existing live and passive
 output-lock suites retain their own fixtures.

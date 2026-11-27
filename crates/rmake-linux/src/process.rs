@@ -10,14 +10,17 @@ use std::os::fd::{AsRawFd, FromRawFd};
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 use std::process::Stdio;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 
-const STDIN: c_int = 0;
+const STANDARD_STREAMS: [c_int; 3] = [0, 1, 2];
+const STDIN_MASK: u8 = 0b001;
+const ALL_STANDARD_STREAMS: u8 = 0b111;
 const F_GETFD: c_int = 1;
 const F_SETFD: c_int = 2;
 const FD_CLOEXEC: c_int = 1;
 const EBADF: c_int = 9;
-static STARTUP_STDIN_CLOSED: AtomicBool = AtomicBool::new(false);
+static STARTUP_CLOSED_STREAMS: AtomicU8 = AtomicU8::new(0);
+static CLI_UNAVAILABLE_OUTPUTS: AtomicU8 = AtomicU8::new(0);
 
 unsafe extern "C" {
     fn strsignal(number: c_int) -> *mut c_char;
@@ -31,36 +34,58 @@ unsafe extern "C" {
     fn euidaccess(path: *const c_char, mode: c_int) -> c_int;
 }
 
-pub(crate) fn remember_inherited_stdin() {
+pub(crate) fn remember_inherited_streams() {
     // SAFETY: F_GETFD only observes the descriptor. Restore the startup
     // thread's errno, which also makes this constructor safe for library users.
     unsafe {
         let errno = __errno_location();
         let saved = *errno;
-        let closed = fcntl(STDIN, F_GETFD) < 0 && *errno == EBADF;
-        STARTUP_STDIN_CLOSED.store(closed, Ordering::Relaxed);
+        let mut closed = 0;
+        for descriptor in STANDARD_STREAMS {
+            if fcntl(descriptor, F_GETFD) < 0 && *errno == EBADF {
+                closed |= 1 << descriptor;
+            }
+        }
+        STARTUP_CLOSED_STREAMS.store(closed, Ordering::Relaxed);
         *errno = saved;
     }
 }
 
 /// The CLI calls this before its first native operation after Rust startup.
-/// Rust fills a missing stdin with a placeholder. Keep that slot occupied in
-/// the parent, and let exec close it unless a child selects its own input.
-pub fn preserve_closed_startup_stdin() {
-    if !STARTUP_STDIN_CLOSED.load(Ordering::Relaxed) {
+/// Rust fills missing standard streams with placeholders. Keep those slots
+/// occupied in the parent, and let exec close them unless a child redirects.
+pub fn preserve_closed_startup_streams() {
+    // GNU checks again when none of the three streams was initially open.
+    // That case keeps the existing output path and inherited stdin handling.
+    let closed = match STARTUP_CLOSED_STREAMS.load(Ordering::Relaxed) {
+        ALL_STANDARD_STREAMS => STDIN_MASK,
+        streams => streams,
+    };
+    if closed == 0 {
         return;
     }
     // SAFETY: the entry observation and immediate CLI call bracket Rust's
-    // repair. Only the replacement's descriptor flags are changed.
+    // repair. Only replacement descriptor flags are changed.
+    let mut marked = 0;
     unsafe {
         let errno = __errno_location();
         let saved = *errno;
-        let flags = fcntl(STDIN, F_GETFD);
-        if flags >= 0 {
-            fcntl(STDIN, F_SETFD, flags | FD_CLOEXEC);
+        for descriptor in STANDARD_STREAMS {
+            let mask = 1 << descriptor;
+            if closed & mask != 0 {
+                let flags = fcntl(descriptor, F_GETFD);
+                if flags >= 0 && fcntl(descriptor, F_SETFD, flags | FD_CLOEXEC) >= 0 {
+                    marked |= mask;
+                }
+            }
         }
         *errno = saved;
     }
+    CLI_UNAVAILABLE_OUTPUTS.store(marked & !STDIN_MASK, Ordering::Relaxed);
+}
+
+pub(crate) fn startup_output_was_closed(descriptor: c_int) -> bool {
+    CLI_UNAVAILABLE_OUTPUTS.load(Ordering::Relaxed) & (1 << descriptor) != 0
 }
 
 /// Probe an executable candidate using the caller's effective credentials.

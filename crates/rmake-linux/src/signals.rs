@@ -47,7 +47,7 @@ unsafe extern "C" {
 // Rust's startup changes SIGPIPE to SIG_IGN. Record its inherited disposition
 // before lang_start so explicit inherited ignore can still be honored.
 extern "C" fn remember_inherited_state() {
-    crate::process::remember_inherited_stdin();
+    crate::process::remember_inherited_streams();
     let old = unsafe { signal(13, 1) };
     if old != usize::MAX {
         INITIAL_PIPE.store(i32::from(old == 1), Ordering::Relaxed);
