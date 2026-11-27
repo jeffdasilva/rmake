@@ -45,8 +45,11 @@ at the end of this audit.
   non-POSIX suffix also reuses the result of a file-defined recursive
   `MAKEOVERRIDES` so its expansion effects run once before the first recipe.
   A changed canonical POSIX suffix that directly names the automatic
-  command-line snapshot replays that expanded snapshot. The original
-  command-line source is read again in the next process image after a restart.
+  command-line snapshot replays that expanded snapshot. When the reader
+  republishes canonical `MAKEFLAGS` without its public override suffix,
+  post-read replay has no override words. A later `MAKEOVERRIDES` definition
+  can supply the suffix on the next publication. The original command-line
+  source is read again in the next process image after a restart.
   The startup preload list uses one expansion of `MAKEFILES` after command-line
   eval. An absent binding can warn at that point, while a defined empty binding
   leaves the preload list empty.
@@ -262,6 +265,12 @@ Process-image replacement is implemented. Remaining restart work combines startu
 assignment replay, winning command variables, directory namespaces, inherited
 state, native standard streams, failure/resource limits and enabled Guile.
 Named sources must retain the selected operand while startup effects replay.
+
+The serial command-override restart cases record the original command-line
+snapshot at both process entries. The remake and goal witnesses distinguish
+the omitted public suffix from explicit republication and the POSIX hidden
+snapshot. Separate one-child cases check the exported flag bytes and the
+child's command-line values and origins.
 
 **Evidence**
 

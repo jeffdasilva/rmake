@@ -1,0 +1,20 @@
+id = "recursion-postread-override-republished"
+requirement = "recursion.environment"
+candidate = "required"
+description = "Republishing the alias permits post-read assignments, so child SIDE records the parent's environment MARK origin at export."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--no-print-directory", "--keep-going", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = """
+READ|0|undefined|krRs -j1 --no-print-directory -- $(MAKEOVERRIDES)
+OVERRIDES|0|undefined
+PARENT|0|environment|from-public|environment|undefined
+OVERRIDES|0|environment
+INHERITED|krRs -j1 --no-print-directory -- MARK=from-public SIDE=environment
+CHILD_READ|1|command line|from-public|command line|environment|krRs -j1 --no-print-directory -- $(MAKEOVERRIDES)|krRs -j1 --no-print-directory -- SIDE=environment MARK=from-public
+CHILD_RUN|1|command line|from-public|command line|environment|krRs -j1 --no-print-directory -- $(MAKEOVERRIDES)|krRs -j1 --no-print-directory -- SIDE=environment MARK=from-public
+"""
