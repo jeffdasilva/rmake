@@ -1,0 +1,23 @@
+id = "include-restart-command-overrides-publish-then-omit"
+requirement = "includes.remake"
+candidate = "required"
+description = "The initial image republishes the alias before the remake, and the restarted image independently omits it during replay."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["-rRk", "--no-print-directory", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = """
+READ|initial|command line|from-cli|undefined||krR -j1 --no-print-directory -- $(MAKEOVERRIDES)|MARK=from-cli
+PUBLIC|initial|undefined
+REMAKE|initial|environment|from-public|environment|undefined|krRs -j1 --no-print-directory -- $(MAKEOVERRIDES)|MARK=from-cli
+PUBLIC|initial|environment
+REMAKE_ENV|krRs -j1 --no-print-directory -- MARK=from-public SIDE=environment
+READ|1|command line|from-cli|undefined||krR -j1 --no-print-directory -- $(MAKEOVERRIDES)|MARK=from-cli
+PUBLIC|1|undefined
+GOAL|1|undefined||undefined||krRs -j1 --no-print-directory -- $(MAKEOVERRIDES)|MARK=from-cli|krRs -j1 --no-print-directory -- MARK=from-public SIDE=undefined
+PUBLIC|1|undefined
+GOAL_ENV|krRs -j1 --no-print-directory -- MARK=from-public SIDE=undefined
+"""

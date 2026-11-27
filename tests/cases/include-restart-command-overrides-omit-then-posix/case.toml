@@ -1,0 +1,20 @@
+id = "include-restart-command-overrides-omit-then-posix"
+requirement = "includes.remake"
+candidate = "required"
+description = "The initial image omits the late public alias during replay, and the restarted POSIX image uses the original command snapshot."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["-rRk", "--no-print-directory", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = """
+READ|initial|command line|from-cli|undefined||krR -j1 --no-print-directory -- $(MAKEOVERRIDES)|MARK=from-cli
+REMAKE|initial|undefined||undefined||krRs -j1 --no-print-directory -- $(MAKEOVERRIDES)|MARK=from-cli
+PUBLIC|initial|undefined
+REMAKE_ENV|krRs -j1 --no-print-directory -- MARK=from-public SIDE=undefined
+READ|1|command line|from-cli|undefined||krR -j1 --no-print-directory -- $(MAKEOVERRIDES)|MARK=from-cli
+GOAL|1|environment|from-cli|undefined||krRs -j1 --no-print-directory -- $(-*-command-variables-*-)|MARK=from-cli|krRs -j1 --no-print-directory -- MARK=from-cli
+GOAL_ENV|krRs -j1 --no-print-directory -- MARK=from-cli
+"""

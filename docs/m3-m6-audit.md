@@ -266,6 +266,12 @@ assignment replay, winning command variables, directory namespaces, inherited
 state, native standard streams, failure/resource limits and enabled Guile.
 Named sources must retain the selected operand while startup effects replay.
 
+The serial command-override restart cases record the original command-line
+snapshot at both process entries. The remake and goal witnesses distinguish
+the omitted public suffix from explicit republication and the POSIX hidden
+snapshot. Separate one-child cases check the exported flag bytes and the
+child's command-line values and origins.
+
 **Evidence**
 
 - [Startup include search](startup-include-search.md),
