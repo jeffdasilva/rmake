@@ -388,13 +388,30 @@ impl Engine {
         });
         // The post-read policy marks named intermediates before any visit.
         view.intermediate = self.intermediates.contains(name)
-            || (branch.is_none()
-                && !detached_head
+            || (!detached_head
                 && self.special(b".INTERMEDIATE", name, false)
-                && self
-                    .file_traversals
-                    .visit(name)
-                    .is_none_or(|visit| visit.existing_intermediate != Some(true)));
+                && if branch.is_none() {
+                    self.file_traversals
+                        .visit(name)
+                        .is_none_or(|visit| visit.existing_intermediate != Some(true))
+                } else {
+                    // A declared double-colon chain shares its first physical
+                    // observation. Finding an existing file clears the mark.
+                    !self.remaking
+                        && !self.parallel_graph()
+                        && !MakefileModes::from_options(&self.options).active()
+                        && self.database.has_plain_double_colon_rules(name)
+                        && rule.is_some_and(|rule| {
+                            rule.implicit_pattern.is_none() && !rule.default_recipe
+                        })
+                        && !self.aliases.contains_source_or_destination(name)
+                        && self.assumed_time(name).is_none()
+                        && rmake_core::filenames::archive_parts(name).is_none()
+                        && self
+                            .double_colon_before
+                            .get(name)
+                            .is_none_or(Option::is_none)
+                });
         view.not_intermediate = self.special(b".NOTINTERMEDIATE", name, true);
         let named_secondary = self.special(b".SECONDARY", name, false);
         view.secondary = named_secondary

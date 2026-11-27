@@ -246,7 +246,9 @@ NUL boundaries, rebinding and cancellation.
   file record.
   Borrowing a .DEFAULT recipe preserves the file’s target classification.
   Named `.INTERMEDIATE` policy is visible on ordinary file rows before
-  a visit and when the file is an explicit goal.
+  a visit and when the file is an explicit goal. Ordinary serial double-colon
+  branches retain that marker when unvisited or when their first visit finds
+  no file.
   A serial parent that rebuilds a deferred named intermediate consumes its
   settled timestamp before cleanup, so the dump retains that observation.
   The post-read file policy marks .PHONY prerequisites as targets before
