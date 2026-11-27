@@ -4,6 +4,7 @@ import gzip
 import hashlib
 import io
 import json
+import shutil
 import socket
 from pathlib import Path
 import tarfile
@@ -306,6 +307,34 @@ class IntegrationTests(unittest.TestCase):
                 records.restore(first)
             with self.assertRaisesRegex(h.HarnessError, 'blob changed'):
                 i.persist_part(root, 'third', value)
+
+    def test_report_part_restores_after_copying_the_bundle(self):
+        import base64
+        data = b'\x00\xffportable file\n'
+        value = {'filesystem': {'work/output': {'type': 'file', 'mode': 493,
+                 'content': base64.b64encode(data).decode(), 'size': len(data),
+                 'sha256': hashlib.sha256(data).hexdigest()}}}
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'original'
+            parts = source / 'report-raw-test'
+            parts.mkdir(parents=True)
+            record = i.persist_part(parts, 'fresh', value)
+            self.assertEqual(Path(record['path']), parts / 'fresh.json.gz')
+            self.assertEqual(record['bundle_path'], 'report-raw-test/fresh.json.gz')
+            self.assertEqual(json.loads(records.restore(record)), value)
+            report = source / 'report.json'
+            report.write_text(json.dumps({'part': record}))
+
+            relocated = Path(tmp) / 'download'
+            shutil.copytree(source, relocated)
+            shutil.rmtree(source)
+            part = json.loads((relocated / report.name).read_text())['part']
+            self.assertEqual(json.loads(records.restore(part, base=relocated)), value)
+            legacy = {**part, 'path': part['bundle_path']}
+            del legacy['bundle_path']
+            self.assertEqual(json.loads(records.restore(legacy, base=relocated)), value)
+            with self.assertRaisesRegex(h.HarnessError, 'escapes its bundle'):
+                records.restore({**part, 'bundle_path': '../outside.json.gz'}, base=relocated)
 
     def test_archive_metadata_encoding_is_not_mistaken_for_a_file_blob(self):
         value = {'encoding': records.ENCODING, 'sha256': 'record digest', 'raw_bytes': 15}

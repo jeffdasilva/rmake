@@ -216,7 +216,10 @@ paired `differences`. A report also records the manifest, executable identities,
 compiler/binutils/shell identities, host profile, runtime path and harness hashes.
 The report and raw parts retain the common input, preparation logs, each phase's
 streams and filesystem observations, and timestamp witnesses. Preserve the report and
-its associated raw directory together when reporting a difference.
+its associated raw directory together when reporting a difference. To restore
+a part from a moved or downloaded report, call
+`integration_records.restore(part, base=report_path.parent)`. The part's
+`bundle_path` locates the record within that directory layout.
 
 [Record storage](../tools/integration_records.py) deduplicates full file bytes by
 digest and reconstructs each original JSON record with integrity checks.

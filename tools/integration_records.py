@@ -66,8 +66,9 @@ def persist(directory, label, value):
 
 
 def restore(record, base=None):
-    """Verify every referenced byte and reconstruct the original complete JSON."""
-    path = Path(record['path'])
+    """Verify and reconstruct the record, rebasing bundle paths when requested."""
+    name = record['path'] if base is None else record.get('bundle_path', record['path'])
+    path = Path(name)
     if base is not None:
         if path.is_absolute() or '..' in path.parts:
             raise h.HarnessError('integration record escapes its bundle')
