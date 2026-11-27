@@ -332,6 +332,12 @@ latest search's runtime metadata is still available to the recipe.
 Named-target `MAKEFLAGS +=` assignments preserve their current outer global
 value through live option changes, recipe expansion and recursive export.
 
+Top-level serial implicit search outside makefile remaking records the current
+directory for a fixed, immediately resolved basename with an explicit
+declaration in a nonterminal candidate when dry-run alone is active at search
+entry and no path search is configured. Enabling dry-run in a rejected secondary
+expansion preserves the directory observation of the search already in progress.
+
 **What remains**
 
 Extend combined rule, resource and profile tests around implicit search, aliases,

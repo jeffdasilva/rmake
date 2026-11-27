@@ -12084,14 +12084,20 @@ impl Engine {
         let mut compatibility_needed = false;
         let mut cancelled = Vec::new();
         let intermediate = !session.active.is_empty();
-        let ordinary_local_search = !intermediate
+        let local_search = !intermediate
             && !archive_search
             && search.branch.is_none()
             && !self.remaking
             && self.active_makefile_remake.is_none()
             && !self.parallel_graph()
-            && !MakefileModes::from_options(&self.options).active()
             && rmake_core::filenames::archive_parts(target).is_none();
+        let modes = MakefileModes::from_options(&self.options);
+        let ordinary_local_search = local_search && !modes.active();
+        let dry_run_local_search = local_search
+            && modes.only_dry_run()
+            && !self.database.has_vpaths()
+            && self.vpath_dirs.is_empty()
+            && self.gpath_dirs.is_empty();
         let mut variables = None;
         for chain in [false, true] {
             if chain && !candidates.is_empty() {
@@ -12288,9 +12294,18 @@ impl Engine {
                             // needs a directory observation, including the current directory.
                             let relative_directory =
                                 !name.starts_with(b"/") && name.contains(&b'/');
-                            let refresh_declared_directory = ordinary_local_search
-                                && !deferred
-                                && (relative_directory || (!terminal && !stem_derived))
+                            let fixed_nonterminal = !terminal && !stem_derived;
+                            let dry_run_basename = dry_run_local_search
+                                && fixed_nonterminal
+                                && !name.contains(&b'/')
+                                && !name.starts_with(b"-l")
+                                && !name.starts_with(b"~")
+                                && MakefileModes::from_options(&self.options).only_dry_run()
+                                && !self.database.has_vpaths();
+                            let refresh_declared_directory = !deferred
+                                && ((ordinary_local_search
+                                    && (relative_directory || fixed_nonterminal))
+                                    || dry_run_basename)
                                 && rmake_core::filenames::archive_parts(name).is_none()
                                 && !self.aliases.contains_source_or_destination(name)
                                 && self.database.rules.get(name).is_some_and(|rule| {
