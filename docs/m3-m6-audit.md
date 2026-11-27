@@ -207,6 +207,8 @@ NUL boundaries, rebinding and cancellation.
   user errors, and built-in arity diagnostics. This also applies when serial
   shell or export preparation fails after an optimized no-op, before the
   first child launches.
+  A nonrecursive prefix-only recipe line between the optimized no-op and
+  export preparation retains this update state.
   Optional includes from target-specific shell configuration also retain
   their missing timestamps while the parallel job queue is idle or holds
   one separate ordinary recipe.
@@ -644,8 +646,11 @@ relationship validators for inherently variable process or time fields.
 The database now records accepted implicit rules before a recipe enables
 `-p`, including earlier goals that selected a rule. A small case such as
 `%.out: ; @$(eval MAKEFLAGS += -p):` can check this behavior. Other late-print
-cases still differ. Keep the original goal order when reporting one, since
-earlier goals can contribute to the lookup counters. The database cases also
+cases still differ. A serial two-rule implicit chain with one immediate
+stem-derived prerequisite per rule retains the attached child's lookup
+history in the startup and late-print cases. Keep the original goal order when
+reporting a discrepancy, since earlier goals can contribute to the lookup
+counters. The database cases also
 cover ordinary touch timestamps and when a later prerequisite observes a
 forced recipe's physical timestamp after an earlier failure.
 
