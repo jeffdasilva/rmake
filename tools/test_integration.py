@@ -97,6 +97,15 @@ class IntegrationTests(unittest.TestCase):
         self.assertNotEqual(serial['smoke_stdout_hex'],
                             serial['header_rebuild']['fresh_smoke_stdout_hex'])
 
+    def test_missing_output_recovery_is_opt_in_for_the_lua_pipe_profile(self):
+        cases = i.project_profiles(json.loads(i.MANIFEST.read_text()))
+        enabled = {name: profile['missing_output_recovery']
+                   for name, (profile, _) in cases.items() if 'missing_output_recovery' in profile}
+        self.assertEqual(enabled, {'lua-5.4.9': {
+            'output': 'src/lua',
+            'preserve': ['src/lua.o', 'src/lapi.o', 'src/luac.o', 'src/liblua.a', 'src/luac'],
+        }})
+
     def test_shared_zlib_profile_uses_the_pinned_archive_and_safe_install(self):
         plan = json.loads(i.MANIFEST.read_text())
         cases = i.project_profiles(plan)

@@ -176,6 +176,8 @@ NUL boundaries, rebinding and cancellation.
   while the parallel job queue is idle or holds one separate ordinary recipe.
   A parse failure in a required source just opened by that idle recipe
   leaves its parent file unupdated and retains the included source location.
+  The same result is visible when the recipe expansion enables `-p` before
+  opening the malformed source.
   With one launched phony sibling, a required source parse failure also leaves
   the expanding target and its waiting ordinary single-colon ancestors unupdated.
   Optional includes from target-specific shell configuration also retain
@@ -184,6 +186,8 @@ NUL boundaries, rebinding and cancellation.
   The ordinary recipe's exported bindings record the same observation
   while preparing a child environment with an idle queue or one separate
   ordinary recipe running.
+  Idle target-specific shell configuration and child export preparation also
+  retain the failed open of a required include.
   An accepted reopen clears that timestamp while preserving the update verdict.
   Startup preloads intern each list operand and the selected read name at their
   respective reader boundaries. The file table probes the normalized name
@@ -345,7 +349,9 @@ covers mixed required and optional failure policies.
   output. A local symlink loop triggers the recheck in ordinary serial output.
   In a serial dry run or query, a forced direct command that fails to find
   its executable also triggers the recheck. This covers ignored failures and
-  recursive output synchronization.
+  recursive output synchronization. The forced direct lookup recheck also
+  applies with an owned two-slot pipe jobserver and no other scheduled recipe.
+  Target synchronization keeps the forced recipe's direct output order.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)

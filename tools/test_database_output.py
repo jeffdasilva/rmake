@@ -38,6 +38,36 @@ class DatabaseOutputTests(unittest.TestCase):
     def altered_stdout(self, content):
         return replace(self.good, observation=replace(self.good.observation, stdout=content))
 
+    def test_held_worker_waits_for_buffered_diagnostic_before_releasing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            work = path / 'work'
+            work.mkdir()
+            proc = path / 'proc'
+            task = proc / 'task' / '12'
+            task.mkdir(parents=True)
+            (proc / 'wchan').write_text('do_wait\n')
+            (task / 'children').write_bytes(b'23')
+            (work / 'left.started').write_bytes(b'started\n')
+            diagnostic = b'include parse failed\n'
+            observer = d.HeldDatabaseWorker(work, observe_seen=False, expected_stderr=diagnostic)
+
+            with patch.object(d, 'Path', return_value=proc), patch.object(
+                d.held_remake, 'active_workers', return_value={'left': (23, 34)}
+            ):
+                for captured in (b'', b'include parse'):
+                    observer.observe_streams(b'', captured)
+                    observer.observe(12, b'')
+                    observer.observe(12, b'')
+                    self.assertIsNone(observer.release)
+                    self.assertFalse((work / 'left.release').exists())
+
+                observer.observe_streams(b'', diagnostic)
+                observer.observe(12, b'')
+                observer.observe(12, b'')
+                self.assertEqual(observer.release.stderr, diagnostic)
+                self.assertEqual((work / 'left.release').read_bytes(), b'yes\n')
+
     def test_multiple_dumps_keep_every_literal_byte_and_all_clock_pairs(self):
         def clock_index(template, index):
             return template.replace(b'@CTIME_OPEN@', f'@CTIME_OPEN_{index}@'.encode()).replace(
@@ -57,8 +87,8 @@ class DatabaseOutputTests(unittest.TestCase):
     def test_additive_phase_models_keep_original_inventory_and_native_sources_explicit(self):
         self.assertEqual(len(d.models()), 14)
         phases = d.models('phases')
-        self.assertEqual(len(phases), 340)
-        self.assertEqual(len(d.models('all')), 389)
+        self.assertEqual(len(phases), 354)
+        self.assertEqual(len(d.models('all')), 403)
         self.assertEqual({m.dump_count for m in phases}, {1, 2})
         self.assertEqual(sum(bool(m.compile_shared) for m in phases), 2)
         self.assertTrue(all(source in model.files for model in phases for source, _ in model.compile_shared))
@@ -66,7 +96,7 @@ class DatabaseOutputTests(unittest.TestCase):
     def test_search_models_pin_full_names_cache_storage_and_goal_flags(self):
         search = d.models('search')
         self.assertEqual(len(search), 32)
-        self.assertEqual(len({model.id for model in d.models('all')}), 389)
+        self.assertEqual(len({model.id for model in d.models('all')}), 403)
         self.assertTrue(all(not model.compile_shared for model in search))
         model = next(model for model in search if model.id == 'database-search-repeated-aliased')
         metadata = {name: {'device': 42, 'inode': 99 + index, 'mode': stat.S_IFDIR | 0o755}

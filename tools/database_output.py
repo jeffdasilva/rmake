@@ -397,9 +397,10 @@ def input_mtimes(model: Model, runtime: Path) -> dict[str, int | None]:
 
 
 class HeldDatabaseWorker:
-    def __init__(self, work: Path, *, observe_seen: bool):
+    def __init__(self, work: Path, *, observe_seen: bool, expected_stderr: bytes):
         self.work = work
         self.observe_seen = observe_seen
+        self.expected_stderr = expected_stderr
         self.stderr = b''
         self.previous = None
         self.release: WorkerRelease | None = None
@@ -409,6 +410,9 @@ class HeldDatabaseWorker:
 
     def observe(self, parent: int, stdout: bytes) -> None:
         if self.release is not None:
+            return
+        # The process can enter its wait before the capture loop sees stderr.
+        if self.stderr != self.expected_stderr and self.expected_stderr.startswith(self.stderr):
             return
         proc = Path('/proc', str(parent))
         try:
@@ -435,8 +439,6 @@ class HeldDatabaseWorker:
         marker = self.work / 'left.release'
         if marker.exists() or (self.work / 'left.done').exists():
             raise h.HarnessError('held database worker escaped its release barrier')
-        # Release a serial regression as well so it can finish and fail the
-        # diagnostic-prefix check without reaching the execution bound.
         pending = marker.with_suffix('.release.tmp')
         pending.write_bytes(b'yes\n')
         pending.chmod(0o644)
@@ -453,7 +455,8 @@ def execute(model: Model, case: h.Case, runtime: Path, executable: Path, *,
     public_before = expected.capture(runtime / "work", plan) if expected is not None and plan is not None else {}
     started = time.time()
     libc_started = libc_time()
-    observer = (HeldDatabaseWorker(runtime / 'work', observe_seen=model.worker_release_seen is not None)
+    observer = (HeldDatabaseWorker(runtime / 'work', observe_seen=model.worker_release_seen is not None,
+                                   expected_stderr=model.stderr)
                 if model.hold_left_worker else None)
     stdout, stderr, status, limit, leftovers = h.capture(
         [str(runtime / 'bin' / 'make'), *case.args], runtime / 'work', h.clean_environment(runtime, case.environment),

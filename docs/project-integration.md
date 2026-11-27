@@ -98,6 +98,11 @@ and the `lua` and `luac` executables. A single version fragment in `src/lua.h`
 changes before the rebuild. Fresh and rebuilt Lua executables must sort an
 independent input and print the expected result with their respective versions.
 Silent mode provides stable output while preserving every observed byte.
+The pipe profile also removes the rebuilt `src/lua` in the disposable build
+tree and reruns the upstream `linux` target. It checks that the executable is
+recreated with the same bytes and mode and passes the same smoke test. The
+library, companion `luac` executable and existing object files must retain
+their identity and timestamps.
 
 ### GNU gzip, Patch and Make
 

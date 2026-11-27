@@ -12,6 +12,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import platform
+import stat
 import sys
 import tarfile
 import tempfile
@@ -120,8 +121,9 @@ def project_profiles(plan):
             raise h.HarnessError('integration profile does not name a pinned source')
         fields = ('args', 'expected_build_stdout_hex', 'configure', 'target', 'watched',
                   'header', 'header_rebuild', 'smoke', 'smoke_stdout_hex', 'staged_install',
-                  'configuration', 'snapshot')
-        case = {**source, **{field: profile[field] for field in fields if field in profile}, 'id': name}
+                  'configuration', 'snapshot', 'missing_output_recovery')
+        defaults = {field: value for field, value in source.items() if field != 'missing_output_recovery'}
+        case = {**defaults, **{field: profile[field] for field in fields if field in profile}, 'id': name}
         cases[name] = (case, source)
     return cases
 
@@ -162,6 +164,17 @@ def freshness_errors(fresh, noop, rebuilt):
     if set(fresh) != set(rebuilt) or any(rebuilt.get(name, 0) <= stamp for name, stamp in fresh.items()):
         errors.append('header mutation did not rebuild watched outputs')
     return errors
+
+
+def recovery_metadata(work, names):
+    observed = {}
+    for name in sorted(names):
+        metadata = (work / safe_name(name)).lstat()
+        if not stat.S_ISREG(metadata.st_mode):
+            raise h.HarnessError('missing-output recovery needs a regular retained output: ' + name)
+        observed[name] = {'device': metadata.st_dev, 'inode': metadata.st_ino,
+                          'mtime_ns': metadata.st_mtime_ns, 'ctime_ns': metadata.st_ctime_ns}
+    return observed
 
 
 def rebuilt_header(project, original):
@@ -226,13 +239,20 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
     comparisons = []
     change = project.get('header_rebuild')
     expected_steps = 5 if change is not None else 4
+    recovery = project.get('missing_output_recovery')
+    if recovery is not None:
+        recovery_name = str(safe_name(recovery['output']))
+        if recovery_name not in project['watched'] or recovery_name in recovery['preserve']:
+            raise h.HarnessError('missing-output recovery must select one watched output to remove')
+        expected_steps += 2
     if configuration is not None:
         expected_steps += 1
         row['configuration_command'] = [str(runtime / 'bin/make'), *configuration['args']]
     expected_streams = {}
     if 'expected_build_stdout_hex' in project:
         expected_streams.update(dict.fromkeys(
-            ('fresh', 'noop', 'rebuild'), bytes.fromhex(project['expected_build_stdout_hex'])))
+            ('fresh', 'noop', 'rebuild', 'recover-missing-output'),
+            bytes.fromhex(project['expected_build_stdout_hex'])))
     staged = project.get('staged_install')
     smoke_command = project['smoke']
     if staged is not None:
@@ -306,8 +326,39 @@ def campaign(project, fixture, runtime, binaries, plan, parts):
             if install_command is not None:
                 step('install', install_command)
             smoke = step('smoke', smoke_command, 10)
-            if not validate_smoke(smoke, bytes.fromhex(project['smoke_stdout_hex'])):
+            expected_smoke = bytes.fromhex(project['smoke_stdout_hex'])
+            if not validate_smoke(smoke, expected_smoke):
                 run['errors'].append('independent executable smoke bytes')
+            if recovery is not None:
+                work = runtime / 'work'
+                output = work / recovery_name
+                original = smoke.filesystem.get('work/' + recovery_name)
+                if (original is None or original['type'] != 'file' or not original['mode'] & 0o111
+                        or not output.resolve(strict=True).is_relative_to(work.resolve(strict=True))):
+                    raise h.HarnessError('missing-output recovery needs a regular workspace executable')
+                with output.open('rb') as executable:
+                    if executable.read(4) != b'\x7fELF':
+                        raise h.HarnessError('missing-output recovery needs an ELF executable')
+                preserved = set(recovery['preserve'])
+                preserved.update(str(path.relative_to(work)) for path in output.parent.glob('*.o'))
+                before = recovery_metadata(work, preserved)
+                output.unlink()
+                witness = {'output': recovery_name, 'absent': not os.path.lexists(output),
+                           'before': {key: original[key] for key in ('sha256', 'mode')},
+                           'preserved_before': before}
+                run['missing_output_witness'] = witness
+                if not witness['absent']:
+                    raise h.HarnessError('selected output was not absent before recovery')
+                recovered = step('recover-missing-output', command)
+                replacement = recovered.filesystem.get('work/' + recovery_name, {})
+                witness['after'] = {key: replacement.get(key) for key in ('sha256', 'mode')}
+                after = recovery_metadata(work, preserved)
+                witness['preserved_after'] = after
+                if recovered.filesystem != smoke.filesystem or before != after:
+                    run['errors'].append('missing-output recovery changed output bytes, modes or retained files')
+                recovered_smoke = step('recovered-smoke', smoke_command, 10)
+                if not validate_smoke(recovered_smoke, expected_smoke):
+                    run['errors'].append('independent recovered executable smoke bytes')
         except (h.HarnessError, OSError, ValueError) as error:
             run['errors'].append(str(error))
     row['differences'] = []

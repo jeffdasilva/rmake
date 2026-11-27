@@ -2513,6 +2513,9 @@ impl Engine {
                     RequiredIncludeReads::All
                 }
                 ScopedExpansionSite::RecipeBody => RequiredIncludeReads::Missing,
+                ScopedExpansionSite::ShellConfiguration if self.parallel_jobs.is_empty() => {
+                    RequiredIncludeReads::Missing
+                }
                 _ => RequiredIncludeReads::Ignore,
             };
             (self.database.makefiles.len(), required)
@@ -18640,13 +18643,13 @@ impl Engine {
             {
                 recipe.location.line = line;
             }
+            // This expansion can enable the dump before it opens a source.
             let include_interruption = if parallel
                 && record_expansion_failure
                 && !self.remaking
                 && self.active_makefile_remake.is_none()
                 && !self.options.keep_going
                 && !MakefileModes::from_options(&self.options).active()
-                && self.output.database_requested()
             {
                 if self.parallel_jobs.is_empty() {
                     Some(RecipeExpansionInterruption::Unfinished)
@@ -19265,7 +19268,14 @@ impl Engine {
                     && self.active_makefile_remake.is_none()
                     && (self.parallel_jobs.is_empty() || self.one_running_ordinary_recipe())
                     && !MakefileModes::from_options(&self.options).active())
-                .then_some(self.database.makefiles.len());
+                .then(|| {
+                    let required = if self.parallel_jobs.is_empty() {
+                        RequiredIncludeReads::Missing
+                    } else {
+                        RequiredIncludeReads::Ignore
+                    };
+                    (self.database.makefiles.len(), required)
+                });
                 let direct_heads = self.direct_named_head_reads();
                 let mut target_reads = TargetReads {
                     visits: &self.file_traversals,
@@ -19342,11 +19352,8 @@ impl Engine {
                                 emitted_order.push(name.clone());
                             }
                             Err(err) => {
-                                if let Some(first) = first_export_include {
-                                    self.retain_scoped_include_open_times(
-                                        first,
-                                        RequiredIncludeReads::Ignore,
-                                    );
+                                if let Some((first, required)) = first_export_include {
+                                    self.retain_scoped_include_open_times(first, required);
                                 }
                                 self.expansion_error(variable.definition(), &err);
                                 return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
@@ -19356,8 +19363,8 @@ impl Engine {
                         child.env_remove(os(name));
                     }
                 }
-                if let Some(first) = first_export_include {
-                    self.retain_scoped_include_open_times(first, RequiredIncludeReads::Ignore);
+                if let Some((first, required)) = first_export_include {
+                    self.retain_scoped_include_open_times(first, required);
                 }
                 if !export_selected(
                     &environment_variables,
@@ -19719,16 +19726,24 @@ impl Engine {
                     const ELOOP: i32 = 40;
                     let sync_mode = self.output.mode();
                     let modes = MakefileModes::from_options(&self.options);
+                    let single_owned_pipe_recipe = parallel
+                        && self.parallel_jobs.is_empty()
+                        && self.jobserver.as_ref().is_some_and(|server| {
+                            server.owned_slots() == Some(2)
+                                && !server.auth().starts_with(b"fifo:")
+                                && !server.uses_compact_pipe()
+                        });
                     let forced_lookup = force
                         && direct
-                        && !parallel
+                        && (!parallel || single_owned_pipe_recipe)
                         && !one_shell
                         && !modes.touch
                         && (modes.dry_run != modes.question)
-                        && matches!(
+                        && (matches!(
                             sync_mode,
                             crate::output::Mode::None | crate::output::Mode::Recurse
-                        )
+                        ) || (single_owned_pipe_recipe
+                            && sync_mode == crate::output::Mode::Target))
                         && err.kind() == io::ErrorKind::NotFound;
                     if (executable_launch_failed
                         || err.kind() == io::ErrorKind::ArgumentListTooLong
