@@ -1,0 +1,20 @@
+id = "command-replay-simple-reference-data-public-operand"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "A simple override preserves literal public-reference bytes in a command assignment until its value is used."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|krR -j1 --no-print-directory -- $(MAKEOVERRIDES)
+READ|override|price$(MAKEOVERRIDES)|override|published|simple|--silent -- MARK=price$(MAKEOVERRIDES) SIDE=published
+RUN|override|price$(MAKEOVERRIDES)|override|published|simple|--silent -- MARK=price$(MAKEOVERRIDES) SIDE=published
+CONSUME-BEGIN
+ALIAS|run|override
+CONSUME|priceMARK=from-public SIDE=override
+ENV|--silent -- MARK=price$(MAKEOVERRIDES) SIDE=published|
+'''

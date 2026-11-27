@@ -1,0 +1,17 @@
+id = "command-replay-literal-override-simple-dollar"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "A simple MAKEFLAGS override carries an explicit command assignment containing a literal dollar."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|krR -j1 --no-print-directory -- $(MAKEOVERRIDES)
+READ|override|price$tag|override|published|simple|--silent -- MARK=price$tag SIDE=published
+RUN|override|price$tag|priceag|override|published|simple|--silent -- MARK=price$tag SIDE=published
+ENV|--silent -- MARK=price$tag SIDE=published
+'''

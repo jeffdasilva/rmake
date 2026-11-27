@@ -488,6 +488,7 @@ def configuration_campaign(project, fixture, runtime, binaries, parts):
 def main(argv=None, *, verify_reference=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--oracle', type=Path, default=ROOT / '.tools/oracle/bin/make')
+    parser.add_argument('--oracle-profile', type=Path, default=oracle.PROFILE)
     parser.add_argument('--candidate', type=Path)
     parser.add_argument('--cache', type=Path, default=ROOT / '.tools/integration')
     parser.add_argument('--report', type=Path, default=ROOT / 'artifacts/integration/report.json')
@@ -511,8 +512,10 @@ def main(argv=None, *, verify_reference=None):
                 print('Verified', name, source['archive_sha256'])
         return 0
     reference = args.oracle.resolve()
-    verifier = oracle.verify if verify_reference is None else verify_reference
-    profile = verifier(reference)
+    if verify_reference is None:
+        profile = oracle.verify(reference, args.oracle_profile)
+    else:
+        profile = verify_reference(reference)
     binaries = [reference, reference]
     if args.candidate: binaries.append(args.candidate.resolve())
     args.report.parent.mkdir(parents=True, exist_ok=True)

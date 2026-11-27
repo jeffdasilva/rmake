@@ -17448,6 +17448,24 @@ impl Engine {
                 {
                     Some(DatabaseResult::UnfinishedUpdate)
                 }
+                DatabaseResult::UnfinishedRecipeExpansion
+                    if !self.remaking
+                        && self.active_makefile_remake.is_none()
+                        && !self.parallel_graph()
+                        && !MakefileModes::from_options(&self.options).active()
+                        && rule.implicit_pattern.is_none()
+                        && !rule.default_recipe
+                        && !self.aliases.contains_source_or_destination(target)
+                        && !self.aliases.contains_source_or_destination(dependency)
+                        && self.database.rules.get(dependency).is_some_and(|rule| {
+                            rule.double_colon.is_none()
+                                && rule.group.is_none()
+                                && rule.implicit_pattern.is_none()
+                                && !rule.default_recipe
+                        }) =>
+                {
+                    Some(DatabaseResult::UnfinishedUpdate)
+                }
                 DatabaseResult::UnfinishedHeldRecipeInclude
                     if !self.remaking && self.parallel_graph() =>
                 {

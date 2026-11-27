@@ -1,0 +1,20 @@
+id = "command-replay-simple-reference-data-public-first-operand-env"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "A simple override beginning with the option terminator supplies the entire replay under -e."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--environment-overrides", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|ekrR -j1 --no-print-directory -- $(MAKEOVERRIDES)
+READ|override|price$(MAKEOVERRIDES)|override|published|simple|-- MARK=price$(MAKEOVERRIDES) SIDE=published
+RUN|override|price$(MAKEOVERRIDES)|override|published|simple|-- MARK=price$(MAKEOVERRIDES) SIDE=published
+CONSUME-BEGIN
+ALIAS|run|override
+CONSUME|priceMARK=from-public SIDE=override
+ENV|-- MARK=price$(MAKEOVERRIDES) SIDE=published|
+'''

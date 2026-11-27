@@ -4904,8 +4904,9 @@ impl Database {
         }
     }
 
-    /// A file-located global override explicitly selects its reference.
-    /// Use the full-source decoder when the preceding flags are literal.
+    /// A file-located global override can supply its own command operands.
+    /// Simple values can contain literal reference spellings. Recursive values
+    /// can select a trailing reference after a literal flag prefix.
     pub fn has_authored_makeflags_override_reference(&self) -> bool {
         !self.rules_frozen
             && self.evaluation_scope.is_none()
@@ -4914,14 +4915,16 @@ impl Database {
             && self.variables.get(b"MAKEFLAGS").is_some_and(|binding| {
                 let raw = binding.raw_value();
                 binding.origin() == Origin::Override
-                    && binding.flavor() == Flavor::Recursive
                     && binding
                         .definition()
                         .is_some_and(|location| !location.file.is_null())
-                    && raw
-                        .strip_suffix(PUBLIC_COMMAND_OVERRIDES_REFERENCE)
-                        .or_else(|| raw.strip_suffix(HIDDEN_COMMAND_OVERRIDES_REFERENCE))
-                        .is_some_and(|prefix| !prefix.contains(&b'$'))
+                    && match binding.flavor() {
+                        Flavor::Simple => Self::has_command_overrides_reference(raw),
+                        Flavor::Recursive => raw
+                            .strip_suffix(PUBLIC_COMMAND_OVERRIDES_REFERENCE)
+                            .or_else(|| raw.strip_suffix(HIDDEN_COMMAND_OVERRIDES_REFERENCE))
+                            .is_some_and(|prefix| !prefix.contains(&b'$')),
+                    }
             })
     }
 

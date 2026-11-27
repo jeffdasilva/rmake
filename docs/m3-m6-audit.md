@@ -201,6 +201,10 @@ NUL boundaries, rebinding and cancellation.
   opening the malformed source.
   With one launched phony sibling, a required source parse failure also leaves
   the expanding target and its waiting ordinary single-colon ancestors unupdated.
+  In a serial build, waiting ordinary single-colon ancestors retain this
+  update state when recipe, shell, or export expansion fails before the
+  affected command runs. This includes required reader parse failures,
+  user errors, and built-in arity diagnostics.
   Optional includes from target-specific shell configuration also retain
   their missing timestamps while the parallel job queue is idle or holds
   one separate ordinary recipe.
