@@ -19661,11 +19661,13 @@ impl Engine {
                         && direct
                         && !parallel
                         && !one_shell
-                        && !ignore
                         && modes.dry_run
                         && !modes.question
                         && !modes.touch
-                        && sync_mode == crate::output::Mode::None
+                        && matches!(
+                            sync_mode,
+                            crate::output::Mode::None | crate::output::Mode::Recurse
+                        )
                         && err.kind() == io::ErrorKind::NotFound;
                     if (executable_launch_failed
                         || err.kind() == io::ErrorKind::ArgumentListTooLong
