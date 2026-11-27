@@ -27,6 +27,7 @@ LOW_WIRE_PROFILES = (
     ((2,), 'none'),
     ((0, 1), 'none'),
 )
+RESET_WIRE_STREAMS = ((), (0,), (1,), (2,), (0, 1))
 NODES = ('outer1', 'outer2', 'inner1', 'inner2', 'inner3', 'inner4')
 
 
@@ -104,10 +105,17 @@ def execute_low_wire(root: Path, parent: Path, child: Path, closed_streams: tupl
                      mode: str, *, reset: bool = False):
     child_alias = root / 'bin/child/make'
     args = ('-rR', '--no-print-directory', '-j2', '--jobserver-style=pipe', '-O' + mode, 'all')
-    warning = 'make[1]: warning: -j1 forced in makefile: resetting jobserver mode.\n'
+    expected_status = 0
+    expected_stderr = ''
+    if reset and 2 not in closed_streams:
+        expected_stderr = 'make[1]: warning: -j1 forced in makefile: resetting jobserver mode.\n'
+    if reset and 1 in closed_streams:
+        expected_status = 2
+        expected_stderr += ('make[1]: write error: stdout: Bad file descriptor\n'
+                            'make: *** [Makefile:5: all] Error 1\n')
     case = harness.Case(LOW_WIRE_FIXTURE, 'jobserver-inherited-wire', 'runtime.jobserver',
                         'required', args, 5, {'CHILD': str(child_alias)},
-                        {'exit_code': 0, 'stdout': '', 'stderr': warning if reset else ''})
+                        {'exit_code': expected_status, 'stdout': '', 'stderr': expected_stderr})
     harness.validate_fixture(case.path)
     harness.reset_workspace(case, root, parent)
     child_alias.parent.mkdir(exist_ok=True)
@@ -121,9 +129,9 @@ def execute_low_wire(root: Path, parent: Path, child: Path, closed_streams: tupl
     command = ['/usr/bin/python3', 'witness.py', startup_streams, str(root / 'bin/make'), *case.args]
     out, err, status, limit, leftovers = harness.capture(
         command, work, harness.clean_environment(root, case.environment), case.timeout)
-    if status or limit or leftovers:
+    if limit or leftovers or (status and (status, out, err) != (expected_status, b'', expected_stderr.encode())):
         raise harness.HarnessError(
-            f'jobserver low-wire fixture stopped with {status=}, {limit=}, {leftovers=}')
+            f'jobserver low-wire fixture stopped with {status=}, {limit=}, {leftovers=}, {err=}')
     files = harness.snapshot({name: root / name for name in ('work', 'home', 'tmp')})
     observation = harness.Observation(out, err, status, limit, files, leftovers)
     errors = harness.expectation_errors(case, observation)
@@ -200,7 +208,7 @@ def main() -> int:
                         expected_hex='2b2b', errors=errors))
     print(('FAIL' if errors else 'PASS'), 'ordinary sentinel token bytes', errors)
     wire_profiles = [(closed, mode, False) for closed, mode in LOW_WIRE_PROFILES]
-    wire_profiles.extend([((), 'none', True), ((0,), 'none', True)])
+    wire_profiles.extend((closed, 'none', True) for closed in RESET_WIRE_STREAMS)
     for closed_streams, mode, reset in wire_profiles:
         baseline, baseline_errors = execute_low_wire(
             destination, reference, reference, closed_streams, mode, reset=reset)
