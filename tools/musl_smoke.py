@@ -23,6 +23,7 @@ import urllib.request
 import conformance
 import integration
 import native_modules
+import nls_diagnostics
 import oracle
 import process_restarts
 import restart_pipe
@@ -59,6 +60,14 @@ ORDINARY_CASES = (
 )
 NATIVE_CASES = {'native-setup-result-negative-one',
                 'native-setup-result-negative-one-optional-explicit-and-repeat'}
+PARSER_DIAGNOSTIC_CASES = (
+    'nls-mixed-pattern-c-eval-normal',
+    'nls-mixed-pattern-c-file-static',
+    'nls-deprecated-mixed-rule-c-eval-one',
+    'nls-deprecated-mixed-rule-c-file-two',
+    'nls-missing-inline-rule-c-eval-missing',
+    'nls-missing-inline-rule-c-file-only-semicolon',
+)
 RESTART_CASES = {'process-restart-tempdir', 'process-restart-replaced-image'}
 SCOPE = ('x86-64 Linux using a private musl 1.2.4 dynamic loader, Guile and NLS disabled, '
          'C locale and the Ubuntu host /bin/sh')
@@ -218,6 +227,18 @@ def utf8_wildcard_case(root, reference, candidate):
     }
 
 
+def parser_diagnostic_cases(root, reference, candidate, compiler):
+    _, rows = nls_diagnostics.cases(PARSER_DIAGNOSTIC_CASES)
+    if any(row['modules'] or row['environment'].get('LC_ALL') != 'C'
+           or row['environment'].get('LANG') != 'C' for row in rows):
+        raise oracle.OracleError('musl parser diagnostics require C locale models without modules')
+    models = [nls_diagnostics.prepare(row, {}) for row in rows]
+    root.mkdir()
+    report = native_modules.run_campaign(models, reference, candidate, str(compiler), root)
+    report['classification'] = 'Selected C locale parser diagnostics with exact GNU comparisons'
+    return report
+
+
 def cases(root, reference, candidate, compiler):
     ordinary = []
     workspace = root / 'ordinary'
@@ -238,6 +259,7 @@ def cases(root, reference, candidate, compiler):
         print('FAIL' if mismatches else 'PASS', name, ', '.join(mismatches), flush=True)
 
     utf8_wildcard = utf8_wildcard_case(root / 'utf8-wildcard', reference, candidate)
+    parser_diagnostics = parser_diagnostic_cases(root / 'parser-diagnostics', reference, candidate, compiler)
 
     native = [model for model in native_modules.models() if model.id in NATIVE_CASES]
     restarts = [model for model in process_restarts.models() if model['id'] in RESTART_CASES]
@@ -263,8 +285,10 @@ def cases(root, reference, candidate, compiler):
         else:
             os.environ['PATH'] = host_path
     passed = (all(not case['mismatches'] for case in ordinary) and utf8_wildcard['passed']
-              and native_report['passed'] and restart_report['passed'] and pipe_report['passed'])
+              and parser_diagnostics['passed'] and native_report['passed']
+              and restart_report['passed'] and pipe_report['passed'])
     return {'passed': passed, 'ordinary': ordinary, 'utf8_wildcard': utf8_wildcard,
+            'parser_diagnostics': parser_diagnostics,
             'native': native_report, 'process_restarts': restart_report, 'restart_pipe': pipe_report}
 
 

@@ -11,6 +11,7 @@ pub enum MessageId {
     MissingSeparator,
     MissingSeparatorTabs,
     MissingSeparatorConditional,
+    MissingRuleBeforeRecipe,
     UnterminatedFunction,
     IntcmpFirst,
     IntcmpSecond,
@@ -83,6 +84,9 @@ pub enum MessageId {
     MissingTargetPattern,
     MultipleTargetPatterns,
     TargetPatternWithoutPercent,
+    MixedImplicitStaticPatterns,
+    MixedImplicitNormalRules,
+    DeprecatedMixedRuleSyntax,
     DirectiveTail,
     DefineTail,
     EndefTail,
@@ -120,11 +124,12 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 110] = [
+    pub const ALL: [Self; 114] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
         Self::MissingSeparatorConditional,
+        Self::MissingRuleBeforeRecipe,
         Self::UnterminatedFunction,
         Self::IntcmpFirst,
         Self::IntcmpSecond,
@@ -197,6 +202,9 @@ impl MessageId {
         Self::MissingTargetPattern,
         Self::MultipleTargetPatterns,
         Self::TargetPatternWithoutPercent,
+        Self::MixedImplicitStaticPatterns,
+        Self::MixedImplicitNormalRules,
+        Self::DeprecatedMixedRuleSyntax,
         Self::DirectiveTail,
         Self::DefineTail,
         Self::EndefTail,
@@ -243,6 +251,7 @@ impl MessageId {
                 tabs: self == Self::MissingSeparatorTabs,
             },
             Self::MissingSeparatorConditional => Message::MissingSeparatorConditional,
+            Self::MissingRuleBeforeRecipe => Message::MissingRuleBeforeRecipe,
             Self::UnterminatedFunction => Message::UnterminatedFunction {
                 name: b"function",
                 close: b')',
@@ -406,6 +415,9 @@ impl MessageId {
             Self::MissingTargetPattern => Message::MissingTargetPattern,
             Self::MultipleTargetPatterns => Message::MultipleTargetPatterns,
             Self::TargetPatternWithoutPercent => Message::TargetPatternWithoutPercent,
+            Self::MixedImplicitStaticPatterns => Message::MixedImplicitStaticPatterns,
+            Self::MixedImplicitNormalRules => Message::MixedImplicitNormalRules,
+            Self::DeprecatedMixedRuleSyntax => Message::DeprecatedMixedRuleSyntax,
             Self::DirectiveTail => Message::DirectiveTail(b"ifeq"),
             Self::DefineTail => Message::DefineTail,
             Self::EndefTail => Message::EndefTail,
@@ -497,6 +509,7 @@ impl MessageId {
             Self::MissingSeparatorConditional => {
                 c"missing separator (ifeq/ifneq must be followed by whitespace)"
             }
+            Self::MissingRuleBeforeRecipe => c"missing rule before recipe",
             Self::UnterminatedFunction => c"unterminated call to function '%s': missing '%c'",
             Self::IntcmpFirst => c"non-numeric first argument to 'intcmp' function: '%s'",
             Self::IntcmpSecond => c"non-numeric second argument to 'intcmp' function: '%s'",
@@ -589,6 +602,11 @@ impl MessageId {
             Self::MissingTargetPattern => c"missing target pattern",
             Self::MultipleTargetPatterns => c"multiple target patterns",
             Self::TargetPatternWithoutPercent => c"target pattern contains no '%%'",
+            Self::MixedImplicitStaticPatterns => c"mixed implicit and static pattern rules",
+            Self::MixedImplicitNormalRules => c"mixed implicit and normal rules",
+            Self::DeprecatedMixedRuleSyntax => {
+                c"*** mixed implicit and normal rules: deprecated syntax"
+            }
             Self::DirectiveTail => c"extraneous text after '%s' directive",
             Self::DefineTail => c"extraneous text after 'define' directive",
             Self::EndefTail => c"extraneous text after 'endef' directive",
@@ -697,6 +715,7 @@ pub enum Message<'a> {
         tabs: bool,
     },
     MissingSeparatorConditional,
+    MissingRuleBeforeRecipe,
     UnterminatedFunction {
         name: &'a [u8],
         close: u8,
@@ -804,6 +823,9 @@ pub enum Message<'a> {
     MissingTargetPattern,
     MultipleTargetPatterns,
     TargetPatternWithoutPercent,
+    MixedImplicitStaticPatterns,
+    MixedImplicitNormalRules,
+    DeprecatedMixedRuleSyntax,
     InvalidLibraryPattern(&'a [u8]),
     AliasedRecipeSource {
         path: &'a [u8],
@@ -883,6 +905,7 @@ impl<'a> Message<'a> {
             Self::MissingSeparator { tabs: false } => MessageId::MissingSeparator,
             Self::MissingSeparator { tabs: true } => MessageId::MissingSeparatorTabs,
             Self::MissingSeparatorConditional => MessageId::MissingSeparatorConditional,
+            Self::MissingRuleBeforeRecipe => MessageId::MissingRuleBeforeRecipe,
             Self::UnterminatedFunction { .. } => MessageId::UnterminatedFunction,
             Self::InvalidIntcmp {
                 second: false,
@@ -999,6 +1022,9 @@ impl<'a> Message<'a> {
             Self::MissingTargetPattern => MessageId::MissingTargetPattern,
             Self::MultipleTargetPatterns => MessageId::MultipleTargetPatterns,
             Self::TargetPatternWithoutPercent => MessageId::TargetPatternWithoutPercent,
+            Self::MixedImplicitStaticPatterns => MessageId::MixedImplicitStaticPatterns,
+            Self::MixedImplicitNormalRules => MessageId::MixedImplicitNormalRules,
+            Self::DeprecatedMixedRuleSyntax => MessageId::DeprecatedMixedRuleSyntax,
             Self::DirectiveTail(_) => MessageId::DirectiveTail,
             Self::DefineTail => MessageId::DefineTail,
             Self::EndefTail => MessageId::EndefTail,
@@ -1064,6 +1090,7 @@ impl<'a> Message<'a> {
             Self::Stop
             | Self::MissingSeparator { .. }
             | Self::MissingSeparatorConditional
+            | Self::MissingRuleBeforeRecipe
             | Self::BuiltinRecipe
             | Self::Ignored
             | Self::NoTargets { .. }
@@ -1087,6 +1114,9 @@ impl<'a> Message<'a> {
             | Self::MissingTargetPattern
             | Self::MultipleTargetPatterns
             | Self::TargetPatternWithoutPercent
+            | Self::MixedImplicitStaticPatterns
+            | Self::MixedImplicitNormalRules
+            | Self::DeprecatedMixedRuleSyntax
             | Self::DefineTail
             | Self::EndefTail
             | Self::NulReaderWarning

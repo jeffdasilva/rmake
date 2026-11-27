@@ -136,6 +136,15 @@ jobs:
             --case nls-builtin-arity-direct-word-de \
             --case nls-builtin-arity-direct-word-fr \
             --case nls-builtin-arity-call-wordlist-pl \
+            --case nls-mixed-pattern-fr-file-normal \
+            --case nls-mixed-pattern-ja-eval-static \
+            --case nls-deprecated-mixed-rule-fr-file-two \
+            --case nls-deprecated-mixed-rule-ja-eval-one \
+            --case nls-deprecated-mixed-rule-fr-eval-valid-explicit \
+            --case nls-missing-inline-rule-c-file-only-semicolon \
+            --case nls-missing-inline-rule-de-eval-missing \
+            --case nls-missing-inline-rule-ja-file-missing \
+            --case nls-missing-inline-rule-fr-file-recipe-prefix \
             --case nls-stdin-unlink-ordinary-raw-fr \
             --case nls-stdin-unlink-fatal-ja \
             --case nls-stdin-unlink-fatal-raw-pl \

@@ -68,6 +68,11 @@ All profiles use the C locale and the manifest's compiler and environment inputs
 [xxHash v0.8.3](https://github.com/Cyan4973/xxHash/releases/tag/v0.8.3) is pinned
 to commit `e626a72bc2321cd320e953a0ccf1584cad60f363`. Its profile watches
 `xxhash.o` and `xxhsum` and checks the known empty-input XXH32 value.
+After the header rebuild it runs the upstream `clean` target, including
+its three recursive cleanup commands. The complete workspace must match
+the edited input tree and the watched outputs must be absent. Rebuilding
+must restore the same file bytes and modes and pass the checksum smoke
+again. The set of compiler objects can vary with the host architecture.
 
 The serial [zlib 1.3.2](https://zlib.net/) profile watches `adler32.o`, `libz.a`
 and `minigzip`, then checks a compression/decompression round trip. Both serial

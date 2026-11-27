@@ -76,6 +76,18 @@ verifying the private locale and GNU Make catalog. The optimized rmake build
 then runs the same diagnostics against the verified reference and retains its
 own report.
 
+The parser and stdin step runs nine selected mixed-rule and missing-rule models
+against GNU twice for each of the development and optimized builds. It covers
+fatal diagnostics from a Makefile and `--eval`, warnings that allow the recipe
+to run, and valid controls. German and Japanese use `LANGUAGE` fallback over
+the existing French locale data. The hosted job retains the native AArch64
+reports for both builds.
+
+The [hosted dynamic musl smoke](../.github/workflows/native-musl.yml) also
+checks six C locale models for mixed rules and missing rules before inline
+recipes. It reuses the verified musl reference and records exact transcripts
+and recipe side effects in the existing profile report.
+
 ## Language and profile coverage
 
 The [catalog selection gate](../tests/catalog-coverage/README.md) exercises all
@@ -137,6 +149,15 @@ The [structural models](../tests/nls/structure.json) cover absent or empty
 Makefiles, invalid default goals, reader syntax, recursive or unterminated
 variable references and duplicate recipes. Paired warnings retain their source
 lines, order and raw target names. A following user warning keeps its own bytes.
+Mixed implicit and normal or static pattern rules use the translated parser
+message. The models check anonymous `--eval` input and Makefile line locations
+in C and French, with German and Japanese catalog fallback.
+Legacy declarations that begin with an explicit target warn for each following
+pattern target. The localized warning retains its source location and the
+selected recipe still runs.
+An unquoted semicolon with a blank rule prefix reports a missing rule before
+the recipe. The parser reports it before recipes run, including for anonymous
+`--eval` input.
 Native controls change private French or C `LC_MESSAGES` during include failures
 and warning publication, then check restoration to the global selection.
 

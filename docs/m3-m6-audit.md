@@ -188,7 +188,8 @@ NUL boundaries, rebinding and cancellation.
   ordinary recipe running.
   Idle target-specific shell configuration and child export preparation also
   retain the failed open of a required include.
-  An accepted reopen clears that timestamp while preserving the update verdict.
+  An accepted reopen, including a required read from those idle preparation
+  sites, clears that timestamp while preserving the update verdict.
   Startup preloads intern each list operand and the selected read name at their
   respective reader boundaries. The file table probes the normalized name
   before entering the selected spelling when the probe misses.

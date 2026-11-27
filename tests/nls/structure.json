@@ -1,5 +1,5 @@
 {
-  "classification": "25 original GNU2-qualified structural NLS models. Only machine-specific input LOCPATH is supplied by the verified test profile.",
+  "classification": "59 GNU2-qualified structural NLS models. Only machine-specific input LOCPATH is supplied by the verified test profile.",
   "original_models_sha256": "bfbf1aba4a8f821ef33bbc2014a2a4fbc00649a4498988b455794582bad4766c",
   "reference_catalog_sha256": "dd9f6c8d75cf94c0f4a01e4ad3ee2b833b4b552f13d0adf461b83a1356ed17a4",
   "rows": [
@@ -590,6 +590,823 @@
         "stdout_hex": "61667465720a",
         "stderr_hex": "4d616b6566696c653a313a206176657274697373656d656e74c2a03a20636172616374c3a87265204e554c2064c3a974656374c3a9203b206c65207265737465206465206c61206c69676e65206573742069676e6f72c3a90a",
         "seen_hex": "616e63686f720a"
+      }
+    },
+    {
+      "id": "nls-mixed-pattern-c-eval-normal",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09403a0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=%.out literal: input\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** mixed implicit and normal rules.  Stop.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-mixed-pattern-c-file-static",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09403a0a252e6f75743a20252e6f75743a20696e7075740a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:4: *** mixed implicit and static pattern rules.  Stop.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-mixed-pattern-fr-eval-normal",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09403a0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=%.out literal: input\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** mélange de règles implicites et normales. Arrêt.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-mixed-pattern-fr-eval-static",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09403a0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=%.out: %.out: input\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** mélange de règles implicites et statiques pour le motif. Arrêt.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-mixed-pattern-fr-file-normal",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09403a0a252e6f7574206c69746572616c3a20696e7075740a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:4: *** mélange de règles implicites et normales. Arrêt.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-mixed-pattern-fr-file-static",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09403a0a252e6f75743a20252e6f75743a20696e7075740a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:4: *** mélange de règles implicites et statiques pour le motif. Arrêt.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-mixed-pattern-de-eval-normal",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09403a0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=%.out literal: input\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:de:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** Implizite und normale Regeln wurden vermischt.  Schluss.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-mixed-pattern-de-file-static",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09403a0a252e6f75743a20252e6f75743a20696e7075740a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:de:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:4: *** Implizite und statische Muster-Regeln wurden vermischt.  Schluss.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-mixed-pattern-ja-eval-static",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09403a0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=%.out: %.out: input\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:ja:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** 暗黙ルールと静的パターンルールが混ざりました.  中止.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-mixed-pattern-ja-file-normal",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09403a0a252e6f7574206c69746572616c3a20696e7075740a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:ja:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:4: *** 暗黙ルールと通常ルールが混ざりました.  中止.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-mixed-pattern-fr-eval-valid-implicit",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09403a0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=%.out: %.in\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-mixed-pattern-ja-file-valid-static",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09403a0a756e757365642e6f75743a20252e6f75743a20252e696e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:ja:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-deprecated-mixed-rule-c-eval-one",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=literal %.out: input\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "make: *** mixed implicit and normal rules: deprecated syntax\n",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-deprecated-mixed-rule-c-file-two",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a6c69746572616c20252e6f757420252e62696e3a20696e7075740a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "Makefile:4: *** mixed implicit and normal rules: deprecated syntax\nMakefile:4: *** mixed implicit and normal rules: deprecated syntax\n",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-deprecated-mixed-rule-fr-eval-one",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=literal %.out: input\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "make: *** mélange de règles implicites et normales : syntaxe obsolète\n",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-deprecated-mixed-rule-fr-file-two",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a6c69746572616c20252e6f757420252e62696e3a20696e7075740a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "Makefile:4: *** mélange de règles implicites et normales : syntaxe obsolète\nMakefile:4: *** mélange de règles implicites et normales : syntaxe obsolète\n",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-deprecated-mixed-rule-de-eval-one",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=literal %.out: input\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:de:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "make: *** Implizite und normale Regeln wurden vermischt\n",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-deprecated-mixed-rule-de-file-one",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a6c69746572616c20252e6f75743a20696e7075740a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:de:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "Makefile:4: *** Implizite und normale Regeln wurden vermischt\n",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-deprecated-mixed-rule-ja-eval-one",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=literal %.out: input\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:ja:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "make: *** 暗黙ルールと通常ルールが混ざりました: 推奨されない文法\n",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-deprecated-mixed-rule-ja-file-two",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a6c69746572616c20252e6f757420252e62696e3a20696e7075740a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:ja:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "Makefile:4: *** 暗黙ルールと通常ルールが混ざりました: 推奨されない文法\nMakefile:4: *** 暗黙ルールと通常ルールが混ざりました: 推奨されない文法\n",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-deprecated-mixed-rule-fr-eval-valid-explicit",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=literal alias: input\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-deprecated-mixed-rule-ja-file-valid-implicit",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a252e6f75743a20252e696e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:ja:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-c-eval-missing",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=; @printf \"forbidden\\n\" > seen\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** missing rule before recipe.  Stop.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-c-file-spaced",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a20203b20407072696e74662022666f7262696464656e5c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:4: *** missing rule before recipe.  Stop.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-c-file-only-semicolon",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a3b0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "LANGUAGE": "fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:4: *** missing rule before recipe.  Stop.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-fr-eval-missing",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=; @printf \"forbidden\\n\" > seen\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** règle manquante avant la recette. Arrêt.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-fr-file-missing",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a3b20407072696e74662022666f7262696464656e5c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:4: *** règle manquante avant la recette. Arrêt.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-de-eval-missing",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=; @printf \"forbidden\\n\" > seen\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:de:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "make: *** Es fehlt eine Regel vor dem Rezept.  Schluss.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-ja-file-missing",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a3b20407072696e74662022666f7262696464656e5c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:ja:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:4: *** レシピの前のルールが不足しています.  中止.\n",
+        "seen": "anchor\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-fr-eval-valid-inline",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "--eval=unused: ; @:\n",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-ja-file-comment",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a23203b20407072696e74662022666f7262696464656e5c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8",
+        "LANGUAGE": "xx_missing:ja:fr"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-fr-file-empty-expansion",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a2428554e534554293b20407072696e74662022666f7262696464656e5c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-fr-file-recipe-prefix",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "2e524543495045505245464958203d203b0a616c6c3a0a3b407072696e74662022636f6e74696e7565645c6e22203e207365656e0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "continued\n"
+      }
+    },
+    {
+      "id": "nls-missing-inline-rule-fr-file-escaped-semicolon",
+      "files": {
+        "seen": "616e63686f720a",
+        "Makefile": "23206861726d6c657373207461726765740a616c6c3a0a09407072696e74662022636f6e74696e7565645c6e22203e207365656e0a5c3b0a"
+      },
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "fr_FR.UTF-8",
+        "LANG": "fr_FR.UTF-8"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 0,
+        "stdout": "",
+        "stderr": "",
+        "seen": "continued\n"
       }
     }
   ]

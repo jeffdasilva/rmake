@@ -6068,6 +6068,15 @@ impl Database {
             }
             self.finish_declaration(declaration, &location, context)?;
             let raw_rule_end = separator::<true>(text, b';').unwrap_or(text.len());
+            // Leading whitespace has already been removed from the source.
+            if raw_rule_end == 0 {
+                self.retain_native_reader_error(&location, context);
+                return Err(ParseError::system(
+                    location,
+                    Message::MissingRuleBeforeRecipe,
+                    context,
+                ));
+            }
             let (text, rule_end) = unquote_semicolons::<true>(text, raw_rule_end);
             // Keep the raw assignment tail until a source word has produced
             // an inline recipe boundary during expansion.
@@ -6471,19 +6480,19 @@ impl Database {
         let implicit = declaration.target_patterns[0];
         if implicit && static_pattern.is_some() {
             self.retain_native_reader_error(closing_location, context);
-            return Err(ParseError {
-                unlocated: false,
+            return Err(ParseError::system(
                 location,
-                message: "mixed implicit and static pattern rules".into(),
-            });
+                Message::MixedImplicitStaticPatterns,
+                context,
+            ));
         }
         if implicit && declaration.target_patterns.iter().any(|pattern| !pattern) {
             self.retain_native_reader_error(closing_location, context);
-            return Err(ParseError {
-                unlocated: false,
+            return Err(ParseError::system(
                 location,
-                message: "mixed implicit and normal rules".into(),
-            });
+                Message::MixedImplicitNormalRules,
+                context,
+            ));
         }
         // GNU classifies the declaration by its first target. Subsequent
         // percent names in an explicit declaration are literal file records.
@@ -6507,7 +6516,7 @@ impl Database {
                     &mut self.warnings,
                     context,
                     location.clone(),
-                    "*** mixed implicit and normal rules: deprecated syntax".into(),
+                    Diagnostic::system(Message::DeprecatedMixedRuleSyntax),
                 );
             }
             if target == b".DEFAULT" && empty_dependencies {
