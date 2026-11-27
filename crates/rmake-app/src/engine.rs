@@ -2487,14 +2487,28 @@ impl Engine {
         operation: impl FnOnce(&mut Database, ExpansionContext<'_>) -> T,
     ) -> T {
         let direct_heads = self.direct_named_head_reads();
-        let idle_recipe_include = self.ordinary_include_open_times
+        let observe_recipe_includes = self.ordinary_include_open_times
             && !direct_heads
             && site == ScopedExpansionSite::RecipeBody
             && !self.remaking
             && self.active_makefile_remake.is_none()
-            && self.parallel_jobs.is_empty()
-            && !MakefileModes::from_options(&self.options).active();
-        let first_recipe_include = idle_recipe_include.then_some(self.database.makefiles.len());
+            && !MakefileModes::from_options(&self.options).active()
+            && (self.parallel_jobs.is_empty()
+                || (self.parallel_jobs.len() == 1
+                    && self
+                        .parallel_jobs
+                        .primary
+                        .iter()
+                        .next()
+                        .is_some_and(|(name, job)| {
+                            job.child.is_some()
+                                && !job.phony
+                                && !job.recursive
+                                && job.continuation.branch.is_none()
+                                && job.continuation.remake.is_none()
+                                && !self.running_groups.contains_key(name)
+                        })));
+        let first_recipe_include = observe_recipe_includes.then_some(self.database.makefiles.len());
         let mut target_reads = TargetReads {
             visits: &self.file_traversals,
             retained_parents: &self.retained_scope_parents,
