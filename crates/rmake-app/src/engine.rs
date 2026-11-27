@@ -8775,6 +8775,18 @@ impl Engine {
                 || !(self.options.dry_run || self.options.question || self.options.touch))
     }
 
+    fn serial_or_owned_two_job_pipe(&self, parallel: bool) -> bool {
+        if parallel {
+            self.jobserver.as_ref().is_some_and(|server| {
+                server.owned_slots() == Some(2)
+                    && !server.uses_compact_pipe()
+                    && !server.auth().starts_with(b"fifo:")
+            })
+        } else {
+            self.jobserver.is_none() && self.options.jobs.unwrap_or(1) == 1
+        }
+    }
+
     fn settle_optional_remake_pass(
         &mut self,
         previous_progress: u64,
@@ -18276,6 +18288,13 @@ impl Engine {
                 continue;
             }
             self.active_peers.remove(&peer);
+            if group.ordinary
+                && !group.implicit
+                && outcome.database_result == DatabaseResult::UnfinishedRecipeExpansion
+            {
+                // Expansion stopped before a command could update any peer.
+                continue;
+            }
             if unstarted_query
                 && (group.ordinary
                     || (self.remaking && !group.implicit && self.makefile_names.contains(&peer)))
@@ -18710,6 +18729,12 @@ impl Engine {
                             failed_required_include
                                 .unwrap_or(RecipeExpansionInterruption::Unfinished),
                         );
+                    } else if !one_shell
+                        && branch.is_none()
+                        && self.unfinished_explicit_group_expansion(target, parallel)
+                    {
+                        execution.expansion_interruption =
+                            Some(RecipeExpansionInterruption::Unfinished);
                     }
                     return execution;
                 }
@@ -18971,6 +18996,26 @@ impl Engine {
         execution
     }
 
+    fn unfinished_explicit_group_expansion(&self, target: &[u8], parallel: bool) -> bool {
+        self.output.database_requested()
+            && self.output.mode() == crate::output::Mode::None
+            && !self.options.keep_going
+            && !MakefileModes::from_options(&self.options).active()
+            && self.parallel_jobs.is_empty()
+            && self.serial_or_owned_two_job_pipe(parallel)
+            && self.running_groups.get(target).is_some_and(|group| {
+                group.ordinary
+                    && !group.implicit
+                    && group.double_colon.is_none()
+                    && group.members.iter().all(|(name, _, _)| {
+                        !self.aliases.contains_source_or_destination(name)
+                            && rmake_core::filenames::archive_parts(name).is_none()
+                            && (name.as_slice() == target
+                                || !self.file_traversals.has_outcome(name))
+                    })
+            })
+    }
+
     fn continue_recipe_inner(
         &mut self,
         target: &[u8],
@@ -19034,15 +19079,7 @@ impl Engine {
                 && rmake_core::filenames::archive_parts(target).is_none()
                 && !self.options.keep_going
                 && !MakefileModes::from_options(&self.options).active()
-                && if parallel {
-                    self.jobserver.as_ref().is_some_and(|server| {
-                        server.owned_slots() == Some(2)
-                            && !server.uses_compact_pipe()
-                            && !server.auth().starts_with(b"fifo:")
-                    })
-                } else {
-                    self.jobserver.is_none() && self.options.jobs.unwrap_or(1) == 1
-                };
+                && self.serial_or_owned_two_job_pipe(parallel);
             let first_configuration_include =
                 observe_preparation_failure.then_some(self.database.makefiles.len());
             // GNU expands configuration before a dry-run/query decision, after
