@@ -2497,21 +2497,7 @@ impl Engine {
             && self.active_makefile_remake.is_none()
             && !MakefileModes::from_options(&self.options).active()
             && (self.parallel_jobs.is_empty()
-                || (site == ScopedExpansionSite::RecipeBody
-                    && self.parallel_jobs.len() == 1
-                    && self
-                        .parallel_jobs
-                        .primary
-                        .iter()
-                        .next()
-                        .is_some_and(|(name, job)| {
-                            job.child.is_some()
-                                && !job.phony
-                                && !job.recursive
-                                && job.continuation.branch.is_none()
-                                && job.continuation.remake.is_none()
-                                && !self.running_groups.contains_key(name)
-                        })));
+                || (site == ScopedExpansionSite::RecipeBody && self.one_running_ordinary_recipe()));
         let first_recipe_include = observe_recipe_includes.then_some(self.database.makefiles.len());
         let mut target_reads = TargetReads {
             visits: &self.file_traversals,
@@ -2569,6 +2555,23 @@ impl Engine {
             self.retain_optional_include_open_times(first);
         }
         result
+    }
+
+    fn one_running_ordinary_recipe(&self) -> bool {
+        self.parallel_jobs.len() == 1
+            && self
+                .parallel_jobs
+                .primary
+                .iter()
+                .next()
+                .is_some_and(|(name, job)| {
+                    job.child.is_some()
+                        && !job.phony
+                        && !job.recursive
+                        && job.continuation.branch.is_none()
+                        && job.continuation.remake.is_none()
+                        && !self.running_groups.contains_key(name)
+                })
     }
 
     fn retain_optional_include_open_times(&mut self, first: usize) {
@@ -19178,7 +19181,7 @@ impl Engine {
                 let first_export_include = (self.ordinary_include_open_times
                     && !self.remaking
                     && self.active_makefile_remake.is_none()
-                    && self.parallel_jobs.is_empty()
+                    && (self.parallel_jobs.is_empty() || self.one_running_ordinary_recipe())
                     && !MakefileModes::from_options(&self.options).active())
                 .then_some(self.database.makefiles.len());
                 let direct_heads = self.direct_named_head_reads();

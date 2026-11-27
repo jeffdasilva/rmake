@@ -175,7 +175,8 @@ NUL boundaries, rebinding and cancellation.
   Optional includes from target-specific shell configuration also retain
   their missing timestamps while the parallel job queue is idle.
   The ordinary recipe's exported bindings record the same observation
-  while preparing a child environment with an idle job queue.
+  while preparing a child environment with an idle queue or one separate
+  ordinary recipe running.
   An accepted reopen clears that timestamp while preserving the update verdict.
   Startup preloads intern each list operand and the selected read name at their
   respective reader boundaries. The file table probes the normalized name
