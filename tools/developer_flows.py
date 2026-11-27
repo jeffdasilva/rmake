@@ -22,7 +22,11 @@ FIXTURE = ROOT / 'tests/developer-flows'
 BOOTSTRAP_LINE = b'python3 tools/oracle.py bootstrap\n'
 BOOTSTRAP_RETRY = 'warm-bootstrap-oracle-lock-retry'
 CATALOG_RETRY = 'catalog-install-validation-retry'
-FAILED_PHASE_REPORTS = {BOOTSTRAP_RETRY: 'contended_runs', CATALOG_RETRY: 'rejected_runs'}
+CLEAN_RETRY = 'clean-invalid-manifest-retry'
+FAILED_PHASE_REPORTS = {
+    BOOTSTRAP_RETRY: 'contended_runs', CATALOG_RETRY: 'rejected_runs',
+    CLEAN_RETRY: 'invalid_manifest_runs',
+}
 BUILD_LINE = b'python3 tools/rust.py cargo build --workspace --release --locked\n'
 CLEAN_LINE = b'python3 tools/rust.py cargo clean\n'
 FINISHED = re.compile(rb'(?m)^    Finished `release` profile \[optimized\] target\(s\) in ([0-9]+(?:\.[0-9]+)?s)\n')
@@ -34,6 +38,7 @@ CLEAN_CASES = {
     'clean-question': (('-q',), True, False),
     'clean-touch': (('-t',), True, False),
     'clean-default-directory': ((), False, True),
+    CLEAN_RETRY: ((), False, False),
 }
 VALIDATION_CASES = {'bench-validation': 'oracle', 'bench-compare-validation': 'comparison'}
 CATALOG_CASES = ('catalog-check', 'catalog-install-staged', CATALOG_RETRY)
@@ -340,6 +345,42 @@ class Subject:
                 'bootstrap retry changed the lock or installed tools')
         return blocked, retried
 
+    def observe_clean_manifest_rejection(self, binary, target, other):
+        manifest = self.work / 'Cargo.toml'
+        clock = manifest.stat()
+        original = manifest.read_bytes()
+        setting = b'resolver = "3"\n'
+        require(original.count(setting) == 1, 'clean fixture must have one workspace resolver')
+        invalid = original.replace(setting, setting * 2, 1)
+        recipe_line = (self.work / 'Makefile').read_bytes().splitlines().index(b'\t+$(CARGO) clean') + 1
+        diagnostic = (b'error: duplicate key\n --> Cargo.toml:5:1\n  |\n'
+                      b'5 | resolver = "3"\n  | ^^^^^^^^\n  |\n'
+                      + f'make: *** [Makefile:{recipe_line}: clean] Error 101\n'.encode())
+        selected_before, other_before = digest_tree(target), digest_tree(other)
+        outputs = (target / 'debug/rmake', other / 'keep')
+        output_stats = [path.stat() for path in outputs]
+        try:
+            manifest.write_bytes(invalid)
+            invalid_mtime = manifest.stat().st_mtime_ns
+            protected = self.protected()
+            rejected = self.run(binary, 'clean', target=target)
+            require(rejected == (CLEAN_LINE, diagnostic, 2, None, False),
+                    f'clean manifest rejection: {rejected!r}')
+            require(digest_tree(target) == selected_before and digest_tree(other) == other_before,
+                    'rejected clean changed a Cargo target')
+            for path, before in zip(outputs, output_stats, strict=True):
+                after = path.stat()
+                require(os.path.samestat(before, after) and before.st_mtime_ns == after.st_mtime_ns,
+                        f'rejected clean replaced or updated {path.name}')
+            require(manifest.stat().st_mtime_ns == invalid_mtime and self.protected() == protected,
+                    'rejected clean changed protected inputs')
+        finally:
+            manifest.write_bytes(original)
+            os.utime(manifest, ns=(clock.st_atime_ns, clock.st_mtime_ns))
+        require(manifest.read_bytes() == original and manifest.stat().st_mtime_ns == clock.st_mtime_ns,
+                'clean manifest was not restored before retry')
+        return rejected
+
     def observe(self, case, binary):
         before = self.protected()
         if case == 'warm-bootstrap-oracle':
@@ -363,6 +404,8 @@ class Subject:
             shutil.copytree(self.seed, target, symlinks=True)
             target_before = digest_tree(target)
             try:
+                rejected = (self.observe_clean_manifest_rejection(binary, target, other)
+                            if case == CLEAN_RETRY else None)
                 result = self.run(binary, *flags, 'clean', target=None if default else target)
                 out, err, status, limit, children = result
                 require((out, status, limit, children) == (CLEAN_LINE, 0, None, False),
@@ -371,6 +414,9 @@ class Subject:
                 require(digest_tree(target) == (target_before if preserved else None),
                         'clean target contents did not match selected mode')
                 require(digest_tree(other) == other_before, 'clean touched the unselected Cargo target')
+                if rejected is not None:
+                    require(not os.path.lexists(target), 'clean retry left the selected target path')
+                    result = rejected, result
             finally:
                 if other.exists():
                     shutil.rmtree(other)
