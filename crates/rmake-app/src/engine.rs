@@ -2823,7 +2823,7 @@ impl Engine {
     }
 
     fn required_source_remake(&self) -> Option<&MakefileRemake> {
-        if !self.remaking || self.parallel_makefile_remakes {
+        if !self.remaking || (self.parallel_makefile_remakes && !self.parallel_jobs.is_empty()) {
             return None;
         }
         // Intermediate inspection can temporarily clear the optional flag.
@@ -13749,8 +13749,8 @@ impl Engine {
                                 || self.retained_permanent_archive(archive)
                         }
                         None => {
-                            !self.parallel_graph()
-                                && (!self.remaking || required_source_missing_rule)
+                            required_source_missing_rule
+                                || (!self.remaking && !self.parallel_graph())
                         }
                     });
             self.missing_rule_parents
@@ -17265,14 +17265,15 @@ impl Engine {
             };
             merge_child(&mut outcome, child);
             let interrupted_child = match child.database_result {
-                DatabaseResult::UnfinishedUpdate => {
-                    !self.remaking || self.required_source_remake().is_some()
+                DatabaseResult::UnfinishedUpdate if self.remaking => {
+                    self.required_source_remake().is_some()
                 }
-                DatabaseResult::StoppedAfterChildFailure => !self.remaking,
+                DatabaseResult::UnfinishedUpdate | DatabaseResult::StoppedAfterChildFailure => {
+                    !self.remaking && !self.parallel_graph()
+                }
                 _ => false,
             };
             if interrupted_child
-                && !self.parallel_graph()
                 && !self.options.keep_going
                 && branch.is_none()
                 && group.is_none()

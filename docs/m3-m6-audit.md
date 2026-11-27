@@ -188,6 +188,8 @@ NUL boundaries, rebinding and cancellation.
   the dump also leaves that prerequisite and its waiting single-colon
   ancestors unupdated. A source that opened successfully keeps its physical
   timestamp in the dump.
+  Parallel makefile remakes with a pipe jobserver retain the same interrupted
+  update state when no worker is active.
   A launched child retains its completed failure while its waiting ordinary
   ancestors remain unupdated when traversal stops.
   An ordinary serial keep-going prerequisite consumer samples the failed
