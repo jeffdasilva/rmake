@@ -43,5 +43,25 @@ verified query next child exit 1 split
 verified query next child exit 1 merged
 verified query skipped second line split
 verified query skipped second line merged
+verified query direct ignored split
+verified query direct ignored merged
+verified query direct ignored healthy control split
+verified query direct ignored healthy control merged
+verified query recursive fatal split
+verified query recursive fatal merged
+verified query recursive fatal healthy control split
+verified query recursive fatal healthy control merged
+verified query recursive ignored split
+verified query recursive ignored merged
+verified query recursive ignored healthy control split
+verified query recursive ignored healthy control merged
+verified query recursive first child exit 1 split
+verified query recursive first child exit 1 merged
+verified query recursive next child exit 1 split
+verified query recursive next child exit 1 merged
+verified query recursive ignored child exit 1 split
+verified query recursive ignored child exit 1 merged
+verified query recursive skipped second line split
+verified query recursive skipped second line merged
 """
 stderr = ""

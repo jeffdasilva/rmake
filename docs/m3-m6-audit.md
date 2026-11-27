@@ -341,10 +341,9 @@ covers mixed required and optional failure policies.
   output dump boundaries around the recheck. A launch rejected with `E2BIG` or
   `ENAMETOOLONG` also rechecks the prior executable in direct and target-sync
   output. A local symlink loop triggers the recheck in ordinary serial output.
-  In a serial dry run, a forced direct command that fails to find its executable
-  also triggers the recheck. This covers ignored failures and recursive output
-  synchronization. The recheck also applies to an unignored forced direct
-  lookup failure in a serial query with unsynchronized output.
+  In a serial dry run or query, a forced direct command that fails to find
+  its executable also triggers the recheck. This covers ignored failures and
+  recursive output synchronization.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)

@@ -206,11 +206,9 @@ their order within that output. Ignoring the recipe error preserves both
 executable diagnostics. A launch rejected by the Linux argument or filename
 limit uses the same recheck and output order. A local symlink loop also triggers
 the recheck in ordinary serial output.
-With serial `-n`, a missing executable on a forced direct command triggers the
-same recheck, including ignored failures. Recursive output synchronization
-prints the recheck diagnostic before the pending recipe output.
-With serial `-q` and direct output, an unignored missing executable on a forced
-direct command also triggers the recheck before the recipe error.
+With serial `-n` or `-q`, a missing executable on a forced direct command
+triggers the same recheck, including ignored failures. Recursive output
+synchronization prints the recheck diagnostic before the pending recipe output.
 
 An ordinary parallel recipe continuation keeps the latest successfully
 launched path through skipped commands and ignored lookup failures.

@@ -18,9 +18,11 @@ LAUNCH_ERROR = b'make[1]: ./next: No such file or directory\n'
 PRIOR_ERROR = b'make[1]: ./prior: No such file or directory\n'
 RECIPE_ERROR = b'make[1]: *** [worker.mk:3: all] Error 127\n'
 IGNORED_ERROR = b'make[1]: [worker.mk:3: all] Error 127 (ignored)\n'
+IGNORED_CHILD_ERROR = b'make[1]: [worker.mk:3: all] Error 1 (ignored)\n'
 ORDINARY_COMMAND = b'printf "ordinary\\n" > ran\n'
 CONTINUATION_COMMAND = b'printf "continued\\n"; printf "effect\\n" > ran\n'
-CONTINUATION = CONTINUATION_COMMAND + b'continued\n'
+CONTINUED = b'continued\n'
+CONTINUATION = CONTINUATION_COMMAND + CONTINUED
 FORCED_STDOUT = PRIOR_ECHO + PRIOR_OUT + NEXT_ECHO
 FORCED_MERGED = PRIOR_ECHO + PRIOR_OUT + PRIOR_ERR + NEXT_ECHO
 DIRECT_FATAL = LAUNCH_ERROR + PRIOR_ERROR + RECIPE_ERROR
@@ -34,6 +36,7 @@ NEXT_SCRIPT = (
 DRY = ('-n',)
 RECURSIVE = ('-n', '-Orecurse')
 QUERY = ('-q',)
+QUERY_RECURSIVE = ('-q', '-Orecurse')
 
 
 class Case(NamedTuple):
@@ -97,6 +100,35 @@ cases = (
          PRIOR_OUT + PRIOR_ERR + NEXT_OUT + NEXT_ERR, next_executable=True),
     Case('query skipped second line', QUERY, b'+@', b'@', True, 1,
          PRIOR_OUT, PRIOR_ERR, PRIOR_OUT + PRIOR_ERR),
+    Case('query direct ignored', QUERY, b'+@', b'+-@', True, 0,
+         PRIOR_OUT + CONTINUED, PRIOR_ERR + DIRECT_IGNORED,
+         PRIOR_OUT + PRIOR_ERR + DIRECT_IGNORED + CONTINUED),
+    Case('query direct ignored healthy control', QUERY, b'+@', b'+-@', False, 0,
+         PRIOR_OUT + CONTINUED, PRIOR_ERR + LAUNCH_ERROR + IGNORED_ERROR,
+         PRIOR_OUT + PRIOR_ERR + LAUNCH_ERROR + IGNORED_ERROR + CONTINUED),
+    Case('query recursive fatal', QUERY_RECURSIVE, b'+@', b'+@', True, 2,
+         PRIOR_OUT, PRIOR_ERROR + PRIOR_ERR + LAUNCH_ERROR + RECIPE_ERROR,
+         PRIOR_ERROR + PRIOR_OUT + PRIOR_ERR + LAUNCH_ERROR + RECIPE_ERROR),
+    Case('query recursive fatal healthy control', QUERY_RECURSIVE, b'+@', b'+@', False, 2,
+         PRIOR_OUT, PRIOR_ERR + LAUNCH_ERROR + RECIPE_ERROR,
+         PRIOR_OUT + PRIOR_ERR + LAUNCH_ERROR + RECIPE_ERROR),
+    Case('query recursive ignored', QUERY_RECURSIVE, b'+@', b'+-@', True, 0,
+         PRIOR_OUT + CONTINUED, PRIOR_ERROR + PRIOR_ERR + LAUNCH_ERROR + IGNORED_ERROR,
+         PRIOR_ERROR + PRIOR_OUT + PRIOR_ERR + LAUNCH_ERROR + IGNORED_ERROR + CONTINUED),
+    Case('query recursive ignored healthy control', QUERY_RECURSIVE, b'+@', b'+-@', False, 0,
+         PRIOR_OUT + CONTINUED, PRIOR_ERR + LAUNCH_ERROR + IGNORED_ERROR,
+         PRIOR_OUT + PRIOR_ERR + LAUNCH_ERROR + IGNORED_ERROR + CONTINUED),
+    Case('query recursive first child exit 1', QUERY_RECURSIVE, b'+@', b'+@', True, 1,
+         PRIOR_OUT, PRIOR_ERR, PRIOR_OUT + PRIOR_ERR, prior_status=1),
+    Case('query recursive next child exit 1', QUERY_RECURSIVE, b'+@', b'+@', True, 1,
+         PRIOR_OUT + NEXT_OUT, PRIOR_ERR + NEXT_ERR,
+         PRIOR_OUT + PRIOR_ERR + NEXT_OUT + NEXT_ERR, next_executable=True),
+    Case('query recursive ignored child exit 1', QUERY_RECURSIVE, b'+@', b'+-@', True, 0,
+         PRIOR_OUT + NEXT_OUT + CONTINUED, PRIOR_ERR + NEXT_ERR + IGNORED_CHILD_ERROR,
+         PRIOR_OUT + PRIOR_ERR + NEXT_OUT + NEXT_ERR + IGNORED_CHILD_ERROR + CONTINUED,
+         next_executable=True),
+    Case('query recursive skipped second line', QUERY_RECURSIVE, b'+@', b'@', True, 1,
+         PRIOR_OUT, PRIOR_ERR, PRIOR_OUT + PRIOR_ERR),
 )
 
 failures = []
@@ -104,7 +136,7 @@ for case in cases:
     ignored = case.second_prefix == b'+-@'
     if ignored:
         tail = b'+@' + CONTINUATION_COMMAND
-    elif case.options == QUERY:
+    elif '-q' in case.options:
         # The forced tail records any failure to stop at the query verdict.
         tail = b'+@' + ORDINARY_COMMAND
     else:

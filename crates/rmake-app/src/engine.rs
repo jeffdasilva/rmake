@@ -19657,21 +19657,16 @@ impl Engine {
                     const ELOOP: i32 = 40;
                     let sync_mode = self.output.mode();
                     let modes = MakefileModes::from_options(&self.options);
-                    let forced_mode = if modes.dry_run {
-                        !modes.question
-                            && matches!(
-                                sync_mode,
-                                crate::output::Mode::None | crate::output::Mode::Recurse
-                            )
-                    } else {
-                        modes.question && !ignore && sync_mode == crate::output::Mode::None
-                    };
                     let forced_lookup = force
                         && direct
                         && !parallel
                         && !one_shell
                         && !modes.touch
-                        && forced_mode
+                        && (modes.dry_run != modes.question)
+                        && matches!(
+                            sync_mode,
+                            crate::output::Mode::None | crate::output::Mode::Recurse
+                        )
                         && err.kind() == io::ErrorKind::NotFound;
                     if (executable_launch_failed
                         || err.kind() == io::ErrorKind::ArgumentListTooLong
