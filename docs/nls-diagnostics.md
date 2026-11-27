@@ -185,7 +185,9 @@ cycle drops, static-pattern errors and warnings about text after directives.
 Zero-operand `$(call ...)` returns empty for built-ins whose minimum is zero,
 after evaluating the callee name. An explicit empty argument still invokes
 the built-in. The arity models check both forms and preserve argument effects
-and the real errors for built-ins with required operands.
+and the real errors for built-ins with required operands. When a recursive
+definition emits the failing call through `eval`, the diagnostic keeps that
+definition's location. A top-level `eval` uses the active reader location.
 When `call` names the built-in `call`, the inner dispatch receives the already
 expanded operands. The selected branch of a lazy built-in still performs its
 own expansion. The models check the order of effects, literal operand bytes,

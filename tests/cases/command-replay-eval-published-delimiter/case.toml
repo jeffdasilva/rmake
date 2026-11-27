@@ -1,0 +1,19 @@
+id = "command-replay-eval-published-delimiter"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "Replay the published alias once before the recipe and retain delimiter-like eval data."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--eval=EARLY := kept -- NOT_AN_OVERRIDE=two", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|krR -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|kept -- NOT_AN_OVERRIDE=two
+READ|undefined||krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|kept -- NOT_AN_OVERRIDE=two
+ALIAS|run|undefined
+RUN|environment|from-public|environment|undefined|undefined|krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)
+ALIAS|run|environment
+ENV|krRs -j1 --no-print-directory --eval=EARLY\ :=\ kept\ --\ NOT_AN_OVERRIDE=two -- MARK=from-public SIDE=environment
+'''

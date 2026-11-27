@@ -1,0 +1,18 @@
+id = "command-replay-eval-no-eval-control"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "Keep the ordinary no-eval omission behavior."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|krR -j1 --no-print-directory -- $(MAKEOVERRIDES)|
+READ|undefined||krRs -j1 --no-print-directory|
+RUN|undefined||undefined||undefined|krRs -j1 --no-print-directory -- $(MAKEOVERRIDES)
+ALIAS|run|undefined
+ENV|krRs -j1 --no-print-directory -- MARK=from-public SIDE=undefined
+'''

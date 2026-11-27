@@ -239,6 +239,10 @@ jobs:
             --case c-valid-utf8-source --case utf8-valid-utf8-source --case callback-eval-false \
             --case module-public-interface --case module-public-gmk-var \
             --case guile-bridge-shell-target --report "$reports/application.json"
+          env -u RMAKE_GUILE_COMPONENT_CASE TMPDIR="$target" \
+            python3 tools/guile_profile_exec.py --profile "$profile" -- \
+            python3 tools/rust.py cargo test --release --locked -p rmake-linux --features guile \
+            --test guile_dispatcher -- --native-abi 2>&1 | tee "$reports/components.log"
           du -sb -- "$sdk" "$target" > "$reports/disk-bytes.txt"
       - name: Retain native profile and reports
         if: always()

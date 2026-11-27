@@ -1,0 +1,20 @@
+id = "command-replay-eval-unchanged-effect-control"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "Preserve the unchanged public suffix and its actual alias evaluation."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--eval=EARLY := $(file >>seen,EVAL)started", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+EVAL
+ENTRY|command line|from-cli|krR -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|started
+READ|undefined||krR -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|started
+ALIAS|run|undefined
+RUN|environment|from-public|environment|undefined|undefined|krR -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)
+ALIAS|run|environment
+ENV|krR -j1 --no-print-directory --eval=EARLY\ :=\ $$(file\ >>seen,EVAL)started -- MARK=from-public SIDE=environment
+'''

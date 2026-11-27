@@ -1,0 +1,16 @@
+id = "include-search-eval-new-owner"
+requirement = "includes.search"
+candidate = "required"
+description = "An include in a reader eval keeps the resolved spelling for a new file record."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--no-print-directory", "--jobs=1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = """
+SEARCH|./home-dir/inc|rR -I- -I~/inc -j1 --no-print-directory
+READ|Makefile ./home-dir/inc/part.mk
+RUN|Makefile ./home-dir/inc/part.mk|read
+"""
+stderr = "part.mk:2: included source\n"

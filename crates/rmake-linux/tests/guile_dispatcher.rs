@@ -454,7 +454,8 @@ fn compile(directory: &Path, source: &str, target: &str, extra: &[&str]) {
     let source = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/guile")
         .join(source);
-    let library = prefix.join("usr/lib/x86_64-linux-gnu");
+    let multiarch = format!("{}-linux-gnu", std::env::consts::ARCH);
+    let library = prefix.join("usr/lib").join(&multiarch);
     let output = wait(
         Command::new("cc")
             .args([
@@ -464,7 +465,7 @@ fn compile(directory: &Path, source: &str, target: &str, extra: &[&str]) {
             .arg("-I")
             .arg(prefix.join("usr/include"))
             .arg("-I")
-            .arg(prefix.join("usr/include/x86_64-linux-gnu"))
+            .arg(prefix.join("usr/include").join(&multiarch))
             .arg("-I")
             .arg(prefix.join("usr/include/guile/3.0"))
             .arg("-L")
@@ -522,6 +523,7 @@ fn main() {
         return;
     }
     assert!(Runtime::new().is_err());
+    let native_abi_only = std::env::args_os().skip(1).any(|arg| arg == "--native-abi");
     for case in [
         "outside",
         "empty",
@@ -549,6 +551,11 @@ fn main() {
         "signal-worker-init",
         "signal-worker-init-transient",
     ] {
+        if native_abi_only
+            && !matches!(case, "outside" | "nested" | "native-exit" | "native-unload")
+        {
+            continue;
+        }
         let root = std::env::temp_dir().join(format!(
             "rmake-guile-component-{}-{case}",
             std::process::id()
@@ -623,5 +630,8 @@ fn main() {
             b""
         };
         assert_eq!(output.stderr, stderr, "{case}");
+        if native_abi_only {
+            println!("CASE={case}:ok");
+        }
     }
 }

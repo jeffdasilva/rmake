@@ -1,0 +1,18 @@
+id = "command-replay-eval-posix-default-control"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "Keep default POSIX replay with the automatic command-line eval binding."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "--eval=EARLY := $(file >>seen,EVAL)started", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+EVAL
+ENTRY|command line|from-cli|krR -j1 --no-print-directory $(-*-eval-flags-*-) -- $(MAKEOVERRIDES)|started
+READ|undefined||krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(-*-command-variables-*-)|started
+RUN|environment|from-cli|undefined||undefined|krRs -j1 --no-print-directory $(-*-eval-flags-*-) -- $(-*-command-variables-*-)
+ENV|krRs -j1 --no-print-directory --eval=EARLY\ :=\ $$(file\ >>seen,EVAL)started -- MARK=from-cli
+'''

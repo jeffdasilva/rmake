@@ -5,6 +5,7 @@
 //! Switch values remain distinct from the pool's execution capacity.
 use super::*;
 use rmake_core::diagnostic::MakeflagsDecodeError;
+use rmake_core::variables::{EVAL_FLAGS_NAME, EVAL_FLAGS_REFERENCE};
 
 pub(super) struct State {
     options: std::rc::Rc<RefCell<Options>>,
@@ -857,11 +858,11 @@ impl Engine {
                 });
             if unchanged && !warn_missing {
                 self.database.variables.database_lookup(name);
-                if unchanged_makeflags.is_some_and(|flags| flags.ends_with(b" $(-*-eval-flags-*-)"))
+                if unchanged_makeflags.is_some_and(|flags| flags.ends_with(EVAL_FLAGS_REFERENCE))
                     && binding.is_some_and(|variable| variable.flavor() == Flavor::Recursive)
                 {
                     // The canonical source contains the encoded command-line evals.
-                    self.database.variables.database_lookup(b"-*-eval-flags-*-");
+                    self.database.variables.database_lookup(EVAL_FLAGS_NAME);
                 }
             }
             let value = if let Some(prefix) = unchanged_makeflags.filter(|_| changed) {
@@ -869,29 +870,46 @@ impl Engine {
             } else if !unchanged {
                 let reference = self.database.command_overrides_reference();
                 let public_overrides = self.database.command_overrides_name() == b"MAKEOVERRIDES";
-                let canonical_makeflags = name == b"MAKEFLAGS"
-                    && self.command_replay
-                    && binding.is_some_and(|binding| {
+                let canonical_prefix_len = binding
+                    .filter(|binding| {
+                        name == b"MAKEFLAGS"
+                            && self.command_replay
+                            && binding.definition().is_none()
+                            && binding.flavor() == Flavor::Recursive
+                    })
+                    .and_then(|binding| {
                         let raw = binding.raw_value();
                         let prefix = raw.strip_suffix(reference).unwrap_or(raw);
-                        binding.definition().is_none()
-                            && binding.flavor() == Flavor::Recursive
-                            && !prefix.contains(&b'$')
+                        let (literal, eval_bytes) =
+                            if let Some(literal) = prefix.strip_suffix(EVAL_FLAGS_REFERENCE) {
+                                let evals = self.database.variables.get(EVAL_FLAGS_NAME).filter(
+                                    |evals| {
+                                        evals.origin() == Origin::Automatic
+                                            && evals.flavor() == Flavor::Simple
+                                            && evals.definition().is_none()
+                                    },
+                                )?;
+                                (literal, 1 + evals.raw_value().len())
+                            } else {
+                                (prefix, 0)
+                            };
+                        (!literal.contains(&b'$')
                             && !prefix.windows(4).any(|part| part == b" -- ")
-                            && prefix == self.options.makeflags_for_phase(false)
+                            && prefix == self.options.makeflags_for_phase(false))
+                        .then_some(literal.len() + eval_bytes)
                     });
                 let has_suffix =
                     binding.is_some_and(|binding| binding.raw_value().ends_with(reference));
                 // The reader can republish flags without the startup
                 // override reference. In that case there are no words to replay.
-                let omitted_overrides = canonical_makeflags
+                let omitted_overrides = canonical_prefix_len.is_some()
                     && !has_suffix
                     && public_overrides
                     && self.initial_flags.ends_with(reference)
                     && binding.is_some_and(|binding| {
                         binding.origin() == origin(self.options.environment_override)
                     });
-                let reuse_suffix = canonical_makeflags
+                let reuse_suffix = canonical_prefix_len.is_some()
                     && has_suffix
                     && if public_overrides {
                         crate::command_variables::has_default_snapshot(&self.database.variables)
@@ -917,14 +935,25 @@ impl Engine {
                             && self.database.variables.get(name).is_some_and(|variable| {
                                 Database::has_command_overrides_reference(variable.raw_value())
                             });
-                        if encoded
-                            && let Some(boundary) =
-                                value.windows(4).position(|part| part == b" -- ")
-                        {
-                            if reuse_suffix {
-                                command_overrides = Some(value.split_off(boundary + 4));
+                        if encoded {
+                            // An encoded eval can end in an escaped space and
+                            // "--". Use the verified prefix extent before
+                            // looking for the actual override separator.
+                            let boundary =
+                                if let Some(end) = canonical_prefix_len.filter(|_| has_suffix) {
+                                    value
+                                        .get(end..)
+                                        .is_some_and(|suffix| suffix.starts_with(b" -- "))
+                                        .then_some(end)
+                                } else {
+                                    value.windows(4).position(|part| part == b" -- ")
+                                };
+                            if let Some(boundary) = boundary {
+                                if reuse_suffix {
+                                    command_overrides = Some(value.split_off(boundary + 4));
+                                }
+                                value.truncate(boundary);
                             }
-                            value.truncate(boundary);
                         }
                         Some(value)
                     }

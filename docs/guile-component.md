@@ -49,6 +49,13 @@ from being reused. `make test-guile-components` verifies the profile and runs
 the isolated target in a separate Cargo directory. CI requires its safety job
 alongside the existing development/optimized gates and retains provenance.
 
+The native AArch64 job runs four optimized component cases after its
+[application comparisons](guile-frontend.md). They check dispatcher rejection,
+a nested callback with a live Guile root, and native finalizers at process exit
+and explicit unload. The cases use the application's private ARM SDK and
+temporary Cargo target. The job retains the component log with its application
+evidence.
+
 The ordinary native adapter and leading dispatcher carry the current thread's
 floating-point environment through each context switch and first entry using
 public fenv APIs while preserving errno. Eighteen separately required original
