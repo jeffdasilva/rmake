@@ -25,26 +25,29 @@ def describe(fd):
     return f"{kind}/access={flags & os.O_ACCMODE}/append={int(bool(flags & os.O_APPEND))}"
 
 
+def verify_pipe(reader, writer, access):
+    if not (stat.S_ISFIFO(reader.st_mode) and stat.S_ISFIFO(writer.st_mode)):
+        raise RuntimeError("wire descriptors must be pipes")
+    if (reader.st_dev, reader.st_ino) != (writer.st_dev, writer.st_ino):
+        raise RuntimeError("wire descriptors must identify the same pipe")
+    if access != [os.O_RDONLY, os.O_WRONLY]:
+        raise RuntimeError("wire directions must be read and write")
+
+
 def exec_submake(executable):
     auth, = [argument.removeprefix("--jobserver-auth=")
              for argument in os.environ["MAKEFLAGS"].split()
              if argument.startswith("--jobserver-auth=")]
     read, write = map(int, auth.split(","))
     reader, writer = (os.fstat(fd) for fd in (read, write))
-    if not (stat.S_ISFIFO(reader.st_mode) and stat.S_ISFIFO(writer.st_mode)):
-        raise RuntimeError("wire descriptors must be pipes")
-    if (reader.st_dev, reader.st_ino) != (writer.st_dev, writer.st_ino):
-        raise RuntimeError("wire descriptors must identify the same pipe")
     access = [fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_ACCMODE for fd in (read, write)]
-    if access != [os.O_RDONLY, os.O_WRONLY]:
-        raise RuntimeError("wire directions must be read and write")
+    verify_pipe(reader, writer, access)
     Path("wire").write_text(f"{read},{write} same-pipe read-only write-only\n")
     Path("wire-identity").write_text(f"{reader.st_dev},{reader.st_ino}\n")
     os.execv(executable, [executable, "-f", "Child.mk", "child"])
 
 
-def parent_wire_state(descriptor, identity):
-    parent = Path(f"/proc/{os.getppid()}")
+def parent_wire_state(parent, descriptor, identity):
     path = parent / "fd" / str(descriptor)
     try:
         metadata = path.stat()
@@ -68,6 +71,59 @@ def parent_wire_state(descriptor, identity):
     return "replacement", raw
 
 
+def inspect_active_fifo(parent, borrowed_identity, path):
+    metadata = path.stat()
+    identity = (metadata.st_dev, metadata.st_ino)
+    mode = stat.S_IMODE(metadata.st_mode)
+    if path.parent != Path(os.environ["TMPDIR"]) or not stat.S_ISFIFO(metadata.st_mode):
+        raise RuntimeError("active jobserver must be a FIFO in TMPDIR")
+    if mode != 0o600 or identity == borrowed_identity:
+        raise RuntimeError("active FIFO must be private and distinct from the borrowed pipe")
+
+    wire = []
+    borrowed_present = False
+    for entry in (parent / "fd").iterdir():
+        try:
+            endpoint = entry.stat()
+        except FileNotFoundError:
+            continue
+        endpoint_identity = (endpoint.st_dev, endpoint.st_ino)
+        if endpoint_identity == identity:
+            wire.append(int(entry.name))
+        if endpoint_identity == borrowed_identity:
+            borrowed_present = True
+    wire.sort()
+    if len(wire) != 2:
+        raise RuntimeError("parent must hold both active FIFO endpoints")
+    borrowed_state = "present" if borrowed_present else "absent"
+    states = " ".join(describe(fd) for fd in wire)
+    Path("seen-active").write_text(
+        f"fifo {wire[0]},{wire[1]} new mode={mode:04o} borrowed={borrowed_state} {states}\n"
+    )
+    return {"path": str(path), "device": metadata.st_dev, "inode": metadata.st_ino,
+            "mode": f"{mode:04o}", "descriptors": wire, "borrowed_present": borrowed_present}
+
+
+def inspect_active_wire(parent, borrowed_identity):
+    auth = Path("child-auth").read_text().strip()
+    if not auth:
+        return
+    if auth.startswith("--jobserver-auth=fifo:"):
+        path = Path(auth.removeprefix("--jobserver-auth=fifo:"))
+        return inspect_active_fifo(parent, borrowed_identity, path)
+    wire = [int(fd) for fd in auth.removeprefix("--jobserver-auth=").split(",")]
+    reader, writer = ((parent / "fd" / str(fd)).stat() for fd in wire)
+    access = []
+    for fd in wire:
+        info = (parent / "fdinfo" / str(fd)).read_text().splitlines()
+        flags, = [line.split()[1] for line in info if line.startswith("flags:")]
+        access.append(int(flags, 8) & os.O_ACCMODE)
+    verify_pipe(reader, writer, access)
+    state = "original" if (reader.st_dev, reader.st_ino) == borrowed_identity else "new"
+    states = " ".join(describe(fd) for fd in wire)
+    Path("seen-active").write_text(f"{wire[0]},{wire[1]} {state} {states}\n")
+
+
 def inspect():
     auth = Path("wire").read_text().split()[0]
     wire = [int(fd) for fd in auth.split(",")]
@@ -76,13 +132,17 @@ def inspect():
     identity_file.unlink()
     Path("seen-child").write_text(" ".join(describe(fd) for fd in (0, 1, 2)) + "\n")
     Path("seen-wire").write_text(" ".join(describe(fd) for fd in wire) + "\n")
+    parent = Path(f"/proc/{os.getppid()}")
     states = []
     raw_wires = {}
     for fd in wire:
-        state, raw = parent_wire_state(fd, identity)
+        state, raw = parent_wire_state(parent, fd, identity)
         states.append(f"parent{fd}={state}")
         raw_wires[fd] = raw
     Path("seen-parent").write_text(" ".join(states) + "\n")
+    active_fifo = inspect_active_wire(parent, identity)
+    if active_fifo is not None:
+        raw_wires["active_fifo"] = active_fifo
     Path("seen-parent-raw.json").write_text(json.dumps(raw_wires) + "\n")
 
 

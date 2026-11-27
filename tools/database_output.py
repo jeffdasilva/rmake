@@ -70,6 +70,25 @@ class Model:
     removed_files: tuple[str, ...] = ()
     fixed_input_mtimes: bool = False
     hold_left_worker: bool = False
+    worker_release_seen: bytes | None = None
+
+
+@dataclass(frozen=True)
+class WorkerRelease:
+    parent: int
+    child: int
+    started_at: int
+    wchan: str
+    poll_syscall: int | None
+    stderr: bytes
+    seen: bytes | None
+
+    def evidence(self) -> dict[str, Any]:
+        witness = {'parent': self.parent, 'child': self.child, 'started_at': self.started_at,
+                   'wchan': self.wchan, 'poll_syscall': self.poll_syscall, 'stderr_hex': self.stderr.hex()}
+        if self.seen is not None:
+            witness['seen_hex'] = self.seen.hex()
+        return witness
 
 
 @dataclass(frozen=True)
@@ -83,7 +102,7 @@ class Execution:
     libc_time_interval: tuple[int, int] | None = None
     expected_inputs: portable.PublicInputs | None = None
     input_mtimes: tuple[dict[str, int | None], dict[str, int | None]] | None = None
-    worker_release: dict[str, Any] | None = None
+    worker_release: WorkerRelease | None = None
 
 
 def expected_preparation(profile: dict[str, Any], root: Path) -> portable.Preparation:
@@ -142,12 +161,15 @@ def models(suite: str = 'core') -> list[Model]:
                       tuple(tuple(pair) for pair in row.get('compile_shared', [])),
                       tuple((name, bytes.fromhex(value)) for name, value in row.get('expected_additions_hex', {}).items()),
                       tuple(row.get('expected_removals', [])), row.get('fixed_input_mtimes', False),
-                      row.get('hold_left_worker', False))
+                      row.get('hold_left_worker', False),
+                      bytes.fromhex(row['worker_release_seen_hex']) if 'worker_release_seen_hex' in row else None)
         if not isinstance(model.hold_left_worker, bool):
             raise h.HarnessError('invalid held database worker selection')
+        if model.worker_release_seen is not None and (not model.hold_left_worker or 'seen' not in model.files):
+            raise h.HarnessError('pre-release file witness requires the held worker and an input witness file')
         if model.hold_left_worker:
-            if not model.stderr or 'worker.py' in model.files:
-                raise h.HarnessError('held database worker requires a diagnostic and the shared worker')
+            if 'worker.py' in model.files or (not model.stderr and model.worker_release_seen is None):
+                raise h.HarnessError('held database worker requires an observation and the shared worker')
             worker = (held_remake.SOURCES / 'worker.py').read_bytes()
             model = replace(model, files={**model.files, 'worker.py': worker})
         safe_relative(model.id)
@@ -273,9 +295,13 @@ def prepared_stream_errors(model: Model, runtime: Path, execution: Execution) ->
     if observation.leftover_processes:
         errors.append('child cleanup')
     if model.hold_left_worker and (
-        execution.worker_release is None or execution.worker_release['stderr_hex'] != model.stderr.hex()
+        execution.worker_release is None or execution.worker_release.stderr != model.stderr
     ):
         errors.append('required diagnostic before held worker release')
+    if model.worker_release_seen is not None and (
+        execution.worker_release is None or execution.worker_release.seen != model.worker_release_seen
+    ):
+        errors.append('required file effect before held worker release')
     if model.fixed_input_mtimes:
         expected = dict.fromkeys(model.files, model.fixed_mtime_ns)
         if execution.input_mtimes != (expected, expected):
@@ -371,11 +397,12 @@ def input_mtimes(model: Model, runtime: Path) -> dict[str, int | None]:
 
 
 class HeldDatabaseWorker:
-    def __init__(self, work: Path):
+    def __init__(self, work: Path, *, observe_seen: bool):
         self.work = work
+        self.observe_seen = observe_seen
         self.stderr = b''
         self.previous = None
-        self.release = None
+        self.release: WorkerRelease | None = None
 
     def observe_streams(self, _stdout: bytes, stderr: bytes) -> None:
         self.stderr = stderr
@@ -398,9 +425,10 @@ class HeldDatabaseWorker:
             child, start = workers['left']
             if (proc / 'task' / str(parent) / 'children').read_bytes().split() != [str(child).encode()]:
                 return
+            seen = (self.work / 'seen').read_bytes() if self.observe_seen else None
         except (FileNotFoundError, ProcessLookupError):
             return
-        signature = (child, start, channel, syscall, stdout, self.stderr)
+        signature = (child, start, channel, syscall, stdout, self.stderr, seen)
         if signature != self.previous:
             self.previous = signature
             return
@@ -413,8 +441,7 @@ class HeldDatabaseWorker:
         pending.write_bytes(b'yes\n')
         pending.chmod(0o644)
         pending.rename(marker)
-        self.release = {'parent': parent, 'child': child, 'started_at': start, 'wchan': channel,
-                        'poll_syscall': syscall, 'stderr_hex': self.stderr.hex()}
+        self.release = WorkerRelease(parent, child, start, channel, syscall, self.stderr, seen)
 
 
 def execute(model: Model, case: h.Case, runtime: Path, executable: Path, *,
@@ -426,7 +453,8 @@ def execute(model: Model, case: h.Case, runtime: Path, executable: Path, *,
     public_before = expected.capture(runtime / "work", plan) if expected is not None and plan is not None else {}
     started = time.time()
     libc_started = libc_time()
-    observer = HeldDatabaseWorker(runtime / 'work') if model.hold_left_worker else None
+    observer = (HeldDatabaseWorker(runtime / 'work', observe_seen=model.worker_release_seen is not None)
+                if model.hold_left_worker else None)
     stdout, stderr, status, limit, leftovers = h.capture(
         [str(runtime / 'bin' / 'make'), *case.args], runtime / 'work', h.clean_environment(runtime, case.environment),
         case.timeout, observe=observer.observe if observer else None,
@@ -450,7 +478,8 @@ def evidence(execution: Execution) -> dict[str, Any]:
                 execution_interval=list(execution.interval), directories_before=execution.directories_before,
                 directories_after=execution.directories_after, libc_time_interval=list(execution.libc_time_interval) if execution.libc_time_interval is not None else None,
                 **({'fixed_input_mtimes_ns': execution.input_mtimes} if execution.input_mtimes is not None else {}),
-                **({'held_worker_release': execution.worker_release} if execution.worker_release is not None else {}))
+                **({'held_worker_release': execution.worker_release.evidence()}
+                   if execution.worker_release is not None else {}))
 
 
 def assess(model: Model, runtime: Path, filesystem: dict[str, Any], executions: list[Execution]) -> dict[str, Any]:

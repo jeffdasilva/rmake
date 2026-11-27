@@ -1515,6 +1515,13 @@ enum BuildVisit {
     PrerequisiteAfterRecipe,
 }
 
+#[derive(PartialEq, Eq)]
+enum ScopedExpansionSite {
+    Other,
+    RecipeBody,
+    ShellConfiguration,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum PrerequisiteVisit {
     First,
@@ -2450,7 +2457,7 @@ impl Engine {
         bytes: &[u8],
         location: Option<&Location>,
     ) -> Result<Vec<u8>, ExpandError> {
-        self.with_scoped_expansion(location, false, |database, context| {
+        self.with_scoped_expansion(location, ScopedExpansionSite::Other, |database, context| {
             database.expand_in(variables, bytes, context)
         })
     }
@@ -2458,11 +2465,12 @@ impl Engine {
     fn with_scoped_expansion<T>(
         &mut self,
         location: Option<&Location>,
-        mute_undefined: bool,
+        site: ScopedExpansionSite,
         operation: impl FnOnce(&mut Database, ExpansionContext<'_>) -> T,
     ) -> T {
-        let warnings = mute_undefined.then(|| self.flag_state.replace_scoped_warning_policy(false));
-        let result = self.with_target_read_expansion(location, operation);
+        let warnings = (site == ScopedExpansionSite::ShellConfiguration)
+            .then(|| self.flag_state.replace_scoped_warning_policy(false));
+        let result = self.with_target_read_expansion(location, site, operation);
         if let Some(warnings) = warnings {
             self.flag_state.replace_scoped_warning_policy(warnings);
         }
@@ -2475,9 +2483,21 @@ impl Engine {
     fn with_target_read_expansion<T>(
         &mut self,
         location: Option<&Location>,
+        site: ScopedExpansionSite,
         operation: impl FnOnce(&mut Database, ExpansionContext<'_>) -> T,
     ) -> T {
         let direct_heads = self.direct_named_head_reads();
+        let observe_recipe_includes = self.ordinary_include_open_times
+            && !direct_heads
+            && matches!(
+                site,
+                ScopedExpansionSite::RecipeBody | ScopedExpansionSite::ShellConfiguration
+            )
+            && !self.remaking
+            && self.active_makefile_remake.is_none()
+            && !MakefileModes::from_options(&self.options).active()
+            && (self.parallel_jobs.is_empty() || self.one_running_ordinary_recipe());
+        let first_recipe_include = observe_recipe_includes.then_some(self.database.makefiles.len());
         let mut target_reads = TargetReads {
             visits: &self.file_traversals,
             retained_parents: &self.retained_scope_parents,
@@ -2530,7 +2550,43 @@ impl Engine {
         for (name, opened) in open_results {
             self.retain_include_open_time(name, opened);
         }
+        if let Some(first) = first_recipe_include {
+            self.retain_optional_include_open_times(first);
+        }
         result
+    }
+
+    fn one_running_ordinary_recipe(&self) -> bool {
+        self.parallel_jobs.len() == 1
+            && self
+                .parallel_jobs
+                .primary
+                .iter()
+                .next()
+                .is_some_and(|(name, job)| {
+                    job.child.is_some()
+                        && !job.phony
+                        && !job.recursive
+                        && job.continuation.branch.is_none()
+                        && job.continuation.remake.is_none()
+                        && !self.running_groups.contains_key(name)
+                })
+    }
+
+    fn retain_optional_include_open_times(&mut self, first: usize) {
+        // The reader records the directive's optional policy and the
+        // selected file identity together.
+        let observations: Vec<_> = self
+            .database
+            .makefiles
+            .iter()
+            .skip(first)
+            .filter(|file| file.optional && !self.file_traversals.has_outcome(&file.name))
+            .map(|file| (file.name.clone(), !file.missing))
+            .collect();
+        for (name, opened) in observations {
+            self.retain_include_open_time(name, opened);
+        }
     }
 
     fn retain_include_open_time(&mut self, name: Vec<u8>, opened: bool) {
@@ -10209,9 +10265,11 @@ impl Engine {
                     .visit(to)
                     .is_some_and(|visit| visit.parent.is_some()));
         let visited_context = if needs_visited_context {
-            self.with_target_read_expansion(None, |database, context| {
-                database.variables_for_visited_file(to, &context)
-            })
+            self.with_target_read_expansion(
+                None,
+                ScopedExpansionSite::Other,
+                |database, context| database.variables_for_visited_file(to, &context),
+            )
         } else {
             None
         };
@@ -12441,9 +12499,11 @@ impl Engine {
         branch: Option<usize>,
     ) -> Result<VariableStore, ExpandError> {
         if intermediate && intermediate_scope.is_none() {
-            let pattern = self.with_target_read_expansion(None, |database, context| {
-                database.prepare_pattern_scope(target, context)
-            })?;
+            let pattern = self.with_target_read_expansion(
+                None,
+                ScopedExpansionSite::Other,
+                |database, context| database.prepare_pattern_scope(target, context),
+            )?;
             *intermediate_scope = Some(ImplicitScope {
                 pattern,
                 runtime_metadata: VariableStore::default(),
@@ -18289,9 +18349,11 @@ impl Engine {
             variables.retain_runtime_metadata(&scope.runtime_metadata, true);
             variables
         } else {
-            self.with_target_read_expansion(None, |database, context| {
-                database.variables_for_target_with(target, &inherited, context)
-            })?
+            self.with_target_read_expansion(
+                None,
+                ScopedExpansionSite::Other,
+                |database, context| database.variables_for_target_with(target, &inherited, context),
+            )?
         };
         self.target_contexts
             .insert(target.to_vec(), variables.clone());
@@ -18535,7 +18597,12 @@ impl Engine {
             {
                 recipe.location.line = line;
             }
-            match self.expand(&mut variables, &recipe.bytes, Some(&recipe.location)) {
+            let expansion = self.with_scoped_expansion(
+                Some(&recipe.location),
+                ScopedExpansionSite::RecipeBody,
+                |database, context| database.expand_in(&mut variables, &recipe.bytes, context),
+            );
+            match expansion {
                 Ok(mut bytes) => {
                     // A single source line can also gain recipe prefixes
                     // during expansion.
@@ -18863,7 +18930,7 @@ impl Engine {
             // Restore the original policy before the next command or target.
             let configuration = self.with_scoped_expansion(
                 Some(&recipe.location),
-                true,
+                ScopedExpansionSite::ShellConfiguration,
                 |database, mut context| {
                     let shell = if variables.get(b"SHELL").is_some() {
                         database.expand_in(variables, b"$(SHELL)", context.reborrow())?
@@ -19110,6 +19177,12 @@ impl Engine {
                     .collect();
                 let mut emitted_order = Vec::new();
                 let mut inherited_mflags = false;
+                let first_export_include = (self.ordinary_include_open_times
+                    && !self.remaking
+                    && self.active_makefile_remake.is_none()
+                    && (self.parallel_jobs.is_empty() || self.one_running_ordinary_recipe())
+                    && !MakefileModes::from_options(&self.options).active())
+                .then_some(self.database.makefiles.len());
                 let direct_heads = self.direct_named_head_reads();
                 let mut target_reads = TargetReads {
                     visits: &self.file_traversals,
@@ -19186,6 +19259,9 @@ impl Engine {
                                 emitted_order.push(name.clone());
                             }
                             Err(err) => {
+                                if let Some(first) = first_export_include {
+                                    self.retain_optional_include_open_times(first);
+                                }
                                 self.expansion_error(variable.definition(), &err);
                                 return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                             }
@@ -19193,6 +19269,9 @@ impl Engine {
                     } else {
                         child.env_remove(os(name));
                     }
+                }
+                if let Some(first) = first_export_include {
+                    self.retain_optional_include_open_times(first);
                 }
                 if !export_selected(
                     &environment_variables,
@@ -19547,10 +19626,14 @@ impl Engine {
                 Err(err) => {
                     let detail = rmake_linux::filesystem::source_error_detail(&err);
                     self.stderr(&[program.as_slice(), b": ", &detail].concat());
-                    // GNU rechecks the last successfully spawned command
-                    // when the next executable lookup fails.
+                    // GNU also rechecks the previous command after a kernel
+                    // argument, filename, or symlink resolution limit.
+                    const ENAMETOOLONG: i32 = 36;
+                    const ELOOP: i32 = 40;
                     let sync_mode = self.output.mode();
-                    if executable_launch_failed
+                    if (executable_launch_failed
+                        || err.kind() == io::ErrorKind::ArgumentListTooLong
+                        || matches!(err.raw_os_error(), Some(ENAMETOOLONG | ELOOP)))
                         && !self.remaking
                         && remake.is_none()
                         && branch.is_none()

@@ -169,6 +169,15 @@ NUL boundaries, rebinding and cancellation.
   The optional-file database marker belongs to the active remake visit.
   A serial fatal dump retains the marker from the interrupted visit.
   A scoped include during a serial goal records a failed open as a missing timestamp.
+  An optional include in an ordinary recipe body also records its failed open
+  when the file has no completed visit and the parallel job queue is idle or
+  holds one separate ordinary recipe.
+  Optional includes from target-specific shell configuration also retain
+  their missing timestamps while the parallel job queue is idle or holds
+  one separate ordinary recipe.
+  The ordinary recipe's exported bindings record the same observation
+  while preparing a child environment with an idle queue or one separate
+  ordinary recipe running.
   An accepted reopen clears that timestamp while preserving the update verdict.
   Startup preloads intern each list operand and the selected read name at their
   respective reader boundaries. The file table probes the normalized name
@@ -325,7 +334,9 @@ covers mixed required and optional failure policies.
   path before printing the recipe error. A parallel recipe continuation
   also retains the latest launch across a no-child line and ignored
   launch failures. Target, line and recursive sync keep their respective
-  output dump boundaries around the recheck.
+  output dump boundaries around the recheck. A launch rejected with `E2BIG` or
+  `ENAMETOOLONG` also rechecks the prior executable in direct and target-sync
+  output. A local symlink loop triggers the recheck in ordinary serial output.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)

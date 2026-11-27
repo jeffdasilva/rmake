@@ -93,6 +93,13 @@ pub(crate) fn cli_has_inherited_streams() -> bool {
     CLI_INHERITED_OPEN_STREAMS.load(Ordering::Relaxed) != 0
 }
 
+pub(crate) fn cli_standard_streams_are_open() -> bool {
+    CLI_INHERITED_OPEN_STREAMS.load(Ordering::Relaxed) == ALL_STANDARD_STREAMS
+        && STANDARD_STREAMS
+            .into_iter()
+            .all(|descriptor| unsafe { fcntl(descriptor, F_GETFD) >= 0 })
+}
+
 pub(crate) fn cli_inherited_stream_was_open(descriptor: c_int) -> bool {
     STANDARD_STREAMS.contains(&descriptor)
         && CLI_INHERITED_OPEN_STREAMS.load(Ordering::Relaxed) & (1 << descriptor) != 0
