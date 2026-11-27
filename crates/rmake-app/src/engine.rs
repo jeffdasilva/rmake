@@ -2562,22 +2562,29 @@ impl Engine {
             .with_shell(&shell)
             .with_includes(&mut include);
         let result = operation(&mut self.database, context);
-        if let Some(first) = first_recipe_include {
-            // The reader records the directive's optional policy and the
-            // selected file identity together.
-            open_results.extend(
-                self.database
-                    .makefiles
-                    .iter()
-                    .skip(first)
-                    .filter(|file| file.optional && !self.file_traversals.has_outcome(&file.name))
-                    .map(|file| (file.name.clone(), !file.missing)),
-            );
-        }
         for (name, opened) in open_results {
             self.retain_include_open_time(name, opened);
         }
+        if let Some(first) = first_recipe_include {
+            self.retain_optional_include_open_times(first);
+        }
         result
+    }
+
+    fn retain_optional_include_open_times(&mut self, first: usize) {
+        // The reader records the directive's optional policy and the
+        // selected file identity together.
+        let observations: Vec<_> = self
+            .database
+            .makefiles
+            .iter()
+            .skip(first)
+            .filter(|file| file.optional && !self.file_traversals.has_outcome(&file.name))
+            .map(|file| (file.name.clone(), !file.missing))
+            .collect();
+        for (name, opened) in observations {
+            self.retain_include_open_time(name, opened);
+        }
     }
 
     fn retain_include_open_time(&mut self, name: Vec<u8>, opened: bool) {
@@ -19168,6 +19175,12 @@ impl Engine {
                     .collect();
                 let mut emitted_order = Vec::new();
                 let mut inherited_mflags = false;
+                let first_export_include = (self.ordinary_include_open_times
+                    && !self.remaking
+                    && self.active_makefile_remake.is_none()
+                    && self.parallel_jobs.is_empty()
+                    && !MakefileModes::from_options(&self.options).active())
+                .then_some(self.database.makefiles.len());
                 let direct_heads = self.direct_named_head_reads();
                 let mut target_reads = TargetReads {
                     visits: &self.file_traversals,
@@ -19244,6 +19257,9 @@ impl Engine {
                                 emitted_order.push(name.clone());
                             }
                             Err(err) => {
+                                if let Some(first) = first_export_include {
+                                    self.retain_optional_include_open_times(first);
+                                }
                                 self.expansion_error(variable.definition(), &err);
                                 return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
                             }
@@ -19251,6 +19267,9 @@ impl Engine {
                     } else {
                         child.env_remove(os(name));
                     }
+                }
+                if let Some(first) = first_export_include {
+                    self.retain_optional_include_open_times(first);
                 }
                 if !export_selected(
                     &environment_variables,
