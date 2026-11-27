@@ -384,7 +384,13 @@ impl Engine {
         });
         // The post-read policy marks named intermediates before any visit.
         view.intermediate = self.intermediates.contains(name)
-            || (branch.is_none() && !detached_head && self.special(b".INTERMEDIATE", name, false));
+            || (branch.is_none()
+                && !detached_head
+                && self.special(b".INTERMEDIATE", name, false)
+                && !self
+                    .file_traversals
+                    .visit(name)
+                    .is_some_and(|visit| visit.existing_intermediate == Some(true)));
         view.not_intermediate = self.special(b".NOTINTERMEDIATE", name, true);
         let named_secondary = self.special(b".SECONDARY", name, false);
         view.secondary = named_secondary

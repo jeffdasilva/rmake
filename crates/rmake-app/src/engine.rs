@@ -973,6 +973,7 @@ struct FileVisit {
     parent: Option<OwnedScopeParent>,
     // Ordinary pass plus one, recorded when verbose output was disabled.
     quiet_consideration: Option<NonZeroU64>,
+    existing_intermediate: Option<bool>,
 }
 
 // Scope is established before expansion. An update result can be
@@ -8424,6 +8425,7 @@ impl Engine {
         self.file_traversals.remember_visit(target, || FileVisit {
             parent: Some(OwnedScopeParent::new(parent, records.id(parent.target))),
             quiet_consideration: None,
+            existing_intermediate: None,
         });
         if !self.resolve_implicit_for_intermediate(target, depth) {
             return Inspection {
@@ -13648,6 +13650,7 @@ impl Engine {
                 parent: parent
                     .map(|parent| OwnedScopeParent::new(parent, records.id(parent.target))),
                 quiet_consideration,
+                existing_intermediate: None,
             })
             .quiet_consideration = quiet_consideration;
         let phony = self.special(b".PHONY", target, false);
@@ -13691,6 +13694,24 @@ impl Engine {
             .rules
             .get(target)
             .is_some_and(|rule| rule.double_colon.is_some());
+        if !double_colon
+            && self.special(b".INTERMEDIATE", target, false)
+            && rmake_core::filenames::archive_parts(target).is_none()
+        {
+            // A local file found before its first recipe or implicit search
+            // loses the declared intermediate marker in the database.
+            let existing = !phony
+                && matches!(resolved, Some((None, Some(_))))
+                && self.assumed_time(target).is_none()
+                && !self.database_implicit.contains(target);
+            if let Some(visit) = self
+                .file_traversals
+                .record_mut(target)
+                .and_then(|record| record.visit.as_mut())
+            {
+                visit.existing_intermediate.get_or_insert(existing);
+            }
+        }
         let comparison = if double_colon {
             before
         } else {
@@ -19982,6 +20003,7 @@ mod tests {
                 None,
             )),
             quiet_consideration: NonZeroU64::new(2),
+            existing_intermediate: None,
         });
         assert!(files.remove_outcome(name).expect("initial outcome").ran);
         assert!(files.visit(name).is_some());
@@ -20125,6 +20147,7 @@ mod tests {
                 None,
             )),
             quiet_consideration: None,
+            existing_intermediate: None,
         });
         engine.file_traversals.set_outcome(
             leaf,
