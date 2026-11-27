@@ -849,11 +849,15 @@ impl Engine {
                 && name == b"MAKEFLAGS"
                 && self.command_replay
                 && binding.is_some_and(|binding| {
+                    let raw = binding.raw_value();
                     binding.origin() == Origin::Override
                         && binding
                             .definition()
                             .is_some_and(|location| !location.file.is_null())
-                        && !binding.raw_value().contains(&b'$')
+                        // A simple definition already evaluated its RHS.
+                        && (!raw.contains(&b'$')
+                            || (binding.flavor() == Flavor::Simple
+                                && !Database::has_command_overrides_reference(raw)))
                 });
             let authored_override = !unchanged
                 && name == b"MAKEFLAGS"

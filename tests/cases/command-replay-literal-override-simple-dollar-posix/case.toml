@@ -1,0 +1,17 @@
+id = "command-replay-literal-override-simple-dollar-posix"
+requirement = "variables.command-line-replay"
+candidate = "required"
+description = "The literal reference text in the flags remains available for expansion by the recursive command variable in POSIX mode."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--keep-going", "--no-print-directory", "--jobs=1", "MARK=from-cli", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stderr = ""
+stdout = '''
+ENTRY|command line|from-cli|krR -j1 --no-print-directory -- $(MAKEOVERRIDES)
+READ|override|price$(COST)|override|published|simple|--silent -- MARK=price$(COST) SIDE=published
+RUN|override|price$(COST)|pricechosen|override|published|simple|--silent -- MARK=price$(COST) SIDE=published
+ENV|--silent -- MARK=price$(COST) SIDE=published
+'''
