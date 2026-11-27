@@ -169,6 +169,8 @@ NUL boundaries, rebinding and cancellation.
   The optional-file database marker belongs to the active remake visit.
   A serial fatal dump retains the marker from the interrupted visit.
   A scoped include during a serial goal records a failed open as a missing timestamp.
+  An optional include in an ordinary recipe body also records its failed open
+  when the parallel job queue is idle and the file has no completed visit.
   An accepted reopen clears that timestamp while preserving the update verdict.
   Startup preloads intern each list operand and the selected read name at their
   respective reader boundaries. The file table probes the normalized name
