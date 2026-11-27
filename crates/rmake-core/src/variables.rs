@@ -3082,7 +3082,7 @@ impl VariableStore {
             };
             expansion.active.push((name.to_vec(), Some(layer)));
             expansion.binding_context = Some(variable.definition.clone());
-            expansion.expand_layer(name, first, Some(first_layer), true)
+            expansion.expand_layer(name, first, Some(first_layer), true, None)
         } else {
             expansion.selected_environment_variable(name, variable, layer)
         }
@@ -3123,7 +3123,7 @@ impl VariableStore {
             let first = first.clone();
             expansion.active.push((name.to_vec(), Some(layer)));
             expansion.binding_context = Some(variable.definition.clone());
-            expansion.expand_layer(name, &first, Some(first_layer), true)
+            expansion.expand_layer(name, &first, Some(first_layer), true, None)
         } else {
             expansion.selected_environment_variable(name, variable, layer)
         }
@@ -4216,12 +4216,17 @@ struct Expansion<'a, 'b> {
 }
 
 impl Expansion<'_, '_> {
-    fn expand_binding(&mut self, variable: &Variable) -> Result<Vec<u8>, ExpandError> {
+    fn expand_binding(
+        &mut self,
+        variable: &Variable,
+        inherited: Option<&Arc<Location>>,
+    ) -> Result<Vec<u8>, ExpandError> {
         let entered = self.binding_context.is_none();
         if entered {
             self.binding_context = Some(variable.definition.clone());
         }
-        let result = self.expand_at(&variable.value, variable.definition.as_ref());
+        let nearest = variable.definition.as_ref().or(inherited);
+        let result = self.expand_at(&variable.value, nearest);
         if entered {
             self.binding_context = None;
         }
@@ -4358,14 +4363,14 @@ impl Expansion<'_, '_> {
                 && self.machine_nesting < DIRECT_MACHINES
                 && direct::references_only(input)
             {
-                self.expand_inner(input)
+                self.expand_inner(input, nearest)
             } else if let Some(result) = self.direct_expression(input, nearest) {
                 result
             } else {
                 self.expand_machine(input, nearest)
             }
         } else {
-            self.expand_inner(input)
+            self.expand_inner(input, nearest)
         }
         .map(|mut result| {
             if let Some(nul) = result.iter().position(|byte| *byte == 0) {
@@ -4396,7 +4401,11 @@ impl Expansion<'_, '_> {
         error.at(location)
     }
 
-    fn expand_inner(&mut self, input: &[u8]) -> Result<Vec<u8>, ExpandError> {
+    fn expand_inner(
+        &mut self,
+        input: &[u8],
+        nearest: Option<&Arc<Location>>,
+    ) -> Result<Vec<u8>, ExpandError> {
         debug_assert!(direct::references_only(input));
         let mut result = Vec::new();
         let mut cursor = 0;
@@ -4422,12 +4431,13 @@ impl Expansion<'_, '_> {
                 }
                 b'(' | b'{' => {
                     let (end, next, _) = expansion_reference_span(input, cursor + 1)?;
-                    let value = self.reference_variable(&input[cursor + 2..end])?;
+                    let value = self.reference_variable(&input[cursor + 2..end], nearest)?;
                     push(&mut result, &value)?;
                     cursor = next;
                 }
                 _ => {
-                    let expanded = self.reference_variable(&input[cursor + 1..cursor + 2])?;
+                    let expanded =
+                        self.reference_variable(&input[cursor + 1..cursor + 2], nearest)?;
                     push(&mut result, &expanded)?;
                     cursor += 2;
                 }
@@ -4440,17 +4450,22 @@ impl Expansion<'_, '_> {
         warn_missing(&mut self.context, &self.binding_context, name)
     }
 
-    fn reference_variable(&mut self, name: &[u8]) -> Result<Vec<u8>, ExpandError> {
-        self.variable_with_warning::<true>(name)
+    fn reference_variable(
+        &mut self,
+        name: &[u8],
+        nearest: Option<&Arc<Location>>,
+    ) -> Result<Vec<u8>, ExpandError> {
+        self.variable_with_warning::<true>(name, nearest)
     }
 
     fn variable(&mut self, name: &[u8]) -> Result<Vec<u8>, ExpandError> {
-        self.variable_with_warning::<false>(name)
+        self.variable_with_warning::<false>(name, None)
     }
 
     fn variable_with_warning<const WARN: bool>(
         &mut self,
         name: &[u8],
+        nearest: Option<&Arc<Location>>,
     ) -> Result<Vec<u8>, ExpandError> {
         let (variable, layer) = if let Some(variable) = self.lexical_binding(name) {
             (variable, None)
@@ -4470,7 +4485,7 @@ impl Expansion<'_, '_> {
             let mut dynamic = variable.clone();
             dynamic.scope.variable_names = false;
             dynamic.value = value;
-            return self.selected_variable(name, &dynamic, layer);
+            return self.selected_variable(name, &dynamic, layer, nearest);
         }
         if variable.flavor == Flavor::Simple {
             // Simple values need neither definition context nor a temporary
@@ -4478,7 +4493,7 @@ impl Expansion<'_, '_> {
             return Ok(variable.value.clone());
         }
         let variable = variable.clone();
-        self.selected_variable(name, &variable, layer)
+        self.selected_variable(name, &variable, layer, nearest)
     }
 
     /// Resolve only a complete chain with no interpreter effects. A complex
@@ -4572,7 +4587,7 @@ impl Expansion<'_, '_> {
         layer: usize,
     ) -> Result<Vec<u8>, ExpandError> {
         if !variable.scope.variable_names {
-            return self.selected_variable(name, variable, Some(layer));
+            return self.selected_variable(name, variable, Some(layer), None);
         }
         // Environment selection uses the stored value without a special lookup.
         let value = self
@@ -4586,7 +4601,7 @@ impl Expansion<'_, '_> {
         let mut stored = variable.clone();
         stored.scope.variable_names = false;
         stored.value = value;
-        self.selected_variable(name, &stored, Some(layer))
+        self.selected_variable(name, &stored, Some(layer), None)
     }
 
     fn selected_variable(
@@ -4594,6 +4609,7 @@ impl Expansion<'_, '_> {
         name: &[u8],
         variable: &Variable,
         layer: Option<usize>,
+        nearest: Option<&Arc<Location>>,
     ) -> Result<Vec<u8>, ExpandError> {
         if variable.scope.variable_names {
             let value = self.store.variable_names(true)?;
@@ -4603,7 +4619,7 @@ impl Expansion<'_, '_> {
             let mut dynamic = variable.clone();
             dynamic.scope.variable_names = false;
             dynamic.value = value;
-            return self.selected_variable(name, &dynamic, layer);
+            return self.selected_variable(name, &dynamic, layer, nearest);
         }
         if variable.flavor == Flavor::Simple {
             // Already-expanded values need no temporary definition context.
@@ -4635,7 +4651,7 @@ impl Expansion<'_, '_> {
             };
         }
         if variable.value.contains(&b'$')
-            && let Some(result) = self.expand_linear(name, variable, layer)
+            && let Some(result) = self.expand_linear(name, variable, layer, nearest)
         {
             return result;
         }
@@ -4651,7 +4667,7 @@ impl Expansion<'_, '_> {
             return self.recursive_binding(name, variable);
         }
         self.active.push((name.to_vec(), layer));
-        let result = self.expand_layer(name, variable, layer, false);
+        let result = self.expand_layer(name, variable, layer, false, nearest);
         self.active.pop();
         result
     }
@@ -4676,19 +4692,20 @@ impl Expansion<'_, '_> {
         variable: &Variable,
         layer: Option<usize>,
         append_started: bool,
+        nearest: Option<&Arc<Location>>,
     ) -> Result<Vec<u8>, ExpandError> {
         if variable.scope.variable_names {
             // Outer metadata uses its stored snapshot, without a second lookup.
             let mut dynamic = variable.clone();
             dynamic.scope.variable_names = false;
             dynamic.value = self.store.variable_names(false)?;
-            return self.expand_layer(name, &dynamic, layer, append_started);
+            return self.expand_layer(name, &dynamic, layer, append_started, nearest);
         }
         let mut value = Vec::new();
         let mut selected =
             layer.and_then(|layer| self.store.outer_append_start(layer, name, variable));
         if selected.is_none() {
-            self.append_layer_body(&mut value, variable)?;
+            self.append_layer_body(&mut value, variable, nearest)?;
             return Ok(value);
         }
         if !append_started {
@@ -4739,7 +4756,7 @@ impl Expansion<'_, '_> {
             } else {
                 None
             };
-            self.append_layer_body(&mut value, current.as_ref().unwrap_or(body))?;
+            self.append_layer_body(&mut value, current.as_ref().unwrap_or(body), nearest)?;
         }
         Ok(value)
     }
@@ -4748,11 +4765,12 @@ impl Expansion<'_, '_> {
         &mut self,
         value: &mut Vec<u8>,
         variable: &Variable,
+        nearest: Option<&Arc<Location>>,
     ) -> Result<(), ExpandError> {
         if variable.flavor == Flavor::Simple {
             push(value, &variable.value)
         } else {
-            push(value, &self.expand_binding(variable)?)
+            push(value, &self.expand_binding(variable, nearest)?)
         }
     }
 
@@ -4807,7 +4825,7 @@ impl Expansion<'_, '_> {
             let first = first.clone();
             self.active.push((name.to_vec(), Some(layer)));
             let prior = self.binding_context.replace(variable.definition.clone());
-            let result = self.expand_layer(name, &first, Some(first_layer), true);
+            let result = self.expand_layer(name, &first, Some(first_layer), true, None);
             self.binding_context = prior;
             self.active.pop();
             result

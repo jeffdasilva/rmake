@@ -6510,6 +6510,274 @@
         "stderr": "Makefile:3: *** insufficient number of arguments (1) to function 'word'. Arr\u00eat.\n",
         "seen": "anchor\nbefore\nindex\n"
       }
+    },
+    {
+      "id": "nls-eval-alias-command-line-file-argument-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "CLI=$(eval X := $$(file <,$$(file >>seen,rhs)))",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "696e636c7564652062696e64696e672e6d6b0a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a",
+        "binding.mk": "2320696e636c756465642062696e64696e670a0a4641494c203d202428434c49290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "binding.mk:3: *** file: missing filename.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-alias-environment-file-argument-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C",
+        "CLI": "$(eval X := $$(file <,$$(file >>seen,rhs)))"
+      },
+      "files": {
+        "Makefile": "696e636c7564652062696e64696e672e6d6b0a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a",
+        "binding.mk": "2320696e636c756465642062696e64696e670a0a4641494c203d202428434c49290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "binding.mk:3: *** file: missing filename.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-alias-closest-located-file-argument-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "CLI=$(TAIL)",
+        "TAIL=$(eval X := $$(file <,$$(file >>seen,rhs)))",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "696e636c7564652062696e64696e672e6d6b0a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a",
+        "binding.mk": "696e636c756465206c617965722e6d6b0a0a4641494c203d20242850415353290a",
+        "layer.mk": "23206465636c6172696e6720746865206e656172657220616c6961730a0a0a50415353203d202428434c49290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "layer.mk:4: *** file: missing filename.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-alias-target-append-file-argument-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "CLI=$(eval X := $$(file <,$$(file >>seen,rhs)))",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4641494c203d20676c6f62616c0a696e636c7564652062696e64696e672e6d6b0a242866696c65203e3e7365656e2c6265666f7265290a2e50484f4e593a20616c6c0a616c6c3a0a09407072696e7466202225735c6e22202224284641494c29220a",
+        "seen": "616e63686f720a",
+        "binding.mk": "232074617267657420617070656e640a0a616c6c3a204641494c202b3d202428434c49290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "binding.mk:3: *** file: missing filename.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-alias-shallow-machine-file-argument-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "CLI=$(eval X := $$(file <,$$(file >>seen,rhs)))",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "4641494c203d20676c6f62616c0a696e636c7564652062696e64696e672e6d6b0a242866696c65203e3e7365656e2c6265666f7265290a2e50484f4e593a20616c6c0a616c6c3a0a09407072696e7466202225735c6e22202224284641494c29220a",
+        "seen": "616e63686f720a",
+        "binding.mk": "232074617267657420617070656e640a0a616c6c3a204641494c202b3d2024286966206f6b2c2428434c4929290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "binding.mk:3: *** file: missing filename.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-alias-no-located-owner-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "CLI=$(eval X := $$(file <,$$(file >>seen,rhs)))",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "696e636c7564652062696e64696e672e6d6b0a242866696c65203e3e7365656e2c6265666f7265290a2428434c49290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a",
+        "binding.mk": "23206e6f20666f7277617264696e672062696e64696e670a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:3: *** file: missing filename.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-alias-direct-file-argument-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "CLI=$(file <,$(file >>seen,rhs))",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "696e636c7564652062696e64696e672e6d6b0a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a",
+        "binding.mk": "696e636c756465206c617965722e6d6b0a0a4641494c203d20242850415353290a",
+        "layer.mk": "23206465636c6172696e6720746865206e656172657220616c6961730a0a0a50415353203d202428434c49290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "layer.mk:4: *** file: missing filename.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-alias-parser-location-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "CLI=$(eval $$(file >>seen,rhs)plain-malformed)",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "696e636c7564652062696e64696e672e6d6b0a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a",
+        "binding.mk": "2320696e636c756465642062696e64696e670a0a4641494c203d202428434c49290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:3: *** missing separator.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-alias-user-location-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "CLI=$(eval X := $$(file >>seen,rhs)$$(error user-message))",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "696e636c7564652062696e64696e672e6d6b0a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a",
+        "binding.mk": "2320696e636c756465642062696e64696e670a0a4641494c203d202428434c49290a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:3: *** user-message.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      }
+    },
+    {
+      "id": "nls-eval-alias-io-location-c",
+      "args": [
+        "-rR",
+        "--no-print-directory",
+        "-j1",
+        "CLI=$(eval X := $$(file >>seen,rhs)$$(file <parent/child))",
+        "all"
+      ],
+      "environment": {
+        "LC_ALL": "C",
+        "LANG": "C"
+      },
+      "files": {
+        "Makefile": "696e636c7564652062696e64696e672e6d6b0a242866696c65203e3e7365656e2c6265666f7265290a24284641494c290a242866696c65203e3e7365656e2c6166746572290a2e50484f4e593a20616c6c0a616c6c3a203b20403a0a",
+        "seen": "616e63686f720a",
+        "binding.mk": "2320696e636c756465642062696e64696e670a0a4641494c203d202428434c49290a",
+        "parent": "726567756c61722066696c650a"
+      },
+      "modules": [],
+      "expected": {
+        "exit_code": 2,
+        "stdout": "",
+        "stderr": "Makefile:3: *** open: parent/child: @OS_DETAIL@.  Stop.\n",
+        "seen": "anchor\nbefore\nrhs\n"
+      },
+      "errno_fact": [
+        "ENOTDIR",
+        "C"
+      ]
     }
   ]
 }

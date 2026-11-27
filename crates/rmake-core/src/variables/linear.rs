@@ -268,6 +268,7 @@ impl Expansion<'_, '_> {
         name: &[u8],
         variable: &Variable,
         layer: Option<usize>,
+        inherited: Option<&Arc<Location>>,
     ) -> Option<Result<Vec<u8>, ExpandError>> {
         let mut plan = self.linear_plan(name, variable, layer)?;
         std::mem::take(&mut plan.lookups).commit();
@@ -296,7 +297,9 @@ impl Expansion<'_, '_> {
                     name,
                     variable,
                     layer,
-                } => self.selected_variable(&name, &variable, layer),
+                } => {
+                    self.selected_variable(&name, &variable, layer, nearest.as_ref().or(inherited))
+                }
             }
             .map_err(|error| error.at(nearest.as_ref()))?;
             if self.context.is_cancelled() {
@@ -352,15 +355,18 @@ mod tests {
         assert_eq!(
             store
                 .expansion(ExpansionContext::pure())
-                .selected_variable(b"A", &selected, Some(0))
+                .selected_variable(b"A", &selected, Some(0), None)
                 .unwrap(),
             b"beforenewafter"
         );
         define(&mut store, b"A", b"new");
         assert_eq!(
-            store
-                .expansion(ExpansionContext::pure())
-                .selected_variable(b"A", &selected, Some(0)),
+            store.expansion(ExpansionContext::pure()).selected_variable(
+                b"A",
+                &selected,
+                Some(0),
+                None
+            ),
             Err(ExpandError::RecursiveVariable(b"A".to_vec()))
         );
     }

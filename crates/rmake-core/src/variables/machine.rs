@@ -475,7 +475,8 @@ impl Expansion<'_, '_> {
             }
             Kind::Variable(name) => {
                 if self.depth < DIRECT_DEPTH && self.machine_nesting < DIRECT_MACHINES {
-                    m.values.push(self.reference_variable(&name)?);
+                    m.values
+                        .push(self.reference_variable(&name, nearest.as_ref())?);
                     return Ok(());
                 }
                 let binding = self

@@ -734,7 +734,7 @@ mod tests {
         let mut expansion = store.expansion(ExpansionContext::pure());
         assert_eq!(
             expansion
-                .selected_variable(b"A", &previous, Some(0))
+                .selected_variable(b"A", &previous, Some(0), None)
                 .unwrap(),
             b"[new$]"
         );
