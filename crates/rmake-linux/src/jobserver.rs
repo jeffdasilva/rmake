@@ -835,14 +835,14 @@ impl Jobserver {
         Ok(())
     }
 
-    /// Retire the borrowed CLI wire before a makefile's serial or owned pipe reset.
+    /// Retire the borrowed CLI wire before a makefile's serial or owned jobserver reset.
     pub fn retire_inherited_pipe(self, serial: bool) {
         if !crate::process::cli_has_inherited_streams()
             || (!serial && !crate::process::cli_standard_streams_are_open())
         {
             return;
         }
-        // A replacement pipe needs the standard slots to remain occupied.
+        // A replacement jobserver needs the standard slots to remain occupied.
         let can_retire = |wire: [c_int; 2]| serial || wire.into_iter().all(|fd| fd >= 3);
         if let Some(pipe) = self.recursive_exec_pipe()
             && can_retire(pipe.incoming)

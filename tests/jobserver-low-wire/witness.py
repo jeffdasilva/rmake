@@ -71,10 +71,46 @@ def parent_wire_state(parent, descriptor, identity):
     return "replacement", raw
 
 
+def inspect_active_fifo(parent, borrowed_identity, path):
+    metadata = path.stat()
+    identity = (metadata.st_dev, metadata.st_ino)
+    mode = stat.S_IMODE(metadata.st_mode)
+    if path.parent != Path(os.environ["TMPDIR"]) or not stat.S_ISFIFO(metadata.st_mode):
+        raise RuntimeError("active jobserver must be a FIFO in TMPDIR")
+    if mode != 0o600 or identity == borrowed_identity:
+        raise RuntimeError("active FIFO must be private and distinct from the borrowed pipe")
+
+    wire = []
+    borrowed_present = False
+    for entry in (parent / "fd").iterdir():
+        try:
+            endpoint = entry.stat()
+        except FileNotFoundError:
+            continue
+        endpoint_identity = (endpoint.st_dev, endpoint.st_ino)
+        if endpoint_identity == identity:
+            wire.append(int(entry.name))
+        if endpoint_identity == borrowed_identity:
+            borrowed_present = True
+    wire.sort()
+    if len(wire) != 2:
+        raise RuntimeError("parent must hold both active FIFO endpoints")
+    borrowed_state = "present" if borrowed_present else "absent"
+    states = " ".join(describe(fd) for fd in wire)
+    Path("seen-active").write_text(
+        f"fifo {wire[0]},{wire[1]} new mode={mode:04o} borrowed={borrowed_state} {states}\n"
+    )
+    return {"path": str(path), "device": metadata.st_dev, "inode": metadata.st_ino,
+            "mode": f"{mode:04o}", "descriptors": wire, "borrowed_present": borrowed_present}
+
+
 def inspect_active_wire(parent, borrowed_identity):
     auth = Path("child-auth").read_text().strip()
     if not auth:
         return
+    if auth.startswith("--jobserver-auth=fifo:"):
+        path = Path(auth.removeprefix("--jobserver-auth=fifo:"))
+        return inspect_active_fifo(parent, borrowed_identity, path)
     wire = [int(fd) for fd in auth.removeprefix("--jobserver-auth=").split(",")]
     reader, writer = ((parent / "fd" / str(fd)).stat() for fd in wire)
     access = []
@@ -104,8 +140,10 @@ def inspect():
         states.append(f"parent{fd}={state}")
         raw_wires[fd] = raw
     Path("seen-parent").write_text(" ".join(states) + "\n")
+    active_fifo = inspect_active_wire(parent, identity)
+    if active_fifo is not None:
+        raw_wires["active_fifo"] = active_fifo
     Path("seen-parent-raw.json").write_text(json.dumps(raw_wires) + "\n")
-    inspect_active_wire(parent, identity)
 
 
 if sys.argv[1:] == ["inspect"]:
