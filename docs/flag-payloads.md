@@ -17,11 +17,12 @@ from `-e X=value` when an imported X already exists.
 [Ordered warning events](live-warning-phases.md) now share that cursor and retain
 active diagnostic locations. Eager RHS effects still run before selecting which
 value survives stronger priority; conditional definitions retain their skips.
-Within-source malformed-value ordering and contextual runtime HOME remain open.
+[Contextual runtime `HOME` for include operands](runtime-home-includes.md) is
+qualified for the covered reader, eval, recipe and post-read cases.
 
 [Sequential passive sources](passive-source-order.md) now finish GNU payload
 definitions before expanding MAKEFLAGS and clear the GNU source afterward.
-Within-source malformed-value ordering, contextual runtime HOME and complete
+Broader malformed-value ordering, nested flag resets and complete
 decoder/lifecycle acceptance remain open.
 
 The host returns owned assignment tokens and their option positions/policies.
@@ -71,10 +72,18 @@ input. [The approved boundary](nested-short-options-proposal.md) retains eightee
 ordinary exact-match controls and does not waive other normal GNU behavior.
 
 Recursive inheritance fixtures pass `--no-print-directory` explicitly to isolate
-binding behavior. GNU's implicit recursive directory messages remain an M6
-presentation gap; these fixtures do not establish that surface. Inherited
-file/directory switches and broader option ordering also remain open. See the
-[M3/M6 gap audit](m3-m6-audit.md).
+binding behavior. A separate directory-reporting comparison at `8a6b85db7`
+matched both GNU Make 4.4.1 runs in all eight ordinary recursive cases in the
+development and optimized builds. The cases exercised children in the same
+directory or launched with `-C`, each under default reporting, `-w`, `-s`, and
+`--no-print-directory`.
+[Compared revision](https://github.com/jeffdasilva/rmake/commit/8a6b85db77049611b1629292648feb73ce5fe5ef) ·
+[Directory reporting](directory-reporting.md)
+
+The startup cases cover inherited file and directory switches in `MAKEFLAGS`
+and `GNUMAKEFLAGS`, including the tested source ordering with explicit
+arguments. Broader option combinations remain open.
+[Startup flag paths](profile-inputs.md) · [M3/M6 gap audit](m3-m6-audit.md)
 
 ## Reference provenance
 

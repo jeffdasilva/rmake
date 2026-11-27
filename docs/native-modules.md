@@ -123,11 +123,17 @@ module changes, a real process exec resets it. A setup return of `-1` keeps the
 module and its `.LOADED` entry while excluding it from automatic Makefile
 remaking. An explicit goal can still rebuild the module.
 
-A module is unloaded before its recipe expands. After an unchanged ordinary
-remake, the module reloads without a restart. A query verdict leaves it
-unloaded for the ordinary goals. Dropping the runtime does not
-prematurely run shared-library finalizers. At process exit, the interpreter
-stays alive while libc invokes module finalizers through the request bridge.
+A module is unloaded before its recipe expands. After a successful ordinary
+serial remake that leaves the source unchanged, the module reloads in the
+current process. When every unloaded module has an admitted read record, the
+modules reload in read order. Remake dependencies still determine unload order.
+A query verdict or an unsuccessful ordinary serial remake leaves
+already-unloaded modules closed. The failure cases include optional sources
+whose recipe fails or whose rule is missing.
+
+Dropping the runtime does not prematurely run shared-library finalizers. At
+process exit, the interpreter stays alive while libc invokes module finalizers
+through the request bridge.
 After libc closes stdout, a finalizer's shell capture reports a bad file
 descriptor and records `.SHELLSTATUS` as 127. The capture follows the C stream
 state even when the finalizer reopens descriptor 1. Captures in an earlier

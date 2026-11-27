@@ -743,11 +743,15 @@ Extend native setup, callbacks, shutdown, source restarts and standard-stream
 handling across startup phases, profiles and resource failures. Preserve
 registration, allocator and callback ownership through those combinations.
 When a remake pass returns a query verdict, unloaded modules stay closed.
-The [native lifecycle gate](native-modules.md) checks query, dry-run and
-ordinary reload behavior. Terminal load diagnostics in the reader keep
-their original error text and give existing finalizers the selected file
-and active lexical scope. A fatal zero or negative index in the word
-function keeps the diagnostic definition location and gives finalizers
+The [native lifecycle gate](native-modules.md#remaking-and-finalization)
+checks query, dry-run and ordinary reload behavior. In the successful unchanged
+ordinary serial cases, modules reload in read order when each has an admitted
+read record. The unsuccessful ordinary serial cases include failed recipes
+for optional sources and optional sources without rules. Already-unloaded
+modules stay closed after these failures. Terminal load diagnostics in the
+reader keep their original error text and give existing finalizers the
+selected file and active lexical scope. A fatal zero or negative index in the
+word function keeps the diagnostic definition location and gives finalizers
 the active caller’s location and scope. Built-in arity failures preserve
 the same distinction after eager and call arguments have expanded, or
 before a direct lazy call expands any argument. A registered native
@@ -804,13 +808,17 @@ interfaces retain their separate compatibility and correctness requirements.
 The [pinned project corpus](project-integration.md) includes serial leaf builds,
 recursive builds and shared jobservers. It covers xxHash, zlib, Lua, GNU gzip,
 GNU Patch and GNU Make itself, with exact comparisons across build, no-op and
-header-rebuild phases and independent executable checks. All 18 pinned
-optimized project comparisons passed after the visited GPATH ownership changes.
-The hosted AArch64 glibc and x86-64 dynamic musl gates also run these phases and
-the checksum check for pinned xxHash 0.8.3. AArch64 glibc also runs both pinned
-Lua profiles, covering pipe and FIFO jobservers and recovery of a removed
-executable in the pipe profile.
-[Project comparison evidence](https://github.com/jeffdasilva/rmake/pull/775)
+header-rebuild phases and independent executable checks. All 18 pinned profiles
+passed in the default development and optimized builds at `2d04affea`. The
+two runs retained 608 raw report parts.
+[Compared revision](https://github.com/jeffdasilva/rmake/commit/2d04affea8da71f6edb426be09367d37206b00e9)
+
+The hosted AArch64 glibc and x86-64 dynamic musl gates check these phases and
+the checksum for pinned xxHash 0.8.3. AArch64 glibc also runs both pinned Lua
+profiles, covering pipe and FIFO jobservers and recovery of a removed executable
+in the pipe profile. The x86-64 job runs the Lua pipe profile using its verified
+dynamic musl GNU Make and rmake executables.
+[Native musl Lua run](https://github.com/jeffdasilva/rmake/actions/runs/46007027825/job/140532647293)
 
 The [developer-flow gate](../tests/developer-flows/README.md) exercises the actual
 top-level flows under GNU Make and rmake. It covers warm oracle bootstrap,
