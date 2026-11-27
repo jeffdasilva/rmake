@@ -1318,7 +1318,6 @@ struct SerialWait {
 struct ParallelJob {
     identity: u64,
     program: Vec<u8>,
-    executable: Option<PathBuf>,
     location: Location,
     ignore: bool,
     recursive: bool,
@@ -1424,6 +1423,7 @@ struct RecipeState {
     ran: bool,
     one_shell: bool,
     environment: Option<RecipeEnvironment>,
+    previous_executable: Option<PathBuf>,
     permit: Option<Permit>,
     debug_job: Option<crate::debug::JobHandle>,
 }
@@ -9539,7 +9539,10 @@ impl Engine {
                 buffer.child_reaped(true);
             }
         }
-        self.report_recipe_executable_exit(exit_status, job.executable.as_deref());
+        self.report_recipe_executable_exit(
+            exit_status,
+            job.continuation.previous_executable.as_deref(),
+        );
         let report_error = failed_dispatch
             || result
                 .as_ref()
@@ -18599,6 +18602,7 @@ impl Engine {
             ran: false,
             one_shell,
             environment: None,
+            previous_executable: None,
             permit,
             debug_job,
         };
@@ -18612,7 +18616,6 @@ impl Engine {
                 ParallelJob {
                     identity,
                     program: Vec::new(),
-                    executable: None,
                     location: recipes[0].location.clone(),
                     ignore: false,
                     recursive: false,
@@ -18742,11 +18745,11 @@ impl Engine {
             mut ran,
             one_shell,
             mut environment,
+            mut previous_executable,
             permit: _,
             debug_job: _,
         } = state;
         let variables = &mut variables;
-        let mut previous_executable = None;
         let mut failed_executable_attempt = false;
         while let Some((index, bytes, recipe)) = expanded.pop_front() {
             self.observe_interrupt();
@@ -19320,6 +19323,9 @@ impl Engine {
             let mut interpreter_failed = false;
             if parallel && (failed_dispatch || process.is_ok()) {
                 let (child, executable) = process.ok().unzip();
+                if let Some(executable) = executable {
+                    previous_executable = Some(executable);
+                }
                 let identity = self.next_job;
                 self.next_job = self.next_job.wrapping_add(1);
                 if failed_dispatch {
@@ -19331,7 +19337,6 @@ impl Engine {
                     ParallelJob {
                         identity,
                         program,
-                        executable,
                         location: recipe.location.clone(),
                         ignore,
                         recursive: force,
@@ -19353,6 +19358,7 @@ impl Engine {
                             ran,
                             one_shell,
                             environment,
+                            previous_executable,
                             permit: owner.permit.take(),
                             debug_job: owner.debug_job.clone(),
                         },
@@ -19462,8 +19468,9 @@ impl Engine {
                     self.stderr(&[program.as_slice(), b": ", &detail].concat());
                     // GNU rechecks the last successfully spawned command
                     // when the next executable lookup fails.
+                    let sync_mode = self.output.mode();
                     if executable_launch_failed
-                        && !parallel
+                        && (!parallel || sync_mode != crate::output::Mode::Recurse)
                         && !self.remaking
                         && remake.is_none()
                         && branch.is_none()
@@ -19472,7 +19479,13 @@ impl Engine {
                         && rmake_core::filenames::archive_parts(target).is_none()
                         && let Some(path) = previous_executable.as_deref()
                     {
-                        if self.output.mode() == crate::output::Mode::Recurse {
+                        if sync_mode == crate::output::Mode::Recurse
+                            || (parallel
+                                && matches!(
+                                    sync_mode,
+                                    crate::output::Mode::Line | crate::output::Mode::Target
+                                ))
+                        {
                             // The failed launch and recipe error stay in the
                             // recipe buffer. The reap diagnostic is global.
                             let selected = self.output.current();

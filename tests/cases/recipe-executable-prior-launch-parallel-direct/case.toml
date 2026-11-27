@@ -1,0 +1,11 @@
+id = "recipe-executable-prior-launch-parallel-direct"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+description = "A resumed parallel recipe reports its prior executable after a direct lookup fails."
+provenance = "Original Makefile and executable witnesses compared with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-j2", "-Onone", "all"]
+
+[expected]
+exit_code = 2
+stdout = "prior-out\n"
+stderr = "prior-err\nmake: ./missing: No such file or directory\nmake: ./prior: No such file or directory\nmake: *** [Makefile:3: all] Error 127\n"
