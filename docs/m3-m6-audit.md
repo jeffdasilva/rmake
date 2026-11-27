@@ -200,6 +200,8 @@ NUL boundaries, rebinding and cancellation.
   prerequisite observation records a missing timestamp on the same failed
   file record.
   Borrowing a .DEFAULT recipe preserves the file’s target classification.
+  Named `.INTERMEDIATE` policy is visible on ordinary file rows before
+  a visit and when the file is an explicit goal.
   The post-read file policy marks .PHONY prerequisites as targets before
   visits begin, including when a later setup diagnostic stops traversal.
 - [Eval allocation investigation](eval-allocation-profiles.md) retains experiments
