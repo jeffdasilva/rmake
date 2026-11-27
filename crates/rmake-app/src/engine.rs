@@ -12068,6 +12068,14 @@ impl Engine {
         let mut compatibility_needed = false;
         let mut cancelled = Vec::new();
         let intermediate = !session.active.is_empty();
+        let ordinary_local_search = !intermediate
+            && !archive_search
+            && search.branch.is_none()
+            && !self.remaking
+            && self.active_makefile_remake.is_none()
+            && !self.parallel_graph()
+            && !MakefileModes::from_options(&self.options).active()
+            && rmake_core::filenames::archive_parts(target).is_none();
         let mut variables = None;
         for chain in [false, true] {
             if chain && !candidates.is_empty() {
@@ -12256,14 +12264,33 @@ impl Engine {
                                     .implicit_rule_source(candidate.identity)
                                     .and_then(|(_, source)| source.dependencies.get(index))
                                     .is_some_and(|declared| declared.name.as_slice() == name);
-                            if candidate.rule.group.is_some() && name != b".WAIT" {
+                            let refresh_declared_directory = ordinary_local_search
+                                && !candidate.rule.terminal
+                                && !deferred
+                                && !candidate.stem_dependencies.contains(&index)
+                                && !name.starts_with(b"/")
+                                && rmake_core::filenames::archive_parts(name).is_none()
+                                && !self.aliases.contains_source_or_destination(name)
+                                && self.filesystem.borrow().generation() != 0
+                                && self.database.rules.get(name).is_some_and(|rule| {
+                                    !rule.record_only
+                                        && rule.double_colon.is_none()
+                                        && rule.group.is_none()
+                                        && rule.implicit_pattern.is_none()
+                                        && !rule.default_recipe
+                                });
+                            if name != b".WAIT"
+                                && (candidate.rule.group.is_some() || refresh_declared_directory)
+                            {
                                 let directory = match name.iter().rposition(|&byte| byte == b'/') {
                                     None => b".".as_slice(),
                                     Some(0) => b"/",
                                     Some(index) => &name[..index],
                                 };
                                 // Checking the impossible-name cache first
-                                // registers the directory without reading it.
+                                // observes the directory without reading it.
+                                // A declared prerequisite can skip the later
+                                // directory membership probe.
                                 self.filesystem
                                     .borrow_mut()
                                     .execute(
