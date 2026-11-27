@@ -83,6 +83,8 @@ pub enum MessageId {
     MissingTargetPattern,
     MultipleTargetPatterns,
     TargetPatternWithoutPercent,
+    MixedImplicitStaticPatterns,
+    MixedImplicitNormalRules,
     DirectiveTail,
     DefineTail,
     EndefTail,
@@ -120,7 +122,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 110] = [
+    pub const ALL: [Self; 112] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -197,6 +199,8 @@ impl MessageId {
         Self::MissingTargetPattern,
         Self::MultipleTargetPatterns,
         Self::TargetPatternWithoutPercent,
+        Self::MixedImplicitStaticPatterns,
+        Self::MixedImplicitNormalRules,
         Self::DirectiveTail,
         Self::DefineTail,
         Self::EndefTail,
@@ -406,6 +410,8 @@ impl MessageId {
             Self::MissingTargetPattern => Message::MissingTargetPattern,
             Self::MultipleTargetPatterns => Message::MultipleTargetPatterns,
             Self::TargetPatternWithoutPercent => Message::TargetPatternWithoutPercent,
+            Self::MixedImplicitStaticPatterns => Message::MixedImplicitStaticPatterns,
+            Self::MixedImplicitNormalRules => Message::MixedImplicitNormalRules,
             Self::DirectiveTail => Message::DirectiveTail(b"ifeq"),
             Self::DefineTail => Message::DefineTail,
             Self::EndefTail => Message::EndefTail,
@@ -589,6 +595,8 @@ impl MessageId {
             Self::MissingTargetPattern => c"missing target pattern",
             Self::MultipleTargetPatterns => c"multiple target patterns",
             Self::TargetPatternWithoutPercent => c"target pattern contains no '%%'",
+            Self::MixedImplicitStaticPatterns => c"mixed implicit and static pattern rules",
+            Self::MixedImplicitNormalRules => c"mixed implicit and normal rules",
             Self::DirectiveTail => c"extraneous text after '%s' directive",
             Self::DefineTail => c"extraneous text after 'define' directive",
             Self::EndefTail => c"extraneous text after 'endef' directive",
@@ -804,6 +812,8 @@ pub enum Message<'a> {
     MissingTargetPattern,
     MultipleTargetPatterns,
     TargetPatternWithoutPercent,
+    MixedImplicitStaticPatterns,
+    MixedImplicitNormalRules,
     InvalidLibraryPattern(&'a [u8]),
     AliasedRecipeSource {
         path: &'a [u8],
@@ -999,6 +1009,8 @@ impl<'a> Message<'a> {
             Self::MissingTargetPattern => MessageId::MissingTargetPattern,
             Self::MultipleTargetPatterns => MessageId::MultipleTargetPatterns,
             Self::TargetPatternWithoutPercent => MessageId::TargetPatternWithoutPercent,
+            Self::MixedImplicitStaticPatterns => MessageId::MixedImplicitStaticPatterns,
+            Self::MixedImplicitNormalRules => MessageId::MixedImplicitNormalRules,
             Self::DirectiveTail(_) => MessageId::DirectiveTail,
             Self::DefineTail => MessageId::DefineTail,
             Self::EndefTail => MessageId::EndefTail,
@@ -1087,6 +1099,8 @@ impl<'a> Message<'a> {
             | Self::MissingTargetPattern
             | Self::MultipleTargetPatterns
             | Self::TargetPatternWithoutPercent
+            | Self::MixedImplicitStaticPatterns
+            | Self::MixedImplicitNormalRules
             | Self::DefineTail
             | Self::EndefTail
             | Self::NulReaderWarning

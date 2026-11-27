@@ -6471,19 +6471,19 @@ impl Database {
         let implicit = declaration.target_patterns[0];
         if implicit && static_pattern.is_some() {
             self.retain_native_reader_error(closing_location, context);
-            return Err(ParseError {
-                unlocated: false,
+            return Err(ParseError::system(
                 location,
-                message: "mixed implicit and static pattern rules".into(),
-            });
+                Message::MixedImplicitStaticPatterns,
+                context,
+            ));
         }
         if implicit && declaration.target_patterns.iter().any(|pattern| !pattern) {
             self.retain_native_reader_error(closing_location, context);
-            return Err(ParseError {
-                unlocated: false,
+            return Err(ParseError::system(
                 location,
-                message: "mixed implicit and normal rules".into(),
-            });
+                Message::MixedImplicitNormalRules,
+                context,
+            ));
         }
         // GNU classifies the declaration by its first target. Subsequent
         // percent names in an explicit declaration are literal file records.

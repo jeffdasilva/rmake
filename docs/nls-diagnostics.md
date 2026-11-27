@@ -137,6 +137,9 @@ The [structural models](../tests/nls/structure.json) cover absent or empty
 Makefiles, invalid default goals, reader syntax, recursive or unterminated
 variable references and duplicate recipes. Paired warnings retain their source
 lines, order and raw target names. A following user warning keeps its own bytes.
+Mixed implicit and normal or static pattern rules use the translated parser
+message. The models check anonymous `--eval` input and Makefile line locations
+in C and French, with German and Japanese catalog fallback.
 Native controls change private French or C `LC_MESSAGES` during include failures
 and warning publication, then check restoration to the global selection.
 
