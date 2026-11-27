@@ -265,6 +265,9 @@ jobs:
             --case guile-gmk-var-expand-rebound \
             --case guile-gmk-var-expand-rebound-during-conversion \
             --case guile-gmk-var-formatter-rebound-during-conversion \
+            --case guile-convert-pair-result-tail \
+            --case guile-convert-pair-expand-nested-tail \
+            --case guile-convert-pair-eval-dotted-tail \
             --report "$reports/application.json"
           env -u RMAKE_GUILE_COMPONENT_CASE TMPDIR="$target" \
             python3 tools/guile_profile_exec.py --profile "$profile" -- \
