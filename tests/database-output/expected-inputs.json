@@ -87486,6 +87486,332 @@
         }
       ],
       "trusted_trace_sha256": "91ba681553097aed956f0758bbb9a9d6db516e615a4bdd5354bd1e1f0edba350"
+    },
+    "database-phase-implicit-directory-known-basename-explicit-file": {
+      "template_sha256": "e434237ebb619e3b6413b1998b3af54a90d4cc49361b5ca4336271bab0ebd91c",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "ef0ed8d1bc97a8a072227ad1e45d26f45e8b63c4c902b728d1c8690ab79ac254"
+    },
+    "database-phase-implicit-directory-known-basename-normalized-explicit-file": {
+      "template_sha256": "e434237ebb619e3b6413b1998b3af54a90d4cc49361b5ca4336271bab0ebd91c",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "ef0ed8d1bc97a8a072227ad1e45d26f45e8b63c4c902b728d1c8690ab79ac254"
+    },
+    "database-phase-implicit-directory-known-basename-default-file-control": {
+      "template_sha256": "d57ab54884d75a7b49cc2f54194dc3cc921b3b18a0cece0f7ea8536f408d8dad",
+      "capture_paths": [
+        "."
+      ],
+      "dumps": [
+        {
+          "steps": [
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "defaults"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ],
+            [
+              "add",
+              "2e44454641554c54"
+            ],
+            [
+              "add",
+              "2e"
+            ],
+            [
+              "open",
+              "d0",
+              ".",
+              "before",
+              true
+            ],
+            [
+              "probe",
+              "d0",
+              "474e556d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "6d616b6566696c65",
+              false
+            ],
+            [
+              "probe",
+              "d0",
+              "4d616b6566696c65",
+              true
+            ],
+            [
+              "add",
+              "4d616b6566696c65"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "61727469666163742e6f7574"
+            ],
+            [
+              "add",
+              "616c6c"
+            ],
+            [
+              "add",
+              "252e6f7574"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6d6964646c65"
+            ],
+            [
+              "add",
+              "6172746966616374"
+            ],
+            [
+              "add",
+              "2e5355464649584553"
+            ]
+          ],
+          "directory_roles": {
+            ".": "d0"
+          },
+          "include_line": {
+            "original_hex": "2e494e434c5544455f44495253203a3d202f686f6d652f6a646173696c76612f6769746875622f726d616b652f2e746f6f6c732f6f7261636c652f696e636c756465202f7573722f6c6f63616c2f696e636c756465202f7573722f696e636c756465",
+            "prefix_hex": "2e494e434c5544455f44495253203a3d20",
+            "suffix_hex": ""
+          },
+          "rounding": "nearest"
+        }
+      ],
+      "trusted_trace_sha256": "79e22a45eeda1eeca9de0381a0f2668c9de733d4118775fdad038100a84de927"
     }
   }
 }
