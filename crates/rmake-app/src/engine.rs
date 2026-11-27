@@ -2496,8 +2496,7 @@ impl Engine {
             && !self.remaking
             && self.active_makefile_remake.is_none()
             && !MakefileModes::from_options(&self.options).active()
-            && (self.parallel_jobs.is_empty()
-                || (site == ScopedExpansionSite::RecipeBody && self.one_running_ordinary_recipe()));
+            && (self.parallel_jobs.is_empty() || self.one_running_ordinary_recipe());
         let first_recipe_include = observe_recipe_includes.then_some(self.database.makefiles.len());
         let mut target_reads = TargetReads {
             visits: &self.file_traversals,

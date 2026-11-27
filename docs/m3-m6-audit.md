@@ -173,7 +173,8 @@ NUL boundaries, rebinding and cancellation.
   when the file has no completed visit and the parallel job queue is idle or
   holds one separate ordinary recipe.
   Optional includes from target-specific shell configuration also retain
-  their missing timestamps while the parallel job queue is idle.
+  their missing timestamps while the parallel job queue is idle or holds
+  one separate ordinary recipe.
   The ordinary recipe's exported bindings record the same observation
   while preparing a child environment with an idle queue or one separate
   ordinary recipe running.
