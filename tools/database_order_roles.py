@@ -24,6 +24,11 @@ ROOT = Path(__file__).resolve().parents[1]
 MODELS = ROOT / 'tests/database-order-roles/models.toml'
 CLOCK = re.compile(rb'(?m)^# (Make data base, printed on|Finished Make data base on) ([^\n]{24})$')
 FIXED_NS = 1_600_000_000_000_000_000
+ABSOLUTE_PREREQUISITE = Path('source/middle')
+ABSOLUTE_DIRECTORY_STATES = {
+    'unopened': b'No files, no impossibilities so far.',
+    'scanned': b'3 files, no impossibilities.',
+}
 
 
 @dataclass(frozen=True)
@@ -37,6 +42,7 @@ class Model:
     existing: bool
     explicit_goal: bool
     directory_identity: bool
+    absolute_directory_state: str | None = None
 
 
 def models() -> list[Model]:
@@ -46,29 +52,43 @@ def models() -> list[Model]:
     result = [Model(row['id'], row['makefile'].encode(), tuple(s.encode() for s in row['records']),
                     bytes.fromhex(row['seen_hex']) if 'seen_hex' in row else None,
                     tuple(row.get('flags', [])), row.get('status', 0), row.get('existing', False),
-                    row.get('explicit_goal', True), row.get('directory_identity', False))
+                    row.get('explicit_goal', True), row.get('directory_identity', False),
+                    row.get('absolute_directory_state'))
               for row in raw['case']]
     ids = [model.id for model in result]
     if len(set(ids)) != len(ids) or any(not re.fullmatch(r'[a-z0-9-]+', name) for name in ids):
         raise harness.HarnessError('unsafe or duplicate order-role fixture ID')
+    for model in result:
+        if model.absolute_directory_state is not None and (
+            not model.directory_identity or model.absolute_directory_state not in ABSOLUTE_DIRECTORY_STATES
+        ):
+            raise harness.HarnessError('absolute prerequisite fixture needs both directory identities and a known state')
     return result
 
 
 def fixture(model: Model, path: Path) -> harness.Case:
     path.mkdir()
-    inputs = {name: name.encode() + b'\n' for name in ('n', 'z', 'gate', 'old')}
+    if model.absolute_directory_state is None:
+        inputs = {name: name.encode() + b'\n' for name in ('n', 'z', 'gate', 'old')}
+        args = ('-rR', '-s', '--no-print-directory', '-f', 'Makefile', *model.flags)
+    else:
+        inputs = {ABSOLUTE_PREREQUISITE.as_posix(): b'present\n'}
+        args = ('--no-builtin-rules', '--no-builtin-variables', '--no-print-directory',
+                '--jobs=1', '--print-data-base')
     inputs['Makefile'] = model.makefile
     if model.existing:
         inputs['all'] = b'existing target\n'
     for name, content in inputs.items():
-        (path / name).write_bytes(content)
+        target = path / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
     goals = ('all',) if model.explicit_goal else ()
-    args = ('-rR', '-s', '--no-print-directory', '-f', 'Makefile', *model.flags, *goals)
-    return harness.Case(path, model.id, 'database.order-only-duplicate', 'required', args, 15, {}, {})
+    return harness.Case(path, model.id, 'database.order-only-duplicate', 'required', (*args, *goals), 15, {}, {})
 
 
 def validate_stdout(
-    model: Model, output: bytes, start: int, end: int, directory: tuple[int, int] | None
+    model: Model, output: bytes, start: int, end: int, directory: tuple[int, int] | None,
+    absolute_directory: tuple[Path, int, int] | None = None,
 ) -> bytes:
     clocks = list(CLOCK.finditer(output))
     if [clock[1] for clock in clocks] != [b'Make data base, printed on', b'Finished Make data base on']:
@@ -76,6 +96,18 @@ def validate_stdout(
     opened, closed = (database.parse_clock(clock[2]) for clock in clocks)
     if not start <= opened <= closed <= end:
         raise harness.HarnessError('unexpected positioned ctime fields')
+    if absolute_directory is not None:
+        path, device, inode = absolute_directory
+        name = b'# ' + os.fsencode(path)
+        identity = f' (device {device}, inode {inode}): '.encode()
+        state = ABSOLUTE_DIRECTORY_STATES[model.absolute_directory_state]
+        line = name + identity + state
+        _, opening, remainder = output.partition(b'\n# Directories\n')
+        section, closing, _ = remainder.partition(b'\n# Implicit Rules\n')
+        if not opening or not closing or section.splitlines().count(line) != 1:
+            raise harness.HarnessError('absolute prerequisite directory differs from independent stat or state')
+        output = output.replace(b'\n' + line + b'\n',
+                                b'\n' + name + b' <checked directory identity>: ' + state + b'\n', 1)
     if directory is not None:
         device, inode = directory
         identity = f'# . (device {device}, inode {inode}):'.encode()
@@ -108,6 +140,12 @@ def observe(model: Model, case: harness.Case, runtime: Path, executable: Path) -
                                  'sha256': hashlib.sha256(model.seen).hexdigest()}
     directory_stat = work.stat() if model.directory_identity else None
     directory = (directory_stat.st_dev, directory_stat.st_ino) if directory_stat else None
+    absolute_directory = None
+    if model.absolute_directory_state is not None:
+        prerequisite = work / ABSOLUTE_PREREQUISITE
+        os.utime(prerequisite, ns=(FIXED_NS, FIXED_NS))
+        detail = prerequisite.parent.stat()
+        absolute_directory = (prerequisite.parent, detail.st_dev, detail.st_ino)
     start = database.libc_time()
     argv = [str(runtime / 'bin/make'), *case.args]
     output, error, status, limit, leftovers = harness.capture(argv, work, harness.clean_environment(runtime), case.timeout)
@@ -124,7 +162,15 @@ def observe(model: Model, case: harness.Case, runtime: Path, executable: Path) -
             if directory != (after.st_dev, after.st_ino):
                 raise harness.HarnessError('workspace directory changed during database capture')
             result['workspace_identity'] = directory
-        stable = validate_stdout(model, output, start, end, directory)
+        if absolute_directory is not None:
+            path, device, inode = absolute_directory
+            after = path.stat()
+            if (device, inode) != (after.st_dev, after.st_ino):
+                raise harness.HarnessError('absolute prerequisite directory changed during database capture')
+            if (work / ABSOLUTE_PREREQUISITE).stat().st_mtime_ns != FIXED_NS:
+                raise harness.HarnessError('absolute prerequisite clock changed during database capture')
+            result['absolute_directory_identity'] = {'path': str(path), 'device': device, 'inode': inode}
+        stable = validate_stdout(model, output, start, end, directory, absolute_directory)
         result['positioned_stdout_sha256'] = hashlib.sha256(stable).hexdigest()
     except (harness.HarnessError, ValueError) as error:
         result['error'] = str(error)

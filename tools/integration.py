@@ -221,7 +221,9 @@ def rebuilt_header(project, original):
 
 
 def persist_part(directory, label, value):
-    return integration_records.persist(directory, label, value)
+    record = integration_records.persist(directory, label, value)
+    record['bundle_path'] = Path(record['path']).relative_to(directory.parent).as_posix()
+    return record
 
 
 def build_snapshot_limits(project):
@@ -577,4 +579,7 @@ def main(argv=None, *, verify_reference=None):
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (h.HarnessError, oracle.OracleError, OSError, ValueError, tarfile.TarError) as error:
+        raise SystemExit(f'integration: {error}') from None

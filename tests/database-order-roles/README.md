@@ -40,3 +40,9 @@ Eight implicit secondary expansion cases check target-local `MAKEFLAGS` and
 candidates and rejected candidates followed by a usable rule, with startup
 printing, late printing, question mode and dry-run controls. Each compares the
 complete database and checks that the parent target's local table is unchanged.
+
+Two serial cases check an absolute prerequisite after a reader creates a file.
+They verify both directory identities from independent stat results and
+distinguish an unopened directory from one scanned by `wildcard`. Every
+engine uses the same reset private path, so comparison retains absolute
+spellings, row order, and cache counters.

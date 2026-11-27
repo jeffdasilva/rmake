@@ -12279,14 +12279,23 @@ impl Engine {
                                     .implicit_rule_source(candidate.identity)
                                     .and_then(|(_, source)| source.dependencies.get(index))
                                     .is_some_and(|declared| declared.name.as_slice() == name);
+                            let terminal = candidate.rule.terminal;
+                            let stem_derived = candidate.stem_dependencies.contains(&index);
+                            // A relative prerequisite with a directory component
+                            // is observed even before the first filesystem change.
+                            // A fixed absolute prerequisite in a nonterminal rule
+                            // also needs its own directory observation.
+                            let relative_directory =
+                                !name.starts_with(b"/") && name.contains(&b'/');
                             let refresh_declared_directory = ordinary_local_search
-                                && !candidate.rule.terminal
                                 && !deferred
-                                && !candidate.stem_dependencies.contains(&index)
-                                && !name.starts_with(b"/")
+                                && (relative_directory
+                                    || (!terminal
+                                        && !stem_derived
+                                        && (name.starts_with(b"/")
+                                            || self.filesystem.borrow().generation() != 0)))
                                 && rmake_core::filenames::archive_parts(name).is_none()
                                 && !self.aliases.contains_source_or_destination(name)
-                                && self.filesystem.borrow().generation() != 0
                                 && self.database.rules.get(name).is_some_and(|rule| {
                                     !rule.record_only
                                         && rule.double_colon.is_none()

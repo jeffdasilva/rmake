@@ -774,3 +774,42 @@ all: a.out ;
 records = ["all: a.out"]
 flags = ["-n"]
 directory_identity = true
+
+[[case]]
+id = "implicit-absolute-prerequisite-directory"
+makefile = '''
+$(file >seen,READ)
+all: artifact.out ; @$(file >>seen,ALL):
+%.out: $(CURDIR)/source/middle ; @$(file >>seen,IMPLICIT):
+$(CURDIR)/source/middle: ; @$(file >>seen,MIDDLE):
+'''
+records = ["all: artifact.out"]
+seen_hex = "524541440a494d504c494349540a414c4c0a"
+directory_identity = true
+absolute_directory_state = "unopened"
+
+[[case]]
+id = "implicit-absolute-prerequisite-directory-scanned-control"
+makefile = '''
+$(file >seen,READ)
+CACHE := $(wildcard $(CURDIR)/source/*)
+all: artifact.out ; @$(file >>seen,ALL):
+%.out: $(CURDIR)/source/middle ; @$(file >>seen,IMPLICIT):
+$(CURDIR)/source/middle: ; @$(file >>seen,MIDDLE):
+'''
+records = ["all: artifact.out"]
+seen_hex = "524541440a494d504c494349540a414c4c0a"
+directory_identity = true
+absolute_directory_state = "scanned"
+
+[[case]]
+id = "implicit-absolute-prerequisite-directory-generation-zero"
+makefile = '''
+all: artifact.out ; @$(file >>seen,ALL):
+%.out: $(CURDIR)/source/middle ; @$(file >>seen,IMPLICIT):
+$(CURDIR)/source/middle: ; @$(file >>seen,MIDDLE):
+'''
+records = ["all: artifact.out"]
+seen_hex = "494d504c494349540a414c4c0a"
+directory_identity = true
+absolute_directory_state = "unopened"

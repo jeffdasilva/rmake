@@ -4,7 +4,9 @@ import gzip
 import hashlib
 import io
 import json
+import shutil
 import socket
+import sys
 from pathlib import Path
 import tarfile
 import tempfile
@@ -191,6 +193,28 @@ class IntegrationTests(unittest.TestCase):
         with self.assertRaisesRegex(h.HarnessError, 'identifier'):
             i.archive_for({'id': '../escape'}, Path('/not-written'))
 
+    def test_bootstrap_cli_reports_directory_blocking_cached_archive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cache = root / 'cache'
+            archive = cache / 'zlib-1.3.2.tar.gz'
+            archive.mkdir(parents=True)
+            report = root / 'report.json'
+            sentinel = b'{"previous": true}\n'
+            report.write_bytes(sentinel)
+            previous = report.stat()
+            argv = [sys.executable, '-B', i.__file__, '--bootstrap-only',
+                    '--case', 'zlib-1.3.2', '--cache', str(cache), '--report', str(report)]
+
+            stdout, stderr, status, limit, leftovers = h.capture(argv, root, h.clean_environment(root), 5)
+            self.assertEqual((stdout, status, limit, leftovers), (b'', 1, None, False))
+            self.assertRegex(stderr, rb"\Aintegration: [^\n]*Is a directory[^\n]*zlib-1\.3\.2\.tar\.gz[^\n]*\n\Z")
+            self.assertEqual(list(cache.iterdir()), [archive])
+            self.assertEqual(list(archive.iterdir()), [])
+            self.assertEqual(report.read_bytes(), sentinel)
+            self.assertEqual((report.stat().st_ino, report.stat().st_mtime_ns), (previous.st_ino, previous.st_mtime_ns))
+            self.assertEqual(set(root.iterdir()), {cache, report})
+
     def test_missing_primary_moves_to_fallback_and_retries_transient_dns(self):
         source = b'verified source'
         primary = 'https://example.invalid/primary'
@@ -306,6 +330,34 @@ class IntegrationTests(unittest.TestCase):
                 records.restore(first)
             with self.assertRaisesRegex(h.HarnessError, 'blob changed'):
                 i.persist_part(root, 'third', value)
+
+    def test_report_part_restores_after_copying_the_bundle(self):
+        import base64
+        data = b'\x00\xffportable file\n'
+        value = {'filesystem': {'work/output': {'type': 'file', 'mode': 493,
+                 'content': base64.b64encode(data).decode(), 'size': len(data),
+                 'sha256': hashlib.sha256(data).hexdigest()}}}
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / 'original'
+            parts = source / 'report-raw-test'
+            parts.mkdir(parents=True)
+            record = i.persist_part(parts, 'fresh', value)
+            self.assertEqual(Path(record['path']), parts / 'fresh.json.gz')
+            self.assertEqual(record['bundle_path'], 'report-raw-test/fresh.json.gz')
+            self.assertEqual(json.loads(records.restore(record)), value)
+            report = source / 'report.json'
+            report.write_text(json.dumps({'part': record}))
+
+            relocated = Path(tmp) / 'download'
+            shutil.copytree(source, relocated)
+            shutil.rmtree(source)
+            part = json.loads((relocated / report.name).read_text())['part']
+            self.assertEqual(json.loads(records.restore(part, base=relocated)), value)
+            legacy = {**part, 'path': part['bundle_path']}
+            del legacy['bundle_path']
+            self.assertEqual(json.loads(records.restore(legacy, base=relocated)), value)
+            with self.assertRaisesRegex(h.HarnessError, 'escapes its bundle'):
+                records.restore({**part, 'bundle_path': '../outside.json.gz'}, base=relocated)
 
     def test_archive_metadata_encoding_is_not_mistaken_for_a_file_blob(self):
         value = {'encoding': records.ENCODING, 'sha256': 'record digest', 'raw_bytes': 15}
