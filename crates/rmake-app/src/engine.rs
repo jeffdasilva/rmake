@@ -18643,13 +18643,13 @@ impl Engine {
             {
                 recipe.location.line = line;
             }
+            // This expansion can enable the dump before it opens a source.
             let include_interruption = if parallel
                 && record_expansion_failure
                 && !self.remaking
                 && self.active_makefile_remake.is_none()
                 && !self.options.keep_going
                 && !MakefileModes::from_options(&self.options).active()
-                && self.output.database_requested()
             {
                 if self.parallel_jobs.is_empty() {
                     Some(RecipeExpansionInterruption::Unfinished)

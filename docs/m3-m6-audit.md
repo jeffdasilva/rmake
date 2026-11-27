@@ -176,6 +176,8 @@ NUL boundaries, rebinding and cancellation.
   while the parallel job queue is idle or holds one separate ordinary recipe.
   A parse failure in a required source just opened by that idle recipe
   leaves its parent file unupdated and retains the included source location.
+  The same result is visible when the recipe expansion enables `-p` before
+  opening the malformed source.
   With one launched phony sibling, a required source parse failure also leaves
   the expanding target and its waiting ordinary single-colon ancestors unupdated.
   Optional includes from target-specific shell configuration also retain
