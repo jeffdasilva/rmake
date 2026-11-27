@@ -39,6 +39,12 @@ pub enum TouchCompletion {
     Physical,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RecipeExpansionInterruption {
+    Unfinished,
+    HeldRequiredInclude,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Execution {
     pub ran: bool,
@@ -49,8 +55,8 @@ pub struct Execution {
     pub launch_failed: bool,
     /// A launched ordinary serial child completed unsuccessfully.
     pub failed_serial_child: bool,
-    /// The database observes a failure while expanding a recipe line.
-    pub expansion_failed: bool,
+    /// The database observes a fatal interruption while expanding a recipe line.
+    pub expansion_interruption: Option<RecipeExpansionInterruption>,
     /// A mixed recipe finishes in a simulated mode after starting a command.
     pub simulated_completion_time: bool,
     pub status: Status,

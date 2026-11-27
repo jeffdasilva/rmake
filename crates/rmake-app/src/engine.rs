@@ -15,7 +15,9 @@ pub use startup_exit::{Failure, NativeExit};
 use crate::cli::Options;
 use crate::file_aliases::{AliasKind, Aliases};
 use crate::makefiles::{IncludeSearch, source_open_exhausted};
-use crate::recipe_flow::{Cleanup, Execution, Flow, Shutdown, Status, TouchCompletion};
+use crate::recipe_flow::{
+    Cleanup, Execution, Flow, RecipeExpansionInterruption, Shutdown, Status, TouchCompletion,
+};
 use rmake_core::diagnostic::{
     Diagnostic, ExpansionContext, IncludeError, IncludeFailure, Output, OutputReceiver, ScopeParent,
 };
@@ -346,6 +348,8 @@ enum DatabaseResult {
     ObservedDoubleColon,
     RecipeUnstarted,
     UnfinishedRecipeExpansion,
+    // A fatal required read interrupted this recipe or a prerequisite it awaited.
+    UnfinishedHeldRecipeInclude,
     // A completed archive container merged into an unattempted file record.
     MergedArchiveContainer,
     // A completed ordinary source whose visited destination kept its file stem.
@@ -2561,20 +2565,21 @@ impl Engine {
     }
 
     fn one_running_ordinary_recipe(&self) -> bool {
-        self.parallel_jobs.len() == 1
-            && self
-                .parallel_jobs
-                .primary
-                .iter()
-                .next()
-                .is_some_and(|(name, job)| {
-                    job.child.is_some()
-                        && !job.phony
-                        && !job.recursive
-                        && job.continuation.branch.is_none()
-                        && job.continuation.remake.is_none()
-                        && !self.running_groups.contains_key(name)
-                })
+        self.sole_running_ordinary_recipe()
+            .is_some_and(|job| !job.phony)
+    }
+
+    fn sole_running_ordinary_recipe(&self) -> Option<&ParallelJob> {
+        if self.parallel_jobs.len() != 1 {
+            return None;
+        }
+        let (name, job) = self.parallel_jobs.primary.iter().next()?;
+        (job.child.is_some()
+            && !job.recursive
+            && job.continuation.branch.is_none()
+            && job.continuation.remake.is_none()
+            && !self.running_groups.contains_key(name))
+        .then_some(job)
     }
 
     fn retain_scoped_include_open_times(&mut self, first: usize, include_required: bool) {
@@ -17410,16 +17415,25 @@ impl Engine {
                 continue;
             };
             merge_child(&mut outcome, child);
-            let interrupted_child = match child.database_result {
-                DatabaseResult::UnfinishedUpdate if self.remaking => {
-                    self.required_source_remake().is_some()
+            let interrupted_result = match child.database_result {
+                DatabaseResult::UnfinishedUpdate
+                    if self.remaking && self.required_source_remake().is_some() =>
+                {
+                    Some(DatabaseResult::UnfinishedUpdate)
                 }
-                DatabaseResult::UnfinishedUpdate | DatabaseResult::StoppedAfterChildFailure => {
-                    !self.remaking && !self.parallel_graph()
+                DatabaseResult::UnfinishedUpdate | DatabaseResult::StoppedAfterChildFailure
+                    if !self.remaking && !self.parallel_graph() =>
+                {
+                    Some(DatabaseResult::UnfinishedUpdate)
                 }
-                _ => false,
+                DatabaseResult::UnfinishedHeldRecipeInclude
+                    if !self.remaking && self.parallel_graph() =>
+                {
+                    Some(child.database_result)
+                }
+                _ => None,
             };
-            if interrupted_child
+            if let Some(result) = interrupted_result
                 && !self.options.keep_going
                 && branch.is_none()
                 && group.is_none()
@@ -17428,7 +17442,7 @@ impl Engine {
             {
                 // The stop interrupts each waiting ancestor before GNU
                 // would finish its file update.
-                outcome.database_result = DatabaseResult::UnfinishedUpdate;
+                outcome.database_result = result;
             }
             let order_only = !all_normal && !normal_names.contains(dependency.as_slice());
             let inspected_stale = intermediate_stale
@@ -17815,8 +17829,15 @@ impl Engine {
                     } else {
                         DatabaseResult::StoppedAfterChildFailure
                     };
-                } else if execution.expansion_failed {
-                    outcome.database_result = DatabaseResult::UnfinishedRecipeExpansion;
+                } else if let Some(interruption) = execution.expansion_interruption {
+                    outcome.database_result = match interruption {
+                        RecipeExpansionInterruption::Unfinished => {
+                            DatabaseResult::UnfinishedRecipeExpansion
+                        }
+                        RecipeExpansionInterruption::HeldRequiredInclude => {
+                            DatabaseResult::UnfinishedHeldRecipeInclude
+                        }
+                    };
                 } else if rule.grouped_double_id().is_some()
                     && execution.status == Status::Fatal
                     && !execution.ran
@@ -18603,15 +18624,28 @@ impl Engine {
             {
                 recipe.location.line = line;
             }
-            let first_idle_include = (parallel
+            let include_interruption = if parallel
                 && record_expansion_failure
                 && !self.remaking
                 && self.active_makefile_remake.is_none()
-                && self.parallel_jobs.is_empty()
                 && !self.options.keep_going
                 && !MakefileModes::from_options(&self.options).active()
-                && self.output.database_requested())
-            .then_some(self.database.makefiles.len());
+                && self.output.database_requested()
+            {
+                if self.parallel_jobs.is_empty() {
+                    Some(RecipeExpansionInterruption::Unfinished)
+                } else if self
+                    .sole_running_ordinary_recipe()
+                    .is_some_and(|job| job.phony)
+                {
+                    Some(RecipeExpansionInterruption::HeldRequiredInclude)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            let first_include = self.database.makefiles.len();
             let expansion = self.with_scoped_expansion(
                 Some(&recipe.location),
                 ScopedExpansionSite::RecipeBody,
@@ -18634,25 +18668,33 @@ impl Engine {
                 Err(err) => {
                     self.expansion_error(Some(&recipe.location), &err);
                     let mut execution = Execution::fatal(false);
-                    let failed_required_include = first_idle_include
+                    let failed_required_include = include_interruption
                         .zip(err.location())
-                        .is_some_and(|(first, at)| {
-                            self.database.makefiles.iter().skip(first).any(|file| {
-                                !file.optional
-                                    && !file.missing
-                                    && Some(file.name.as_slice()) == at.file.as_option()
-                            })
+                        .and_then(|(interruption, at)| {
+                            self.database
+                                .makefiles
+                                .iter()
+                                .skip(first_include)
+                                .any(|file| {
+                                    !file.optional
+                                        && !file.missing
+                                        && Some(file.name.as_slice()) == at.file.as_option()
+                                })
+                                .then_some(interruption)
                         });
                     if record_expansion_failure
                         && !self.remaking
-                        && (!parallel || failed_required_include)
+                        && (!parallel || failed_required_include.is_some())
                         && self.output.database_requested()
                         && rmake_core::filenames::archive_parts(target).is_none()
                     {
                         // Earlier expansion effects belong to the file table
                         // even when no recipe command was dispatched.
                         self.retain_database_context(target, branch, &variables);
-                        execution.expansion_failed = true;
+                        execution.expansion_interruption = Some(
+                            failed_required_include
+                                .unwrap_or(RecipeExpansionInterruption::Unfinished),
+                        );
                     }
                     return execution;
                 }
