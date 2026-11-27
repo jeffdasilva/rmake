@@ -83,6 +83,11 @@ to run, and valid controls. German and Japanese use `LANGUAGE` fallback over
 the existing French locale data. The hosted job retains the native AArch64
 reports for both builds.
 
+The [hosted dynamic musl smoke](../.github/workflows/native-musl.yml) also
+checks six C locale models for mixed rules and missing rules before inline
+recipes. It reuses the verified musl reference and records exact transcripts
+and recipe side effects in the existing profile report.
+
 ## Language and profile coverage
 
 The [catalog selection gate](../tests/catalog-coverage/README.md) exercises all
