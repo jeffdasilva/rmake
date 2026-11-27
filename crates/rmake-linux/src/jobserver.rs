@@ -809,6 +809,16 @@ impl Jobserver {
     }
 
     pub fn configure_child(&self, command: &mut Command, recursive: bool) -> io::Result<()> {
+        self.configure_child_with_spool(command, recursive, None)
+    }
+
+    /// Prepare recursive pipe exposure for a child that will receive this spool.
+    pub fn configure_child_with_spool(
+        &self,
+        command: &mut Command,
+        recursive: bool,
+        spool: Option<&crate::output::Spool>,
+    ) -> io::Result<()> {
         if !recursive {
             return Ok(());
         }
@@ -822,13 +832,31 @@ impl Jobserver {
         if let Some([read, write]) = wire {
             let owner = self.clone();
             let [wire_read, wire_write] = self.0.inherited_pipe.unwrap_or([read, write]);
+            let [stdout, stderr] = spool.map_or([None; 2], crate::output::Spool::child_output);
+            // GNU makes the borrowed pair inheritable before redirecting
+            // output. Rust installs redirects before calling this hook.
+            let should_expose = |fd| {
+                self.0.inherited_pipe.is_none()
+                    || match fd {
+                        1 => stdout.is_none(),
+                        2 => stderr.is_none(),
+                        _ => true,
+                    }
+            };
+            let expose_read = should_expose(wire_read);
+            let expose_write = should_expose(wire_write);
             // Only async-signal-safe descriptor operations run after fork.
             unsafe {
                 command.pre_exec(move || {
                     // Keep the endpoints live even if the caller drops its copy.
                     let _owner = &owner;
-                    expose_child_pipe_descriptor(read, wire_read, true)?;
-                    expose_child_pipe_descriptor(write, wire_write, false)
+                    if expose_read {
+                        expose_child_pipe_descriptor(read, wire_read, true)?;
+                    }
+                    if expose_write {
+                        expose_child_pipe_descriptor(write, wire_write, false)?;
+                    }
+                    Ok(())
                 });
             }
         }
