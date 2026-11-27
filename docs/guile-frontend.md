@@ -32,13 +32,15 @@ On native Ubuntu 24.04 it builds the pinned GNU Make 4.4.1 reference, checks
 the Guile feature and records a Scheme scalar result. The required
 [Native AArch64 glibc job](../.github/workflows/native-aarch64.yml) also builds
 the Guile-enabled rmake release with Rust 1.90 and that SDK. It checks the
-candidate architecture and private Guile and GC libraries, then compares twelve
-application models against two reference runs. These cover a scalar result,
-UTF-8 Scheme input under C and C.UTF-8, the public module, and expansion and
-evaluation callbacks with Makefile and recipe effects. Five of the models
-check live converter rebinding during direct results, the public callbacks,
-and successive list elements. The job retains the SDK and reference profiles,
-executable identity, and exact observations.
+candidate architecture and private Guile and GC libraries, then compares
+seventeen application models against two reference runs. These cover a scalar
+result, UTF-8 Scheme input under C and C.UTF-8, the public module, and expansion
+and evaluation callbacks with Makefile and recipe effects. Five models check
+live converter rebinding during direct results, the public callbacks, and
+successive list elements. Five more check public `gmk-var` procedure shape,
+module scope, and expander and formatter rebinding during lookup and conversion.
+The job retains the SDK and reference profiles, executable identity, and exact
+observations.
 The full application and component gates use the x86-64 SDK.
 
 With the default Makefile settings, the enabled binaries are

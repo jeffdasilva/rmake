@@ -784,8 +784,9 @@ inherited jobserver pipe.
 
 The [AArch64 GNU reference workflow](../.github/workflows/guile-aarch64-reference.yml)
 checks the pinned GNU Make 4.4.1 Guile feature and a Scheme scalar result. The
-native AArch64 glibc job uses that SDK and reference to gate twelve application
-models against the enabled rmake release, including five live converter cases.
+native AArch64 glibc job uses that SDK and reference to gate seventeen application
+models against the enabled rmake release, including five live converter cases
+and five public `gmk-var` shape and module binding cases.
 The full application and component gates use the x86-64 glibc SDK.
 
 ## Integration and performance
@@ -806,7 +807,9 @@ GNU Patch and GNU Make itself, with exact comparisons across build, no-op and
 header-rebuild phases and independent executable checks. All 18 pinned
 optimized project comparisons passed after the visited GPATH ownership changes.
 The hosted AArch64 glibc and x86-64 dynamic musl gates also run these phases and
-the checksum check for pinned xxHash 0.8.3.
+the checksum check for pinned xxHash 0.8.3. AArch64 glibc also runs both pinned
+Lua profiles, covering pipe and FIFO jobservers and recovery of a removed
+executable in the pipe profile.
 [Project comparison evidence](https://github.com/jeffdasilva/rmake/pull/775)
 
 The [developer-flow gate](../tests/developer-flows/README.md) exercises the actual

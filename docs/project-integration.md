@@ -117,6 +117,9 @@ recreated with the same bytes and mode and passes the same smoke test. The
 library, companion `luac` executable and existing object files must retain
 their identity and timestamps.
 
+The native AArch64 glibc job runs both Lua profiles with the optimized rmake
+build and uploads the reports for the pipe and FIFO comparisons.
+
 ### GNU gzip, Patch and Make
 
 [GNU gzip 1.14](https://lists.gnu.org/archive/html/info-gnu/2025-04/msg00007.html)
