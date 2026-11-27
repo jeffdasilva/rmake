@@ -164,18 +164,24 @@ def execute_low_wire(root: Path, parent: Path, child: Path, closed_streams: tupl
     wire = (closed_streams + (3, 4))[:2]
     auth = f'--jobserver-auth={wire[0]},{wire[1]}\n'.encode()
     verified_pipe = f'{wire[0]},{wire[1]} same-pipe read-only write-only\n'.encode()
-    output = b'file/access=2/append=1' if mode == 'target' else b'pipe/access=1/append=0'
+    spool = b'file/access=2/append=1'
+    pipe_write = b'pipe/access=1/append=0'
+    output = spool if mode == 'target' else pipe_write
     streams = [b'device/access=2/append=0', output, output]
     for fd in closed_streams:
         if fd == 0 or mode == 'none':
             streams[fd] = b'closed'
-    if forced_mode == 'recurse':
-        streams[1:] = [b'file/access=2/append=1'] * 2
-    elif forced_mode == 'none':
-        streams[1] = b'pipe/access=0/append=0'
+    high_wire = (b'closed', b'closed')
+    if forced_mode is not None:
+        high_wire = (b'pipe/access=0/append=0', pipe_write)
+        for fd, access in zip(wire, high_wire):
+            if fd < 3:
+                streams[fd] = access
+        if forced_mode == 'recurse':
+            streams[1:] = [spool, spool]
     seen = b' '.join(streams) + b'\n'
-    high_wire = b'closed' if forced_mode is None else b'pipe/access=1/append=0'
-    wire_states = b' '.join(streams[fd] if fd < 3 else high_wire for fd in wire) + b'\n'
+    wire_states = b' '.join(streams[fd] if fd < 3 else access
+                            for fd, access in zip(wire, high_wire)) + b'\n'
     state = 'original'
     if reset_jobs is not None:
         state = 'retired' if reset_jobs == 1 else 'replacement'
@@ -192,10 +198,13 @@ def execute_low_wire(root: Path, parent: Path, child: Path, closed_streams: tupl
     if default_style:
         anchors.append(('initial-jobserver', auth))
     if forced_mode is not None:
-        outputs = b'fd1=spool/flags=0 fd2=spool/flags=0' if forced_mode == 'recurse' else (
-            b'fd1=wire/flags=0 fd2=other/flags=0')
+        roles = {1: 'other', 2: 'other'}
+        roles.update(dict.fromkeys(wire, 'wire'))
+        if forced_mode == 'recurse':
+            roles.update({1: 'spool', 2: 'spool'})
+        endpoints = ' '.join(f'fd{fd}={role}/flags=0' for fd, role in sorted(roles.items()))
         anchors.extend([('seen-output-mode', f'-O{forced_mode}\n'.encode()),
-                        ('seen-forced', outputs + b' fd3=wire/flags=0 distinct-outputs\n')])
+                        ('seen-forced', (endpoints + ' distinct-outputs\n').encode())])
     if reset_jobs != 1:
         active_state = 'original' if reset_jobs is None else 'new'
         active = f'{wire[0]},{wire[1]} {active_state} '.encode() + wire_states
@@ -266,9 +275,10 @@ def main() -> int:
                           ((), 'none', 3, 2, 'fifo', '+=', None),
                           ((), 'none', 3, 2, None, ':=', None),
                           ((), 'none', 3, 2, None, '+=', None),
-                          ((), 'none', 3, 3, None, ':=', None),
-                          ((1,), 'none', 2, None, None, '+=', 'none'),
-                          ((1,), 'none', 2, None, None, '+=', 'recurse')])
+                          ((), 'none', 3, 3, None, ':=', None)])
+    wire_profiles.extend((closed, 'none', 2, None, None, '+=', forced_mode)
+                         for closed in ((1,), (2,), (0, 1))
+                         for forced_mode in ('none', 'recurse'))
     for closed_streams, mode, parent_jobs, file_jobs, file_style, file_operator, forced_mode in wire_profiles:
         file_options = dict(parent_jobs=parent_jobs, file_jobs=file_jobs, file_style=file_style,
                             file_operator=file_operator, forced_mode=forced_mode)
