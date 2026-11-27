@@ -133,6 +133,11 @@ A query verdict or an unsuccessful ordinary serial remake leaves
 already-unloaded modules closed. The failure cases include optional sources
 whose recipe fails or whose rule is missing.
 
+The x86-64 dynamic musl smoke gate covers the phony, unconditional double-colon,
+admitted, and mixed remake cases with marker-only modules. The pinned musl
+loader keeps their images mapped after `dlclose`. An admitted reload can repeat
+setup, while each constructor runs once and each finalizer runs at process exit.
+
 Dropping the runtime does not prematurely run shared-library finalizers. At
 process exit, the interpreter stays alive while libc invokes module finalizers
 through the request bridge.

@@ -60,6 +60,18 @@ ORDINARY_CASES = (
 )
 NATIVE_CASES = {'native-setup-result-negative-one',
                 'native-setup-result-negative-one-optional-explicit-and-repeat'}
+# The pinned musl loader keeps images mapped after dlclose. A reload can
+# repeat setup, while constructors and finalizers run once per mapped image.
+MUSL_PRUNED_RELOAD_SEEN = dict.fromkeys(
+    ('native-pruned-remake-reload-phony', 'native-pruned-remake-reload-double-colon'),
+    b'anchor\na:open\na:setup\nreader\nmodule-remake\ngoal\na:close\n',
+) | {
+    'native-pruned-remake-reload-admitted-control': (
+        b'anchor\na:open\na:setup\nreader\nmodule-remake\na:setup\ngoal\na:close\n'),
+    'native-pruned-remake-reload-mixed': (
+        b'anchor\nb:open\nb:setup\na:open\na:setup\nreader\n'
+        b'module-remake:a\nmodule-remake:b\nb:setup\ngoal\na:close\nb:close\n'),
+}
 PARSER_DIAGNOSTIC_CASES = (
     'nls-mixed-pattern-c-eval-normal',
     'nls-mixed-pattern-c-file-static',
@@ -239,6 +251,15 @@ def parser_diagnostic_cases(root, reference, candidate, compiler):
     return report
 
 
+def native_smoke_models():
+    selected = NATIVE_CASES | MUSL_PRUNED_RELOAD_SEEN.keys()
+    models = {model.id: model for model in native_modules.models() if model.id in selected}
+    if models.keys() != selected:
+        raise oracle.OracleError('a selected musl smoke model is unavailable')
+    ordinary = [model for model in models.values() if model.id in NATIVE_CASES]
+    return ordinary + [replace(models[name], seen=seen) for name, seen in MUSL_PRUNED_RELOAD_SEEN.items()]
+
+
 def cases(root, reference, candidate, compiler):
     ordinary = []
     workspace = root / 'ordinary'
@@ -261,9 +282,9 @@ def cases(root, reference, candidate, compiler):
     utf8_wildcard = utf8_wildcard_case(root / 'utf8-wildcard', reference, candidate)
     parser_diagnostics = parser_diagnostic_cases(root / 'parser-diagnostics', reference, candidate, compiler)
 
-    native = [model for model in native_modules.models() if model.id in NATIVE_CASES]
+    native = native_smoke_models()
     restarts = [model for model in process_restarts.models() if model['id'] in RESTART_CASES]
-    if {model.id for model in native} != NATIVE_CASES or {model['id'] for model in restarts} != RESTART_CASES:
+    if {model['id'] for model in restarts} != RESTART_CASES:
         raise oracle.OracleError('a selected musl smoke model is unavailable')
     native_root = root / 'native'
     native_root.mkdir()
