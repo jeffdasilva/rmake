@@ -151,6 +151,7 @@ def models() -> list[Model]:
         result.append(Model('native-recipe-' + kind, {'Makefile': body, 'seen': b'anchor\n'}, {'exit_code': 0, 'stdout_hex': expected.hex(), 'stderr_hex': ''}, b'anchor\nbefore\n'))
     result.extend(lifecycle_models())
     result.extend(reload_order_models())
+    result.extend(optional_remake_reload_models())
     result.extend(setup_result_models())
     result.extend(loader_debug_models())
     result.extend(additional_models())
@@ -313,6 +314,42 @@ def reload_order_models() -> list[Model]:
         model('alias', 'ab', 'ba', alias=True),
         model('aligned-control', 'ba', 'ba'),
     ]
+
+
+def optional_remake_reload_models() -> list[Model]:
+    head = (b'.DEFAULT_GOAL := all\nload module_a.so\n-include optional.mk\n'
+            b'$(file >>seen,reader)\n$(info reader=[$(.LOADED)])\n.PHONY: all\n'
+            b'all: ; @$(file >>seen,goal)/usr/bin/printf "%s\\n" '
+            b'"goal=[$(.LOADED)] restart=[$(MAKE_RESTARTS)]"\n')
+    module_rule = b'module_a.so: seed ; @/usr/bin/printf "module-remake\\n" >>seen\n'
+    optional_recipe = b'optional.mk: ; @$(file >>seen,optional-dispatch)/bin/'
+    entered = b'anchor\na:open\na:setup\nreader\n'
+    remade = b'a:close\nmodule-remake\n'
+    dispatched = b'optional-dispatch\n'
+    reloaded = b'a:open\na:setup\ngoal\na:close\n'
+    models = []
+    for name, remake, optional_rule, marks, loaded in (
+        ('failed-recipe', module_rule, optional_recipe + b'false\n',
+         remade + dispatched + b'goal\n', b'module_a.so'),
+        ('no-rule', module_rule, b'',
+         remade + b'goal\n', b'module_a.so'),
+        ('successful-recipe', module_rule, optional_recipe + b'true\n',
+         remade + dispatched + reloaded, b'module_a.so module_a.so'),
+        ('empty-rule', module_rule, b'optional.mk:\n',
+         remade + reloaded, b'module_a.so module_a.so'),
+        ('current-module', b'', optional_recipe + b'false\n',
+         dispatched + b'goal\na:close\n', b'module_a.so'),
+    ):
+        stdout = b'reader=[module_a.so]\ngoal=[' + loaded + b'] restart=[]\n'
+        models.append(Model(
+            'native-optional-remake-reload-' + name,
+            {'Makefile': head + remake + optional_rule, 'seed': b'newer\n', 'seen': b'anchor\n'},
+            {'exit_code': 0, 'stdout_hex': stdout.hex(), 'stderr_hex': ''},
+            entered + marks, (Module('reload_order.c', 'module_a.so'),),
+            args=('-rR', '--no-print-directory', '-j1', '-s', 'all'),
+            mtimes_ns={'module_a.so': INPUT_TIME_NS, 'seed': INPUT_TIME_NS + 1_000_000_000},
+        ))
+    return models
 
 
 def setup_result_models() -> list[Model]:
