@@ -292,15 +292,15 @@ def cases(root, reference, candidate, compiler):
             'native': native_report, 'process_restarts': restart_report, 'restart_pipe': pipe_report}
 
 
-def xxhash_case(root, reference, candidate, report, verify_reference):
+def project_case(case, root, reference, candidate, report, verify_reference):
     return integration.main(
-        ['--case', 'xxhash-0.8.3', '--oracle', str(reference), '--candidate', str(candidate),
+        ['--case', case, '--oracle', str(reference), '--candidate', str(candidate),
          '--cache', str(root / 'integration-cache'), '--report', str(report)],
         verify_reference=verify_reference,
     ) == 0
 
 
-def run(root, report, revision, *, xxhash_report=None):
+def run(root, report, revision, *, xxhash_report=None, lua_report=None):
     env = oracle.clean_environment()
     loader, compiler, sources = build_sysroot(root, env)
     ucontext, sources['libucontext'] = build_ucontext(root, compiler, loader, env)
@@ -326,14 +326,17 @@ def run(root, report, revision, *, xxhash_report=None):
             raise oracle.OracleError(f'unexpected {name} host metadata or include directory')
     digest = oracle.sha256_file(candidate)
     observations = cases(root, reference, candidate, compiler)
-    if xxhash_report is not None:
-        project = {'report': str(xxhash_report), 'passed': False}
+    for name, case, destination in (('xxhash', 'xxhash-0.8.3', xxhash_report),
+                                    ('lua', 'lua-5.4.9', lua_report)):
+        if destination is None:
+            continue
+        project = {'report': str(destination), 'passed': False}
         try:
-            project['passed'] = xxhash_case(root, reference, candidate, xxhash_report, verify_reference)
+            project['passed'] = project_case(case, root, reference, candidate, destination, verify_reference)
         except (OSError, conformance.HarnessError) as error:
             project['error'] = str(error)
-            print('FAIL xxhash-0.8.3', error, flush=True)
-        observations['xxhash'] = project
+            print('FAIL', case, error, flush=True)
+        observations[name] = project
         observations['passed'] = observations['passed'] and project['passed']
     verify_reference(reference)
     if oracle.sha256_file(candidate) != digest or observe_runtime(candidate, loader=loader, libraries=libraries) != observed:
@@ -351,12 +354,17 @@ def main():
     parser.add_argument('--report', type=Path, required=True)
     parser.add_argument('--xxhash-report', type=Path,
                         help='also compare pinned xxHash using the host compiler and recipe shell')
+    parser.add_argument('--lua-report', type=Path,
+                        help='also compare pinned Lua pipe using the host compiler and recipe shell')
     parser.add_argument('--revision', default=os.environ.get('GITHUB_SHA'))
     args = parser.parse_args()
     report = args.report.resolve()
     xxhash_report = args.xxhash_report.resolve() if args.xxhash_report is not None else None
+    lua_report = args.lua_report.resolve() if args.lua_report is not None else None
     if xxhash_report == report:
         parser.error('--xxhash-report must differ from --report')
+    if lua_report is not None and lua_report in (report, xxhash_report):
+        parser.error('--lua-report must differ from --report and --xxhash-report')
     if (platform.system(), platform.machine()) != ('Linux', 'x86_64'):
         parser.error('the musl smoke profile requires x86-64 Linux')
     try:
@@ -365,7 +373,8 @@ def main():
             # The GCC specs and linker arguments embed this exact directory.
             if not re.fullmatch(r'/[a-zA-Z0-9_./-]+', str(root)):
                 raise oracle.OracleError('the musl work directory must have a simple absolute path')
-            return 0 if run(root, report, args.revision, xxhash_report=xxhash_report) else 1
+            passed = run(root, report, args.revision, xxhash_report=xxhash_report, lua_report=lua_report)
+            return 0 if passed else 1
     except (OSError, subprocess.CalledProcessError, oracle.OracleError, conformance.HarnessError) as error:
         parser.exit(1, f'musl smoke: {error}\n')
 
