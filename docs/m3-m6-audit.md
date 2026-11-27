@@ -184,6 +184,8 @@ NUL boundaries, rebinding and cancellation.
   The ordinary recipe's exported bindings record the same observation
   while preparing a child environment with an idle queue or one separate
   ordinary recipe running.
+  Idle target-specific shell configuration and child export preparation also
+  retain the failed open of a required include.
   An accepted reopen clears that timestamp while preserving the update verdict.
   Startup preloads intern each list operand and the selected read name at their
   respective reader boundaries. The file table probes the normalized name

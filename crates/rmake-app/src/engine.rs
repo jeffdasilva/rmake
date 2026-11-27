@@ -2513,6 +2513,9 @@ impl Engine {
                     RequiredIncludeReads::All
                 }
                 ScopedExpansionSite::RecipeBody => RequiredIncludeReads::Missing,
+                ScopedExpansionSite::ShellConfiguration if self.parallel_jobs.is_empty() => {
+                    RequiredIncludeReads::Missing
+                }
                 _ => RequiredIncludeReads::Ignore,
             };
             (self.database.makefiles.len(), required)
@@ -19265,7 +19268,14 @@ impl Engine {
                     && self.active_makefile_remake.is_none()
                     && (self.parallel_jobs.is_empty() || self.one_running_ordinary_recipe())
                     && !MakefileModes::from_options(&self.options).active())
-                .then_some(self.database.makefiles.len());
+                .then(|| {
+                    let required = if self.parallel_jobs.is_empty() {
+                        RequiredIncludeReads::Missing
+                    } else {
+                        RequiredIncludeReads::Ignore
+                    };
+                    (self.database.makefiles.len(), required)
+                });
                 let direct_heads = self.direct_named_head_reads();
                 let mut target_reads = TargetReads {
                     visits: &self.file_traversals,
@@ -19342,11 +19352,8 @@ impl Engine {
                                 emitted_order.push(name.clone());
                             }
                             Err(err) => {
-                                if let Some(first) = first_export_include {
-                                    self.retain_scoped_include_open_times(
-                                        first,
-                                        RequiredIncludeReads::Ignore,
-                                    );
+                                if let Some((first, required)) = first_export_include {
+                                    self.retain_scoped_include_open_times(first, required);
                                 }
                                 self.expansion_error(variable.definition(), &err);
                                 return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
@@ -19356,8 +19363,8 @@ impl Engine {
                         child.env_remove(os(name));
                     }
                 }
-                if let Some(first) = first_export_include {
-                    self.retain_scoped_include_open_times(first, RequiredIncludeReads::Ignore);
+                if let Some((first, required)) = first_export_include {
+                    self.retain_scoped_include_open_times(first, required);
                 }
                 if !export_selected(
                     &environment_variables,
