@@ -1,0 +1,11 @@
+id = "recipe-executable-prior-launch-parallel-recurse-healthy-permission-control"
+requirement = "process.recipe-executable-path"
+candidate = "required"
+description = "A healthy prior executable leaves the current permission error inside the recipe buffer."
+provenance = "Original Makefile and executable witnesses compared with two exact GNU Make 4.4.1 observations."
+args = ["-rR", "--no-print-directory", "-j2", "-Orecurse", "all"]
+
+[expected]
+exit_code = 2
+stdout = "prior-out\n"
+stderr = "prior-err\nmake: ./noexec: Permission denied\nmake: *** [Makefile:3: all] Error 127\n"

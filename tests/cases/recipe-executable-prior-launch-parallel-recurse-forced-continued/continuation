@@ -1,0 +1,4 @@
+#!/bin/sh
+printf "late-out\n"
+printf "late-err\n" >&2
+: >ran

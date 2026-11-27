@@ -188,6 +188,9 @@ NUL boundaries, rebinding and cancellation.
   the dump also leaves that prerequisite and its waiting single-colon
   ancestors unupdated. A source that opened successfully keeps its physical
   timestamp in the dump.
+  Parallel makefile remakes with a pipe jobserver retain the same interrupted
+  update state when no worker is active or one existing optional source is
+  running a separate recipe.
   A launched child retains its completed failure while its waiting ordinary
   ancestors remain unupdated when traversal stops.
   An ordinary serial keep-going prerequisite consumer samples the failed
@@ -315,7 +318,10 @@ covers mixed required and optional failure policies.
   before pending recipe output, with the failed launch and recipe error
   remaining in their original order inside that output. When a launched
   recipe child exits 127, serial and parallel recipes check the selected
-  path before printing the recipe error.
+  path before printing the recipe error. A parallel recipe continuation
+  also retains the latest launch across a no-child line and ignored
+  launch failures. Target, line and recursive sync keep their respective
+  output dump boundaries around the recheck.
   Cleanup after a real child error follows the existing policy. Archive and remake
   paths and wider scheduler combinations still need qualification.
   [Database phase models](../tests/database-output/phases.json)

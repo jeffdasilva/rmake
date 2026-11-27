@@ -31,6 +31,7 @@ from typing import Any
 import conformance as h
 import database_expected as portable
 import oracle as reference_oracle
+import remake_parallel as held_remake
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ROOT / 'tests/database-output'
@@ -68,6 +69,7 @@ class Model:
     extra_files: tuple[tuple[str, bytes], ...] = ()
     removed_files: tuple[str, ...] = ()
     fixed_input_mtimes: bool = False
+    hold_left_worker: bool = False
 
 
 @dataclass(frozen=True)
@@ -81,6 +83,7 @@ class Execution:
     libc_time_interval: tuple[int, int] | None = None
     expected_inputs: portable.PublicInputs | None = None
     input_mtimes: tuple[dict[str, int | None], dict[str, int | None]] | None = None
+    worker_release: dict[str, Any] | None = None
 
 
 def expected_preparation(profile: dict[str, Any], root: Path) -> portable.Preparation:
@@ -138,7 +141,15 @@ def models(suite: str = 'core') -> list[Model]:
                       row.get('user_variable_count'), row.get('dump_count', 1),
                       tuple(tuple(pair) for pair in row.get('compile_shared', [])),
                       tuple((name, bytes.fromhex(value)) for name, value in row.get('expected_additions_hex', {}).items()),
-                      tuple(row.get('expected_removals', [])), row.get('fixed_input_mtimes', False))
+                      tuple(row.get('expected_removals', [])), row.get('fixed_input_mtimes', False),
+                      row.get('hold_left_worker', False))
+        if not isinstance(model.hold_left_worker, bool):
+            raise h.HarnessError('invalid held database worker selection')
+        if model.hold_left_worker:
+            if not model.stderr or 'worker.py' in model.files:
+                raise h.HarnessError('held database worker requires a diagnostic and the shared worker')
+            worker = (held_remake.SOURCES / 'worker.py').read_bytes()
+            model = replace(model, files={**model.files, 'worker.py': worker})
         safe_relative(model.id)
         for name in model.files:
             safe_relative(name)
@@ -261,6 +272,10 @@ def prepared_stream_errors(model: Model, runtime: Path, execution: Execution) ->
         errors.append('execution bound: ' + observation.limit)
     if observation.leftover_processes:
         errors.append('child cleanup')
+    if model.hold_left_worker and (
+        execution.worker_release is None or execution.worker_release['stderr_hex'] != model.stderr.hex()
+    ):
+        errors.append('required diagnostic before held worker release')
     if model.fixed_input_mtimes:
         expected = dict.fromkeys(model.files, model.fixed_mtime_ns)
         if execution.input_mtimes != (expected, expected):
@@ -355,6 +370,53 @@ def input_mtimes(model: Model, runtime: Path) -> dict[str, int | None]:
     return times
 
 
+class HeldDatabaseWorker:
+    def __init__(self, work: Path):
+        self.work = work
+        self.stderr = b''
+        self.previous = None
+        self.release = None
+
+    def observe_streams(self, _stdout: bytes, stderr: bytes) -> None:
+        self.stderr = stderr
+
+    def observe(self, parent: int, stdout: bytes) -> None:
+        if self.release is not None:
+            return
+        proc = Path('/proc', str(parent))
+        try:
+            channel = (proc / 'wchan').read_text().strip()
+            syscall, blocked = (
+                (None, True) if channel in held_remake.WAIT_CHANNELS
+                else held_remake.poll_wait(proc, channel)
+            )
+            if not blocked:
+                return
+            workers = held_remake.active_workers(parent, proc, ('left',))
+            if set(workers) != {'left'} or (self.work / 'left.started').read_bytes() != b'started\n':
+                return
+            child, start = workers['left']
+            if (proc / 'task' / str(parent) / 'children').read_bytes().split() != [str(child).encode()]:
+                return
+        except (FileNotFoundError, ProcessLookupError):
+            return
+        signature = (child, start, channel, syscall, stdout, self.stderr)
+        if signature != self.previous:
+            self.previous = signature
+            return
+        marker = self.work / 'left.release'
+        if marker.exists() or (self.work / 'left.done').exists():
+            raise h.HarnessError('held database worker escaped its release barrier')
+        # Release a serial regression as well so it can finish and fail the
+        # diagnostic-prefix check without reaching the execution bound.
+        pending = marker.with_suffix('.release.tmp')
+        pending.write_bytes(b'yes\n')
+        pending.chmod(0o644)
+        pending.rename(marker)
+        self.release = {'parent': parent, 'child': child, 'started_at': start, 'wchan': channel,
+                        'poll_syscall': syscall, 'stderr_hex': self.stderr.hex()}
+
+
 def execute(model: Model, case: h.Case, runtime: Path, executable: Path, *,
             expected: portable.Preparation | None = None) -> Execution:
     h.reset_workspace(case, runtime, executable)
@@ -364,8 +426,11 @@ def execute(model: Model, case: h.Case, runtime: Path, executable: Path, *,
     public_before = expected.capture(runtime / "work", plan) if expected is not None and plan is not None else {}
     started = time.time()
     libc_started = libc_time()
+    observer = HeldDatabaseWorker(runtime / 'work') if model.hold_left_worker else None
     stdout, stderr, status, limit, leftovers = h.capture(
-        [str(runtime / 'bin' / 'make'), *case.args], runtime / 'work', h.clean_environment(runtime, case.environment), case.timeout)
+        [str(runtime / 'bin' / 'make'), *case.args], runtime / 'work', h.clean_environment(runtime, case.environment),
+        case.timeout, observe=observer.observe if observer else None,
+        observe_streams=observer.observe_streams if observer else None)
     libc_ended = libc_time()
     ended = time.time()
     after = directory_metadata(model, runtime)
@@ -374,7 +439,9 @@ def execute(model: Model, case: h.Case, runtime: Path, executable: Path, *,
               if expected is not None and plan is not None else None)
     filesystem = h.snapshot({name: runtime / name for name in ('work', 'home', 'tmp')})
     mtimes = (mtimes_before, input_mtimes(model, runtime)) if mtimes_before is not None else None
-    return Execution(h.Observation(stdout, stderr, status, limit, filesystem, leftovers), (started, ended), before, after, (libc_started, libc_ended), public, mtimes)
+    return Execution(h.Observation(stdout, stderr, status, limit, filesystem, leftovers), (started, ended),
+                     before, after, (libc_started, libc_ended), public, mtimes,
+                     observer.release if observer else None)
 
 
 def evidence(execution: Execution) -> dict[str, Any]:
@@ -382,7 +449,8 @@ def evidence(execution: Execution) -> dict[str, Any]:
     return dict(h.observation_json(observation), stdout_hex=observation.stdout.hex(), stderr_hex=observation.stderr.hex(),
                 execution_interval=list(execution.interval), directories_before=execution.directories_before,
                 directories_after=execution.directories_after, libc_time_interval=list(execution.libc_time_interval) if execution.libc_time_interval is not None else None,
-                **({'fixed_input_mtimes_ns': execution.input_mtimes} if execution.input_mtimes is not None else {}))
+                **({'fixed_input_mtimes_ns': execution.input_mtimes} if execution.input_mtimes is not None else {}),
+                **({'held_worker_release': execution.worker_release} if execution.worker_release is not None else {}))
 
 
 def assess(model: Model, runtime: Path, filesystem: dict[str, Any], executions: list[Execution]) -> dict[str, Any]:
@@ -480,7 +548,8 @@ def main(argv: list[str] | None = None) -> int:
         report['source_hashes'] = {name: h.sha256_file(path) for name, path in {
             'driver': Path(__file__), 'models': SOURCES / 'models.toml', 'phases': SOURCES / 'phases.json',
             'search': SOURCES / 'search-spelling.json', 'library': SOURCES / 'library-search.json',
-            'conformance': ROOT / 'tools/conformance.py'}.items()}
+            'conformance': ROOT / 'tools/conformance.py', 'held_remake': Path(held_remake.__file__),
+            'held_worker': held_remake.SOURCES / 'worker.py'}.items()}
         report['source_hashes'].update(expected_source_hashes())
         status = 0 if report['passed'] else 1
     except (h.HarnessError, reference_oracle.OracleError, OSError, ValueError, KeyError) as error:
