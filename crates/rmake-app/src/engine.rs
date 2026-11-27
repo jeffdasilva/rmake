@@ -6413,16 +6413,17 @@ impl Engine {
             // serial remake leaves already-unloaded objects closed.
             if !remake_question && (!ordinary_serial_remake || !unsuccessful_remake) {
                 let mut modules = crate::native::unloaded();
-                if modules.len() > 1 && ordinary_serial_remake {
+                if !modules.is_empty() && ordinary_serial_remake {
                     let mut pending: HashSet<_> = modules.iter().map(Vec::as_slice).collect();
                     let read_order: Vec<_> = read_files
                         .iter()
-                        .filter(|(file, skipped)| !*skipped && pending.remove(file.name.as_slice()))
+                        .filter(|(file, _)| pending.remove(file.name.as_slice()))
+                        .filter(|(_, skipped)| !*skipped)
                         .map(|(file, _)| file.name.clone())
                         .collect();
                     if pending.is_empty() {
-                        // An unchanged serial remake reloads the admitted
-                        // read records in order, regardless of dependency order.
+                        // Known skipped records stay unloaded. The admitted
+                        // records reload in read order.
                         modules = read_order;
                     }
                 }

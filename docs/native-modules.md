@@ -124,9 +124,11 @@ module and its `.LOADED` entry while excluding it from automatic Makefile
 remaking. An explicit goal can still rebuild the module.
 
 A module is unloaded before its recipe expands. After a successful ordinary
-serial remake that leaves the source unchanged, the module reloads in the
-current process. When every unloaded module has an admitted read record, the
-modules reload in read order. Remake dependencies still determine unload order.
+serial remake that leaves the sources unchanged, admitted modules reload in
+read order when every unloaded module has a read record. Remake dependencies
+still determine unload order. In that case, a phony or unconditional
+double-colon module pruned from the read chain stays closed even when it ran
+as a prerequisite of another makefile.
 A query verdict or an unsuccessful ordinary serial remake leaves
 already-unloaded modules closed. The failure cases include optional sources
 whose recipe fails or whose rule is missing.
