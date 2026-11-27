@@ -195,6 +195,10 @@ NUL boundaries, rebinding and cancellation.
   Fatal recipe expansion in an idle explicit single-colon group leaves the
   selected member and its unvisited peers unupdated. The selected member
   retains its observed timestamp.
+  For a missing target with two plain double-colon declarations, the interrupted
+  branch remains unupdated. On a stop in the second branch, the earlier
+  successful row keeps its own clock phase, including unchecked time after an
+  optimized recipe.
   Startup preloads intern each list operand and the selected read name at their
   respective reader boundaries. The file table probes the normalized name
   before entering the selected spelling when the probe misses.
