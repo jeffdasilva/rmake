@@ -1,0 +1,3 @@
+#!/bin/sh
+printf "child\n"
+{ : > "$0"; exit 0; }
