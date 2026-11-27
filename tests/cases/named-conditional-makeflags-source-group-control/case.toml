@@ -1,0 +1,12 @@
+id = "named-conditional-makeflags-source-group-control"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "An ordinary grouped rule can follow a separate named conditional."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--no-print-directory", "--jobs=1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 0
+stdout = "READ_START\nREAD_END\nRECIPE\n"
+stderr = ""

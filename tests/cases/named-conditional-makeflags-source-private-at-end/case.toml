@@ -1,0 +1,12 @@
+id = "named-conditional-makeflags-source-private-at-end"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "A private conditional at the end of the expanded flag bytes still has no next assignment."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--no-print-directory", "--jobs=1", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ_START\n"
+stderr = "Makefile:2: *** Malformed target-specific variable definition.  Stop.\n"

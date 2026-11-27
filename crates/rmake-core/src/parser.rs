@@ -2788,6 +2788,7 @@ enum ConditionalCommandDestination {
 
 struct TargetAssignment<'a> {
     spec: AssignmentSpec<'a>,
+    name_offset: usize,
     origin: Origin,
     private: bool,
     export: Option<bool>,
@@ -2832,6 +2833,7 @@ fn target_assignment(tail: &[u8], syntax_end: usize) -> Option<TargetAssignment<
             spec.value = &tail[syntax_end - spec.value.len()..];
             return Some(TargetAssignment {
                 spec,
+                name_offset: syntax_end - bytes.len(),
                 origin,
                 private,
                 export,
@@ -2853,6 +2855,20 @@ fn target_assignment(tail: &[u8], syntax_end: usize) -> Option<TargetAssignment<
             return None;
         }
     }
+}
+
+fn literal_named_target_pair(targets: &[u8]) -> bool {
+    let Some(separator) = targets.iter().position(|&byte| byte == b' ') else {
+        return false;
+    };
+    let (first, second) = (&targets[..separator], &targets[separator + 1..]);
+    first != second
+        && [first, second].into_iter().all(|name| {
+            name.first().is_some_and(u8::is_ascii_alphanumeric)
+                && name
+                    .iter()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        })
 }
 
 // Assignment syntax uses C whitespace at the start of names/values, but only
@@ -3440,19 +3456,22 @@ impl Database {
         origin: Origin,
         named_target: Option<&[u8]>,
         mut context: ExpansionContext<'_>,
-    ) -> Result<(), ExpandError> {
+    ) -> Result<usize, ExpandError> {
         let encoded_overrides = self
             .variables
             .get(b"MAKEFLAGS")
             .is_some_and(|variable| Self::has_command_overrides_reference(variable.raw_value()));
         let value = self.expand_with(b"$(MAKEFLAGS)", context.reborrow())?;
-        context.update_makeflags_in(self, origin, value, encoded_overrides, named_target)
+        let extent = value.len();
+        context.update_makeflags_in(self, origin, value, encoded_overrides, named_target)?;
+        Ok(extent)
     }
 
     fn define_target_assignments(
         &mut self,
         targets: &[u8],
         assignment: TargetAssignment<'_>,
+        flag_source_offset: Option<usize>,
         location: &Location,
         context: &mut ExpansionContext<'_>,
     ) -> Result<bool, ParseError> {
@@ -3461,7 +3480,17 @@ impl Database {
             .parsed_rule_filenames(&targets, location, context)?
             .collect::<Vec<_>>();
         let has_targets = !targets.is_empty();
+        let mut flag_source_offset = flag_source_offset.filter(|_| {
+            self.loaded_modules.is_empty()
+                && targets.iter().all(|target| {
+                    self.rules
+                        .get(target.as_ref())
+                        .is_none_or(|rule| rule.double_colon.is_none() && rule.group.is_none())
+                })
+        });
+        let mut malformed_following_flags = false;
         for target in targets {
+            let flag_source_offset = flag_source_offset.take();
             let target = target.as_ref();
             let pattern = Pattern::new(target);
             if pattern.has_wildcard() {
@@ -3532,6 +3561,13 @@ impl Database {
                         scope
                     })
             };
+            if malformed_following_flags {
+                return Err(ParseError::system(
+                    location.clone(),
+                    Message::MalformedTargetAssignment,
+                    context,
+                ));
+            }
             let (scope, name) = if raw_name.is_empty() || raw_name.contains(&b'$') {
                 let mut parse_variables = scope.context(&self.variables);
                 let name = self.with_target_read(
@@ -3691,13 +3727,15 @@ impl Database {
                         target,
                         &mut declarations,
                         &assignment,
+                        flag_source_offset,
                         context.at(Some(location)),
                     )
                     .map_err(parse_error)?;
                 let scope = declaration
                     .scope_mut(&mut self.target_scopes, &mut self.detached_heads)
                     .expect("target declaration");
-                if let Some(owner) = replayed {
+                if let Some((owner, malformed)) = replayed {
+                    malformed_following_flags = malformed;
                     scope.retain_read_bindings(&declarations);
                     if matches!(owner, ConditionalFlagBinding::Global) {
                         self.variables
@@ -4068,27 +4106,50 @@ impl Database {
         target: &[u8],
         declarations: &mut VariableStore,
         assignment: &TargetAssignment<'_>,
+        flag_source_offset: Option<usize>,
         context: ExpansionContext<'_>,
-    ) -> Result<Option<ConditionalFlagBinding>, ExpandError> {
+    ) -> Result<Option<(ConditionalFlagBinding, bool)>, ExpandError> {
         let active = self
             .evaluation_scope
             .as_ref()
             .is_some_and(|scope| scope.is_file_read_context(target));
         self.with_target_read(target, declarations, context, |database, read, context| {
             let owner = read.conditional_flag_binding(database.canonical_flags_published);
-            if read.get(b"MAKEFLAGS").is_none()
+            let flags = read.get(b"MAKEFLAGS");
+            if flags.is_none()
                 || matches!(owner, ConditionalFlagBinding::Ordinary)
                 || (!active && !matches!(owner, ConditionalFlagBinding::Global))
             {
                 return Ok(None);
             }
+            let flag_source_offset = flag_source_offset.filter(|_| {
+                database.canonical_flags_published
+                    && matches!(owner, ConditionalFlagBinding::Global)
+                    && read.get(b".INCLUDE_DIRS").is_some_and(|dirs| {
+                        dirs.origin() == Origin::Default && dirs.flavor() == Flavor::Simple
+                    })
+                    && flags.is_some_and(|flags| {
+                        flags.origin() == Origin::File
+                            && flags.definition().is_none()
+                            && flags.flavor() == Flavor::Recursive
+                            && !flags
+                                .raw_value()
+                                .iter()
+                                .any(|byte| matches!(byte, b'$' | b'=' | 0))
+                            && !flags.raw_value().windows(2).any(|pair| pair == b"-I")
+                    })
+            });
             let destination = (!matches!(owner, ConditionalFlagBinding::Current)).then_some(target);
             database.evaluation_scope = Some(std::mem::take(read));
             let result = database.reset_assigned_flags(assignment.origin, destination, context);
             *read = database.evaluation_scope.take().expect("named flag scope");
-            result?;
+            let extent = result?;
             read.qualify_named_flags(owner, assignment.private, assignment.export);
-            Ok(Some(owner))
+            // GNU inserts one byte before the attached colon and writes a
+            // second terminator when expanding the flags. Those bytes cancel
+            // when comparing the literal name offset to the expanded length.
+            let malformed = flag_source_offset.is_some_and(|offset| offset <= extent);
+            Ok(Some((owner, malformed)))
         })
     }
 
@@ -6193,8 +6254,26 @@ impl Database {
                     }
                 };
                 if let Some(assignment) = target_assignment(assignment_tail, syntax_end) {
-                    declaration.ignore_recipes =
-                        !self.define_target_assignments(targets, assignment, &location, context)?;
+                    let flag_source_offset = (evaluated_at.is_none()
+                        && !delimiter.grouped
+                        && !delimiter.double_colon
+                        && assignment.spec.kind == Assignment::Conditional
+                        && assignment.spec.name == b"MAKEFLAGS"
+                        && prefix_tail_len == 0
+                        && syntax_end == raw_tail.len()
+                        && raw_tail[..assignment.name_offset]
+                            .iter()
+                            .all(|byte| byte.is_ascii_lowercase() || *byte == b' ')
+                        && prefix_expansion.expanded == text[..prefix_expansion.consumed]
+                        && literal_named_target_pair(targets))
+                    .then_some(delimiter.tail_start + assignment.name_offset);
+                    declaration.ignore_recipes = !self.define_target_assignments(
+                        targets,
+                        assignment,
+                        flag_source_offset,
+                        &location,
+                        context,
+                    )?;
                     continue;
                 }
                 if rescan_prefix {

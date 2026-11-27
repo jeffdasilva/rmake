@@ -40,6 +40,7 @@ pub enum MessageId {
     DuplicateElse,
     MissingEndif,
     EmptyVariableName,
+    MalformedTargetAssignment,
     MissingEndef,
     UnterminatedReference,
     RecursiveVariable,
@@ -124,7 +125,7 @@ pub enum MessageId {
 }
 
 impl MessageId {
-    pub const ALL: [Self; 114] = [
+    pub const ALL: [Self; 115] = [
         Self::Stop,
         Self::MissingSeparator,
         Self::MissingSeparatorTabs,
@@ -158,6 +159,7 @@ impl MessageId {
         Self::DuplicateElse,
         Self::MissingEndif,
         Self::EmptyVariableName,
+        Self::MalformedTargetAssignment,
         Self::MissingEndef,
         Self::UnterminatedReference,
         Self::RecursiveVariable,
@@ -307,6 +309,7 @@ impl MessageId {
             Self::DuplicateElse => Message::DuplicateElse,
             Self::MissingEndif => Message::MissingEndif,
             Self::EmptyVariableName => Message::EmptyVariableName,
+            Self::MalformedTargetAssignment => Message::MalformedTargetAssignment,
             Self::MissingEndef => Message::MissingEndef,
             Self::UnterminatedReference => Message::UnterminatedReference,
             Self::RecursiveVariable => Message::RecursiveVariable(b"variable"),
@@ -544,6 +547,7 @@ impl MessageId {
             Self::DuplicateElse => c"only one 'else' per conditional",
             Self::MissingEndif => c"missing 'endif'",
             Self::EmptyVariableName => c"empty variable name",
+            Self::MalformedTargetAssignment => c"Malformed target-specific variable definition",
             Self::MissingEndef => c"missing 'endef', unterminated 'define'",
             Self::UnterminatedReference => c"unterminated variable reference",
             Self::RecursiveVariable => c"Recursive variable '%s' references itself (eventually)",
@@ -761,6 +765,7 @@ pub enum Message<'a> {
     DuplicateElse,
     MissingEndif,
     EmptyVariableName,
+    MalformedTargetAssignment,
     MissingEndef,
     UnterminatedReference,
     RecursiveVariable(&'a [u8]),
@@ -958,6 +963,7 @@ impl<'a> Message<'a> {
             Self::DuplicateElse => MessageId::DuplicateElse,
             Self::MissingEndif => MessageId::MissingEndif,
             Self::EmptyVariableName => MessageId::EmptyVariableName,
+            Self::MalformedTargetAssignment => MessageId::MalformedTargetAssignment,
             Self::MissingEndef => MessageId::MissingEndef,
             Self::UnterminatedReference => MessageId::UnterminatedReference,
             Self::RecursiveVariable(_) => MessageId::RecursiveVariable,
@@ -1101,6 +1107,7 @@ impl<'a> Message<'a> {
             | Self::DuplicateElse
             | Self::MissingEndif
             | Self::EmptyVariableName
+            | Self::MalformedTargetAssignment
             | Self::MissingEndef
             | Self::UnterminatedReference
             | Self::LoadLimitUnsupported

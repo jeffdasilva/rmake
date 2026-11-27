@@ -1,0 +1,12 @@
+id = "named-conditional-makeflags-source-longer-flags-failure"
+requirement = "scope.target-specific"
+candidate = "required"
+description = "One extra byte in actual canonical flags reaches the same assignment and stops reading."
+provenance = "Original rmake fixture, independently qualified against pinned GNU Make."
+args = ["--no-builtin-rules", "--no-builtin-variables", "--no-print-directory", "--jobs=1", "--silent", "all"]
+timeout_seconds = 5
+
+[expected]
+exit_code = 2
+stdout = "READ_START\n"
+stderr = "Makefile:2: *** Malformed target-specific variable definition.  Stop.\n"
