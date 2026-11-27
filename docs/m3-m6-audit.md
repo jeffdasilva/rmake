@@ -190,6 +190,8 @@ NUL boundaries, rebinding and cancellation.
   retain the failed open of a required include.
   An accepted reopen, including a required read from those idle preparation
   sites, clears that timestamp while preserving the update verdict.
+  A newly opened required source that fails parsing during idle command
+  preparation leaves the target unupdated before any recipe command starts.
   Startup preloads intern each list operand and the selected read name at their
   respective reader boundaries. The file table probes the normalized name
   before entering the selected spelling when the probe misses.

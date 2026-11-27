@@ -2619,6 +2619,14 @@ impl Engine {
         }
     }
 
+    fn failed_new_required_include(&self, first: usize, error: &ExpandError) -> bool {
+        error.location().is_some_and(|at| {
+            self.database.makefiles.iter().skip(first).any(|file| {
+                !file.optional && !file.missing && Some(file.name.as_slice()) == at.file.as_option()
+            })
+        })
+    }
+
     fn retain_include_open_time(&mut self, name: Vec<u8>, opened: bool) {
         if self.assumed_time(&name).is_some()
             || self.aliases.contains_source_or_destination(&name)
@@ -18688,19 +18696,7 @@ impl Engine {
                     self.expansion_error(Some(&recipe.location), &err);
                     let mut execution = Execution::fatal(false);
                     let failed_required_include = include_interruption
-                        .zip(err.location())
-                        .and_then(|(interruption, at)| {
-                            self.database
-                                .makefiles
-                                .iter()
-                                .skip(first_include)
-                                .any(|file| {
-                                    !file.optional
-                                        && !file.missing
-                                        && Some(file.name.as_slice()) == at.file.as_option()
-                                })
-                                .then_some(interruption)
-                        });
+                        .filter(|_| self.failed_new_required_include(first_include, &err));
                     if record_expansion_failure
                         && !self.remaking
                         && (!parallel || failed_required_include.is_some())
@@ -18959,6 +18955,22 @@ impl Engine {
         (execution, owner.permit)
     }
 
+    fn failed_recipe_preparation(
+        &self,
+        ran: bool,
+        flow: &Flow,
+        first_include: Option<usize>,
+        error: &ExpandError,
+    ) -> Execution {
+        let mut execution = Execution::fatal(ran).with_recursion(!flow.has_ordinary());
+        if self.output.database_requested()
+            && first_include.is_some_and(|first| self.failed_new_required_include(first, error))
+        {
+            execution.expansion_interruption = Some(RecipeExpansionInterruption::Unfinished);
+        }
+        execution
+    }
+
     fn continue_recipe_inner(
         &mut self,
         target: &[u8],
@@ -19007,6 +19019,32 @@ impl Engine {
                 command = trim_leading(&command[1..]);
             }
             flow.visit(index, force);
+            let observe_preparation_failure = !ran
+                && !force
+                && !command.is_empty()
+                && !one_shell
+                && self.output.mode() == crate::output::Mode::None
+                && branch.is_none()
+                && remake.is_none()
+                && self.ordinary_include_open_times
+                && !self.remaking
+                && self.active_makefile_remake.is_none()
+                && self.parallel_jobs.is_empty()
+                && !self.running_groups.contains_key(target)
+                && rmake_core::filenames::archive_parts(target).is_none()
+                && !self.options.keep_going
+                && !MakefileModes::from_options(&self.options).active()
+                && if parallel {
+                    self.jobserver.as_ref().is_some_and(|server| {
+                        server.owned_slots() == Some(2)
+                            && !server.uses_compact_pipe()
+                            && !server.auth().starts_with(b"fifo:")
+                    })
+                } else {
+                    self.jobserver.is_none() && self.options.jobs.unwrap_or(1) == 1
+                };
+            let first_configuration_include =
+                observe_preparation_failure.then_some(self.database.makefiles.len());
             // GNU expands configuration before a dry-run/query decision, after
             // all recipe bodies have expanded. A nonempty expansion consisting
             // only of blanks/modifiers still reaches configuration; a zero-byte
@@ -19062,7 +19100,12 @@ impl Engine {
                         output.as_ref(),
                     );
                     self.retain_configuration_abort(&mut owner.permit, &err);
-                    return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
+                    return self.failed_recipe_preparation(
+                        ran,
+                        &flow,
+                        first_configuration_include,
+                        &err,
+                    );
                 }
             };
             let shell = shell.as_slice();
@@ -19263,6 +19306,8 @@ impl Engine {
                     .collect();
                 let mut emitted_order = Vec::new();
                 let mut inherited_mflags = false;
+                let first_required_export_include =
+                    observe_preparation_failure.then_some(self.database.makefiles.len());
                 let first_export_include = (self.ordinary_include_open_times
                     && !self.remaking
                     && self.active_makefile_remake.is_none()
@@ -19356,7 +19401,12 @@ impl Engine {
                                     self.retain_scoped_include_open_times(first, required);
                                 }
                                 self.expansion_error(variable.definition(), &err);
-                                return Execution::fatal(ran).with_recursion(!flow.has_ordinary());
+                                return self.failed_recipe_preparation(
+                                    ran,
+                                    &flow,
+                                    first_required_export_include,
+                                    &err,
+                                );
                             }
                         }
                     } else {
