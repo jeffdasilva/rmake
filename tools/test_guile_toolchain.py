@@ -7,12 +7,25 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 import urllib.error
 from unittest.mock import MagicMock, patch
 
 import guile_frontend_gate as frontend
 import guile_toolchain as g
+
+
+def reference_fixture(root):
+    archive = root / '.tools/downloads/make-4.4.1.tar.gz'
+    archive.parent.mkdir(parents=True)
+    archive.write_bytes(b'locked GNU input')
+    lock = root / 'oracle/guile/toolchain.json'
+    lock.parent.mkdir(parents=True)
+    lock.write_bytes(b'locked SDK input')
+    source_identity = g.digest(archive.read_bytes())
+    (root / 'oracle/manifest.json').write_text(json.dumps({'archive': {'sha256': source_identity}}))
+    return lock, source_identity
 
 
 class GuileToolchainTests(unittest.TestCase):
@@ -168,19 +181,13 @@ class GuileToolchainTests(unittest.TestCase):
             destination = root / 'sdk'
             references = destination / 'references'
             references.mkdir(parents=True)
-            archive = root / '.tools/downloads/make-4.4.1.tar.gz'
-            archive.parent.mkdir(parents=True)
-            archive.write_bytes(b'locked GNU input')
-            lock = root / 'oracle/guile/toolchain.json'
-            lock.parent.mkdir(parents=True)
-            lock.write_bytes(b'locked SDK input')
-            source_identity = g.digest(archive.read_bytes())
-            (root / 'oracle/manifest.json').write_text(json.dumps({'archive': {'sha256': source_identity}}))
+            lock, source_identity = reference_fixture(root)
             inputs = {
                 'source_sha256': source_identity,
                 'tool_lock_sha256': g.digest(lock.read_bytes()),
                 'compiler_sha256': g.digest(Path('/usr/bin/cc').read_bytes()),
                 'destination': str(destination),
+                'host_runtime_dependencies': [],
             }
             binary = root / 'reference-make'
             binary.write_bytes(b'verified build')
@@ -195,7 +202,9 @@ class GuileToolchainTests(unittest.TestCase):
             record = json.dumps(profile, indent=2).encode() + b'\n'
             (references / (key + '.json')).write_bytes(record)
             alias = destination / 'reference-profile.json'
-            with patch.object(g, 'ROOT', root), patch.object(g, 'LOCK', lock), patch.object(g.subprocess, 'run') as execute:
+            with (patch.object(g, 'ROOT', root), patch.object(g, 'lock_path', return_value=lock),
+                  patch.object(g, 'sdk_host_runtime_dependencies', return_value=[]),
+                  patch.object(g.subprocess, 'run') as execute):
                 for old in (None, b'{"stale":true}\n'):
                     with self.subTest(previous=old):
                         alias.unlink(missing_ok=True)
@@ -210,6 +219,78 @@ class GuileToolchainTests(unittest.TestCase):
                     g.build_reference(destination)
                 self.assertEqual(alias.read_bytes(), b'must not republish')
                 execute.assert_not_called()
+
+    def test_changed_host_runtime_builds_and_publishes_a_fresh_reference(self):
+        with tempfile.TemporaryDirectory(prefix='rmake-guile-runtime-') as tmp:
+            root = Path(tmp)
+            destination = root / 'sdk'
+            lock, _ = reference_fixture(root)
+            source = root / 'source'
+            source.mkdir()
+            host_libc, host_libm = root / 'libc.so.6', root / 'libm.so.6'
+            host_libc.write_bytes(b'original libc')
+            host_libm.write_bytes(b'unchanged libm')
+            linked_libc = root / 'libc-link.so.6'
+            linked_libc.symlink_to(host_libc)
+            alias = destination / 'reference-profile.json'
+            smoke = b'FEATURES=[guile]\nRESULT=[42]\n'
+            previous = None
+            install = None
+
+            def compile_reference(command, **_):
+                nonlocal install
+                if Path(command[0]).name == 'configure':
+                    install = Path(command[1].removeprefix('--prefix='))
+                if command[-1] == 'install':
+                    binary = install / 'bin/make'
+                    binary.parent.mkdir()
+                    binary.write_bytes(b'verified reference')
+
+            def observe(command, **_):
+                if command[0] == '/usr/bin/ldd':
+                    libraries = [(host_libm, host_libm), (host_libc, linked_libc), (private, private)]
+                    stdout = ''.join(f'{name.name} => {path} (0x123)\n' for name, path in libraries)
+                    return SimpleNamespace(stdout=stdout.encode(), stderr=b'')
+                self.assertEqual(Path(command[0]), install / 'bin/make')
+                if previous is not None:
+                    self.assertEqual(alias.read_bytes(), previous)
+                return SimpleNamespace(stdout=smoke, stderr=b'')
+
+            with (patch.object(g, 'ROOT', root), patch.object(g, 'lock_path', return_value=lock),
+                  patch.object(g.oracle, 'safe_extract', return_value=source),
+                  patch.object(g.subprocess, 'run', side_effect=compile_reference) as build,
+                  patch.object(g, 'run', side_effect=observe)):
+                private = g.prefix_for(destination) / 'usr/lib/libguile.so'
+                private.parent.mkdir(parents=True)
+                private.write_bytes(b'locked private library')
+                old = g.build_reference(destination)
+                previous = alias.read_bytes()
+                old_binary = Path(old['binary']['path'])
+                old_record = old_binary.parents[1].with_suffix('.json')
+                host_libc.write_bytes(b'replacement libc')
+
+                smoke = b'failed smoke\n'
+                with self.assertRaisesRegex(g.ProfileError, 'enabled GNU reference capability'):
+                    g.build_reference(destination)
+                self.assertEqual(alias.read_bytes(), previous)
+                self.assertEqual(old_record.read_bytes(), previous)
+
+                smoke = b'FEATURES=[guile]\nRESULT=[42]\n'
+                current = g.build_reference(destination)
+                self.assertNotEqual(current['binary']['path'], old['binary']['path'])
+                self.assertEqual(current['inputs']['host_runtime_dependencies'], [
+                    {'path': str(path), 'sha256': g.digest(path.read_bytes())}
+                    for path in (host_libc, host_libm)
+                ])
+                self.assertEqual(old_record.read_bytes(), previous)
+                self.assertEqual(old_binary.read_bytes(), b'verified reference')
+                self.assertEqual(json.loads(alias.read_bytes()), current)
+
+                build.reset_mock()
+                alias.unlink()
+                self.assertEqual(g.build_reference(destination), current)
+                self.assertEqual(json.loads(alias.read_bytes()), current)
+                build.assert_not_called()
 
     def test_frontend_gate_cannot_inherit_single_child_selectors(self):
         selectors = {
