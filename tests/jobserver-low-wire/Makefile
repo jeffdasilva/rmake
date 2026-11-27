@@ -2,4 +2,4 @@
 # Copyright 2026 Jeff DaSilva
 
 all:
-	+@$(file >parent-auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))$(CHILD) -f Child.mk child
+	+@$(file >parent-auth,$(filter --jobserver-auth=%,$(MAKEFLAGS)))/usr/bin/python3 witness.py submake $(CHILD)
