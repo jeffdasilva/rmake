@@ -12283,7 +12283,6 @@ impl Engine {
                                 && !candidate.rule.terminal
                                 && !deferred
                                 && !candidate.stem_dependencies.contains(&index)
-                                && !name.starts_with(b"/")
                                 && rmake_core::filenames::archive_parts(name).is_none()
                                 && !self.aliases.contains_source_or_destination(name)
                                 && self.filesystem.borrow().generation() != 0
